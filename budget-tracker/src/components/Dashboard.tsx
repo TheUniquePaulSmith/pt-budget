@@ -28,6 +28,8 @@ import {
   Upload,
   Download,
   Settings,
+  Save,
+  Close,
 } from '@mui/icons-material';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
@@ -102,12 +104,20 @@ const Dashboard: React.FC = () => {
     getMonthlyTrends,
     exportDatabase,
     refreshTransactions,
-  } = useDatabaseContext();  const [tabValue, setTabValue] = useState(0);
+    isDatabaseLoaded,
+  } = useDatabaseContext();const [tabValue, setTabValue] = useState(0);
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');  
-  const [addTransactionOpen, setAddTransactionOpen] = useState(false);
-  const [csvImportOpen, setCsvImportOpen] = useState(false);
+  const [addTransactionOpen, setAddTransactionOpen] = useState(false);  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [manageDataOpen, setManageDataOpen] = useState(false);
-  const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
+  const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);  const [autoSaveFileHandle, setAutoSaveFileHandle] = useState<FileSystemFileHandle | null>(null);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
+
+  // Refresh transactions when database is loaded
+  React.useEffect(() => {
+    if (isDatabaseLoaded) {
+      refreshTransactions();
+    }
+  }, [isDatabaseLoaded, refreshTransactions]);
 
   // Calculate date ranges
   const dateRanges = useMemo(() => {
@@ -187,7 +197,6 @@ const Dashboard: React.FC = () => {
       expenses: data.map(item => item.expense),
     };
   }, [getMonthlyTrends]);
-
   const handleExportDatabase = () => {
     const dbData = exportDatabase();
     if (dbData) {
@@ -202,6 +211,66 @@ const Dashboard: React.FC = () => {
       URL.revokeObjectURL(url);
     }
   };
+
+  // Auto-save functionality with File System Access API
+  const handleSetupAutoSave = async () => {
+    if (!('showSaveFilePicker' in window)) {
+      alert('File System Access API is not supported in this browser. Please use Chrome or Edge for auto-save functionality.');
+      return;
+    }
+
+    try {
+      const fileHandle = await (window as any).showSaveFilePicker({
+        suggestedName: `budget-tracker-${format(new Date(), 'yyyy-MM-dd')}.db`,
+        types: [{
+          description: 'Database files',
+          accept: { 'application/octet-stream': ['.db'] },
+        }],
+      });
+
+      setAutoSaveFileHandle(fileHandle);
+      setAutoSaveEnabled(true);
+      
+      // Perform initial save
+      await saveToFile(fileHandle);
+      
+      alert('Auto-save enabled! Your changes will be automatically saved to the selected file.');
+    } catch (error) {
+      console.log('User cancelled file selection or error occurred:', error);
+    }
+  };
+
+  const saveToFile = async (fileHandle: FileSystemFileHandle) => {
+    try {
+      const dbData = exportDatabase();
+      if (dbData) {
+        const writable = await fileHandle.createWritable();
+        await writable.write(dbData);
+        await writable.close();
+        console.log('Database auto-saved successfully');
+      }
+    } catch (error) {
+      console.error('Error auto-saving database:', error);
+      setAutoSaveEnabled(false);
+      setAutoSaveFileHandle(null);
+    }
+  };
+
+  const handleDisableAutoSave = () => {
+    setAutoSaveEnabled(false);
+    setAutoSaveFileHandle(null);
+    alert('Auto-save disabled. Use "Export Data" to manually save your database.');
+  };
+  // Auto-save when data changes
+  React.useEffect(() => {
+    if (autoSaveEnabled && autoSaveFileHandle && transactions.length > 0) {
+      const timeoutId = setTimeout(() => {
+        saveToFile(autoSaveFileHandle);
+      }, 2000); // Save 2 seconds after last change
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [transactions, categories, autoSaveEnabled, autoSaveFileHandle]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -220,12 +289,19 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <Box sx={{ flexGrow: 1, p: 3 }}>
-      {/* Header */}
+    <Box sx={{ flexGrow: 1, p: 3 }}>      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1" fontWeight="bold">
-          Financial Dashboard
-        </Typography>        <Stack direction="row" spacing={2}>
+        <Box>
+          <Typography variant="h4" component="h1" fontWeight="bold">
+            Financial Dashboard
+          </Typography>
+          {autoSaveEnabled && (
+            <Typography variant="caption" color="success.main" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Save sx={{ fontSize: 16 }} />
+              Auto-save enabled - Changes saved automatically
+            </Typography>
+          )}
+        </Box><Stack direction="row" spacing={2}>
           <Button
             variant="outlined"
             startIcon={<Settings />}
@@ -233,6 +309,24 @@ const Dashboard: React.FC = () => {
           >
             Manage Data
           </Button>
+          {autoSaveEnabled ? (
+            <Button
+              variant="outlined"
+              color="success"
+              startIcon={<Save />}
+              onClick={handleDisableAutoSave}
+            >
+              Auto-Save ON
+            </Button>
+          ) : (
+            <Button
+              variant="outlined"
+              startIcon={<Save />}
+              onClick={handleSetupAutoSave}
+            >
+              Setup Auto-Save
+            </Button>
+          )}
           <Button
             variant="outlined"
             startIcon={<Download />}

@@ -276,13 +276,11 @@ export class DatabaseManager {
     if (!this.db) throw new Error('Database not loaded');
 
     const id = `txn-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    const now = new Date().toISOString();
-
-    this.db.run(`
-      INSERT INTO transactions (id, date, amount, description, category_id, company_id, account_last_four, type, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    const now = new Date().toISOString();    this.db.run(`
+      INSERT INTO transactions (id, date, amount, description, category_id, company_id, project_id, account_last_four, type, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [id, transaction.date, transaction.amount, transaction.description, transaction.category_id, 
-        transaction.company_id || null, transaction.account_last_four, transaction.type, now, now]);
+        transaction.company_id || null, transaction.project_id || null, transaction.account_last_four, transaction.type, now, now]);
 
     return id;
   }
@@ -300,9 +298,7 @@ export class DatabaseManager {
       if (offset) {
         query += ` OFFSET ${offset}`;
       }
-    }
-
-    const result = this.db.exec(query);
+    }    const result = this.db.exec(query);
     if (result.length === 0) return [];
 
     return result[0].values.map((row: any[]) => ({
@@ -312,10 +308,11 @@ export class DatabaseManager {
       description: row[3] as string,
       category_id: row[4] as string,
       company_id: row[5] as string,
-      account_last_four: row[6] as string,
-      type: row[7] as 'income' | 'expense',
-      created_at: row[8] as string,
-      updated_at: row[9] as string,
+      project_id: row[6] as string,
+      account_last_four: row[7] as string,
+      type: row[8] as 'income' | 'expense',
+      created_at: row[9] as string,
+      updated_at: row[10] as string,
     }));
   }
 
@@ -506,19 +503,18 @@ export class DatabaseManager {
     query += ' ORDER BY date DESC';
 
     const result = this.db.exec(query, params);
-    if (result.length === 0) return [];
-
-    return result[0].values.map((row: any[]) => ({
+    if (result.length === 0) return [];    return result[0].values.map((row: any[]) => ({
       id: row[0] as string,
       date: row[1] as string,
       amount: row[2] as number,
       description: row[3] as string,
       category_id: row[4] as string,
       company_id: row[5] as string,
-      account_last_four: row[6] as string,
-      type: row[7] as 'income' | 'expense',
-      created_at: row[8] as string,
-      updated_at: row[9] as string,
+      project_id: row[6] as string,
+      account_last_four: row[7] as string,
+      type: row[8] as 'income' | 'expense',
+      created_at: row[9] as string,
+      updated_at: row[10] as string,
     }));
   }
 

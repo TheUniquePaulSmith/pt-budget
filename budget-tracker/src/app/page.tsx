@@ -5,6 +5,7 @@ import { Box, Tabs, Tab } from '@mui/material';
 import DatabaseInitializer from '../components/DatabaseInitializer';
 import Dashboard from '../components/Dashboard';
 import ManageProjects from '../components/ManageProjects';
+import TransactionReport from '../components/TransactionReport';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
 
 interface TabPanelProps {
@@ -40,6 +41,7 @@ export default function Home() {
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)} centered>
           <Tab label="Financial Dashboard" />
           <Tab label="House Projects" />
+          <Tab label="Transaction Report" />
         </Tabs>
       </Box>
       
@@ -49,6 +51,10 @@ export default function Home() {
       
       <TabPanel value={tabValue} index={1}>
         <ManageProjects />
+      </TabPanel>
+      
+      <TabPanel value={tabValue} index={2}>
+        <TransactionReport />
       </TabPanel>
     </Box>
   );

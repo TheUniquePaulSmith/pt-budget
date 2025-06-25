@@ -14,6 +14,10 @@ import {
   Chip,
   Stack,
   Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   TrendingUp,
@@ -98,12 +102,12 @@ const Dashboard: React.FC = () => {
     getMonthlyTrends,
     exportDatabase,
     refreshTransactions,
-  } = useDatabaseContext();
-  const [tabValue, setTabValue] = useState(0);
+  } = useDatabaseContext();  const [tabValue, setTabValue] = useState(0);
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');  
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [manageDataOpen, setManageDataOpen] = useState(false);
+  const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
 
   // Calculate date ranges
   const dateRanges = useMemo(() => {
@@ -414,16 +418,29 @@ const Dashboard: React.FC = () => {
             )}
           </Box>
         </TabPanel>
-      </Paper>
-
-      {/* Recent Transactions */}
+      </Paper>      {/* Recent Transactions */}
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Recent Transactions
-        </Typography>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h6">
+            Recent Transactions
+          </Typography>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Show</InputLabel>
+            <Select
+              value={recentTransactionsLimit}
+              label="Show"
+              onChange={(e) => setRecentTransactionsLimit(Number(e.target.value))}
+            >
+              <MenuItem value={10}>Last 10</MenuItem>
+              <MenuItem value={25}>Last 25</MenuItem>
+              <MenuItem value={50}>Last 50</MenuItem>
+              <MenuItem value={100}>Last 100</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
         {transactions.length > 0 ? (
           <Box>
-            {transactions.slice(0, 5).map((transaction) => {
+            {transactions.slice(0, recentTransactionsLimit).map((transaction) => {
               const category = categories.find(c => c.id === transaction.category_id);
               return (
                 <Box
@@ -453,11 +470,14 @@ const Dashboard: React.FC = () => {
                 </Box>
               );
             })}
-            <Box mt={2}>
-              <Button variant="outlined" fullWidth>
-                View All Transactions
-              </Button>
-            </Box>
+            {transactions.length > recentTransactionsLimit && (
+              <Box mt={2}>
+                <Typography variant="body2" color="text.secondary" textAlign="center">
+                  Showing {recentTransactionsLimit} of {transactions.length} transactions. 
+                  Use the "Transaction Report" tab for advanced filtering and search.
+                </Typography>
+              </Box>
+            )}
           </Box>
         ) : (
           <Box display="flex" justifyContent="center" alignItems="center" height={200}>
@@ -465,7 +485,7 @@ const Dashboard: React.FC = () => {
               No transactions found. Add your first transaction to get started!
             </Typography>
           </Box>
-        )}      </Paper>
+        )}</Paper>
 
       {/* Add Transaction Modal */}
       <AddTransaction

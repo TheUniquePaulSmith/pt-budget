@@ -22,7 +22,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
-import { Transaction, Category, Company, Account } from '@/lib/database';
+import { Transaction, Category, Company, Account, Project } from '@/lib/database';
 
 interface AddTransactionProps {
   open: boolean;
@@ -31,37 +31,38 @@ interface AddTransactionProps {
 }
 
 export default function AddTransaction({ open, onClose, onSuccess }: AddTransactionProps) {
-  const { db } = useDatabaseContext();
-  const [formData, setFormData] = useState({
+  const { db } = useDatabaseContext();  const [formData, setFormData] = useState({
     description: '',
     amount: '',
     date: new Date(),
     type: 'expense' as 'income' | 'expense',
     category_id: '',
     company_id: null as string | null,
+    project_id: null as string | null,
     account_last_four: '',
     is_recurring: false,
   });
-
   const [categories, setCategories] = useState<Category[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading, setLoading] = useState(false);  const [companyInput, setCompanyInput] = useState('');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(false);const [companyInput, setCompanyInput] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
-
   const loadFormData = useCallback(async () => {
     if (!db) return;
 
     try {
-      const [categoriesData, companiesData, accountsData] = await Promise.all([
+      const [categoriesData, companiesData, accountsData, projectsData] = await Promise.all([
         db.getCategories(),
         db.getCompanies(),
         db.getAccounts(),
+        db.getProjects(),
       ]);
 
       setCategories(categoriesData);
       setCompanies(companiesData);
       setAccounts(accountsData);
+      setProjects(projectsData);
     } catch (error) {
       console.error('Error loading form data:', error);
     }
@@ -108,6 +109,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
         type: formData.type,
         category_id: categoryId || 'cat-1', // fallback to default category
         company_id: companyId || undefined,
+        project_id: formData.project_id || undefined,
         account_last_four: accountLastFour || '0000', // fallback to default
       };
 
@@ -120,7 +122,6 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
       setLoading(false);
     }
   };
-
   const handleClose = () => {
     setFormData({
       description: '',
@@ -129,6 +130,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
       type: 'expense',
       category_id: '',
       company_id: null,
+      project_id: null,
       account_last_four: '',
       is_recurring: false,
     });
@@ -150,13 +152,17 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
         <DialogTitle>Add New Transaction</DialogTitle>
         <form onSubmit={handleSubmit}>
           <DialogContent>
-            <Box display="flex" flexDirection="column" gap={2}>
-              <FormControl fullWidth>
+            <Box display="flex" flexDirection="column" gap={2}>              <FormControl fullWidth>
                 <InputLabel>Transaction Type</InputLabel>
                 <Select
                   value={formData.type}
                   label="Transaction Type"
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value as 'income' | 'expense', category_id: '' })}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    type: e.target.value as 'income' | 'expense', 
+                    category_id: '',
+                    project_id: e.target.value === 'income' ? null : formData.project_id
+                  })}
                 >
                   <MenuItem value="expense">Expense</MenuItem>
                   <MenuItem value="income">Income</MenuItem>
@@ -215,9 +221,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
                     );
                   })
                 }
-              />
-
-              <Autocomplete
+              />              <Autocomplete
                 freeSolo
                 options={companies}
                 getOptionLabel={(option) => typeof option === 'string' ? option : option.name}
@@ -235,7 +239,35 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
                 renderInput={(params) => (
                   <TextField {...params} label="Company (Optional)" helperText="Type to create a new company" />
                 )}
-              />
+              />              {formData.type === 'expense' && (
+                <Autocomplete
+                  options={projects.filter(project => project.status !== 'completed')}
+                  getOptionLabel={(option) => `${option.name} - ${option.company_name}`}
+                  value={projects.find(proj => proj.id === formData.project_id) || null}
+                  onChange={(_, value) => {
+                    setFormData({ ...formData, project_id: value ? value.id : null });
+                  }}
+                  renderInput={(params) => (
+                    <TextField 
+                      {...params} 
+                      label="House Project (Optional)" 
+                      helperText="Link this expense to a house project" 
+                    />
+                  )}                  renderOption={(props, option) => {
+                    const { key, ...otherProps } = props;
+                    return (
+                      <Box component="li" key={key} {...otherProps}>
+                        <Box>
+                          <Box sx={{ fontWeight: 'bold' }}>{option.name}</Box>
+                          <Box sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>
+                            {option.company_name} • {option.status.replace('_', ' ')}
+                          </Box>
+                        </Box>
+                      </Box>
+                    );
+                  }}
+                />
+              )}
 
               <Autocomplete
                 freeSolo

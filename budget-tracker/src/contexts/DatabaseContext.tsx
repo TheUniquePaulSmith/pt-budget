@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { DatabaseManager, Transaction, Category, Company, Account, Budget } from '../lib/database';
+import { DatabaseManager, Transaction, Category, Company, Account, Budget, Project } from '../lib/database';
 
 interface DatabaseContextType {
   // Database instance
@@ -12,13 +12,13 @@ interface DatabaseContextType {
   // Loading states
   isLoading: boolean;
   error: string | null;
-
   // Data
   transactions: Transaction[];
   categories: Category[];
   companies: Company[];
   accounts: Account[];
   budgets: Budget[];
+  projects: Project[];
 
   // Database operations
   initializeDatabase: () => Promise<void>;
@@ -42,10 +42,18 @@ interface DatabaseContextType {
   // Account operations
   addAccount: (account: Omit<Account, 'id' | 'created_at' | 'updated_at'>) => Promise<string>;
   refreshAccounts: () => void;
-
   // Budget operations
   addBudget: (budget: Omit<Budget, 'id' | 'created_at' | 'updated_at'>) => Promise<string>;
   refreshBudgets: () => void;
+
+  // Project operations
+  addProject: (project: Omit<Project, 'id' | 'created_at' | 'updated_at'>) => Promise<string>;
+  updateProject: (id: string, updates: Partial<Omit<Project, 'id' | 'created_at' | 'updated_at'>>) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
+  refreshProjects: () => void;
+  getProjectById: (id: string) => Project | null;
+  getTransactionsByProject: (projectId: string) => Transaction[];
+  getProjectCosts: (projectId: string) => { estimated: number; actual: number; transactions_total: number };
 
   // Analytics
   getTransactionsByDateRange: (startDate: string, endDate: string, type?: 'income' | 'expense') => Transaction[];
@@ -74,13 +82,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
   const [isDatabaseLoaded, setIsDatabaseLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   // Data states
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const initializeDatabase = async () => {
     try {
@@ -156,8 +164,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       setError(err instanceof Error ? err.message : 'Failed to export database');
       return null;
     }
-  };
-  const refreshAllData = useCallback(() => {
+  };  const refreshAllData = useCallback(() => {
     if (!db || !isDatabaseLoaded) return;
 
     try {
@@ -166,6 +173,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       setCompanies(db.getCompanies());
       setAccounts(db.getAccounts());
       setBudgets(db.getBudgets());
+      setProjects(db.getProjects());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh data');
     }
@@ -307,8 +315,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       setError(errorMessage);
       throw new Error(errorMessage);
     }
-  };
-  const refreshBudgets = useCallback(() => {
+  };  const refreshBudgets = useCallback(() => {
     if (!db || !isDatabaseLoaded) return;
     try {
       setBudgets(db.getBudgets());
@@ -316,6 +323,95 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       setError(err instanceof Error ? err.message : 'Failed to refresh budgets');
     }
   }, [db, isDatabaseLoaded]);
+
+  // Project operations
+  const addProject = async (project: Omit<Project, 'id' | 'created_at' | 'updated_at'>): Promise<string> => {
+    if (!db || !isDatabaseLoaded) {
+      throw new Error('Database not loaded');
+    }
+
+    try {
+      const id = db.addProject(project);
+      refreshProjects();
+      return id;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add project';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+  const updateProject = async (id: string, updates: Partial<Omit<Project, 'id' | 'created_at' | 'updated_at'>>): Promise<void> => {
+    if (!db || !isDatabaseLoaded) {
+      throw new Error('Database not loaded');
+    }
+
+    try {
+      console.log('Updating project with ID:', id);
+      console.log('Update data:', updates);
+      db.updateProject(id, updates);
+      refreshProjects();
+    } catch (err) {
+      console.error('DatabaseContext updateProject error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update project';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const deleteProject = async (id: string): Promise<void> => {
+    if (!db || !isDatabaseLoaded) {
+      throw new Error('Database not loaded');
+    }
+
+    try {
+      db.deleteProject(id);
+      refreshProjects();
+      refreshTransactions(); // Refresh transactions as project references may have been cleared
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete project';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const refreshProjects = useCallback(() => {
+    if (!db || !isDatabaseLoaded) return;
+    try {
+      setProjects(db.getProjects());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh projects');
+    }
+  }, [db, isDatabaseLoaded]);
+
+  const getProjectById = (id: string): Project | null => {
+    if (!db || !isDatabaseLoaded) return null;
+    try {
+      return db.getProjectById(id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get project');
+      return null;
+    }
+  };
+
+  const getTransactionsByProject = (projectId: string): Transaction[] => {
+    if (!db || !isDatabaseLoaded) return [];
+    try {
+      return db.getTransactionsByProject(projectId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get transactions for project');
+      return [];
+    }
+  };
+
+  const getProjectCosts = (projectId: string): { estimated: number; actual: number; transactions_total: number } => {
+    if (!db || !isDatabaseLoaded) return { estimated: 0, actual: 0, transactions_total: 0 };
+    try {
+      return db.getProjectCosts(projectId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get project costs');
+      return { estimated: 0, actual: 0, transactions_total: 0 };
+    }
+  };
 
   // Analytics operations
   const getTransactionsByDateRange = (startDate: string, endDate: string, type?: 'income' | 'expense'): Transaction[] => {
@@ -357,7 +453,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       return [];
     }
   };
-
   const contextValue: DatabaseContextType = {
     db,
     isInitialized,
@@ -369,6 +464,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
     companies,
     accounts,
     budgets,
+    projects,
     initializeDatabase,
     createNewDatabase,
     loadDatabaseFromFile,
@@ -384,6 +480,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
     refreshAccounts,
     addBudget,
     refreshBudgets,
+    addProject,
+    updateProject,
+    deleteProject,
+    refreshProjects,
+    getProjectById,
+    getTransactionsByProject,
+    getProjectCosts,
     getTransactionsByDateRange,
     getSpendingByCategory,
     getIncomeByCategory,

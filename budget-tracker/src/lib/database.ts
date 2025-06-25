@@ -6,6 +6,7 @@ export interface Transaction {
   description: string;
   category_id: string;
   company_id?: string;
+  project_id?: string;
   account_last_four: string;
   type: 'income' | 'expense';
   created_at: string;
@@ -44,6 +45,22 @@ export interface Budget {
   period: 'weekly' | 'monthly' | 'yearly';
   start_date: string;
   end_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  company_name: string;
+  contact_details: string;
+  project_category: 'plumbing' | 'electrical' | 'hvac' | 'roofing' | 'flooring' | 'painting' | 'landscaping' | 'general_contractor' | 'other';
+  status: 'planning' | 'in_progress' | 'completed' | 'on_hold';
+  start_date?: string;
+  end_date?: string;
+  estimated_cost?: number;
+  actual_cost?: number;
+  notes?: string;
   created_at: string;
   updated_at: string;
 }
@@ -152,9 +169,7 @@ export class DatabaseManager {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
-    `);
-
-    // Budgets table
+    `);    // Budgets table
     this.db.run(`
       CREATE TABLE budgets (
         id TEXT PRIMARY KEY,
@@ -169,6 +184,25 @@ export class DatabaseManager {
       )
     `);
 
+    // Projects table
+    this.db.run(`
+      CREATE TABLE projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        company_name TEXT NOT NULL,
+        contact_details TEXT NOT NULL,
+        project_category TEXT NOT NULL CHECK (project_category IN ('plumbing', 'electrical', 'hvac', 'roofing', 'flooring', 'painting', 'landscaping', 'general_contractor', 'other')),
+        status TEXT NOT NULL CHECK (status IN ('planning', 'in_progress', 'completed', 'on_hold')) DEFAULT 'planning',
+        start_date TEXT,
+        end_date TEXT,
+        estimated_cost REAL,
+        actual_cost REAL,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Transactions table
     this.db.run(`
       CREATE TABLE transactions (
@@ -178,20 +212,23 @@ export class DatabaseManager {
         description TEXT NOT NULL,
         category_id TEXT,
         company_id TEXT,
+        project_id TEXT,
         account_last_four TEXT,
         type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (category_id) REFERENCES categories (id),
-        FOREIGN KEY (company_id) REFERENCES companies (id)
+        FOREIGN KEY (company_id) REFERENCES companies (id),
+        FOREIGN KEY (project_id) REFERENCES projects (id)
       )
-    `);
-
-    // Create indexes for better performance
+    `);    // Create indexes for better performance
     this.db.run('CREATE INDEX idx_transactions_date ON transactions(date)');
     this.db.run('CREATE INDEX idx_transactions_category ON transactions(category_id)');
     this.db.run('CREATE INDEX idx_transactions_company ON transactions(company_id)');
+    this.db.run('CREATE INDEX idx_transactions_project ON transactions(project_id)');
     this.db.run('CREATE INDEX idx_transactions_type ON transactions(type)');
+    this.db.run('CREATE INDEX idx_projects_category ON projects(project_category)');
+    this.db.run('CREATE INDEX idx_projects_status ON projects(status)');
   }
 
   private insertDefaultData(): void {
@@ -536,7 +573,6 @@ export class DatabaseManager {
       total: row[3] as number,
     }));
   }
-
   getMonthlyTrends(months: number = 12): { month: string; income: number; expense: number }[] {
     if (!this.db) throw new Error('Database not loaded');
 
@@ -558,5 +594,175 @@ export class DatabaseManager {
       income: row[1] as number,
       expense: row[2] as number,
     }));
+  }
+
+  // CRUD operations for projects
+  addProject(project: Omit<Project, 'id' | 'created_at' | 'updated_at'>): string {
+    if (!this.db) throw new Error('Database not loaded');
+
+    const id = `proj-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const now = new Date().toISOString();
+
+    this.db.run(`
+      INSERT INTO projects (
+        id, name, company_name, contact_details, project_category, status,
+        start_date, end_date, estimated_cost, actual_cost, notes,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      id,
+      project.name,
+      project.company_name,
+      project.contact_details,
+      project.project_category,
+      project.status,
+      project.start_date || null,
+      project.end_date || null,
+      project.estimated_cost || null,
+      project.actual_cost || null,
+      project.notes || null,
+      now,
+      now
+    ]);
+
+    return id;
+  }
+
+  getProjects(): Project[] {
+    if (!this.db) throw new Error('Database not loaded');
+
+    const result = this.db.exec('SELECT * FROM projects ORDER BY created_at DESC');
+    if (result.length === 0) return [];
+
+    return result[0].values.map((row: any[]) => ({
+      id: row[0] as string,
+      name: row[1] as string,
+      company_name: row[2] as string,
+      contact_details: row[3] as string,
+      project_category: row[4] as Project['project_category'],
+      status: row[5] as Project['status'],
+      start_date: row[6] as string,
+      end_date: row[7] as string,
+      estimated_cost: row[8] as number,
+      actual_cost: row[9] as number,
+      notes: row[10] as string,
+      created_at: row[11] as string,
+      updated_at: row[12] as string,
+    }));
+  }
+
+  getProjectById(id: string): Project | null {
+    if (!this.db) throw new Error('Database not loaded');
+
+    const result = this.db.exec('SELECT * FROM projects WHERE id = ?', [id]);
+    if (result.length === 0 || result[0].values.length === 0) return null;
+
+    const row = result[0].values[0];
+    return {
+      id: row[0] as string,
+      name: row[1] as string,
+      company_name: row[2] as string,
+      contact_details: row[3] as string,
+      project_category: row[4] as Project['project_category'],
+      status: row[5] as Project['status'],
+      start_date: row[6] as string,
+      end_date: row[7] as string,
+      estimated_cost: row[8] as number,
+      actual_cost: row[9] as number,
+      notes: row[10] as string,
+      created_at: row[11] as string,
+      updated_at: row[12] as string,
+    };
+  }
+  updateProject(id: string, updates: Partial<Omit<Project, 'id' | 'created_at' | 'updated_at'>>): void {
+    if (!this.db) throw new Error('Database not loaded');
+
+    // Filter out undefined values to avoid SQL issues
+    const filteredUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, value]) => value !== undefined)
+    );
+
+    if (Object.keys(filteredUpdates).length === 0) {
+      throw new Error('No valid fields to update');
+    }
+
+    const now = new Date().toISOString();
+    const setClause = Object.keys(filteredUpdates).map(key => `${key} = ?`).join(', ');
+    const values = [...Object.values(filteredUpdates), now, id];
+
+    try {
+      this.db.run(`
+        UPDATE projects 
+        SET ${setClause}, updated_at = ?
+        WHERE id = ?
+      `, values);
+    } catch (error) {
+      console.error('SQL Update Error:', error);
+      console.error('Query:', `UPDATE projects SET ${setClause}, updated_at = ? WHERE id = ?`);
+      console.error('Values:', values);
+      throw new Error(`Failed to update project: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  deleteProject(id: string): void {
+    if (!this.db) throw new Error('Database not loaded');
+
+    // First, remove project references from transactions
+    this.db.run('UPDATE transactions SET project_id = NULL WHERE project_id = ?', [id]);
+    
+    // Then delete the project
+    this.db.run('DELETE FROM projects WHERE id = ?', [id]);
+  }
+
+  getTransactionsByProject(projectId: string): Transaction[] {
+    if (!this.db) throw new Error('Database not loaded');
+
+    const result = this.db.exec('SELECT * FROM transactions WHERE project_id = ? ORDER BY date DESC', [projectId]);
+    if (result.length === 0) return [];
+
+    return result[0].values.map((row: any[]) => ({
+      id: row[0] as string,
+      date: row[1] as string,
+      amount: row[2] as number,
+      description: row[3] as string,
+      category_id: row[4] as string,
+      company_id: row[5] as string,
+      project_id: row[6] as string,
+      account_last_four: row[7] as string,
+      type: row[8] as 'income' | 'expense',
+      created_at: row[9] as string,
+      updated_at: row[10] as string,
+    }));
+  }
+
+  getProjectCosts(projectId: string): { estimated: number; actual: number; transactions_total: number } {
+    if (!this.db) throw new Error('Database not loaded');
+
+    // Get project estimated and actual costs
+    const projectResult = this.db.exec(
+      'SELECT estimated_cost, actual_cost FROM projects WHERE id = ?',
+      [projectId]
+    );
+
+    // Get total from linked transactions
+    const transactionsResult = this.db.exec(`
+      SELECT SUM(ABS(amount)) as total
+      FROM transactions 
+      WHERE project_id = ? AND type = 'expense'
+    `, [projectId]);
+
+    const estimated = projectResult.length > 0 && projectResult[0].values.length > 0 
+      ? (projectResult[0].values[0][0] as number) || 0 
+      : 0;
+
+    const actual = projectResult.length > 0 && projectResult[0].values.length > 0 
+      ? (projectResult[0].values[0][1] as number) || 0 
+      : 0;
+
+    const transactions_total = transactionsResult.length > 0 && transactionsResult[0].values.length > 0 
+      ? (transactionsResult[0].values[0][0] as number) || 0 
+      : 0;
+
+    return { estimated, actual, transactions_total };
   }
 }

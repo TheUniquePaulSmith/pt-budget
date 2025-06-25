@@ -100,7 +100,8 @@ const Dashboard: React.FC = () => {
     refreshTransactions,
   } = useDatabaseContext();
   const [tabValue, setTabValue] = useState(0);
-  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');  const [addTransactionOpen, setAddTransactionOpen] = useState(false);
+  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');  
+  const [addTransactionOpen, setAddTransactionOpen] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [manageDataOpen, setManageDataOpen] = useState(false);
 

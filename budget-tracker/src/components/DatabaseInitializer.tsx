@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -47,19 +47,13 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseRea
     setupAutoSaveWithExistingFile,
     setupAutoSaveWithFileHandle,
     autoSaveEnabled,
-  } = useDatabaseContext();const [showLoadDialog, setShowLoadDialog] = useState(false);
+  } = useDatabaseContext();  const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [sessionInfo, setSessionInfo] = useState<{ fileName?: string; lastAccessed: number; createdAt: number } | null>(null);
   const [hasDetectedSession, setHasDetectedSession] = useState(false);
   const [showFileSaveRequiredMessage, setShowFileSaveRequiredMessage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  React.useEffect(() => {
-    if (!isInitialized) {
-      initializeDatabase();
-    } else {
-      // Check for saved session after database is initialized
-      checkForSavedSession();
-    }
-  }, [isInitialized, initializeDatabase]);  const checkForSavedSession = async () => {
+
+  const checkForSavedSession = useCallback(async () => {
     try {
       console.log('Checking for saved session...');
       const sessionExists = await hasSession();
@@ -82,7 +76,16 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseRea
     } catch (error) {
       console.error('Error checking for saved session:', error);
     }
-  };  const handleLoadSession = async () => {
+  }, [hasSession]);
+
+  React.useEffect(() => {
+    if (!isInitialized) {
+      initializeDatabase();
+    } else {
+      // Check for saved session after database is initialized
+      checkForSavedSession();
+    }
+  }, [isInitialized, initializeDatabase, checkForSavedSession]);const handleLoadSession = async () => {
     try {
       setShowFileSaveRequiredMessage(false); // Clear any previous messages
       const success = await loadDatabaseFromSession();
@@ -315,11 +318,10 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseRea
               A file save location is required to proceed. Please choose where to save your database file when prompted.
             </Alert>
           )}          {!('showSaveFilePicker' in window) && (
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="body2">
+            <Alert severity="info" sx={{ mb: 3 }}>              <Typography variant="body2">
                 <strong>Note:</strong> Your browser has limited file access capabilities. 
-                You can create databases and load existing ones, but auto-save to specific files isn't available. 
-                Use the "Export Data" button in the dashboard to manually save your work.
+                You can create databases and load existing ones, but auto-save to specific files isn&apos;t available. 
+                Use the &quot;Export Data&quot; button in the dashboard to manually save your work.
               </Typography>
             </Alert>
           )}
@@ -369,11 +371,10 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseRea
             )}            <Box>
               <Typography variant="h6" gutterBottom>
                 Create New Database
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
+              </Typography>              <Typography variant="body2" color="text.secondary" paragraph>
                 Start fresh with a new database. {('showSaveFilePicker' in window) 
                   ? "You'll need to choose where to save your database file (required for automatic backups and data persistence)."
-                  : "Default categories and settings will be created. Use 'Export Data' to save your work manually."}
+                  : "Default categories and settings will be created. Use &apos;Export Data&apos; to save your work manually."}
               </Typography>
               <Button
                 variant={hasDetectedSession ? "outlined" : "contained"}
@@ -390,8 +391,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseRea
             <Divider>OR</Divider>            <Box>
               <Typography variant="h6" gutterBottom>
                 Load Existing Database
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
+              </Typography>              <Typography variant="body2" color="text.secondary" paragraph>
                 {('showOpenFilePicker' in window) 
                   ? "Open a previously saved database file. Auto-save will write changes back to the same file."
                   : "Upload a previously saved database file. Use 'Export Data' to save your changes manually."}

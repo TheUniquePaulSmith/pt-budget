@@ -332,10 +332,8 @@ export class DatabaseManager {
   }
 
   getCategories(type?: 'income' | 'expense'): Category[] {
-    if (!this.db) throw new Error('Database not loaded');
-
-    let query = 'SELECT * FROM categories';
-    let params: any[] = [];
+    if (!this.db) throw new Error('Database not loaded');    let query = 'SELECT * FROM categories';
+    const params: any[] = [];
 
     if (type) {
       query += ' WHERE type = ?';
@@ -487,13 +485,11 @@ export class DatabaseManager {
 
   // Analytics methods
   getTransactionsByDateRange(startDate: string, endDate: string, type?: 'income' | 'expense'): Transaction[] {
-    if (!this.db) throw new Error('Database not loaded');
-
-    let query = `
+    if (!this.db) throw new Error('Database not loaded');    let query = `
       SELECT * FROM transactions 
       WHERE date >= ? AND date <= ?
     `;
-    let params = [startDate, endDate];
+    const params = [startDate, endDate];
 
     if (type) {
       query += ' AND type = ?';

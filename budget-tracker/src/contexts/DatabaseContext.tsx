@@ -122,6 +122,7 @@ interface DatabaseContextType {
   ) => { month: string; income: number; expense: number }[];  // Auto-save functionality
   autoSaveEnabled: boolean;
   autoSaveFileHandle: FileSystemFileHandle | null;
+  lastAutoSave: Date | null;
   setupAutoSave: () => Promise<boolean>;
   setupAutoSaveWithExistingFile: () => Promise<boolean>;
   setupAutoSaveWithFileHandle: (fileHandle: FileSystemFileHandle) => Promise<boolean>;
@@ -159,11 +160,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const [companies, setCompanies] = useState<Company[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-
-  // Auto-save states
+  const [projects, setProjects] = useState<Project[]>([]);  // Auto-save states
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
   const [autoSaveFileHandle, setAutoSaveFileHandle] = useState<FileSystemFileHandle | null>(null);
+  const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const initializeDatabase = async () => {
     try {
@@ -233,8 +234,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
-  const exportDatabase = (): Uint8Array | null => {
+  };  const exportDatabase = useCallback((): Uint8Array | null => {
     if (!db || !isDatabaseLoaded) {
       setError("No database loaded to export");
       return null;
@@ -248,7 +248,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       );
       return null;
     }
-  };
+  }, [db, isDatabaseLoaded]);
 
   // Session management methods
   const loadDatabaseFromSession = async (): Promise<boolean> => {
@@ -284,8 +284,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       setIsLoading(false);
     }
   };
-
-  const saveDatabaseToSession = async (fileName?: string): Promise<void> => {
+  const saveDatabaseToSession = useCallback(async (fileName?: string): Promise<void> => {
     if (!db || !isDatabaseLoaded) {
       setError("No database loaded to save");
       return;
@@ -303,7 +302,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
           : "Failed to save database to session"
       );
     }
-  };
+  }, [db, isDatabaseLoaded]);
 
   const clearSession = async (): Promise<void> => {
     try {
@@ -393,15 +392,17 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const enableAutoSave = async (): Promise<boolean> => {
     // This is essentially the same as setupAutoSave, but with a clearer name for manual enabling
     return await setupAutoSave();
-  };
-
-  const saveToFile = async (fileHandle: FileSystemFileHandle): Promise<void> => {
+  };  const saveToFile = useCallback(async (fileHandle: FileSystemFileHandle): Promise<void> => {
+    if (isSaving) return; // Prevent concurrent saves
+    
     try {
+      setIsSaving(true);
       const dbData = exportDatabase();
       if (dbData) {
         const writable = await fileHandle.createWritable();
         await writable.write(dbData);
         await writable.close();
+        setLastAutoSave(new Date());
         console.log('Database auto-saved successfully');
         
         // Also save to session for persistence
@@ -412,15 +413,15 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       setAutoSaveEnabled(false);
       setAutoSaveFileHandle(null);
       throw error;
+    } finally {
+      setIsSaving(false);
     }
-  };
-
+  }, [isSaving, exportDatabase, saveDatabaseToSession]);
   const disableAutoSave = (): void => {
     setAutoSaveEnabled(false);
     setAutoSaveFileHandle(null);
-  };
-
-  // Auto-save when data changes
+    setLastAutoSave(null);
+  };  // Auto-save when data changes
   React.useEffect(() => {
     if (autoSaveEnabled && autoSaveFileHandle && transactions.length > 0) {
       const timeoutId = setTimeout(() => {
@@ -436,7 +437,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
 
       return () => clearTimeout(timeoutId);
     }
-  }, [transactions, categories, autoSaveEnabled, autoSaveFileHandle, isDatabaseLoaded, saveDatabaseToSession]);
+  }, [transactions, categories, autoSaveEnabled, autoSaveFileHandle, isDatabaseLoaded, saveDatabaseToSession, saveToFile]);
 
   const refreshAllData = useCallback(() => {
     if (!db || !isDatabaseLoaded) return;
@@ -830,6 +831,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     getIncomeByCategory,
     getMonthlyTrends,    autoSaveEnabled,
     autoSaveFileHandle,
+    lastAutoSave,
     setupAutoSave,
     setupAutoSaveWithExistingFile,
     setupAutoSaveWithFileHandle,

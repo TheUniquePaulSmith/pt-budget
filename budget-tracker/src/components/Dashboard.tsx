@@ -489,10 +489,9 @@ const Dashboard: React.FC = () => {  const {
               );
             })}
             {transactions.length > recentTransactionsLimit && (
-              <Box mt={2}>
-                <Typography variant="body2" color="text.secondary" textAlign="center">
+              <Box mt={2}>                <Typography variant="body2" color="text.secondary" textAlign="center">
                   Showing {recentTransactionsLimit} of {transactions.length} transactions. 
-                  Use the "Transaction Report" tab for advanced filtering and search.
+                  Use the &quot;Transaction Report&quot; tab for advanced filtering and search.
                 </Typography>
               </Box>
             )}

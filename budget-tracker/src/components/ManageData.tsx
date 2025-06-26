@@ -57,7 +57,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
 }
 
 export default function ManageData({ open, onClose }: ManageDataProps) {
-  const { db, categories, companies, refreshCategories, refreshCompanies, clearSession } = useDatabaseContext();
+  const { db, categories, companies, refreshCategories, refreshCompanies } = useDatabaseContext();
   const [tabValue, setTabValue] = useState(0);
   
   // Category management state
@@ -208,7 +208,6 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
         )}        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
           <Tab label="Categories" />
           <Tab label="Companies" />
-          <Tab label="Session" />
         </Tabs>
 
         {/* Categories Tab */}
@@ -432,49 +431,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
                   </ListItem>
                 ))}
               </List>
-            </Box>          </Box>
-        </TabPanel>
-
-        {/* Session Tab */}
-        <TabPanel value={tabValue} index={2}>
-          <Box display="flex" flexDirection="column" gap={3}>
-            <Typography variant="h6" gutterBottom>
-              Session Management
-            </Typography>
-            
-            <Alert severity="info">
-              Your database is automatically saved to browser storage to persist between sessions. 
-              You can clear this data if you want to start fresh next time.
-            </Alert>
-
-            <Box>
-              <Typography variant="body1" gutterBottom>
-                Clear Saved Session
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                This will remove your saved database from browser storage. Next time you visit, 
-                you'll need to load your database file again or create a new one.
-              </Typography>
-              <Button
-                variant="outlined"
-                color="warning"
-                onClick={async () => {
-                  if (confirm('This will clear your saved session data. You will need to reload your database file next time you visit. Continue?')) {
-                    try {
-                      await clearSession();
-                      alert('Session data cleared successfully.');
-                    } catch (error) {
-                      console.error('Error clearing session:', error);
-                      alert('Failed to clear session data.');
-                    }
-                  }
-                }}
-              >
-                Clear Session Data
-              </Button>
-            </Box>
-          </Box>
-        </TabPanel>
+            </Box>          </Box>        </TabPanel>
       </DialogContent>
 
       <DialogActions>

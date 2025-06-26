@@ -49,14 +49,16 @@ interface SettingsPageProps {
 const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const [tabValue, setTabValue] = useState(0);
   const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
-  const [autoSave, setAutoSave] = useState(true);
-
-  const {
+  const [darkMode, setDarkMode] = useState(false);  const {
     exportDatabase,
     saveDatabaseToSession,
     clearSession,
     isDatabaseLoaded,
+    autoSaveEnabled,
+    autoSaveFileHandle,
+    lastAutoSave,
+    enableAutoSave,
+    disableAutoSave,
   } = useDatabaseContext();
 
   const handleExportData = () => {
@@ -73,7 +75,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
       URL.revokeObjectURL(url);
     }
   };
-
   const handleClearSession = async () => {
     if (confirm('This will clear your saved session data. You will need to reload your database file next time you visit. Continue?')) {
       try {
@@ -83,6 +84,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
         console.error('Error clearing session:', error);
         alert('Failed to clear session data.');
       }
+    }
+  };
+
+  const handleAutoSaveToggle = async (enabled: boolean) => {
+    if (enabled) {
+      try {
+        const success = await enableAutoSave();
+        if (!success) {
+          console.log('Auto-save setup was cancelled');
+        }
+      } catch (error) {
+        console.error('Error enabling auto-save:', error);
+      }
+    } else {
+      disableAutoSave();
     }
   };
 
@@ -196,6 +212,46 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                 </Stack>
               </Box>
 
+              <Divider />              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Auto-Save
+                </Typography>
+                <Stack spacing={2}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={autoSaveEnabled}
+                        onChange={(e) => handleAutoSaveToggle(e.target.checked)}
+                        disabled={!('showSaveFilePicker' in window)}
+                      />
+                    }
+                    label="Auto-save to file"
+                  />                  {autoSaveEnabled && autoSaveFileHandle && (
+                    <Typography variant="body2" color="text.secondary">
+                      Saving to: <strong>{autoSaveFileHandle.name}</strong>
+                    </Typography>
+                  )}
+                  {autoSaveEnabled && !autoSaveFileHandle && (
+                    <Typography variant="body2" color="text.secondary">
+                      Auto-save enabled, but file location unknown
+                    </Typography>
+                  )}
+                  {autoSaveEnabled && lastAutoSave && (
+                    <Typography variant="body2" color="text.secondary">
+                      Last saved: <strong>{lastAutoSave.toLocaleString()}</strong>
+                    </Typography>
+                  )}
+                  {!('showSaveFilePicker' in window) && (
+                    <Typography variant="body2" color="error">
+                      Auto-save is not available in this browser
+                    </Typography>
+                  )}
+                  <Typography variant="body2" color="text.secondary">
+                    When enabled, your database will be automatically saved to a file on your device after each change
+                  </Typography>
+                </Stack>
+              </Box>
+
               <Divider />
 
               <Box>
@@ -203,15 +259,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   Session Management
                 </Typography>
                 <Stack spacing={2}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={autoSave}
-                        onChange={(e) => setAutoSave(e.target.checked)}
-                      />
-                    }
-                    label="Auto-save sessions"
-                  />
                   <Button
                     variant="outlined"
                     color="warning"

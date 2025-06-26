@@ -225,9 +225,8 @@ export default function ManageProjects() {
         </Button>
       </Box>
 
-      {projects.length === 0 ? (
-        <Alert severity="info" sx={{ mt: 2 }}>
-          No projects yet. Click "Add Project" to create your first house project.
+      {projects.length === 0 ? (        <Alert severity="info" sx={{ mt: 2 }}>
+          No projects yet. Click &quot;Add Project&quot; to create your first house project.
         </Alert>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

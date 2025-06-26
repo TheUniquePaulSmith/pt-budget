@@ -20,6 +20,7 @@ import { useDatabaseContext } from '../contexts/DatabaseContext';
 const AutoSaveIndicator: React.FC = () => {  const {
     autoSaveEnabled,
     autoSaveFileHandle,
+    lastAutoSave,
     enableAutoSave,
     disableAutoSave,
   } = useDatabaseContext();
@@ -49,7 +50,6 @@ const AutoSaveIndicator: React.FC = () => {  const {
     disableAutoSave();
     handleClose();
   };
-
   const getTooltipContent = () => {
     if (!('showSaveFilePicker' in window)) {
       return (
@@ -65,6 +65,12 @@ const AutoSaveIndicator: React.FC = () => {  const {
           Auto-save enabled
           <br />
           Saving to: {autoSaveFileHandle.name}
+          {lastAutoSave && (
+            <>
+              <br />
+              Last saved: {lastAutoSave.toLocaleString()}
+            </>
+          )}
         </div>
       );
     } else if (autoSaveEnabled) {
@@ -73,6 +79,12 @@ const AutoSaveIndicator: React.FC = () => {  const {
           Auto-save enabled
           <br />
           File location unknown
+          {lastAutoSave && (
+            <>
+              <br />
+              Last saved: {lastAutoSave.toLocaleString()}
+            </>
+          )}
         </div>
       );
     } else {
@@ -129,6 +141,11 @@ const AutoSaveIndicator: React.FC = () => {  const {
           {autoSaveEnabled && autoSaveFileHandle && (
             <Typography variant="body2" color="text.secondary" gutterBottom>
               <strong>File:</strong> {autoSaveFileHandle.name}
+            </Typography>
+          )}
+          {autoSaveEnabled && lastAutoSave && (
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              <strong>Last saved:</strong> {lastAutoSave.toLocaleString()}
             </Typography>
           )}
         </Box>

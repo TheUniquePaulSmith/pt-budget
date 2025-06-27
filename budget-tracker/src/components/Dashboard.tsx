@@ -238,17 +238,39 @@ const Dashboard: React.FC = () => {  const {
     }
   };
 
-  return (
-    <Box sx={{ flexGrow: 1, p: 3 }}>      {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>        <Box>
-          <Typography variant="h4" component="h1" fontWeight="bold">
+  return (    <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
+      {/* Header */}
+      <Box 
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          mb: 3,
+          gap: { xs: 2, sm: 0 }
+        }}
+      >
+        <Box>
+          <Typography 
+            variant="h4" 
+            component="h1" 
+            fontWeight="bold"
+            sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}
+          >
             Financial Dashboard
           </Typography>
-        </Box><Stack direction="row" spacing={2}>
+        </Box>
+          <Stack 
+          direction={{ xs: 'column', sm: 'row' }} 
+          spacing={{ xs: 1, sm: 2 }}
+          sx={{ width: { xs: '100%', sm: 'auto' } }}
+        >
           <Button
             variant="outlined"
             startIcon={<Settings />}
             onClick={() => setManageDataOpen(true)}
+            size="small"
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Manage Data
           </Button>
@@ -256,6 +278,8 @@ const Dashboard: React.FC = () => {  const {
             variant="outlined"
             startIcon={<Download />}
             onClick={handleExportDatabase}
+            size="small"
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Export Data
           </Button>
@@ -263,6 +287,8 @@ const Dashboard: React.FC = () => {  const {
             variant="outlined"
             startIcon={<Upload />}
             onClick={() => setCsvImportOpen(true)}
+            size="small"
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Import CSV
           </Button>
@@ -270,30 +296,40 @@ const Dashboard: React.FC = () => {  const {
             variant="contained" 
             startIcon={<Add />}
             onClick={() => setAddTransactionOpen(true)}
+            size="small"
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Add Transaction
           </Button>
         </Stack>
-      </Box>
-
-      {/* Time Range Selector */}
+      </Box>      {/* Time Range Selector */}
       <Box mb={3}>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <DateRange color="action" />
-          <Typography variant="body1" color="text.secondary" mr={2}>
-            Time Period:
-          </Typography>
-          {(['week', 'month', 'year'] as const).map((range) => (
-            <Chip
-              key={range}
-              label={range === 'week' ? 'Week' : range === 'month' ? 'Month' : 'Year'}
-              variant={timeRange === range ? 'filled' : 'outlined'}
-              color={timeRange === range ? 'primary' : 'default'}
-              onClick={() => setTimeRange(range)}
-            />
-          ))}
+        <Stack 
+          direction={{ xs: 'column', sm: 'row' }} 
+          spacing={{ xs: 1, sm: 1 }} 
+          alignItems={{ xs: 'flex-start', sm: 'center' }}
+          sx={{ gap: { xs: 1, sm: 2 } }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <DateRange color="action" />
+            <Typography variant="body1" color="text.secondary">
+              Time Period:
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {(['week', 'month', 'year'] as const).map((range) => (
+              <Chip
+                key={range}
+                label={range === 'week' ? 'Week' : range === 'month' ? 'Month' : 'Year'}
+                variant={timeRange === range ? 'filled' : 'outlined'}
+                color={timeRange === range ? 'primary' : 'default'}
+                onClick={() => setTimeRange(range)}
+                size="small"
+              />
+            ))}
+          </Box>
         </Stack>
-      </Box>      {/* Summary Stats */}
+      </Box>{/* Summary Stats */}
       <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
         <Box flex="1 1 300px">
           <StatCard

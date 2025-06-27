@@ -106,8 +106,7 @@ const AutoSaveIndicator: React.FC = () => {  const {
     } else {
       return <CloudOff color="action" />;
     }
-  };
-  return (
+  };  return (
     <>
       <Tooltip 
         title={getTooltipContent()}
@@ -116,7 +115,11 @@ const AutoSaveIndicator: React.FC = () => {  const {
         <IconButton
           color="inherit"
           onClick={handleClick}
-          sx={{ ml: 1 }}
+          sx={{ 
+            ml: 1,
+            width: 40,
+            height: 40,
+          }}
         >
           {getIcon()}
         </IconButton>
@@ -128,7 +131,16 @@ const AutoSaveIndicator: React.FC = () => {  const {
         onClose={handleClose}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-      >        <Box sx={{ px: 2, py: 1, minWidth: 250 }}>
+        disableScrollLock={true}
+        slotProps={{
+          paper: {
+            sx: {
+              maxWidth: 300,
+              mt: 0.5,
+            }
+          }
+        }}
+      ><Box sx={{ px: 2, py: 1, minWidth: 250 }}>
           <Typography variant="subtitle2" gutterBottom>
             Auto-Save Status
           </Typography>
@@ -137,8 +149,7 @@ const AutoSaveIndicator: React.FC = () => {  const {
               ? 'Not available (Browser not supported)'
               : autoSaveEnabled ? 'Enabled' : 'Disabled'
             }
-          </Typography>
-          {autoSaveEnabled && autoSaveFileHandle && (
+          </Typography>          {autoSaveEnabled && autoSaveFileHandle && (
             <Typography variant="body2" color="text.secondary" gutterBottom>
               <strong>File:</strong> {autoSaveFileHandle.name}
             </Typography>

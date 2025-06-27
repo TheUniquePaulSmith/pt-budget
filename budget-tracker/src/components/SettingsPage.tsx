@@ -37,7 +37,7 @@ interface TabPanelProps {
 function TabPanel({ children, value, index }: TabPanelProps) {
   return (
     <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ p: { xs: 2, sm: 3 } }}>{children}</Box>}
     </div>
   );
 }
@@ -118,12 +118,23 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
             Settings
           </Typography>
         </Toolbar>
-      </AppBar>
-
-      <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+      </AppBar>      <Box sx={{ maxWidth: 1200, mx: 'auto', p: { xs: 1, sm: 3 } }}>
         <Paper sx={{ width: '100%' }}>
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+            <Tabs 
+              value={tabValue} 
+              onChange={(_, newValue) => setTabValue(newValue)}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{
+                '& .MuiTab-root': {
+                  minWidth: { xs: 80, sm: 120 },
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  padding: { xs: '6px 8px', sm: '12px 16px' }
+                }
+              }}
+            >
               <Tab icon={<Storage />} label="Storage" />
               <Tab icon={<Backup />} label="Data & Backup" />
               <Tab icon={<Palette />} label="Display" />

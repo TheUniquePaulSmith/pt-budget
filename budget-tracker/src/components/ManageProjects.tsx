@@ -206,13 +206,23 @@ export default function ManageProjects() {
       currency: 'USD',
     }).format(amount);
   };
-
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'stretch', sm: 'center' }, 
+        mb: 3,
+        gap: { xs: 2, sm: 0 }
+      }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <HomeIcon color="primary" />
-          <Typography variant="h4" component="h1">
+          <Typography 
+            variant="h4" 
+            component="h1"
+            sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}
+          >
             House Projects
           </Typography>
         </Box>
@@ -220,6 +230,8 @@ export default function ManageProjects() {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => handleOpen()}
+          size="small"
+          sx={{ width: { xs: '100%', sm: 'auto' } }}
         >
           Add Project
         </Button>
@@ -232,20 +244,25 @@ export default function ManageProjects() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {projects.map((project) => {
             const costs = projectCosts[project.id] || { estimated: 0, actual: 0, transactions_total: 0 };
-            const transactions = projectTransactions[project.id] || [];
-
-            return (
+            const transactions = projectTransactions[project.id] || [];            return (
               <Card key={project.id}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                    <Box>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    justifyContent: 'space-between', 
+                    alignItems: { xs: 'stretch', sm: 'flex-start' }, 
+                    mb: 2,
+                    gap: { xs: 2, sm: 0 }
+                  }}>
+                    <Box sx={{ flex: 1 }}>
                       <Typography variant="h6" component="h2" gutterBottom>
                         {project.name}
                       </Typography>
                       <Typography variant="subtitle1" color="text.secondary" gutterBottom>
                         {project.company_name}
                       </Typography>
-                      <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                      <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
                         <Chip
                           label={PROJECT_CATEGORIES.find(c => c.value === project.project_category)?.label || project.project_category}
                           size="small"
@@ -261,7 +278,11 @@ export default function ManageProjects() {
                         />
                       </Box>
                     </Box>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      gap: 1,
+                      justifyContent: { xs: 'flex-end', sm: 'flex-start' }
+                    }}>
                       <IconButton
                         size="small"
                         onClick={() => handleOpen(project)}
@@ -279,8 +300,13 @@ export default function ManageProjects() {
                     </Box>
                   </Box>
 
-                  <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                    <Box sx={{ minWidth: 150 }}>
+                  <Box sx={{ 
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
+                    gap: 2, 
+                    mb: 2 
+                  }}>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Estimated Cost
                       </Typography>
@@ -288,7 +314,7 @@ export default function ManageProjects() {
                         {costs.estimated > 0 ? formatCurrency(costs.estimated) : 'Not set'}
                       </Typography>
                     </Box>
-                    <Box sx={{ minWidth: 150 }}>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Actual Cost
                       </Typography>

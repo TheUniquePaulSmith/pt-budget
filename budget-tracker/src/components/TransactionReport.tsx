@@ -239,23 +239,39 @@ export default function TransactionReport() {
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
   );
-
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: { xs: 2, sm: 3 } }}>
         {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'stretch', sm: 'center' }, 
+          mb: 3,
+          gap: { xs: 2, sm: 0 }
+        }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Receipt color="primary" />
-            <Typography variant="h4" component="h1">
+            <Typography 
+              variant="h4" 
+              component="h1"
+              sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}
+            >
               Transaction Report
             </Typography>
           </Box>
-          <Stack direction="row" spacing={2}>
+          <Stack 
+            direction={{ xs: 'column', sm: 'row' }} 
+            spacing={2}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
             <Button
               variant="outlined"
               startIcon={<ClearAll />}
               onClick={handleClearFilters}
+              size="small"
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
             >
               Clear Filters
             </Button>
@@ -264,209 +280,201 @@ export default function TransactionReport() {
               startIcon={<Download />}
               onClick={handleExportCSV}
               disabled={filteredTransactions.length === 0}
+              size="small"
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
             >
               Export CSV
             </Button>
           </Stack>
         </Box>        {/* Summary Stats */}
-        <Box sx={{ display: 'flex', gap: 3, mb: 3, flexWrap: 'wrap' }}>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" color="success.main">
-                  {formatCurrency(summaryStats.totalIncome)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Total Income
-                </Typography>
-              </CardContent>
-            </Card>
-          </Box>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" color="error.main">
-                  {formatCurrency(summaryStats.totalExpenses)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Total Expenses
-                </Typography>
-              </CardContent>
-            </Card>
-          </Box>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <Card>
-              <CardContent>
-                <Typography 
-                  variant="h6" 
-                  color={summaryStats.netIncome >= 0 ? 'success.main' : 'error.main'}
-                >
-                  {formatCurrency(summaryStats.netIncome)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Net Income
-                </Typography>
-              </CardContent>
-            </Card>
-          </Box>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" color="primary.main">
-                  {summaryStats.transactionCount}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Transactions
-                </Typography>
-              </CardContent>
-            </Card>
-          </Box>
-        </Box>
-
-        {/* Filters */}
-        <Paper sx={{ p: 3, mb: 3 }}>
+        <Box sx={{ 
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+          gap: { xs: 2, sm: 3 }, 
+          mb: 3        }}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" color="success.main">
+                {formatCurrency(summaryStats.totalIncome)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total Income
+              </Typography>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" color="error.main">
+                {formatCurrency(summaryStats.totalExpenses)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total Expenses
+              </Typography>
+            </CardContent>
+          </Card>          <Card>
+            <CardContent>
+              <Typography 
+                variant="h6" 
+                color={summaryStats.netIncome >= 0 ? 'success.main' : 'error.main'}
+              >
+                {formatCurrency(summaryStats.netIncome)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Net Income
+              </Typography>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" color="primary.main">
+                {summaryStats.transactionCount}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Transactions
+              </Typography>
+            </CardContent>
+          </Card>
+        </Box>        {/* Filters */}
+        <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
             <FilterList />
             <Typography variant="h6">Filters</Typography>
           </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* First Row */}
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ 
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' },
+              gap: 2 
+            }}>
               {/* Search */}
-              <Box sx={{ flex: 2, minWidth: 250 }}>
-                <TextField
-                  fullWidth
-                  label="Search"
-                  placeholder="Description, category, company, project..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </Box>
+              <TextField
+                fullWidth
+                label="Search"
+                placeholder="Description, category, company, project..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
 
               {/* Type Filter */}
-              <Box sx={{ flex: 1, minWidth: 120 }}>
-                <FormControl fullWidth>
-                  <InputLabel>Type</InputLabel>
-                  <Select
-                    value={typeFilter}
-                    label="Type"
-                    onChange={(e) => setTypeFilter(e.target.value as any)}
-                  >
-                    <MenuItem value="all">All</MenuItem>
-                    <MenuItem value="income">Income</MenuItem>
-                    <MenuItem value="expense">Expense</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
+              <FormControl fullWidth>
+                <InputLabel>Type</InputLabel>
+                <Select
+                  value={typeFilter}
+                  label="Type"
+                  onChange={(e) => setTypeFilter(e.target.value as any)}
+                >
+                  <MenuItem value="all">All</MenuItem>
+                  <MenuItem value="income">Income</MenuItem>
+                  <MenuItem value="expense">Expense</MenuItem>
+                </Select>
+              </FormControl>
             </Box>
 
             {/* Second Row - Date Range */}
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <Box sx={{ flex: 1, minWidth: 200 }}>
-                <DatePicker
-                  label="Start Date"
-                  value={startDate}
-                  onChange={setStartDate}
-                  slotProps={{ textField: { fullWidth: true } }}
-                />
-              </Box>
-              <Box sx={{ flex: 1, minWidth: 200 }}>
-                <DatePicker
-                  label="End Date"
-                  value={endDate}
-                  onChange={setEndDate}
-                  slotProps={{ textField: { fullWidth: true } }}
-                />
-              </Box>
+            <Box sx={{ 
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
+              gap: 2 
+            }}>
+              <DatePicker
+                label="Start Date"
+                value={startDate}
+                onChange={setStartDate}
+                slotProps={{ textField: { fullWidth: true } }}
+              />
+              <DatePicker
+                label="End Date"
+                value={endDate}
+                onChange={setEndDate}                slotProps={{ textField: { fullWidth: true } }}
+              />
             </Box>
 
             {/* Third Row - Amount Range */}
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <Box sx={{ flex: 1, minWidth: 150 }}>
-                <TextField
-                  fullWidth
-                  label="Min Amount"
-                  type="number"
-                  value={minAmount}
-                  onChange={(e) => setMinAmount(e.target.value)}
-                  inputProps={{ min: 0, step: 0.01 }}
-                />
-              </Box>
-              <Box sx={{ flex: 1, minWidth: 150 }}>
-                <TextField
-                  fullWidth
-                  label="Max Amount"
-                  type="number"
-                  value={maxAmount}
-                  onChange={(e) => setMaxAmount(e.target.value)}
-                  inputProps={{ min: 0, step: 0.01 }}
-                />
-              </Box>
+            <Box sx={{ 
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
+              gap: 2 
+            }}>
+              <TextField
+                fullWidth
+                label="Min Amount"
+                type="number"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                inputProps={{ min: 0, step: 0.01 }}
+              />
+              <TextField
+                fullWidth
+                label="Max Amount"
+                type="number"
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+                inputProps={{ min: 0, step: 0.01 }}
+              />
             </Box>
 
             {/* Fourth Row - Category and Company Filters */}
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ 
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+              gap: 2 
+            }}>
               {/* Category Filter */}
-              <Box sx={{ flex: 1, minWidth: 250 }}>
-                <Autocomplete
-                  multiple
-                  options={categories}
-                  getOptionLabel={(option) => option.name}
-                  value={categories.filter(cat => categoryFilter.includes(cat.id))}
-                  onChange={(_, value) => setCategoryFilter(value.map(v => v.id))}
-                  renderInput={(params) => (
-                    <TextField {...params} label="Categories" />
-                  )}
-                  renderTags={(value, getTagProps) =>
-                    value.map((option, index) => {
-                      const { key, ...chipProps } = getTagProps({ index });
-                      return (
-                        <Chip
-                          key={key}
-                          label={option.name}
-                          size="small"
-                          {...chipProps}
-                        />
-                      );
-                    })
-                  }
-                />
-              </Box>
+              <Autocomplete
+                multiple
+                options={categories}
+                getOptionLabel={(option) => option.name}
+                value={categories.filter(cat => categoryFilter.includes(cat.id))}
+                onChange={(_, value) => setCategoryFilter(value.map(v => v.id))}
+                renderInput={(params) => (
+                  <TextField {...params} label="Categories" />
+                )}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => {
+                    const { key, ...chipProps } = getTagProps({ index });
+                    return (
+                      <Chip
+                        key={key}
+                        label={option.name}
+                        size="small"
+                        {...chipProps}
+                      />
+                    );
+                  })
+                }
+              />
 
               {/* Company Filter */}
-              <Box sx={{ flex: 1, minWidth: 250 }}>
-                <Autocomplete
-                  multiple
-                  options={companies}
-                  getOptionLabel={(option) => option.name}
-                  value={companies.filter(comp => companyFilter.includes(comp.id))}
-                  onChange={(_, value) => setCompanyFilter(value.map(v => v.id))}
-                  renderInput={(params) => (
-                    <TextField {...params} label="Companies" />
-                  )}
-                  renderTags={(value, getTagProps) =>
-                    value.map((option, index) => {
-                      const { key, ...chipProps } = getTagProps({ index });
-                      return (
-                        <Chip
-                          key={key}
-                          label={option.name}
-                          size="small"
-                          {...chipProps}
-                        />
-                      );
-                    })
-                  }
-                />
-              </Box>
+              <Autocomplete
+                multiple
+                options={companies}
+                getOptionLabel={(option) => option.name}
+                value={companies.filter(comp => companyFilter.includes(comp.id))}
+                onChange={(_, value) => setCompanyFilter(value.map(v => v.id))}
+                renderInput={(params) => (
+                  <TextField {...params} label="Companies" />
+                )}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => {
+                    const { key, ...chipProps } = getTagProps({ index });
+                    return (
+                      <Chip
+                        key={key}
+                        label={option.name}
+                        size="small"
+                        {...chipProps}
+                      />
+                    );
+                  })
+                }
+              />
             </Box>
           </Box>
-        </Paper>
-
-        {/* Results Table */}
+        </Paper>        {/* Results Table */}
         <Paper>
-          <TableContainer>
-            <Table>
+          <TableContainer sx={{ overflowX: 'auto' }}>
+            <Table sx={{ minWidth: { xs: 800, sm: 'auto' } }}>
               <TableHead>
                 <TableRow>
                   <TableCell>

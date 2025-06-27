@@ -1,8 +1,32 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Box, Tabs, Tab, AppBar, Toolbar, IconButton, Typography } from '@mui/material';
-import { Settings } from '@mui/icons-material';
+import { 
+  Box, 
+  AppBar, 
+  Toolbar, 
+  IconButton, 
+  Typography, 
+  Menu, 
+  MenuItem, 
+  Button,
+  useTheme,
+  useMediaQuery,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Divider
+} from '@mui/material';
+import { 
+  Settings, 
+  Menu as MenuIcon, 
+  Dashboard as DashboardIcon,
+  Home as ProjectsIcon,
+  Receipt as TransactionsIcon
+} from '@mui/icons-material';
 import DatabaseInitializer from '../components/DatabaseInitializer';
 import Dashboard from '../components/Dashboard';
 import ManageProjects from '../components/ManageProjects';
@@ -11,28 +35,33 @@ import SettingsPage from '../components/SettingsPage';
 import AutoSaveIndicator from '../components/AutoSaveIndicator';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel({ children, value, index }: TabPanelProps) {
-  return (
-    <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ width: '100%' }}>{children}</Box>}
-    </div>
-  );
-}
-
 export default function Home() {
   const { isDatabaseLoaded } = useDatabaseContext();
   const [showDashboard, setShowDashboard] = useState(false);
-  const [tabValue, setTabValue] = useState(0);
+  const [currentPage, setCurrentPage] = useState('dashboard');
   const [showSettings, setShowSettings] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  const navigationItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
+    { id: 'projects', label: 'Projects', icon: <ProjectsIcon /> },
+    { id: 'transactions', label: 'Transactions', icon: <TransactionsIcon /> },
+  ];
 
   const handleDatabaseReady = () => {
     setShowDashboard(true);
+  };
+
+  const handlePageChange = (page: string) => {
+    setCurrentPage(page);
+    setMobileMenuOpen(false);
+  };
+
+  const handleMobileMenuToggle = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
   };
 
   if (!isDatabaseLoaded && !showDashboard) {
@@ -43,40 +72,143 @@ export default function Home() {
     return <SettingsPage onClose={() => setShowSettings(false)} />;
   }
 
+  const renderNavigationButtons = () => (
+    <>
+      {navigationItems.map((item) => (
+        <Button
+          key={item.id}
+          color="inherit"
+          startIcon={item.icon}
+          onClick={() => handlePageChange(item.id)}
+          sx={{
+            mx: 1,
+            bgcolor: currentPage === item.id ? 'action.selected' : 'transparent',
+            '&:hover': {
+              bgcolor: 'action.hover',
+            },
+          }}
+        >
+          {item.label}
+        </Button>
+      ))}
+    </>
+  );
+
+  const renderMobileDrawer = () => (
+    <Drawer
+      anchor="left"
+      open={mobileMenuOpen}
+      onClose={() => setMobileMenuOpen(false)}
+      sx={{
+        '& .MuiDrawer-paper': {
+          width: 250,
+          boxSizing: 'border-box',
+        },
+      }}
+    >
+      <Box sx={{ overflow: 'auto' }}>
+        <Box sx={{ p: 2 }}>
+          <Typography variant="h6" component="div">
+            Budget Tracker
+          </Typography>
+        </Box>
+        <Divider />
+        <List>
+          {navigationItems.map((item) => (
+            <ListItem key={item.id} disablePadding>
+              <ListItemButton
+                selected={currentPage === item.id}
+                onClick={() => handlePageChange(item.id)}
+              >
+                <ListItemIcon>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText primary={item.label} />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+        <Divider />
+        <List>
+          <ListItem disablePadding>
+            <ListItemButton onClick={() => { setShowSettings(true); setMobileMenuOpen(false); }}>
+              <ListItemIcon>
+                <Settings />
+              </ListItemIcon>
+              <ListItemText primary="Settings" />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      </Box>
+    </Drawer>
+  );
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-      {/* Header with Navigation */}
+      {/* Responsive App Bar */}
       <AppBar position="sticky" color="default" elevation={1}>
-        <Toolbar>
-          <Box sx={{ flexGrow: 1 }}>
-            <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-              <Tab label="Financial Dashboard" />
-              <Tab label="House Projects" />
-              <Tab label="Transaction Report" />
-            </Tabs>
-          </Box>
-          {isDatabaseLoaded && <AutoSaveIndicator />}
-          <IconButton 
-            color="inherit" 
-            onClick={() => setShowSettings(true)}
-            sx={{ ml: 2 }}
+        <Toolbar sx={{ minHeight: 64 }}>
+          {isMobile && (
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="start"
+              onClick={handleMobileMenuToggle}
+              sx={{ mr: 2 }}
+            >
+              <MenuIcon />
+            </IconButton>
+          )}
+          
+          <Typography
+            variant="h6"
+            component="div"
+            sx={{
+              flexGrow: isMobile ? 1 : 0,
+              mr: { xs: 0, md: 3 },
+              fontWeight: 600,
+              minWidth: 'fit-content',
+            }}
           >
-            <Settings />
-          </IconButton>
+            Budget Tracker
+          </Typography>
+
+          {!isMobile && (
+            <Box sx={{ flexGrow: 1, display: 'flex', ml: 2, minWidth: 0 }}>
+              {renderNavigationButtons()}
+            </Box>
+          )}
+
+          <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 'fit-content' }}>
+            {isDatabaseLoaded && <AutoSaveIndicator />}
+            {!isMobile && (
+              <IconButton
+                color="inherit"
+                onClick={() => setShowSettings(true)}
+                sx={{ ml: 2 }}
+              >
+                <Settings />
+              </IconButton>
+            )}
+          </Box>
         </Toolbar>
       </AppBar>
+
+      {/* Mobile Navigation Drawer */}
+      {isMobile && renderMobileDrawer()}
       
-      <TabPanel value={tabValue} index={0}>
+      {/* Page Content */}
+      {currentPage === 'dashboard' && (
         <Dashboard />
-      </TabPanel>
+      )}
       
-      <TabPanel value={tabValue} index={1}>
+      {currentPage === 'projects' && (
         <ManageProjects />
-      </TabPanel>
+      )}
       
-      <TabPanel value={tabValue} index={2}>
+      {currentPage === 'transactions' && (
         <TransactionReport />
-      </TabPanel>
+      )}
     </Box>
   );
 }

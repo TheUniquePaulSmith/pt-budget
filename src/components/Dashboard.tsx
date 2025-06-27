@@ -30,6 +30,7 @@ import {
   Settings,
   Save,
   Close,
+  BugReport,
 } from '@mui/icons-material';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
@@ -38,7 +39,6 @@ import { useDatabaseContext } from '../contexts/DatabaseContext';
 import { format, subDays, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import AddTransaction from './AddTransaction';
 import CSVImport from './CSVImport';
-import ManageData from './ManageData';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -109,8 +109,7 @@ const Dashboard: React.FC = () => {  const {
     autoSaveEnabled,
   } = useDatabaseContext();const [tabValue, setTabValue] = useState(0);
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');  
-  const [addTransactionOpen, setAddTransactionOpen] = useState(false);  const [csvImportOpen, setCsvImportOpen] = useState(false);  const [manageDataOpen, setManageDataOpen] = useState(false);
-  const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
+  const [addTransactionOpen, setAddTransactionOpen] = useState(false);  const [csvImportOpen, setCsvImportOpen] = useState(false);  const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
 
   // Refresh transactions when database is loaded
   React.useEffect(() => {
@@ -238,6 +237,29 @@ const Dashboard: React.FC = () => {  const {
     }
   };
 
+  // Test function for developer console
+  const testConsoleLogging = () => {
+    console.log('Dashboard: Test log message');
+    console.info('Dashboard: Test info message');
+    console.warn('Dashboard: Test warning message');
+    console.error('Dashboard: Test error message');
+    console.debug('Dashboard: Test debug message');
+    
+    // Test with objects
+    console.log('Dashboard: Test object:', { 
+      component: 'Dashboard', 
+      timestamp: new Date(),
+      summaryStats: summaryStats 
+    });
+    
+    // Test intentional error
+    try {
+      throw new Error('Dashboard: Test intentional error for debugging');
+    } catch (error) {
+      console.error('Dashboard: Caught error:', error);
+    }
+  };
+
   return (    <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
       {/* Header */}
       <Box 
@@ -267,21 +289,21 @@ const Dashboard: React.FC = () => {  const {
         >
           <Button
             variant="outlined"
-            startIcon={<Settings />}
-            onClick={() => setManageDataOpen(true)}
-            size="small"
-            sx={{ width: { xs: '100%', sm: 'auto' } }}
-          >
-            Manage Data
-          </Button>
-          <Button
-            variant="outlined"
             startIcon={<Download />}
             onClick={handleExportDatabase}
             size="small"
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Export Data
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<BugReport />}
+            onClick={testConsoleLogging}
+            size="small"
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            Test Console
           </Button>
           <Button
             variant="outlined"
@@ -556,12 +578,6 @@ const Dashboard: React.FC = () => {  const {
           refreshTransactions();
           setCsvImportOpen(false);
         }}
-      />
-
-      {/* Manage Data Modal */}
-      <ManageData
-        open={manageDataOpen}
-        onClose={() => setManageDataOpen(false)}
       />
     </Box>
   );

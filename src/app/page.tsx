@@ -25,7 +25,9 @@ import {
   Menu as MenuIcon, 
   Dashboard as DashboardIcon,
   Home as ProjectsIcon,
-  Receipt as TransactionsIcon
+  Receipt as TransactionsIcon,
+  Storage as ManageDataIcon,
+  BugReport
 } from '@mui/icons-material';
 import DatabaseInitializer from '../components/DatabaseInitializer';
 import Dashboard from '../components/Dashboard';
@@ -33,6 +35,8 @@ import ManageProjects from '../components/ManageProjects';
 import TransactionReport from '../components/TransactionReport';
 import SettingsPage from '../components/SettingsPage';
 import AutoSaveIndicator from '../components/AutoSaveIndicator';
+import ManageData from '../components/ManageData';
+import DeveloperConsolePage from '../components/DeveloperConsolePage';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
 
 export default function Home() {
@@ -41,6 +45,8 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showSettings, setShowSettings] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [manageDataOpen, setManageDataOpen] = useState(false);
+  const [showDeveloperConsole, setShowDeveloperConsole] = useState(false);
   
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -70,6 +76,10 @@ export default function Home() {
 
   if (showSettings) {
     return <SettingsPage onClose={() => setShowSettings(false)} />;
+  }
+
+  if (showDeveloperConsole) {
+    return <DeveloperConsolePage onClose={() => setShowDeveloperConsole(false)} />;
   }
 
   const renderNavigationButtons = () => (
@@ -130,6 +140,24 @@ export default function Home() {
         </List>
         <Divider />
         <List>
+          {isDatabaseLoaded && (
+            <ListItem disablePadding>
+              <ListItemButton onClick={() => { setManageDataOpen(true); setMobileMenuOpen(false); }}>
+                <ListItemIcon>
+                  <ManageDataIcon />
+                </ListItemIcon>
+                <ListItemText primary="Manage Data" />
+              </ListItemButton>
+            </ListItem>
+          )}
+          <ListItem disablePadding>
+            <ListItemButton onClick={() => { setShowDeveloperConsole(true); setMobileMenuOpen(false); }}>
+              <ListItemIcon>
+                <BugReport />
+              </ListItemIcon>
+              <ListItemText primary="Developer Console" />
+            </ListItemButton>
+          </ListItem>
           <ListItem disablePadding>
             <ListItemButton onClick={() => { setShowSettings(true); setMobileMenuOpen(false); }}>
               <ListItemIcon>
@@ -181,11 +209,32 @@ export default function Home() {
 
           <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 'fit-content' }}>
             {isDatabaseLoaded && <AutoSaveIndicator />}
+            {!isMobile && isDatabaseLoaded && (
+              <IconButton
+                color="inherit"
+                onClick={() => setManageDataOpen(true)}
+                sx={{ ml: 2 }}
+                title="Manage Data"
+              >
+                <ManageDataIcon />
+              </IconButton>
+            )}
+            {!isMobile && (
+              <IconButton
+                color="inherit"
+                onClick={() => setShowDeveloperConsole(true)}
+                sx={{ ml: 2 }}
+                title="Developer Console"
+              >
+                <BugReport />
+              </IconButton>
+            )}
             {!isMobile && (
               <IconButton
                 color="inherit"
                 onClick={() => setShowSettings(true)}
                 sx={{ ml: 2 }}
+                title="Settings"
               >
                 <Settings />
               </IconButton>
@@ -209,6 +258,12 @@ export default function Home() {
       {currentPage === 'transactions' && (
         <TransactionReport />
       )}
+
+      {/* Manage Data Dialog */}
+      <ManageData
+        open={manageDataOpen}
+        onClose={() => setManageDataOpen(false)}
+      />
     </Box>
   );
 }

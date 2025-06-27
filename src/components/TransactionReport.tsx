@@ -24,12 +24,22 @@ import {
   Card,
   CardContent,
   IconButton,
-  Autocomplete,} from '@mui/material';
+  Autocomplete,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
+  Collapse,
+  useMediaQuery,
+  useTheme,
+} from '@mui/material';
 import {
   FilterList,
   ClearAll,
   Download,
   Receipt,
+  ViewColumn,
+  ExpandMore,
+  ExpandLess,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -65,12 +75,86 @@ export default function TransactionReport() {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [minAmount, setMinAmount] = useState<string>('');
   const [maxAmount, setMaxAmount] = useState<string>('');
-
   // Table state
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [orderBy, setOrderBy] = useState<keyof Transaction>('date');
   const [order, setOrder] = useState<Order>('desc');
+  
+  // Column visibility state
+  const [showColumnControls, setShowColumnControls] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState({
+    date: true,
+    description: true,
+    type: true,
+    category: true,
+    company: true,
+    project: true,
+    amount: true,
+    account: true,
+  });
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Set mobile-friendly defaults on mount
+  useEffect(() => {
+    if (isMobile) {
+      setVisibleColumns({
+        date: true,
+        description: true,
+        type: false,
+        category: false,
+        company: false,
+        project: false,
+        amount: true,
+        account: false,
+      });
+    }
+  }, [isMobile]);
+
+  const columnLabels = {
+    date: 'Date',
+    description: 'Description',
+    type: 'Type',
+    category: 'Category',
+    company: 'Company',
+    project: 'Project',
+    amount: 'Amount',
+    account: 'Account',
+  };
+
+  const handleColumnToggle = (column: keyof typeof visibleColumns) => {
+    setVisibleColumns(prev => ({
+      ...prev,
+      [column]: !prev[column],
+    }));
+  };
+
+  const handleShowAllColumns = () => {
+    setVisibleColumns({
+      date: true,
+      description: true,
+      type: true,
+      category: true,
+      company: true,
+      project: true,
+      amount: true,
+      account: true,
+    });
+  };
+
+  const handleMobilePreset = () => {
+    setVisibleColumns({
+      date: true,
+      description: true,
+      type: false,
+      category: false,
+      company: false,
+      project: false,
+      amount: true,
+      account: false,
+    });
+  };
 
   useEffect(() => {
     refreshTransactions();
@@ -199,19 +283,41 @@ export default function TransactionReport() {
     setMaxAmount('');
     setPage(0);
   };
-
   const handleExportCSV = () => {
-    const headers = ['Date', 'Description', 'Type', 'Category', 'Company', 'Project', 'Amount', 'Account'];
-    const csvData = filteredTransactions.map(transaction => [
-      transaction.date,
-      transaction.description,
-      transaction.type,
-      transaction.category_name,
-      transaction.company_name || '',
-      transaction.project_name || '',
-      Math.abs(transaction.amount),
-      transaction.account_last_four,
-    ]);
+    // Build headers based on visible columns
+    const headers: string[] = [];
+    const columnMapping: { [key: string]: string } = {
+      date: 'Date',
+      description: 'Description',
+      type: 'Type',
+      category: 'Category',
+      company: 'Company',
+      project: 'Project',
+      amount: 'Amount',
+      account: 'Account',
+    };
+
+    Object.entries(visibleColumns).forEach(([key, visible]) => {
+      if (visible) {
+        headers.push(columnMapping[key]);
+      }
+    });
+
+    // Build CSV data based on visible columns
+    const csvData = filteredTransactions.map(transaction => {
+      const row: string[] = [];
+      
+      if (visibleColumns.date) row.push(transaction.date);
+      if (visibleColumns.description) row.push(transaction.description);
+      if (visibleColumns.type) row.push(transaction.type);
+      if (visibleColumns.category) row.push(transaction.category_name || '');
+      if (visibleColumns.company) row.push(transaction.company_name || '');
+      if (visibleColumns.project) row.push(transaction.project_name || '');
+      if (visibleColumns.amount) row.push(Math.abs(transaction.amount).toString());
+      if (visibleColumns.account) row.push(transaction.account_last_four);
+      
+      return row;
+    });
 
     const csvContent = [headers, ...csvData]
       .map(row => row.map(field => `"${field}"`).join(','))
@@ -282,11 +388,75 @@ export default function TransactionReport() {
               disabled={filteredTransactions.length === 0}
               size="small"
               sx={{ width: { xs: '100%', sm: 'auto' } }}
+            >              Export CSV
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<ViewColumn />}
+              onClick={() => setShowColumnControls(!showColumnControls)}
+              size="small"
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
             >
-              Export CSV
+              Columns
             </Button>
           </Stack>
-        </Box>        {/* Summary Stats */}
+        </Box>
+
+        {/* Column Visibility Controls */}
+        <Collapse in={showColumnControls}>
+          <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <ViewColumn />
+              <Typography variant="h6">Column Visibility</Typography>
+            </Box>
+            
+            <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleShowAllColumns}
+              >
+                Show All
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleMobilePreset}
+              >
+                Mobile View
+              </Button>
+            </Box>
+
+            <FormGroup>
+              <Box sx={{ 
+                display: 'grid',
+                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
+                gap: 1 
+              }}>
+                {Object.entries(columnLabels).map(([key, label]) => (
+                  <FormControlLabel
+                    key={key}
+                    control={
+                      <Checkbox
+                        checked={visibleColumns[key as keyof typeof visibleColumns]}
+                        onChange={() => handleColumnToggle(key as keyof typeof visibleColumns)}
+                        size="small"
+                      />
+                    }
+                    label={label}
+                    sx={{ 
+                      '& .MuiFormControlLabel-label': { 
+                        fontSize: { xs: '0.875rem', sm: '1rem' } 
+                      } 
+                    }}
+                  />
+                ))}
+              </Box>
+            </FormGroup>
+          </Paper>
+        </Collapse>
+
+        {/* Summary Stats */}
         <Box sx={{ 
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
@@ -474,83 +644,142 @@ export default function TransactionReport() {
         </Paper>        {/* Results Table */}
         <Paper>
           <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table sx={{ minWidth: { xs: 800, sm: 'auto' } }}>
+            <Table sx={{ minWidth: { xs: 300, sm: 800 } }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>
-                    <TableSortLabel
-                      active={orderBy === 'date'}
-                      direction={orderBy === 'date' ? order : 'asc'}
-                      onClick={() => handleRequestSort('date')}
-                    >
-                      Date
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>
-                    <TableSortLabel
-                      active={orderBy === 'description'}
-                      direction={orderBy === 'description' ? order : 'asc'}
-                      onClick={() => handleRequestSort('description')}
-                    >
-                      Description
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Category</TableCell>
-                  <TableCell>Company</TableCell>
-                  <TableCell>Project</TableCell>
-                  <TableCell align="right">
-                    <TableSortLabel
-                      active={orderBy === 'amount'}
-                      direction={orderBy === 'amount' ? order : 'asc'}
-                      onClick={() => handleRequestSort('amount')}
-                    >
-                      Amount
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>Account</TableCell>
+                  {visibleColumns.date && (
+                    <TableCell>
+                      <TableSortLabel
+                        active={orderBy === 'date'}
+                        direction={orderBy === 'date' ? order : 'asc'}
+                        onClick={() => handleRequestSort('date')}
+                      >
+                        Date
+                      </TableSortLabel>
+                    </TableCell>
+                  )}
+                  {visibleColumns.description && (
+                    <TableCell>
+                      <TableSortLabel
+                        active={orderBy === 'description'}
+                        direction={orderBy === 'description' ? order : 'asc'}
+                        onClick={() => handleRequestSort('description')}
+                      >
+                        Description
+                      </TableSortLabel>
+                    </TableCell>
+                  )}
+                  {visibleColumns.type && (
+                    <TableCell>Type</TableCell>
+                  )}
+                  {visibleColumns.category && (
+                    <TableCell>Category</TableCell>
+                  )}
+                  {visibleColumns.company && (
+                    <TableCell>Company</TableCell>
+                  )}
+                  {visibleColumns.project && (
+                    <TableCell>Project</TableCell>
+                  )}
+                  {visibleColumns.amount && (
+                    <TableCell align="right">
+                      <TableSortLabel
+                        active={orderBy === 'amount'}
+                        direction={orderBy === 'amount' ? order : 'asc'}
+                        onClick={() => handleRequestSort('amount')}
+                      >
+                        Amount
+                      </TableSortLabel>
+                    </TableCell>
+                  )}
+                  {visibleColumns.account && (
+                    <TableCell>Account</TableCell>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
                 {paginatedTransactions.map((transaction) => (
                   <TableRow key={transaction.id} hover>
-                    <TableCell>
-                      {format(parseISO(transaction.date), 'MMM dd, yyyy')}
-                    </TableCell>
-                    <TableCell>{transaction.description}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={transaction.type}
-                        size="small"
-                        color={transaction.type === 'income' ? 'success' : 'error'}
-                      />
-                    </TableCell>
-                    <TableCell>{transaction.category_name}</TableCell>
-                    <TableCell>{transaction.company_name || '-'}</TableCell>
-                    <TableCell>{transaction.project_name || '-'}</TableCell>
-                    <TableCell align="right">
-                      <Typography
-                        color={transaction.type === 'income' ? 'success.main' : 'error.main'}
-                        fontWeight="medium"
-                      >
-                        {transaction.type === 'income' ? '+' : '-'}
-                        {formatCurrency(Math.abs(transaction.amount))}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>****{transaction.account_last_four}</TableCell>
+                    {visibleColumns.date && (
+                      <TableCell sx={{ minWidth: 100 }}>
+                        {format(parseISO(transaction.date), isMobile ? 'MM/dd/yy' : 'MMM dd, yyyy')}
+                      </TableCell>
+                    )}
+                    {visibleColumns.description && (
+                      <TableCell sx={{ 
+                        minWidth: { xs: 150, sm: 200 },
+                        maxWidth: { xs: 200, sm: 300 },
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        <Box
+                          component="div"
+                          title={transaction.description}
+                          sx={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {transaction.description}
+                        </Box>
+                      </TableCell>
+                    )}
+                    {visibleColumns.type && (
+                      <TableCell>
+                        <Chip
+                          label={transaction.type}
+                          size="small"
+                          color={transaction.type === 'income' ? 'success' : 'error'}
+                        />
+                      </TableCell>
+                    )}
+                    {visibleColumns.category && (
+                      <TableCell sx={{ minWidth: 120 }}>{transaction.category_name}</TableCell>
+                    )}
+                    {visibleColumns.company && (
+                      <TableCell sx={{ minWidth: 120 }}>{transaction.company_name || '-'}</TableCell>
+                    )}
+                    {visibleColumns.project && (
+                      <TableCell sx={{ minWidth: 120 }}>{transaction.project_name || '-'}</TableCell>
+                    )}
+                    {visibleColumns.amount && (
+                      <TableCell align="right" sx={{ minWidth: 100 }}>
+                        <Typography
+                          color={transaction.type === 'income' ? 'success.main' : 'error.main'}
+                          fontWeight="medium"
+                          variant={isMobile ? 'body2' : 'body1'}
+                        >
+                          {transaction.type === 'income' ? '+' : '-'}
+                          {formatCurrency(Math.abs(transaction.amount))}
+                        </Typography>
+                      </TableCell>
+                    )}
+                    {visibleColumns.account && (
+                      <TableCell sx={{ minWidth: 80 }}>****{transaction.account_last_four}</TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </TableContainer>
-          <TablePagination
-            rowsPerPageOptions={[10, 25, 50, 100]}
+          </TableContainer>          <TablePagination
+            rowsPerPageOptions={isMobile ? [10, 25] : [10, 25, 50, 100]}
             component="div"
             count={filteredTransactions.length}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}
             onRowsPerPageChange={handleChangeRowsPerPage}
+            labelRowsPerPage={isMobile ? "Rows:" : "Rows per page:"}
+            sx={{
+              '& .MuiTablePagination-spacer': {
+                display: { xs: 'none', sm: 'flex' }
+              },
+              '& .MuiTablePagination-selectLabel': {
+                display: { xs: 'none', sm: 'block' }
+              }
+            }}
           />
         </Paper>
 

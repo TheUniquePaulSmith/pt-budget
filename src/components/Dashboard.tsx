@@ -519,7 +519,7 @@ const Dashboard: React.FC = () => {  const {
                     color={transaction.type === 'income' ? 'success.main' : 'error.main'}
                     fontWeight="bold"
                   >
-                    {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    {formatCurrency(transaction.amount)}
                   </Typography>
                 </Box>
               );

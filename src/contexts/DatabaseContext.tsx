@@ -165,6 +165,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const [autoSaveFileHandle, setAutoSaveFileHandle] = useState<FileSystemFileHandle | null>(null);
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [lastDataHash, setLastDataHash] = useState<string>('');
 
   const initializeDatabase = async () => {
     try {
@@ -403,7 +404,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         await writable.write(dbData);
         await writable.close();
         setLastAutoSave(new Date());
-        console.log('Database auto-saved successfully');
+        console.log('Database auto-saved successfully at', new Date().toLocaleTimeString());
         
         // Also save to session for persistence
         await saveDatabaseToSession(fileHandle.name);
@@ -423,21 +424,32 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     setLastAutoSave(null);
   };  // Auto-save when data changes
   React.useEffect(() => {
-    if (autoSaveEnabled && autoSaveFileHandle && transactions.length > 0) {
-      const timeoutId = setTimeout(() => {
-        saveToFile(autoSaveFileHandle).catch(console.error);
-      }, 2000); // Save 2 seconds after last change
+    // Create a simple hash of the data to detect actual changes
+    const currentDataHash = `${transactions.length}-${categories.length}-${companies.length}-${accounts.length}-${budgets.length}-${projects.length}`;
+    
+    // Only trigger auto-save if the data has actually changed and we're not in initial loading
+    if (currentDataHash !== lastDataHash && lastDataHash !== '' && !isLoading && isDatabaseLoaded) {
+      setLastDataHash(currentDataHash);
+      
+      if (autoSaveEnabled && autoSaveFileHandle) {
+        const timeoutId = setTimeout(() => {
+          saveToFile(autoSaveFileHandle).catch(console.error);
+        }, 2000); // Save 2 seconds after last change
 
-      return () => clearTimeout(timeoutId);
-    } else if (isDatabaseLoaded && transactions.length > 0) {
-      // If auto-save is not enabled, still save to session for persistence
-      const timeoutId = setTimeout(() => {
-        saveDatabaseToSession().catch(console.error);
-      }, 3000); // Save to session 3 seconds after last change
+        return () => clearTimeout(timeoutId);
+      } else {
+        // If auto-save is not enabled, still save to session for persistence
+        const timeoutId = setTimeout(() => {
+          saveDatabaseToSession().catch(console.error);
+        }, 3000); // Save to session 3 seconds after last change
 
-      return () => clearTimeout(timeoutId);
+        return () => clearTimeout(timeoutId);
+      }
+    } else if (lastDataHash === '') {
+      // Set initial hash without triggering save
+      setLastDataHash(currentDataHash);
     }
-  }, [transactions, categories, autoSaveEnabled, autoSaveFileHandle, isDatabaseLoaded, saveDatabaseToSession, saveToFile]);
+  }, [transactions.length, categories.length, companies.length, accounts.length, budgets.length, projects.length, autoSaveEnabled, autoSaveFileHandle, isDatabaseLoaded, isLoading, lastDataHash, saveDatabaseToSession, saveToFile]);
 
   const refreshAllData = useCallback(() => {
     if (!db || !isDatabaseLoaded) return;

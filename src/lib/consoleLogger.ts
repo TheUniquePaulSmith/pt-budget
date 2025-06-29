@@ -25,7 +25,7 @@ class ConsoleLogger {
     
     // Override console methods
     ['log', 'info', 'warn', 'error', 'debug'].forEach(level => {
-      const originalMethod = this.originalConsole[level as keyof Console] as Function;
+      const originalMethod = this.originalConsole[level as keyof Console] as (...args: any[]) => void;
       
       (console as any)[level] = (...args: any[]) => {
         // Call original method first

@@ -54,7 +54,10 @@ const DeveloperConsole: React.FC<DeveloperConsoleProps> = ({ isOpen }) => {
   useEffect(() => {
     // Auto-scroll to bottom when new logs arrive
     if (logs.length > 0) {
-      logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      // Use setTimeout to ensure DOM is updated before scrolling
+      setTimeout(() => {
+        logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 10);
     }
   }, [logs]);
 
@@ -64,6 +67,15 @@ const DeveloperConsole: React.FC<DeveloperConsoleProps> = ({ isOpen }) => {
       log.message.toLowerCase().includes(filter.toLowerCase());
     return matchesLevel && matchesFilter;
   });
+
+  useEffect(() => {
+    // Auto-scroll when filters change to show latest filtered logs
+    if (filteredLogs.length > 0) {
+      setTimeout(() => {
+        logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 10);
+    }
+  }, [filteredLogs.length, filter, levelFilter]);
 
   const handleLevelToggle = (level: string) => {
     setLevelFilter(prev => 

@@ -194,7 +194,7 @@ export default function TransactionReport() {
       if (typeFilter !== 'all' && transaction.type !== typeFilter) return false;
 
       // Category filter
-      if (categoryFilter.length > 0 && !categoryFilter.includes(transaction.category_id)) return false;
+      if (categoryFilter.length > 0 && transaction.category_id && !categoryFilter.includes(transaction.category_id)) return false;
 
       // Company filter
       if (companyFilter.length > 0 && transaction.company_id && !companyFilter.includes(transaction.company_id)) return false;

@@ -130,6 +130,8 @@ export class CSVParser {
       amount: absoluteAmount,
       description,
       category_id: defaultCategoryId,
+      company_id: null, // CSV import doesn't specify company
+      project_id: null, // CSV import doesn't specify project
       account_last_four: accountLastFour,
       type,
     };

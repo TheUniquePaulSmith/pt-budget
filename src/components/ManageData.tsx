@@ -35,7 +35,7 @@ import {
   Category as CategoryIcon,
 } from '@mui/icons-material';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
-import { Category, Company } from '@/lib/database';
+import { Category, Company } from '@/types/database';
 
 interface ManageDataProps {
   open: boolean;
@@ -57,7 +57,14 @@ function TabPanel({ children, value, index }: TabPanelProps) {
 }
 
 export default function ManageData({ open, onClose }: ManageDataProps) {
-  const { db, categories, companies, refreshCategories, refreshCompanies } = useDatabaseContext();
+  const { 
+    categories, 
+    companies, 
+    refreshCategories, 
+    refreshCompanies, 
+    addCategory, 
+    addCompany 
+  } = useDatabaseContext();
   const [tabValue, setTabValue] = useState(0);
   
   // Category management state
@@ -91,11 +98,11 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
 
   // Category management functions
   const handleAddCategory = async () => {
-    if (!db || !newCategory.name.trim()) return;
+    if (!newCategory.name.trim()) return;
 
     try {
       setLoading(true);
-      await db.addCategory(newCategory);
+      await addCategory(newCategory);
       setNewCategory({ name: '', type: 'expense', color: '#FF6B6B' });
       refreshCategories();
       setError(null);
@@ -112,7 +119,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
   };
 
   const handleSaveCategory = async () => {
-    if (!db || !editCategoryData) return;
+    if (!editCategoryData) return;
 
     try {
       setLoading(true);
@@ -136,11 +143,11 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
 
   // Company management functions
   const handleAddCompany = async () => {
-    if (!db || !newCompany.trim()) return;
+    if (!newCompany.trim()) return;
 
     try {
       setLoading(true);
-      await db.addCompany(newCompany.trim());
+      await addCompany(newCompany.trim());
       setNewCompany('');
       refreshCompanies();
       setError(null);
@@ -157,7 +164,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
   };
 
   const handleSaveCompany = async () => {
-    if (!db || !editCompanyData) return;
+    if (!editCompanyData) return;
 
     try {
       setLoading(true);

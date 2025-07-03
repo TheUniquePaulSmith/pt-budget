@@ -104,9 +104,6 @@ const Dashboard: React.FC = () => {  const {
     exportDatabase,
     refreshTransactions,
     isDatabaseLoaded,
-    saveDatabaseToSession,
-    clearSession,
-    autoSaveEnabled,
   } = useDatabaseContext();const [tabValue, setTabValue] = useState(0);
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');  
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);  const [csvImportOpen, setCsvImportOpen] = useState(false);  const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
@@ -147,7 +144,14 @@ const Dashboard: React.FC = () => {  const {
 
   // Calculate summary statistics
   const summaryStats = useMemo(() => {
-    const periodTransactions = getTransactionsByDateRange(dateRanges.start, dateRanges.end);
+    // Filter transactions by date range
+    const startDate = new Date(dateRanges.start);
+    const endDate = new Date(dateRanges.end);
+    
+    const periodTransactions = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate >= startDate && transactionDate <= endDate;
+    });
     
     const totalIncome = periodTransactions
       .filter(t => t.type === 'income')
@@ -165,38 +169,28 @@ const Dashboard: React.FC = () => {  const {
       netIncome,
       transactionCount: periodTransactions.length,
     };
-  }, [getTransactionsByDateRange, dateRanges]);
+  }, [transactions, dateRanges]);
 
-  // Chart data
+  // Chart data - TODO: These need to be implemented properly with async/await
   const spendingData = useMemo(() => {
-    const data = getSpendingByCategory(dateRanges.start, dateRanges.end);
-    return data.map((item, index) => ({
-      id: index,
-      value: item.total,
-      label: item.category_name,
-      color: item.color,
-    }));
-  }, [getSpendingByCategory, dateRanges]);
+    // Temporarily return empty data until chart functions are fixed
+    return [];
+  }, []);
 
   const incomeData = useMemo(() => {
-    const data = getIncomeByCategory(dateRanges.start, dateRanges.end);
-    return data.map((item, index) => ({
-      id: index,
-      value: item.total,
-      label: item.category_name,
-      color: item.color,
-    }));
-  }, [getIncomeByCategory, dateRanges]);
+    // Temporarily return empty data until chart functions are fixed
+    return [];
+  }, []);
 
   const trendsData = useMemo(() => {
-    const data = getMonthlyTrends(6);
+    // Temporarily return empty data until chart functions are fixed
     return {
-      xAxis: data.map(item => item.month),
-      income: data.map(item => item.income),
-      expenses: data.map(item => item.expense),
+      xAxis: [],
+      income: [],
+      expenses: [],
     };
-  }, [getMonthlyTrends]);  const handleExportDatabase = () => {
-    const dbData = exportDatabase();
+  }, []);  const handleExportDatabase = async () => {
+    const dbData = await exportDatabase();
     if (dbData) {
       const blob = new Blob([dbData], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
@@ -207,17 +201,6 @@ const Dashboard: React.FC = () => {  const {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    }
-  };
-  const handleClearSession = async () => {
-    if (confirm('This will clear your saved session data. You will need to reload your database file next time you visit. Continue?')) {
-      try {
-        await clearSession();
-        alert('Session data cleared successfully.');
-      } catch (error) {
-        console.error('Error clearing session:', error);
-        alert('Failed to clear session data.');
-      }
     }
   };
 

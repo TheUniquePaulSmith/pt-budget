@@ -1,6 +1,6 @@
 import Papa from 'papaparse';
 import { v4 as uuidv4 } from 'uuid';
-import { Transaction } from './database';
+import { Transaction } from '../types/database';
 
 export interface CSVTransaction {
   date: string;

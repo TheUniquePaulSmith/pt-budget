@@ -21,7 +21,7 @@ import {
 import { CloudUpload, CheckCircle, Error as ErrorIcon } from '@mui/icons-material';
 import Papa from 'papaparse';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
-import { Transaction } from '@/lib/database';
+import { Transaction } from '@/types/database';
 
 interface CSVImportProps {
   open: boolean;
@@ -36,7 +36,7 @@ interface ImportResult {
 }
 
 export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) {
-  const { db } = useDatabaseContext();
+  const { addTransaction } = useDatabaseContext();
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
   const [preview, setPreview] = useState<any[]>([]);
@@ -123,8 +123,9 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         date,
         amount: Math.abs(amount) * (type === 'expense' ? -1 : 1),
         description: description || 'Imported transaction',
-        category_id: 'cat-1', // Default category
-        company_id: undefined,
+        category_id: null, // No category by default, let user assign later
+        company_id: null,
+        project_id: null, // No project by default
         account_last_four: '0000', // Default
         type,
       };
@@ -132,7 +133,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   };
 
   const handleImport = async () => {
-    if (!db || !csvData.length || !mapping.dateColumn || !mapping.amountColumn || !mapping.descriptionColumn) {
+    if (!csvData.length || !mapping.dateColumn || !mapping.amountColumn || !mapping.descriptionColumn) {
       setError('Please ensure database is loaded and required columns are mapped');
       return;
     }
@@ -149,7 +150,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
       for (const transaction of mappedTransactions) {
         try {
-          await db.addTransaction(transaction);
+          await addTransaction(transaction);
           successCount++;
         } catch (err) {
           failedCount++;

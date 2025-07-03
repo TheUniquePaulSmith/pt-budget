@@ -1,12 +1,31 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'export',
+  // Temporarily disable export for development to enable headers
+  // output: 'export',
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
   distDir: 'dist',
   images: {
     unoptimized: true,
+  },
+  // Headers for SharedArrayBuffer support (required for wa-sqlite)
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+        ],
+      },
+    ];
   },
   webpack: (config, { isServer }) => {
     // Basic fallbacks for Node.js modules in the browser

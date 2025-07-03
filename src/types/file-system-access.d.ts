@@ -34,4 +34,18 @@ declare global {
   }
 }
 
+// WA-SQLite module declarations for dynamic imports
+declare module '/wa-sqlite/wa-sqlite-async.mjs' {
+  const SQLiteModule: any;
+  export default SQLiteModule;
+}
+
+declare module '/wa-sqlite/src/sqlite-api.js' {
+  export const Factory: any;
+}
+
+declare module '/wa-sqlite/src/examples/OPFSAnyContextVFS.js' {
+  export const OPFSAnyContextVFS: any;
+}
+
 export {};

@@ -35,7 +35,7 @@ import {
   Home as HomeIcon,
 } from '@mui/icons-material';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
-import { Project } from '../lib/database';
+import { Project } from '../types/database';
 
 const PROJECT_CATEGORIES = [
   { value: 'plumbing', label: 'Plumbing' },
@@ -110,8 +110,8 @@ export default function ManageProjects() {
       const costsData: { [key: string]: any } = {};
 
       for (const project of projects) {
-        transactionsData[project.id] = getTransactionsByProject(project.id);
-        costsData[project.id] = getProjectCosts(project.id);
+        transactionsData[project.id] = await getTransactionsByProject(project.id);
+        costsData[project.id] = await getProjectCosts(project.id);
       }
 
       setProjectTransactions(transactionsData);

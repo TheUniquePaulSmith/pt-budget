@@ -45,7 +45,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
-import { Transaction } from '../lib/database';
+import { Transaction } from '../types/database';
 import { format, parseISO } from 'date-fns';
 
 type Order = 'asc' | 'desc';

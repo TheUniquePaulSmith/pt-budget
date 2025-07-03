@@ -34,7 +34,6 @@ import Dashboard from '../components/Dashboard';
 import ManageProjects from '../components/ManageProjects';
 import TransactionReport from '../components/TransactionReport';
 import SettingsPage from '../components/SettingsPage';
-import AutoSaveIndicator from '../components/AutoSaveIndicator';
 import ManageData from '../components/ManageData';
 import DeveloperConsolePage from '../components/DeveloperConsolePage';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
@@ -71,7 +70,11 @@ export default function Home() {
   };
 
   if (!isDatabaseLoaded && !showDashboard) {
-    return <DatabaseInitializer onDatabaseReady={handleDatabaseReady} />;
+    return (
+      <Box>
+        <DatabaseInitializer onDatabaseLoaded={handleDatabaseReady} />
+      </Box>
+    );
   }
 
   if (showSettings) {
@@ -208,7 +211,6 @@ export default function Home() {
           )}
 
           <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 'fit-content' }}>
-            {isDatabaseLoaded && <AutoSaveIndicator />}
             {!isMobile && isDatabaseLoaded && (
               <IconButton
                 color="inherit"

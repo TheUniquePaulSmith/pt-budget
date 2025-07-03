@@ -5,12 +5,10 @@ Features:
     - The application is completely client side driven, no backend servers or server side-rendering
     - The application will be built off next.js framework, Material-UI components, and TypeScript
     - The application will support mobile devices and various screen sizes without rendering issues
-    - The application uses SQLite libaries for database management & storage
-    - The application uses IndexedDB to store a serialized version of SQLite for session
-    - The application will use the File System Access API for compatabile browsers to help auto-save any updates made while using the application to disk 
+    - The application uses wa-sqlite libraries for database management & storage with OPFS backend
+    - The application will use the File System Access API for compatible browsers to help save/load database files
     - The application will support the ability to import and map CSV files
     - The application will encrypt and secure the database when written to disk
-    - The application will support the ability to resume via sessions
     - The application will support the ability to add users with passwords stored in the database for which the user password can unlock or decrypt the database file
     - The application will have a logging system which can write debug logs and information to help troubleshoot and improve the application
     - The application will support the ability for users to edit and manage transactions, and apply labels and associate a transaction to a budget, house projects, and company

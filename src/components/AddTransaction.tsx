@@ -22,7 +22,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
-import { Transaction, Category, Company, Account, Project } from '@/lib/database';
+import { Transaction, Category, Company, Account, Project } from '@/types/database';
 
 interface AddTransactionProps {
   open: boolean;
@@ -31,89 +31,84 @@ interface AddTransactionProps {
 }
 
 export default function AddTransaction({ open, onClose, onSuccess }: AddTransactionProps) {
-  const { db } = useDatabaseContext();  const [formData, setFormData] = useState({
+  const { 
+    addTransaction, 
+    addCategory, 
+    addCompany, 
+    addAccount,
+    categories,
+    companies,
+    accounts,
+    projects
+  } = useDatabaseContext();  const [formData, setFormData] = useState({
     description: '',
     amount: '',
     date: new Date(),
     type: 'expense' as 'income' | 'expense',
-    category_id: '',
+    category_id: null as string | null,
     company_id: null as string | null,
     project_id: null as string | null,
     account_last_four: '',
     is_recurring: false,
   });
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(false);const [companyInput, setCompanyInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [companyInput, setCompanyInput] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
-  const loadFormData = useCallback(async () => {
-    if (!db) return;
-
-    try {
-      const [categoriesData, companiesData, accountsData, projectsData] = await Promise.all([
-        db.getCategories(),
-        db.getCompanies(),
-        db.getAccounts(),
-        db.getProjects(),
-      ]);
-
-      setCategories(categoriesData);
-      setCompanies(companiesData);
-      setAccounts(accountsData);
-      setProjects(projectsData);
-    } catch (error) {
-      console.error('Error loading form data:', error);
-    }
-  }, [db]);
-
-  useEffect(() => {
-    if (open && db) {
-      loadFormData();
-    }
-  }, [open, db, loadFormData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db) return;
 
     setLoading(true);
-    try {      // Handle new category creation
+    try {      // Validate required fields
+      if (!formData.description.trim()) {
+        throw new Error('Description is required');
+      }
+      if (!formData.amount || parseFloat(formData.amount) <= 0) {
+        throw new Error('Amount must be greater than 0');
+      }
+
+      // Handle new category creation
       let categoryId = formData.category_id;
       if (!categoryId && categoryInput.trim()) {
-        categoryId = await db.addCategory({
+        categoryId = await addCategory({
           name: categoryInput.trim(),
           type: formData.type,
           color: generateRandomColor(),
         });
       }
 
+      // If no category is selected and no new category is created, 
+      // we'll allow the transaction without a category (null)
+      
       // Handle new company creation
       let companyId = formData.company_id;
       if (!companyId && companyInput.trim()) {
-        companyId = await db.addCompany(companyInput.trim());
-      }      // Handle new account creation
+        companyId = await addCompany(companyInput.trim());
+      }
+
+      // Handle new account creation
       const accountLastFour = formData.account_last_four;
       if (accountLastFour && !accounts.find(acc => acc.last_four === accountLastFour)) {
-        await db.addAccount({
+        await addAccount({
           name: `Account ending in ${accountLastFour}`,
           last_four: accountLastFour,
           type: formData.type === 'income' ? 'checking' : 'credit',
         });
-      }      // Create the transaction
+      }
+
+      // Create the transaction
       const transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'> = {
         description: formData.description,
         amount: formData.type === 'expense' ? -Math.abs(parseFloat(formData.amount)) : Math.abs(parseFloat(formData.amount)),
         date: formData.date.toISOString().split('T')[0],
         type: formData.type,
-        category_id: categoryId || 'cat-1', // fallback to default category
-        company_id: companyId || undefined,
-        project_id: formData.project_id || undefined,
+        category_id: categoryId || null,
+        company_id: companyId || null,
+        project_id: formData.project_id || null,
         account_last_four: accountLastFour || '0000', // fallback to default
       };
 
-      await db.addTransaction(transaction);
+      await addTransaction(transaction);
       onSuccess();
       handleClose();
     } catch (error) {
@@ -128,7 +123,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
       amount: '',
       date: new Date(),
       type: 'expense',
-      category_id: '',
+      category_id: null,
       company_id: null,
       project_id: null,
       account_last_four: '',
@@ -157,10 +152,10 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
                 <Select
                   value={formData.type}
                   label="Transaction Type"
-                  onChange={(e) => setFormData({ 
+                  onChange={(e) =>                  setFormData({ 
                     ...formData, 
                     type: e.target.value as 'income' | 'expense', 
-                    category_id: '',
+                    category_id: null,
                     project_id: e.target.value === 'income' ? null : formData.project_id
                   })}
                 >
@@ -202,7 +197,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
                     setFormData({ ...formData, category_id: value.id });
                     setCategoryInput('');
                   } else {
-                    setFormData({ ...formData, category_id: '' });
+                    setFormData({ ...formData, category_id: null });
                   }
                 }}
                 inputValue={categoryInput}

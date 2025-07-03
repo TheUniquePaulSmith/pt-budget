@@ -10,8 +10,8 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 
 - **Single Page Application (SPA)** - No server dependencies required
 - **100% Client-Side** - No backend servers or server-side rendering
-- **SQLite Database** - Uses SQL.js (SQLite compiled to WebAssembly) for robust data management
-- **IndexedDB Storage** - Stores serialized SQLite database for session persistence
+- **SQLite Database** - Uses wa-sqlite (SQLite compiled to WebAssembly) for robust data management
+- **OPFS Storage** - Uses Origin Private File System for persistent storage
 - **File System Access API** - Modern browser API for direct file saving/loading
 - **React + TypeScript** - Built with Next.js framework and Material-UI components
 
@@ -42,9 +42,7 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 - **Multiple Database Options:**
   - Create new database with file save location
   - Load existing database files
-  - Resume previous session (auto-loads from browser storage)
-- **Auto-Save Functionality** - Automatic saving to chosen file location
-- **Session Persistence** - Continue where you left off using IndexedDB
+- **Persistent Storage** - Data persists automatically using OPFS
 - **Data Export** - Complete database backups in .db format
 
 ### 🔧 Advanced Features
@@ -66,7 +64,7 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 - **Local-First Approach** - All data stays on your device
 - **No Cloud Dependencies** - No external servers or data transmission
 - **File-Based Backups** - You control your own data files
-- **Browser Storage** - Encrypted IndexedDB storage for session data
+- **OPFS Storage** - Secure, persistent local storage
 
 ## 🌟 Unique Selling Points
 
@@ -75,7 +73,7 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 3. **File System Integration** - Direct file saving like desktop applications
 4. **Project-Specific Budgeting** - Specialized for home project management
 5. **Advanced Analytics** - Professional-grade financial reporting
-6. **Session Continuity** - Never lose work with automatic session saving
+6. **Persistent Storage** - Data persists automatically using OPFS
 
 ## 🚀 Getting Started
 
@@ -113,17 +111,15 @@ budget-tracker/
 │   │   ├── Dashboard.tsx       # Main dashboard with analytics
 │   │   ├── AddTransaction.tsx  # Transaction entry form
 │   │   ├── DatabaseInitializer.tsx # Database setup
-│   │   ├── AutoSaveIndicator.tsx   # Auto-save status
 │   │   ├── SettingsPage.tsx    # Application settings
 │   │   └── ...
 │   ├── contexts/
 │   │   └── DatabaseContext.tsx # Database state management
 │   ├── lib/
-│   │   ├── database.ts         # SQLite database manager
-│   │   └── sessionManager.ts   # Session persistence
+│   │   └── waSqliteDatabase.ts # wa-sqlite database manager
 │   └── types/                  # TypeScript type definitions
 ├── public/
-│   └── sql-wasm/              # SQLite WebAssembly files
+│   └── wa-sqlite/             # wa-sqlite WebAssembly files
 └── ...
 ```
 

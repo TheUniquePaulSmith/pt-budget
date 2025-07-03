@@ -51,18 +51,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);  const {
     exportDatabase,
-    saveDatabaseToSession,
-    clearSession,
     isDatabaseLoaded,
-    autoSaveEnabled,
-    autoSaveFileHandle,
-    lastAutoSave,
-    enableAutoSave,
-    disableAutoSave,
   } = useDatabaseContext();
 
-  const handleExportData = () => {
-    const dbData = exportDatabase();
+  const handleExportData = async () => {
+    const dbData = await exportDatabase();
     if (dbData) {
       const blob = new Blob([dbData], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
@@ -75,32 +68,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
       URL.revokeObjectURL(url);
     }
   };
-  const handleClearSession = async () => {
-    if (confirm('This will clear your saved session data. You will need to reload your database file next time you visit. Continue?')) {
-      try {
-        await clearSession();
-        alert('Session data cleared successfully.');
-      } catch (error) {
-        console.error('Error clearing session:', error);
-        alert('Failed to clear session data.');
-      }
-    }
-  };
 
-  const handleAutoSaveToggle = async (enabled: boolean) => {
-    if (enabled) {
-      try {
-        const success = await enableAutoSave();
-        if (!success) {
-          console.log('Auto-save setup was cancelled');
-        }
-      } catch (error) {
-        console.error('Error enabling auto-save:', error);
-      }
-    } else {
-      disableAutoSave();
-    }
-  };
+
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -172,8 +141,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   Storage Information
                 </Typography>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Your budget data is stored locally in your browser using IndexedDB. 
-                  This data persists between sessions but is tied to this specific browser.
+                  Your budget data is stored locally in your browser using OPFS (Origin Private File System).
+                  This data persists between sessions and is tied to this specific browser and origin.
                 </Alert>
                 <Stack spacing={2}>
                   <Typography variant="body2">
@@ -223,65 +192,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                 </Stack>
               </Box>
 
-              <Divider />              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Auto-Save
-                </Typography>
-                <Stack spacing={2}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={autoSaveEnabled}
-                        onChange={(e) => handleAutoSaveToggle(e.target.checked)}
-                        disabled={!('showSaveFilePicker' in window)}
-                      />
-                    }
-                    label="Auto-save to file"
-                  />                  {autoSaveEnabled && autoSaveFileHandle && (
-                    <Typography variant="body2" color="text.secondary">
-                      Saving to: <strong>{autoSaveFileHandle.name}</strong>
-                    </Typography>
-                  )}
-                  {autoSaveEnabled && !autoSaveFileHandle && (
-                    <Typography variant="body2" color="text.secondary">
-                      Auto-save enabled, but file location unknown
-                    </Typography>
-                  )}
-                  {autoSaveEnabled && lastAutoSave && (
-                    <Typography variant="body2" color="text.secondary">
-                      Last saved: <strong>{lastAutoSave.toLocaleString()}</strong>
-                    </Typography>
-                  )}
-                  {!('showSaveFilePicker' in window) && (
-                    <Typography variant="body2" color="error">
-                      Auto-save is not available in this browser
-                    </Typography>
-                  )}
-                  <Typography variant="body2" color="text.secondary">
-                    When enabled, your database will be automatically saved to a file on your device after each change
-                  </Typography>
-                </Stack>
-              </Box>
-
-              <Divider />
-
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Session Management
-                </Typography>
-                <Stack spacing={2}>
-                  <Button
-                    variant="outlined"
-                    color="warning"
-                    onClick={handleClearSession}
-                  >
-                    Clear Session Data
-                  </Button>
-                  <Typography variant="body2" color="text.secondary">
-                    Session data allows you to continue where you left off when you return to the app
-                  </Typography>
-                </Stack>
-              </Box>
             </Stack>
           </TabPanel>
 

@@ -8,26 +8,694 @@ import React, {
   ReactNode,
   useCallback,
 } from "react";
-import {
-  DatabaseManager,
+
+import type {
   Transaction,
   Category,
   Company,
   Account,
   Budget,
   Project,
-} from "../lib/database";
-import { sessionManager } from "../lib/sessionManager";
+} from "../types/database";
+
+// WA-SQLite Database Manager using OPFSAnyContextVFS
+class WaSQLiteDatabaseManager {
+  private sqlite3: any = null;
+  private db: number = 0;
+  private vfs: any = null;
+  private isInitialized = false;
+
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
+    // Only initialize in browser context
+    if (typeof window === 'undefined') {
+      throw new Error('WA-SQLite requires browser environment');
+    }
+
+    // Check browser support
+    if (typeof SharedArrayBuffer === 'undefined') {
+      throw new Error('SharedArrayBuffer not available - COOP/COEP headers may be missing or browser not supported');
+    }
+
+    if (!navigator.storage?.getDirectory) {
+      throw new Error('OPFS not supported in this browser');
+    }
+
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      throw new Error('Secure context required for OPFS');
+    }
+
+    // Create minimal polyfill for FileSystemSyncAccessHandle if needed
+    if (!(globalThis as any).FileSystemSyncAccessHandle) {
+      (globalThis as any).FileSystemSyncAccessHandle = function() {};
+      (globalThis as any).FileSystemSyncAccessHandle.prototype = {};
+      console.warn('[WaSQLiteDB] FileSystemSyncAccessHandle not available - using polyfill');
+    }
+
+    try {
+      console.log('[WaSQLiteDB] Loading WA-SQLite modules...');
+      
+      // Use dynamic function to avoid build-time module resolution
+      const importModule = new Function('path', 'return import(path)');
+      
+      console.log('[WaSQLiteDB] Loading SQLite async module...');
+      const sqliteModule = await importModule('/wa-sqlite/wa-sqlite-async.mjs');
+      const SQLiteModule = sqliteModule.default;
+      
+      console.log('[WaSQLiteDB] Loading SQLite API...');
+      const apiModule = await importModule('/wa-sqlite/src/sqlite-api.js');
+      const { Factory } = apiModule;
+      
+      console.log('[WaSQLiteDB] Loading OPFS VFS...');
+      const vfsModule = await importModule('/wa-sqlite/src/examples/OPFSAnyContextVFS.js');
+      const { OPFSAnyContextVFS } = vfsModule;
+
+      console.log('[WaSQLiteDB] Initializing SQLite WASM module...');
+      const wasmModule = await SQLiteModule();
+      
+      console.log('[WaSQLiteDB] Creating SQLite API...');
+      this.sqlite3 = Factory(wasmModule);
+      
+      console.log('[WaSQLiteDB] Creating OPFS VFS...');
+      this.vfs = await OPFSAnyContextVFS.create('opfs-any-context', wasmModule);
+      
+      console.log('[WaSQLiteDB] Registering OPFS VFS...');
+      this.sqlite3.vfs_register(this.vfs, true);
+      
+      this.isInitialized = true;
+      console.log('[WaSQLiteDB] Initialization complete');
+    } catch (error) {
+      console.error('[WaSQLiteDB] Initialization failed:', error);
+      throw new Error(`Failed to initialize WA-SQLite: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async openDatabase(filename: string = '/budget-app.db'): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    try {
+      console.log(`[WaSQLiteDB] Opening database: ${filename}`);
+      
+      this.db = await this.sqlite3.open_v2(
+        filename,
+        this.sqlite3.SQLITE_OPEN_CREATE | this.sqlite3.SQLITE_OPEN_READWRITE,
+        this.vfs.name
+      );
+      
+      if (!this.db) {
+        throw new Error('Failed to open database');
+      }
+
+      console.log(`[WaSQLiteDB] Database opened successfully with handle: ${this.db}`);
+      
+      // Configure database for optimal performance and consistency
+      await this.sqlite3.exec(this.db, 'PRAGMA journal_mode=DELETE');
+      await this.sqlite3.exec(this.db, 'PRAGMA synchronous=NORMAL');
+      await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=ON');
+      
+      await this.createTables();
+      console.log(`[WaSQLiteDB] Database ready for use`);
+    } catch (error) {
+      console.error('[WaSQLiteDB] Failed to open database:', error);
+      throw error;
+    }
+  }
+
+  private async createTables(): Promise<void> {
+    const tables = [
+      `CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+        color TEXT DEFAULT '#3b82f6',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS companies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        last_four TEXT NOT NULL,
+        type TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        company_name TEXT NOT NULL,
+        contact_details TEXT,
+        project_category TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'planning',
+        start_date TEXT,
+        end_date TEXT,
+        estimated_cost REAL,
+        actual_cost REAL,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS budgets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        period TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (category_id) REFERENCES categories (id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        amount REAL NOT NULL,
+        description TEXT NOT NULL,
+        category_id INTEGER,
+        company_id INTEGER,
+        project_id INTEGER,
+        account_last_four TEXT,
+        type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (category_id) REFERENCES categories (id),
+        FOREIGN KEY (company_id) REFERENCES companies (id),
+        FOREIGN KEY (project_id) REFERENCES projects (id)
+      )`
+    ];
+
+    for (const sql of tables) {
+      await this.sqlite3.exec(this.db, sql);
+    }
+
+    // Insert default categories if none exist
+    const categoryCount = await this.query('SELECT COUNT(*) as count FROM categories');
+    if (categoryCount[0]?.count === 0) {
+      console.log('[WaSQLiteDB] No categories found, inserting default categories...');
+      await this.insertDefaultCategories();
+    } else {
+      console.log(`[WaSQLiteDB] Found ${categoryCount[0].count} existing categories`);
+    }
+    
+    // Log available categories for debugging
+    const allCategories = await this.query('SELECT id, name, type FROM categories');
+    console.log('[WaSQLiteDB] Available categories:', allCategories);
+  }
+
+  private async insertDefaultCategories(): Promise<void> {
+    const defaultCategories = [
+      { name: 'Salary', type: 'income', color: '#58D68D' },
+      { name: 'Freelance', type: 'income', color: '#52BE80' },
+      { name: 'Investment', type: 'income', color: '#48C9B0' },
+      { name: 'Mortgage/Rent', type: 'expense', color: '#FF6B6B' },
+      { name: 'Insurance', type: 'expense', color: '#4ECDC4' },
+      { name: 'Food & Dining', type: 'expense', color: '#45B7D1' },
+      { name: 'Utilities', type: 'expense', color: '#FFA07A' },
+      { name: 'Transportation', type: 'expense', color: '#98D8C8' },
+      { name: 'Entertainment', type: 'expense', color: '#F7DC6F' },
+      { name: 'Healthcare', type: 'expense', color: '#BB8FCE' },
+      { name: 'Shopping', type: 'expense', color: '#85C1E9' },
+    ];
+
+    for (const category of defaultCategories) {
+      await this.sqlite3.exec(this.db, 
+        `INSERT INTO categories (name, type, color) VALUES ('${category.name}', '${category.type}', '${category.color}')`
+      );
+    }
+  }
+
+  private async query(sql: string, parameters: any[] = []): Promise<any[]> {
+    const results: any[] = [];
+    
+    // Prepare the statement if parameters are provided
+    if (parameters.length > 0) {
+      // Use the proper for await loop with statements iterator
+      for await (const stmt of this.sqlite3.statements(this.db, sql)) {
+        // Bind parameters
+        for (let i = 0; i < parameters.length; i++) {
+          const param = parameters[i];
+          if (param === null || param === undefined) {
+            this.sqlite3.bind_null(stmt, i + 1);
+          } else if (typeof param === 'number') {
+            if (Number.isInteger(param)) {
+              this.sqlite3.bind_int(stmt, i + 1, param);
+            } else {
+              this.sqlite3.bind_double(stmt, i + 1, param);
+            }
+          } else if (typeof param === 'string') {
+            this.sqlite3.bind_text(stmt, i + 1, param);
+          } else {
+            this.sqlite3.bind_text(stmt, i + 1, String(param));
+          }
+        }
+        
+        // Execute and collect results
+        const columnNames: string[] = [];
+        while (await this.sqlite3.step(stmt) === this.sqlite3.SQLITE_ROW) {
+          if (columnNames.length === 0) {
+            // Get column names on first row
+            const columnCount = this.sqlite3.column_count(stmt);
+            for (let i = 0; i < columnCount; i++) {
+              columnNames.push(this.sqlite3.column_name(stmt, i));
+            }
+          }
+          
+          const row: any = {};
+          columnNames.forEach((column, index) => {
+            const value = this.sqlite3.column(stmt, index);
+            row[column] = value;
+          });
+          results.push(row);
+        }
+        // Statement is automatically finalized by the iterator
+      }
+    } else {
+      // Use exec for simple queries without parameters
+      await this.sqlite3.exec(this.db, sql, (row: any, columns: string[]) => {
+        const rowObj: any = {};
+        columns.forEach((column, index) => {
+          rowObj[column] = row[index];
+        });
+        results.push(rowObj);
+      });
+    }
+    
+    return results;
+  }
+
+  // Database interface methods required by the context
+  async hasExistingDatabase(): Promise<boolean> {
+    return this.isInitialized && this.db !== 0;
+  }
+
+  async openExistingDatabase(): Promise<void> {
+    await this.openDatabase();
+  }
+
+  async createNewDatabase(): Promise<void> {
+    await this.openDatabase();
+  }
+
+  async loadDatabaseFromFile(file: File): Promise<void> {
+    throw new Error('File loading not yet implemented');
+  }
+
+  async exportDatabase(): Promise<Uint8Array> {
+    throw new Error('Database export not yet implemented');
+  }
+
+  // Transaction operations
+  async addTransactionAsync(transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
+    // Validate foreign key references first
+    if (transaction.category_id) {
+      const categoryExists = await this.query('SELECT id FROM categories WHERE id = ?', [parseInt(transaction.category_id)]);
+      if (categoryExists.length === 0) {
+        throw new Error(`Category with ID ${transaction.category_id} does not exist`);
+      }
+    }
+
+    if (transaction.company_id) {
+      const companyExists = await this.query('SELECT id FROM companies WHERE id = ?', [parseInt(transaction.company_id)]);
+      if (companyExists.length === 0) {
+        throw new Error(`Company with ID ${transaction.company_id} does not exist`);
+      }
+    }
+
+    if (transaction.project_id) {
+      const projectExists = await this.query('SELECT id FROM projects WHERE id = ?', [parseInt(transaction.project_id)]);
+      if (projectExists.length === 0) {
+        throw new Error(`Project with ID ${transaction.project_id} does not exist`);
+      }
+    }
+
+    const sql = `INSERT INTO transactions (date, amount, description, category_id, company_id, project_id, account_last_four, type)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+    
+    console.log('[WaSQLiteDB] Adding transaction with data:', {
+      date: transaction.date,
+      amount: transaction.amount,
+      description: transaction.description,
+      category_id: transaction.category_id,
+      company_id: transaction.company_id,
+      project_id: transaction.project_id,
+      account_last_four: transaction.account_last_four,
+      type: transaction.type
+    });
+
+    // Use the proper for await loop with statements iterator
+    for await (const stmt of this.sqlite3.statements(this.db, sql)) {
+      this.sqlite3.bind_text(stmt, 1, transaction.date);
+      this.sqlite3.bind_double(stmt, 2, transaction.amount);
+      this.sqlite3.bind_text(stmt, 3, transaction.description);
+      
+      if (transaction.category_id) {
+        console.log('[WaSQLiteDB] Binding category_id:', transaction.category_id, 'as int:', parseInt(transaction.category_id));
+        this.sqlite3.bind_int(stmt, 4, parseInt(transaction.category_id));
+      } else {
+        console.log('[WaSQLiteDB] Binding category_id as NULL');
+        this.sqlite3.bind_null(stmt, 4);
+      }
+      
+      if (transaction.company_id) {
+        console.log('[WaSQLiteDB] Binding company_id:', transaction.company_id, 'as int:', parseInt(transaction.company_id));
+        this.sqlite3.bind_int(stmt, 5, parseInt(transaction.company_id));
+      } else {
+        console.log('[WaSQLiteDB] Binding company_id as NULL');
+        this.sqlite3.bind_null(stmt, 5);
+      }
+      
+      if (transaction.project_id) {
+        console.log('[WaSQLiteDB] Binding project_id:', transaction.project_id, 'as int:', parseInt(transaction.project_id));
+        this.sqlite3.bind_int(stmt, 6, parseInt(transaction.project_id));
+      } else {
+        console.log('[WaSQLiteDB] Binding project_id as NULL');
+        this.sqlite3.bind_null(stmt, 6);
+      }
+      
+      this.sqlite3.bind_text(stmt, 7, transaction.account_last_four);
+      this.sqlite3.bind_text(stmt, 8, transaction.type);
+      
+      await this.sqlite3.step(stmt);
+      console.log('[WaSQLiteDB] Transaction inserted successfully');
+      // Statement is automatically finalized by the iterator
+      return;
+    }
+    
+    throw new Error('Failed to prepare statement');
+  }
+
+  async getTransactionsAsync(): Promise<Transaction[]> {
+    const rows = await this.query('SELECT * FROM transactions ORDER BY date DESC, created_at DESC');
+    return rows.map(row => ({
+      id: row.id.toString(),
+      date: row.date,
+      amount: row.amount,
+      description: row.description,
+      category_id: row.category_id?.toString(),
+      company_id: row.company_id?.toString(),
+      project_id: row.project_id?.toString(),
+      account_last_four: row.account_last_four,
+      type: row.type,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  // Category operations
+  async getCategoriesAsync(): Promise<Category[]> {
+    const rows = await this.query('SELECT * FROM categories ORDER BY name');
+    return rows.map(row => ({
+      id: row.id.toString(),
+      name: row.name,
+      type: row.type,
+      color: row.color,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  async addCategoryAsync(category: Omit<Category, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
+    const sql = `INSERT INTO categories (name, type, color) VALUES (?, ?, ?)`;
+    
+    // Use the proper for await loop with statements iterator
+    for await (const stmt of this.sqlite3.statements(this.db, sql)) {
+      this.sqlite3.bind_text(stmt, 1, category.name);
+      this.sqlite3.bind_text(stmt, 2, category.type);
+      this.sqlite3.bind_text(stmt, 3, category.color);
+      await this.sqlite3.step(stmt);
+      // Statement is automatically finalized by the iterator
+      return this.sqlite3.last_insert_rowid(this.db).toString();
+    }
+    
+    throw new Error('Failed to prepare statement');
+  }
+
+  // Company operations
+  async getCompaniesAsync(): Promise<Company[]> {
+    const rows = await this.query('SELECT * FROM companies ORDER BY name');
+    return rows.map(row => ({
+      id: row.id.toString(),
+      name: row.name,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  async addCompanyAsync(name: string): Promise<string> {
+    const sql = `INSERT INTO companies (name) VALUES (?)`;
+    
+    // Use the proper for await loop with statements iterator
+    for await (const stmt of this.sqlite3.statements(this.db, sql)) {
+      this.sqlite3.bind_text(stmt, 1, name);
+      await this.sqlite3.step(stmt);
+      // Statement is automatically finalized by the iterator
+      return this.sqlite3.last_insert_rowid(this.db).toString();
+    }
+    
+    throw new Error('Failed to prepare statement');
+  }
+
+  async findCompanyByNameAsync(name: string): Promise<Company | null> {
+    const rows = await this.query(`SELECT * FROM companies WHERE name = ?`, [name]);
+    if (rows.length === 0) return null;
+    
+    const row = rows[0];
+    return {
+      id: row.id.toString(),
+      name: row.name,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
+  }
+
+  // Account operations
+  async getAccountsAsync(): Promise<Account[]> {
+    const rows = await this.query('SELECT * FROM accounts ORDER BY name');
+    return rows.map(row => ({
+      id: row.id.toString(),
+      name: row.name,
+      last_four: row.last_four,
+      type: row.type,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  async addAccountAsync(account: Omit<Account, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
+    await this.sqlite3.exec(this.db,
+      `INSERT INTO accounts (name, last_four, type) VALUES ('${account.name}', '${account.last_four}', '${account.type}')`
+    );
+    return this.sqlite3.last_insert_rowid(this.db).toString();
+  }
+
+  // Budget operations
+  async getBudgetsAsync(): Promise<Budget[]> {
+    const rows = await this.query('SELECT * FROM budgets ORDER BY start_date DESC');
+    return rows.map(row => ({
+      id: row.id.toString(),
+      category_id: row.category_id.toString(),
+      amount: row.amount,
+      period: row.period,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  async addBudgetAsync(budget: Omit<Budget, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
+    await this.sqlite3.exec(this.db,
+      `INSERT INTO budgets (category_id, amount, period, start_date, end_date) VALUES (${budget.category_id}, ${budget.amount}, '${budget.period}', '${budget.start_date}', '${budget.end_date}')`
+    );
+    return this.sqlite3.last_insert_rowid(this.db).toString();
+  }
+
+  // Project operations
+  async getProjectsAsync(): Promise<Project[]> {
+    const rows = await this.query('SELECT * FROM projects ORDER BY name');
+    return rows.map(row => ({
+      id: row.id.toString(),
+      name: row.name,
+      company_name: row.company_name,
+      contact_details: row.contact_details,
+      project_category: row.project_category,
+      status: row.status,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      estimated_cost: row.estimated_cost,
+      actual_cost: row.actual_cost,
+      notes: row.notes,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  async addProjectAsync(project: Omit<Project, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
+    await this.sqlite3.exec(this.db,
+      `INSERT INTO projects (name, company_name, contact_details, project_category, status, start_date, end_date, estimated_cost, actual_cost, notes) 
+       VALUES ('${project.name}', '${project.company_name}', '${project.contact_details}', '${project.project_category}', '${project.status}', '${project.start_date || ''}', '${project.end_date || ''}', ${project.estimated_cost || 'NULL'}, ${project.actual_cost || 'NULL'}, '${project.notes || ''}')`
+    );
+    return this.sqlite3.last_insert_rowid(this.db).toString();
+  }
+
+  async getProjectByIdAsync(id: string): Promise<Project | null> {
+    const rows = await this.query(`SELECT * FROM projects WHERE id = ${id}`);
+    if (rows.length === 0) return null;
+    
+    const row = rows[0];
+    return {
+      id: row.id.toString(),
+      name: row.name,
+      company_name: row.company_name,
+      contact_details: row.contact_details,
+      project_category: row.project_category,
+      status: row.status,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      estimated_cost: row.estimated_cost,
+      actual_cost: row.actual_cost,
+      notes: row.notes,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
+  }
+
+  async updateProjectAsync(id: string, updates: Partial<Omit<Project, 'id' | 'created_at' | 'updated_at'>>): Promise<void> {
+    const setParts: string[] = [];
+    if (updates.name) setParts.push(`name = '${updates.name}'`);
+    if (updates.company_name) setParts.push(`company_name = '${updates.company_name}'`);
+    if (updates.contact_details !== undefined) setParts.push(`contact_details = '${updates.contact_details}'`);
+    if (updates.project_category) setParts.push(`project_category = '${updates.project_category}'`);
+    if (updates.status) setParts.push(`status = '${updates.status}'`);
+    if (updates.start_date !== undefined) setParts.push(`start_date = '${updates.start_date}'`);
+    if (updates.end_date !== undefined) setParts.push(`end_date = '${updates.end_date}'`);
+    if (updates.estimated_cost !== undefined) setParts.push(`estimated_cost = ${updates.estimated_cost || 'NULL'}`);
+    if (updates.actual_cost !== undefined) setParts.push(`actual_cost = ${updates.actual_cost || 'NULL'}`);
+    if (updates.notes !== undefined) setParts.push(`notes = '${updates.notes}'`);
+    setParts.push(`updated_at = '${new Date().toISOString()}'`);
+    
+    const sql = `UPDATE projects SET ${setParts.join(', ')} WHERE id = ${id}`;
+    await this.sqlite3.exec(this.db, sql);
+  }
+
+  async deleteProjectAsync(id: string): Promise<void> {
+    await this.sqlite3.exec(this.db, `DELETE FROM projects WHERE id = ${id}`);
+  }
+
+  async getTransactionsByProjectAsync(projectId: string): Promise<Transaction[]> {
+    const rows = await this.query(`SELECT * FROM transactions WHERE project_id = ${projectId} ORDER BY date DESC`);
+    return rows.map(row => ({
+      id: row.id.toString(),
+      date: row.date,
+      amount: row.amount,
+      description: row.description,
+      category_id: row.category_id?.toString(),
+      company_id: row.company_id?.toString(),
+      project_id: row.project_id?.toString(),
+      account_last_four: row.account_last_four,
+      type: row.type,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  async getProjectCostsAsync(projectId: string): Promise<{ estimated: number; actual: number; transactions_total: number }> {
+    const projectRows = await this.query(`SELECT estimated_cost, actual_cost FROM projects WHERE id = ${projectId}`);
+    const transactionRows = await this.query(`SELECT SUM(amount) as total FROM transactions WHERE project_id = ${projectId} AND type = 'expense'`);
+    
+    const project = projectRows[0] || {};
+    const transactionTotal = transactionRows[0]?.total || 0;
+    
+    return {
+      estimated: project.estimated_cost || 0,
+      actual: project.actual_cost || 0,
+      transactions_total: transactionTotal
+    };
+  }
+
+  // Analytics methods (simplified)
+  async getTransactionsByDateRange(startDate: string, endDate: string, type?: 'income' | 'expense'): Promise<Transaction[]> {
+    let sql = `SELECT * FROM transactions WHERE date >= '${startDate}' AND date <= '${endDate}'`;
+    if (type) {
+      sql += ` AND type = '${type}'`;
+    }
+    sql += ' ORDER BY date DESC';
+    
+    const rows = await this.query(sql);
+    return rows.map(row => ({
+      id: row.id.toString(),
+      date: row.date,
+      amount: row.amount,
+      description: row.description,
+      category_id: row.category_id?.toString(),
+      company_id: row.company_id?.toString(),
+      project_id: row.project_id?.toString(),
+      account_last_four: row.account_last_four,
+      type: row.type,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  async getSpendingByCategoryAsync(startDate: string, endDate: string): Promise<{ category_id: string; category_name: string; total: number; color: string }[]> {
+    const rows = await this.query(`
+      SELECT c.id as category_id, c.name as category_name, c.color, SUM(t.amount) as total
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.id
+      WHERE t.date >= '${startDate}' AND t.date <= '${endDate}' AND t.type = 'expense'
+      GROUP BY c.id, c.name, c.color
+      ORDER BY total DESC
+    `);
+    
+    return rows.map(row => ({
+      category_id: row.category_id.toString(),
+      category_name: row.category_name,
+      total: row.total,
+      color: row.color
+    }));
+  }
+
+  async getIncomeByCategoryAsync(startDate: string, endDate: string): Promise<{ category_id: string; category_name: string; total: number; color: string }[]> {
+    const rows = await this.query(`
+      SELECT c.id as category_id, c.name as category_name, c.color, SUM(t.amount) as total
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.id
+      WHERE t.date >= '${startDate}' AND t.date <= '${endDate}' AND t.type = 'income'
+      GROUP BY c.id, c.name, c.color
+      ORDER BY total DESC
+    `);
+    
+    return rows.map(row => ({
+      category_id: row.category_id.toString(),
+      category_name: row.category_name,
+      total: row.total,
+      color: row.color
+    }));
+  }
+
+  async getMonthlyTrendsAsync(months: number = 12): Promise<{ month: string; income: number; expense: number }[]> {
+    // Simplified implementation
+    return [];
+  }
+}
 
 interface DatabaseContextType {
   // Database instance
-  db: DatabaseManager | null;
   isInitialized: boolean;
   isDatabaseLoaded: boolean;
 
   // Loading states
   isLoading: boolean;
   error: string | null;
+  
   // Data
   transactions: Transaction[];
   categories: Category[];
@@ -35,22 +703,19 @@ interface DatabaseContextType {
   accounts: Account[];
   budgets: Budget[];
   projects: Project[];
+  
   // Database operations
   initializeDatabase: () => Promise<void>;
-  createNewDatabase: () => void;
+  checkForExistingDatabase: () => Promise<boolean>;
+  openExistingDatabase: () => Promise<void>;
+  createNewDatabase: () => Promise<void>;
   loadDatabaseFromFile: (file: File) => Promise<void>;
-  exportDatabase: () => Uint8Array | null;
-
-  // Session management
-  loadDatabaseFromSession: () => Promise<boolean>;
-  saveDatabaseToSession: (fileName?: string) => Promise<void>;
-  clearSession: () => Promise<void>;
-  hasSession: () => Promise<boolean>;
+  exportDatabase: () => Promise<Uint8Array | null>;
 
   // Transaction operations
   addTransaction: (
     transaction: Omit<Transaction, "id" | "created_at" | "updated_at">
-  ) => Promise<string>;
+  ) => Promise<void>;
   refreshTransactions: () => void;
 
   // Category operations
@@ -86,49 +751,43 @@ interface DatabaseContextType {
   ) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   refreshProjects: () => void;
-  getProjectById: (id: string) => Project | null;
-  getTransactionsByProject: (projectId: string) => Transaction[];
-  getProjectCosts: (projectId: string) => {
+  getProjectById: (id: string) => Promise<Project | null>;
+  getTransactionsByProject: (projectId: string) => Promise<Transaction[]>;
+  getProjectCosts: (
+    projectId: string
+  ) => Promise<{
     estimated: number;
     actual: number;
     transactions_total: number;
-  };
+  }>;
 
   // Analytics
   getTransactionsByDateRange: (
     startDate: string,
     endDate: string,
     type?: "income" | "expense"
-  ) => Transaction[];
+  ) => Promise<Transaction[]>;
   getSpendingByCategory: (
     startDate: string,
     endDate: string
-  ) => {
+  ) => Promise<{
     category_id: string;
     category_name: string;
     total: number;
     color: string;
-  }[];
+  }[]>;
   getIncomeByCategory: (
     startDate: string,
     endDate: string
-  ) => {
+  ) => Promise<{
     category_id: string;
     category_name: string;
     total: number;
     color: string;
-  }[];  getMonthlyTrends: (
+  }[]>;
+  getMonthlyTrends: (
     months?: number
-  ) => { month: string; income: number; expense: number }[];  // Auto-save functionality
-  autoSaveEnabled: boolean;
-  autoSaveFileHandle: FileSystemFileHandle | null;
-  lastAutoSave: Date | null;
-  setupAutoSave: () => Promise<boolean>;
-  setupAutoSaveWithExistingFile: () => Promise<boolean>;
-  setupAutoSaveWithFileHandle: (fileHandle: FileSystemFileHandle) => Promise<boolean>;
-  enableAutoSave: () => Promise<boolean>;
-  disableAutoSave: () => void;
-  saveToFile: (fileHandle: FileSystemFileHandle) => Promise<void>;
+  ) => Promise<{ month: string; income: number; expense: number }[]>;
 }
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -150,29 +809,26 @@ interface DatabaseProviderProps {
 export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   children,
 }) => {
-  const [db, setDb] = useState<DatabaseManager | null>(null);
+  const [db, setDb] = useState<WaSQLiteDatabaseManager | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isDatabaseLoaded, setIsDatabaseLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);  // Data states
+  const [error, setError] = useState<string | null>(null);
+
+  // Data states
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);  // Auto-save states
-  const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
-  const [autoSaveFileHandle, setAutoSaveFileHandle] = useState<FileSystemFileHandle | null>(null);
-  const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [lastDataHash, setLastDataHash] = useState<string>('');
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const initializeDatabase = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const dbManager = new DatabaseManager();
+      const dbManager = new WaSQLiteDatabaseManager();
       await dbManager.initialize();
 
       setDb(dbManager);
@@ -186,22 +842,76 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const createNewDatabase = () => {
+  const checkForExistingDatabase = async (): Promise<boolean> => {
     if (!db || !isInitialized) {
       setError("Database not initialized");
-      return;
+      return false;
     }
 
+    try {
+      return await db.hasExistingDatabase();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to check for existing database"
+      );
+      return false;
+    }
+  };
+
+  const openExistingDatabase = async (): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
 
-      db.createNewDatabase();
+      // Initialize database manager if not already done
+      let dbManager = db;
+      if (!dbManager || !isInitialized) {
+        console.log('[DatabaseContext] Initializing database manager...');
+        dbManager = new WaSQLiteDatabaseManager();
+        await dbManager.initialize();
+        setDb(dbManager);
+        setIsInitialized(true);
+      }
+
+      console.log('[DatabaseContext] Opening existing database...');
+      await dbManager.openExistingDatabase();
+      setIsDatabaseLoaded(true);
+      refreshAllData();
+      console.log('[DatabaseContext] Existing database opened successfully');
+    } catch (err) {
+      console.error('[DatabaseContext] Failed to open existing database:', err);
+      setError(
+        err instanceof Error ? err.message : "Failed to open existing database"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const createNewDatabase = async (): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Initialize database manager if not already done
+      let dbManager = db;
+      if (!dbManager || !isInitialized) {
+        console.log('[DatabaseContext] Initializing database manager...');
+        dbManager = new WaSQLiteDatabaseManager();
+        await dbManager.initialize();
+        setDb(dbManager);
+        setIsInitialized(true);
+      }
+
+      console.log('[DatabaseContext] Creating new database...');
+      await dbManager.createNewDatabase();
       setIsDatabaseLoaded(true);
 
       // Load initial data
       refreshAllData();
+      console.log('[DatabaseContext] New database created successfully');
     } catch (err) {
+      console.error('[DatabaseContext] Failed to create database:', err);
       setError(
         err instanceof Error ? err.message : "Failed to create database"
       );
@@ -220,14 +930,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const arrayBuffer = await file.arrayBuffer();
-      db.loadFromFile(arrayBuffer);
+      await db.loadDatabaseFromFile(file);
       setIsDatabaseLoaded(true);
+      
       // Load data from the imported database
       refreshAllData();
-
-      // Save to session for persistence
-      await saveDatabaseToSession(file.name);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load database file"
@@ -235,14 +942,16 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };  const exportDatabase = useCallback((): Uint8Array | null => {
+  };
+
+  const exportDatabase = useCallback(async (): Promise<Uint8Array | null> => {
     if (!db || !isDatabaseLoaded) {
       setError("No database loaded to export");
       return null;
     }
 
     try {
-      return db.exportToFile();
+      return await db.exportDatabase();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to export database"
@@ -251,216 +960,25 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   }, [db, isDatabaseLoaded]);
 
-  // Session management methods
-  const loadDatabaseFromSession = async (): Promise<boolean> => {
-    if (!db || !isInitialized) {
-      setError("Database not initialized");
-      return false;
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      const sessionData = await sessionManager.loadDatabaseFromSession();
-      if (sessionData) {
-        // Convert Uint8Array to ArrayBuffer
-        const arrayBuffer = new ArrayBuffer(sessionData.byteLength);
-        const view = new Uint8Array(arrayBuffer);
-        view.set(sessionData);
-        db.loadFromFile(arrayBuffer);
-        setIsDatabaseLoaded(true);
-        refreshAllData();
-        return true;
-      }
-
-      return false;
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load database from session"
-      );
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  const saveDatabaseToSession = useCallback(async (fileName?: string): Promise<void> => {
-    if (!db || !isDatabaseLoaded) {
-      setError("No database loaded to save");
-      return;
-    }
-
-    try {
-      const dbData = db.exportToFile();
-      if (dbData) {
-        await sessionManager.saveDatabaseToSession(dbData, fileName);
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to save database to session"
-      );
-    }
-  }, [db, isDatabaseLoaded]);
-
-  const clearSession = async (): Promise<void> => {
-    try {
-      await sessionManager.clearSession();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to clear session");
-    }
-  };
-  const hasSession = async (): Promise<boolean> => {
-    try {
-      return await sessionManager.hasSession();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to check session");
-      return false;
-    }
-  };
-  // Auto-save functionality
-  const setupAutoSave = async (): Promise<boolean> => {
-    if (!('showSaveFilePicker' in window)) {
-      console.log('File System Access API is not supported in this browser.');
-      return false;
-    }
-
-    try {
-      const fileHandle = await (window as any).showSaveFilePicker({
-        suggestedName: `budget-tracker-${new Date().toISOString().split('T')[0]}.db`,
-        types: [{
-          description: 'Database files',
-          accept: { 'application/octet-stream': ['.db'] },
-        }],
-      });
-
-      setAutoSaveFileHandle(fileHandle);
-      setAutoSaveEnabled(true);
-      
-      // Perform initial save
-      await saveToFile(fileHandle);
-      
-      return true;
-    } catch (error) {
-      console.log('User cancelled file selection or error occurred:', error);
-      return false;
-    }
-  };
-  const setupAutoSaveWithExistingFile = async (): Promise<boolean> => {
-    if (!('showOpenFilePicker' in window)) {
-      console.log('File System Access API is not supported in this browser.');
-      return false;
-    }
-
-    try {
-      const [fileHandle] = await (window as any).showOpenFilePicker({
-        types: [{
-          description: 'Database files',
-          accept: { 'application/octet-stream': ['.db'] },
-        }],
-        multiple: false,
-      });
-
-      setAutoSaveFileHandle(fileHandle);
-      setAutoSaveEnabled(true);
-      
-      // Perform initial save to update the file
-      await saveToFile(fileHandle);
-      
-      return true;
-    } catch (error) {
-      console.log('User cancelled file selection or error occurred:', error);
-      return false;
-    }
-  };
-  const setupAutoSaveWithFileHandle = async (fileHandle: FileSystemFileHandle): Promise<boolean> => {
-    try {
-      setAutoSaveFileHandle(fileHandle);
-      setAutoSaveEnabled(true);
-      
-      // Perform initial save to update the file
-      await saveToFile(fileHandle);
-      
-      return true;
-    } catch (error) {
-      console.error('Error setting up auto-save with file handle:', error);
-      return false;
-    }
-  };
-
-  const enableAutoSave = async (): Promise<boolean> => {
-    // This is essentially the same as setupAutoSave, but with a clearer name for manual enabling
-    return await setupAutoSave();
-  };  const saveToFile = useCallback(async (fileHandle: FileSystemFileHandle): Promise<void> => {
-    if (isSaving) return; // Prevent concurrent saves
-    
-    try {
-      setIsSaving(true);
-      const dbData = exportDatabase();
-      if (dbData) {
-        const writable = await fileHandle.createWritable();
-        await writable.write(dbData);
-        await writable.close();
-        setLastAutoSave(new Date());
-        console.log('Database auto-saved successfully at', new Date().toLocaleTimeString());
-        
-        // Also save to session for persistence
-        await saveDatabaseToSession(fileHandle.name);
-      }
-    } catch (error) {
-      console.error('Error auto-saving database:', error);
-      setAutoSaveEnabled(false);
-      setAutoSaveFileHandle(null);
-      throw error;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [isSaving, exportDatabase, saveDatabaseToSession]);
-  const disableAutoSave = (): void => {
-    setAutoSaveEnabled(false);
-    setAutoSaveFileHandle(null);
-    setLastAutoSave(null);
-  };  // Auto-save when data changes
-  React.useEffect(() => {
-    // Create a simple hash of the data to detect actual changes
-    const currentDataHash = `${transactions.length}-${categories.length}-${companies.length}-${accounts.length}-${budgets.length}-${projects.length}`;
-    
-    // Only trigger auto-save if the data has actually changed and we're not in initial loading
-    if (currentDataHash !== lastDataHash && lastDataHash !== '' && !isLoading && isDatabaseLoaded) {
-      setLastDataHash(currentDataHash);
-      
-      if (autoSaveEnabled && autoSaveFileHandle) {
-        const timeoutId = setTimeout(() => {
-          saveToFile(autoSaveFileHandle).catch(console.error);
-        }, 2000); // Save 2 seconds after last change
-
-        return () => clearTimeout(timeoutId);
-      } else {
-        // If auto-save is not enabled, still save to session for persistence
-        const timeoutId = setTimeout(() => {
-          saveDatabaseToSession().catch(console.error);
-        }, 3000); // Save to session 3 seconds after last change
-
-        return () => clearTimeout(timeoutId);
-      }
-    } else if (lastDataHash === '') {
-      // Set initial hash without triggering save
-      setLastDataHash(currentDataHash);
-    }
-  }, [transactions.length, categories.length, companies.length, accounts.length, budgets.length, projects.length, autoSaveEnabled, autoSaveFileHandle, isDatabaseLoaded, isLoading, lastDataHash, saveDatabaseToSession, saveToFile]);
-
-  const refreshAllData = useCallback(() => {
+  const refreshAllData = useCallback(async () => {
     if (!db || !isDatabaseLoaded) return;
 
     try {
-      setTransactions(db.getTransactions());
-      setCategories(db.getCategories());
-      setCompanies(db.getCompanies());
-      setAccounts(db.getAccounts());
-      setBudgets(db.getBudgets());
-      setProjects(db.getProjects());
+      const [transactionsData, categoriesData, companiesData, accountsData, budgetsData, projectsData] = await Promise.all([
+        db.getTransactionsAsync(),
+        db.getCategoriesAsync(),
+        db.getCompaniesAsync(),
+        db.getAccountsAsync(),
+        db.getBudgetsAsync(),
+        db.getProjectsAsync()
+      ]);
+
+      setTransactions(transactionsData);
+      setCategories(categoriesData);
+      setCompanies(companiesData);
+      setAccounts(accountsData);
+      setBudgets(budgetsData);
+      setProjects(projectsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to refresh data");
     }
@@ -469,16 +987,14 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   // Transaction operations
   const addTransaction = async (
     transaction: Omit<Transaction, "id" | "created_at" | "updated_at">
-  ): Promise<string> => {
+  ): Promise<void> => {
     if (!db || !isDatabaseLoaded) {
       throw new Error("Database not loaded");
     }
     try {
-      const id = db.addTransaction(transaction);
-      refreshTransactions();
-      // Auto-save to session after adding transaction
-      await saveDatabaseToSession();
-      return id;
+      await db.addTransactionAsync(transaction);
+      await refreshTransactions();
+      // Data is automatically persisted to OPFS by sqlite-wasm
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to add transaction";
@@ -486,10 +1002,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       throw new Error(errorMessage);
     }
   };
-  const refreshTransactions = useCallback(() => {
+  const refreshTransactions = useCallback(async () => {
     if (!db || !isDatabaseLoaded) return;
     try {
-      setTransactions(db.getTransactions());
+      const transactionsData = await db.getTransactionsAsync();
+      setTransactions(transactionsData);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to refresh transactions"
@@ -506,8 +1023,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
 
     try {
-      const id = db.addCategory(category);
-      refreshCategories();
+      const id = await db.addCategoryAsync(category);
+      await refreshCategories();
       return id;
     } catch (err) {
       const errorMessage =
@@ -516,10 +1033,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       throw new Error(errorMessage);
     }
   };
-  const refreshCategories = useCallback(() => {
+  const refreshCategories = useCallback(async () => {
     if (!db || !isDatabaseLoaded) return;
     try {
-      setCategories(db.getCategories());
+      const categoriesData = await db.getCategoriesAsync();
+      setCategories(categoriesData);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to refresh categories"
@@ -534,8 +1052,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
 
     try {
-      const id = db.addCompany(name);
-      refreshCompanies();
+      const id = await db.addCompanyAsync(name);
+      await refreshCompanies();
       return id;
     } catch (err) {
       const errorMessage =
@@ -552,7 +1070,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
 
     try {
       // First try to find existing company
-      const existing = db.findCompanyByName(name);
+      const existing = await db.findCompanyByNameAsync(name);
       if (existing) {
         return existing.id;
       }
@@ -566,10 +1084,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       throw new Error(errorMessage);
     }
   };
-  const refreshCompanies = useCallback(() => {
+  const refreshCompanies = useCallback(async () => {
     if (!db || !isDatabaseLoaded) return;
     try {
-      setCompanies(db.getCompanies());
+      const companiesData = await db.getCompaniesAsync();
+      setCompanies(companiesData);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to refresh companies"
@@ -586,8 +1105,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
 
     try {
-      const id = db.addAccount(account);
-      refreshAccounts();
+      const id = await db.addAccountAsync(account);
+      await refreshAccounts();
       return id;
     } catch (err) {
       const errorMessage =
@@ -596,10 +1115,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       throw new Error(errorMessage);
     }
   };
-  const refreshAccounts = useCallback(() => {
+  const refreshAccounts = useCallback(async () => {
     if (!db || !isDatabaseLoaded) return;
     try {
-      setAccounts(db.getAccounts());
+      const accountsData = await db.getAccountsAsync();
+      setAccounts(accountsData);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to refresh accounts"
@@ -616,8 +1136,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
 
     try {
-      const id = db.addBudget(budget);
-      refreshBudgets();
+      const id = await db.addBudgetAsync(budget);
+      await refreshBudgets();
       return id;
     } catch (err) {
       const errorMessage =
@@ -626,10 +1146,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       throw new Error(errorMessage);
     }
   };
-  const refreshBudgets = useCallback(() => {
+  const refreshBudgets = useCallback(async () => {
     if (!db || !isDatabaseLoaded) return;
     try {
-      setBudgets(db.getBudgets());
+      const budgetsData = await db.getBudgetsAsync();
+      setBudgets(budgetsData);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to refresh budgets"
@@ -646,8 +1167,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
 
     try {
-      const id = db.addProject(project);
-      refreshProjects();
+      const id = await db.addProjectAsync(project);
+      await refreshProjects();
       return id;
     } catch (err) {
       const errorMessage =
@@ -667,8 +1188,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     try {
       console.log("Updating project with ID:", id);
       console.log("Update data:", updates);
-      db.updateProject(id, updates);
-      refreshProjects();
+      await db.updateProjectAsync(id, updates);
+      await refreshProjects();
     } catch (err) {
       console.error("DatabaseContext updateProject error:", err);
       const errorMessage =
@@ -684,9 +1205,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
 
     try {
-      db.deleteProject(id);
-      refreshProjects();
-      refreshTransactions(); // Refresh transactions as project references may have been cleared
+      await db.deleteProjectAsync(id);
+      await refreshProjects();
+      await refreshTransactions(); // Refresh transactions as project references may have been cleared
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to delete project";
@@ -695,10 +1216,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const refreshProjects = useCallback(() => {
+  const refreshProjects = useCallback(async () => {
     if (!db || !isDatabaseLoaded) return;
     try {
-      setProjects(db.getProjects());
+      const projectsData = await db.getProjectsAsync();
+      setProjects(projectsData);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to refresh projects"
@@ -706,20 +1228,20 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   }, [db, isDatabaseLoaded]);
 
-  const getProjectById = (id: string): Project | null => {
+  const getProjectById = async (id: string): Promise<Project | null> => {
     if (!db || !isDatabaseLoaded) return null;
     try {
-      return db.getProjectById(id);
+      return await db.getProjectByIdAsync(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to get project");
       return null;
     }
   };
 
-  const getTransactionsByProject = (projectId: string): Transaction[] => {
+  const getTransactionsByProject = async (projectId: string): Promise<Transaction[]> => {
     if (!db || !isDatabaseLoaded) return [];
     try {
-      return db.getTransactionsByProject(projectId);
+      return await db.getTransactionsByProjectAsync(projectId);
     } catch (err) {
       setError(
         err instanceof Error
@@ -730,13 +1252,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const getProjectCosts = (
+  const getProjectCosts = async (
     projectId: string
-  ): { estimated: number; actual: number; transactions_total: number } => {
+  ): Promise<{ estimated: number; actual: number; transactions_total: number }> => {
     if (!db || !isDatabaseLoaded)
       return { estimated: 0, actual: 0, transactions_total: 0 };
     try {
-      return db.getProjectCosts(projectId);
+      return await db.getProjectCostsAsync(projectId);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to get project costs"
@@ -746,14 +1268,14 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   // Analytics operations
-  const getTransactionsByDateRange = (
+  const getTransactionsByDateRange = async (
     startDate: string,
     endDate: string,
     type?: "income" | "expense"
-  ): Transaction[] => {
+  ): Promise<Transaction[]> => {
     if (!db || !isDatabaseLoaded) return [];
     try {
-      return db.getTransactionsByDateRange(startDate, endDate, type);
+      return await db.getTransactionsByDateRange(startDate, endDate, type);
     } catch (err) {
       setError(
         err instanceof Error
@@ -764,10 +1286,10 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const getSpendingByCategory = (startDate: string, endDate: string) => {
+  const getSpendingByCategory = async (startDate: string, endDate: string) => {
     if (!db || !isDatabaseLoaded) return [];
     try {
-      return db.getSpendingByCategory(startDate, endDate);
+      return await db.getSpendingByCategoryAsync(startDate, endDate);
     } catch (err) {
       setError(
         err instanceof Error
@@ -778,10 +1300,10 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const getIncomeByCategory = (startDate: string, endDate: string) => {
+  const getIncomeByCategory = async (startDate: string, endDate: string) => {
     if (!db || !isDatabaseLoaded) return [];
     try {
-      return db.getIncomeByCategory(startDate, endDate);
+      return await db.getIncomeByCategoryAsync(startDate, endDate);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to get income by category"
@@ -790,10 +1312,10 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const getMonthlyTrends = (months: number = 12) => {
+  const getMonthlyTrends = async (months: number = 12) => {
     if (!db || !isDatabaseLoaded) return [];
     try {
-      return db.getMonthlyTrends(months);
+      return await db.getMonthlyTrendsAsync(months);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to get monthly trends"
@@ -801,7 +1323,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       return [];
     }
   };  const contextValue: DatabaseContextType = {
-    db,
     isInitialized,
     isDatabaseLoaded,
     isLoading,
@@ -813,13 +1334,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     budgets,
     projects,
     initializeDatabase,
+    checkForExistingDatabase,
+    openExistingDatabase,
     createNewDatabase,
     loadDatabaseFromFile,
     exportDatabase,
-    loadDatabaseFromSession,
-    saveDatabaseToSession,
-    clearSession,
-    hasSession,
     addTransaction,
     refreshTransactions,
     addCategory,
@@ -841,15 +1360,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     getTransactionsByDateRange,
     getSpendingByCategory,
     getIncomeByCategory,
-    getMonthlyTrends,    autoSaveEnabled,
-    autoSaveFileHandle,
-    lastAutoSave,
-    setupAutoSave,
-    setupAutoSaveWithExistingFile,
-    setupAutoSaveWithFileHandle,
-    enableAutoSave,
-    disableAutoSave,
-    saveToFile,
+    getMonthlyTrends,
   };
 
   return (

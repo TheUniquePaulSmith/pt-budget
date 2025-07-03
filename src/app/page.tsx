@@ -27,7 +27,8 @@ import {
   Home as ProjectsIcon,
   Receipt as TransactionsIcon,
   Storage as ManageDataIcon,
-  BugReport
+  BugReport,
+  Code as SQLIcon
 } from '@mui/icons-material';
 import DatabaseInitializer from '../components/DatabaseInitializer';
 import Dashboard from '../components/Dashboard';
@@ -36,6 +37,7 @@ import TransactionReport from '../components/TransactionReport';
 import SettingsPage from '../components/SettingsPage';
 import ManageData from '../components/ManageData';
 import DeveloperConsolePage from '../components/DeveloperConsolePage';
+import SQLQueryPage from '../components/SQLQueryPage';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
 
 export default function Home() {
@@ -54,6 +56,7 @@ export default function Home() {
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon /> },
     { id: 'transactions', label: 'Transactions', icon: <TransactionsIcon /> },
+    { id: 'sql-query', label: 'SQL Query', icon: <SQLIcon /> },
   ];
 
   const handleDatabaseReady = () => {
@@ -259,6 +262,10 @@ export default function Home() {
       
       {currentPage === 'transactions' && (
         <TransactionReport />
+      )}
+
+      {currentPage === 'sql-query' && (
+        <SQLQueryPage />
       )}
 
       {/* Manage Data Dialog */}

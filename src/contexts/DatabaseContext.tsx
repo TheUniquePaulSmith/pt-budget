@@ -685,6 +685,25 @@ class WaSQLiteDatabaseManager {
     // Simplified implementation
     return [];
   }
+
+  // Custom SQL query execution for advanced users
+  async executeCustomQuery(sql: string): Promise<any[]> {
+    // Sanitize the query to prevent dangerous operations
+    const trimmedSql = sql.trim().toLowerCase();
+    
+    // Block potentially dangerous operations
+    const dangerousKeywords = ['drop', 'delete', 'update', 'insert', 'alter', 'create', 'truncate'];
+    const isDangerous = dangerousKeywords.some(keyword => 
+      trimmedSql.includes(keyword + ' ') || trimmedSql.startsWith(keyword)
+    );
+    
+    if (isDangerous) {
+      throw new Error('Only SELECT queries are allowed for security reasons');
+    }
+
+    // Execute the query
+    return await this.query(sql);
+  }
 }
 
 interface DatabaseContextType {
@@ -788,6 +807,9 @@ interface DatabaseContextType {
   getMonthlyTrends: (
     months?: number
   ) => Promise<{ month: string; income: number; expense: number }[]>;
+
+  // Custom SQL query execution
+  executeCustomQuery: (sql: string) => Promise<any[]>;
 }
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -1322,7 +1344,22 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       );
       return [];
     }
-  };  const contextValue: DatabaseContextType = {
+  };
+
+  const executeCustomQuery = async (sql: string): Promise<any[]> => {
+    if (!db || !isDatabaseLoaded) {
+      throw new Error("Database not loaded");
+    }
+    try {
+      return await db.executeCustomQuery(sql);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to execute query";
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const contextValue: DatabaseContextType = {
     isInitialized,
     isDatabaseLoaded,
     isLoading,
@@ -1361,6 +1398,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     getSpendingByCategory,
     getIncomeByCategory,
     getMonthlyTrends,
+    executeCustomQuery,
   };
 
   return (

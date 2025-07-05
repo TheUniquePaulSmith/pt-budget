@@ -18,11 +18,23 @@ import type {
   Project,
 } from "../types/database";
 import { dbLogger, appLogger } from "../lib/logger";
+import {
+  DatabaseSchema,
+  TransactionQueries,
+  CategoryQueries,
+  CompanyQueries,
+  AccountQueries,
+  BudgetQueries,
+  ProjectQueries,
+  AnalyticsQueries,
+  DatabaseUtils,
+  type SQLiteExecutor,
+} from "../lib/budgetDbQueries";
 
 // WA-SQLite Database Manager using OPFSAnyContextVFS
-class WaSQLiteDatabaseManager {
-  private sqlite3: any = null;
-  private db: number = 0;
+class WaSQLiteDatabaseManager implements SQLiteExecutor {
+  sqlite3: any = null;
+  db: number = 0;
   private vfs: any = null;
   private isInitialized = false;
 
@@ -98,7 +110,7 @@ class WaSQLiteDatabaseManager {
       await this.sqlite3.exec(this.db, 'PRAGMA synchronous=NORMAL');
       await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=ON');
       
-      await this.createTables();
+      await DatabaseSchema.createTables(this);
       dbLogger.debug('Database ready for use');
     } catch (error) {
       dbLogger.error('Failed to open database:', error);
@@ -106,115 +118,7 @@ class WaSQLiteDatabaseManager {
     }
   }
 
-  private async createTables(): Promise<void> {
-    const tables = [
-      `CREATE TABLE IF NOT EXISTS categories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,
-        type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-        color TEXT DEFAULT '#3b82f6',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS companies (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS accounts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        last_four TEXT NOT NULL,
-        type TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS projects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        company_name TEXT NOT NULL,
-        contact_details TEXT,
-        project_category TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'planning',
-        start_date TEXT,
-        end_date TEXT,
-        estimated_cost REAL,
-        actual_cost REAL,
-        notes TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS budgets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        category_id INTEGER NOT NULL,
-        amount REAL NOT NULL,
-        period TEXT NOT NULL,
-        start_date TEXT NOT NULL,
-        end_date TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (category_id) REFERENCES categories (id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT NOT NULL,
-        amount REAL NOT NULL,
-        description TEXT NOT NULL,
-        category_id INTEGER,
-        company_id INTEGER,
-        project_id INTEGER,
-        account_last_four TEXT,
-        type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (category_id) REFERENCES categories (id),
-        FOREIGN KEY (company_id) REFERENCES companies (id),
-        FOREIGN KEY (project_id) REFERENCES projects (id)
-      )`
-    ];
-
-    for (const sql of tables) {
-      await this.sqlite3.exec(this.db, sql);
-    }
-
-    // Insert default categories if none exist
-    const categoryCount = await this.query('SELECT COUNT(*) as count FROM categories');
-    if (categoryCount[0]?.count === 0) {
-      dbLogger.info('No categories found, inserting default categories...');
-      await this.insertDefaultCategories();
-    } else {
-      dbLogger.info(`Found ${categoryCount[0].count} existing categories`);
-    }
-    
-    // Log available categories for debugging
-    const allCategories = await this.query('SELECT id, name, type FROM categories');
-    dbLogger.debug('Available categories:', allCategories);
-  }
-
-  private async insertDefaultCategories(): Promise<void> {
-    const defaultCategories = [
-      { name: 'Salary', type: 'income', color: '#58D68D' },
-      { name: 'Freelance', type: 'income', color: '#52BE80' },
-      { name: 'Investment', type: 'income', color: '#48C9B0' },
-      { name: 'Mortgage/Rent', type: 'expense', color: '#FF6B6B' },
-      { name: 'Insurance', type: 'expense', color: '#4ECDC4' },
-      { name: 'Food & Dining', type: 'expense', color: '#45B7D1' },
-      { name: 'Utilities', type: 'expense', color: '#FFA07A' },
-      { name: 'Transportation', type: 'expense', color: '#98D8C8' },
-      { name: 'Entertainment', type: 'expense', color: '#F7DC6F' },
-      { name: 'Healthcare', type: 'expense', color: '#BB8FCE' },
-      { name: 'Shopping', type: 'expense', color: '#85C1E9' },
-    ];
-
-    for (const category of defaultCategories) {
-      await this.sqlite3.exec(this.db, 
-        `INSERT INTO categories (name, type, color) VALUES ('${category.name}', '${category.type}', '${category.color}')`
-      );
-    }
-  }
-
-  private async query(sql: string, parameters: any[] = []): Promise<any[]> {
+  async query(sql: string, parameters: any[] = []): Promise<any[]> {
     const results: any[] = [];
     
     // Prepare the statement if parameters are provided
@@ -273,12 +177,22 @@ class WaSQLiteDatabaseManager {
     return results;
   }
 
+  async exec(sql: string): Promise<void> {
+    await this.sqlite3.exec(this.db, sql);
+  }
+
+  lastInsertRowId(): number {
+    return this.sqlite3.last_insert_rowid(this.db);
+  }
+
   // Database interface methods required by the context
   async hasExistingDatabase(): Promise<boolean> {
     return this.isInitialized && this.db !== 0;
   }
 
-  
+  async checkForExistingIndexedDB(): Promise<boolean> {
+    return DatabaseUtils.checkForExistingIndexedDB();
+  }
 
   async openExistingDatabase(): Promise<void> {
     await this.openDatabase();
@@ -296,406 +210,104 @@ class WaSQLiteDatabaseManager {
     throw new Error('Database export not yet implemented');
   }
 
-  // Transaction operations
+  // Transaction operations - delegated to query classes
   async addTransactionAsync(transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
-    // Validate foreign key references first
-    if (transaction.category_id) {
-      const categoryExists = await this.query('SELECT id FROM categories WHERE id = ?', [parseInt(transaction.category_id)]);
-      if (categoryExists.length === 0) {
-        throw new Error(`Category with ID ${transaction.category_id} does not exist`);
-      }
-    }
-
-    if (transaction.company_id) {
-      const companyExists = await this.query('SELECT id FROM companies WHERE id = ?', [parseInt(transaction.company_id)]);
-      if (companyExists.length === 0) {
-        throw new Error(`Company with ID ${transaction.company_id} does not exist`);
-      }
-    }
-
-    if (transaction.project_id) {
-      const projectExists = await this.query('SELECT id FROM projects WHERE id = ?', [parseInt(transaction.project_id)]);
-      if (projectExists.length === 0) {
-        throw new Error(`Project with ID ${transaction.project_id} does not exist`);
-      }
-    }
-
-    const sql = `INSERT INTO transactions (date, amount, description, category_id, company_id, project_id, account_last_four, type)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    
-    dbLogger.debug('Adding transaction with data:', {
-      date: transaction.date,
-      amount: transaction.amount,
-      description: transaction.description,
-      category_id: transaction.category_id,
-      company_id: transaction.company_id,
-      project_id: transaction.project_id,
-      account_last_four: transaction.account_last_four,
-      type: transaction.type
-    });
-
-    // Use the proper for await loop with statements iterator
-    for await (const stmt of this.sqlite3.statements(this.db, sql)) {
-      this.sqlite3.bind_text(stmt, 1, transaction.date);
-      this.sqlite3.bind_double(stmt, 2, transaction.amount);
-      this.sqlite3.bind_text(stmt, 3, transaction.description);
-      
-      if (transaction.category_id) {
-        dbLogger.debug('Binding category_id as int', { 
-          original: transaction.category_id, 
-          parsed: parseInt(transaction.category_id) 
-        });
-        this.sqlite3.bind_int(stmt, 4, parseInt(transaction.category_id));
-      } else {
-        dbLogger.debug('Binding category_id as NULL');
-        this.sqlite3.bind_null(stmt, 4);
-      }
-      
-      if (transaction.company_id) {
-        dbLogger.debug('Binding company_id as int', { 
-          original: transaction.company_id, 
-          parsed: parseInt(transaction.company_id) 
-        });
-        this.sqlite3.bind_int(stmt, 5, parseInt(transaction.company_id));
-      } else {
-        dbLogger.debug('Binding company_id as NULL');
-        this.sqlite3.bind_null(stmt, 5);
-      }
-      
-      if (transaction.project_id) {
-        dbLogger.debug('Binding project_id as int', { 
-          original: transaction.project_id, 
-          parsed: parseInt(transaction.project_id) 
-        });
-        this.sqlite3.bind_int(stmt, 6, parseInt(transaction.project_id));
-      } else {
-        dbLogger.debug('Binding project_id as NULL');
-        this.sqlite3.bind_null(stmt, 6);
-      }
-      
-      this.sqlite3.bind_text(stmt, 7, transaction.account_last_four);
-      this.sqlite3.bind_text(stmt, 8, transaction.type);
-      
-      await this.sqlite3.step(stmt);
-      dbLogger.info('Transaction inserted successfully');
-      // Statement is automatically finalized by the iterator
-      return;
-    }
-    
-    throw new Error('Failed to prepare statement');
+    return TransactionQueries.create(this, transaction);
   }
 
   async getTransactionsAsync(): Promise<Transaction[]> {
-    const rows = await this.query('SELECT * FROM transactions ORDER BY date DESC, created_at DESC');
-    return rows.map(row => ({
-      id: row.id.toString(),
-      date: row.date,
-      amount: row.amount,
-      description: row.description,
-      category_id: row.category_id?.toString(),
-      company_id: row.company_id?.toString(),
-      project_id: row.project_id?.toString(),
-      account_last_four: row.account_last_four,
-      type: row.type,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    return TransactionQueries.getAll(this);
   }
 
-  // Category operations
+  // Category operations - delegated to query classes
   async getCategoriesAsync(): Promise<Category[]> {
-    const rows = await this.query('SELECT * FROM categories ORDER BY name');
-    return rows.map(row => ({
-      id: row.id.toString(),
-      name: row.name,
-      type: row.type,
-      color: row.color,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    return CategoryQueries.getAll(this);
   }
 
   async addCategoryAsync(category: Omit<Category, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-    const sql = `INSERT INTO categories (name, type, color) VALUES (?, ?, ?)`;
-    
-    // Use the proper for await loop with statements iterator
-    for await (const stmt of this.sqlite3.statements(this.db, sql)) {
-      this.sqlite3.bind_text(stmt, 1, category.name);
-      this.sqlite3.bind_text(stmt, 2, category.type);
-      this.sqlite3.bind_text(stmt, 3, category.color);
-      await this.sqlite3.step(stmt);
-      // Statement is automatically finalized by the iterator
-      return this.sqlite3.last_insert_rowid(this.db).toString();
-    }
-    
-    throw new Error('Failed to prepare statement');
+    return CategoryQueries.create(this, category);
   }
 
-  // Company operations
+  // Company operations - delegated to query classes
   async getCompaniesAsync(): Promise<Company[]> {
-    const rows = await this.query('SELECT * FROM companies ORDER BY name');
-    return rows.map(row => ({
-      id: row.id.toString(),
-      name: row.name,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    return CompanyQueries.getAll(this);
   }
 
   async addCompanyAsync(name: string): Promise<string> {
-    const sql = `INSERT INTO companies (name) VALUES (?)`;
-    
-    // Use the proper for await loop with statements iterator
-    for await (const stmt of this.sqlite3.statements(this.db, sql)) {
-      this.sqlite3.bind_text(stmt, 1, name);
-      await this.sqlite3.step(stmt);
-      // Statement is automatically finalized by the iterator
-      return this.sqlite3.last_insert_rowid(this.db).toString();
-    }
-    
-    throw new Error('Failed to prepare statement');
+    return CompanyQueries.create(this, name);
   }
 
   async findCompanyByNameAsync(name: string): Promise<Company | null> {
-    const rows = await this.query(`SELECT * FROM companies WHERE name = ?`, [name]);
-    if (rows.length === 0) return null;
-    
-    const row = rows[0];
-    return {
-      id: row.id.toString(),
-      name: row.name,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    };
+    return CompanyQueries.findByName(this, name);
   }
 
-  // Account operations
+  // Account operations - delegated to query classes
   async getAccountsAsync(): Promise<Account[]> {
-    const rows = await this.query('SELECT * FROM accounts ORDER BY name');
-    return rows.map(row => ({
-      id: row.id.toString(),
-      name: row.name,
-      last_four: row.last_four,
-      type: row.type,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    return AccountQueries.getAll(this);
   }
 
   async addAccountAsync(account: Omit<Account, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-    await this.sqlite3.exec(this.db,
-      `INSERT INTO accounts (name, last_four, type) VALUES ('${account.name}', '${account.last_four}', '${account.type}')`
-    );
-    return this.sqlite3.last_insert_rowid(this.db).toString();
+    return AccountQueries.create(this, account);
   }
 
-  // Budget operations
+  // Budget operations - delegated to query classes
   async getBudgetsAsync(): Promise<Budget[]> {
-    const rows = await this.query('SELECT * FROM budgets ORDER BY start_date DESC');
-    return rows.map(row => ({
-      id: row.id.toString(),
-      category_id: row.category_id.toString(),
-      amount: row.amount,
-      period: row.period,
-      start_date: row.start_date,
-      end_date: row.end_date,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    return BudgetQueries.getAll(this);
   }
 
   async addBudgetAsync(budget: Omit<Budget, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-    await this.sqlite3.exec(this.db,
-      `INSERT INTO budgets (category_id, amount, period, start_date, end_date) VALUES (${budget.category_id}, ${budget.amount}, '${budget.period}', '${budget.start_date}', '${budget.end_date}')`
-    );
-    return this.sqlite3.last_insert_rowid(this.db).toString();
+    return BudgetQueries.create(this, budget);
   }
 
-  // Project operations
+  // Project operations - delegated to query classes
   async getProjectsAsync(): Promise<Project[]> {
-    const rows = await this.query('SELECT * FROM projects ORDER BY name');
-    return rows.map(row => ({
-      id: row.id.toString(),
-      name: row.name,
-      company_name: row.company_name,
-      contact_details: row.contact_details,
-      project_category: row.project_category,
-      status: row.status,
-      start_date: row.start_date,
-      end_date: row.end_date,
-      estimated_cost: row.estimated_cost,
-      actual_cost: row.actual_cost,
-      notes: row.notes,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    return ProjectQueries.getAll(this);
   }
 
   async addProjectAsync(project: Omit<Project, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-    await this.sqlite3.exec(this.db,
-      `INSERT INTO projects (name, company_name, contact_details, project_category, status, start_date, end_date, estimated_cost, actual_cost, notes) 
-       VALUES ('${project.name}', '${project.company_name}', '${project.contact_details}', '${project.project_category}', '${project.status}', '${project.start_date || ''}', '${project.end_date || ''}', ${project.estimated_cost || 'NULL'}, ${project.actual_cost || 'NULL'}, '${project.notes || ''}')`
-    );
-    return this.sqlite3.last_insert_rowid(this.db).toString();
+    return ProjectQueries.create(this, project);
   }
 
   async getProjectByIdAsync(id: string): Promise<Project | null> {
-    const rows = await this.query(`SELECT * FROM projects WHERE id = ${id}`);
-    if (rows.length === 0) return null;
-    
-    const row = rows[0];
-    return {
-      id: row.id.toString(),
-      name: row.name,
-      company_name: row.company_name,
-      contact_details: row.contact_details,
-      project_category: row.project_category,
-      status: row.status,
-      start_date: row.start_date,
-      end_date: row.end_date,
-      estimated_cost: row.estimated_cost,
-      actual_cost: row.actual_cost,
-      notes: row.notes,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    };
+    return ProjectQueries.getById(this, id);
   }
 
   async updateProjectAsync(id: string, updates: Partial<Omit<Project, 'id' | 'created_at' | 'updated_at'>>): Promise<void> {
-    const setParts: string[] = [];
-    if (updates.name) setParts.push(`name = '${updates.name}'`);
-    if (updates.company_name) setParts.push(`company_name = '${updates.company_name}'`);
-    if (updates.contact_details !== undefined) setParts.push(`contact_details = '${updates.contact_details}'`);
-    if (updates.project_category) setParts.push(`project_category = '${updates.project_category}'`);
-    if (updates.status) setParts.push(`status = '${updates.status}'`);
-    if (updates.start_date !== undefined) setParts.push(`start_date = '${updates.start_date}'`);
-    if (updates.end_date !== undefined) setParts.push(`end_date = '${updates.end_date}'`);
-    if (updates.estimated_cost !== undefined) setParts.push(`estimated_cost = ${updates.estimated_cost || 'NULL'}`);
-    if (updates.actual_cost !== undefined) setParts.push(`actual_cost = ${updates.actual_cost || 'NULL'}`);
-    if (updates.notes !== undefined) setParts.push(`notes = '${updates.notes}'`);
-    setParts.push(`updated_at = '${new Date().toISOString()}'`);
-    
-    const sql = `UPDATE projects SET ${setParts.join(', ')} WHERE id = ${id}`;
-    await this.sqlite3.exec(this.db, sql);
+    return ProjectQueries.update(this, id, updates);
   }
 
   async deleteProjectAsync(id: string): Promise<void> {
-    await this.sqlite3.exec(this.db, `DELETE FROM projects WHERE id = ${id}`);
+    return ProjectQueries.delete(this, id);
   }
 
   async getTransactionsByProjectAsync(projectId: string): Promise<Transaction[]> {
-    const rows = await this.query(`SELECT * FROM transactions WHERE project_id = ${projectId} ORDER BY date DESC`);
-    return rows.map(row => ({
-      id: row.id.toString(),
-      date: row.date,
-      amount: row.amount,
-      description: row.description,
-      category_id: row.category_id?.toString(),
-      company_id: row.company_id?.toString(),
-      project_id: row.project_id?.toString(),
-      account_last_four: row.account_last_four,
-      type: row.type,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    return TransactionQueries.getByProject(this, projectId);
   }
 
   async getProjectCostsAsync(projectId: string): Promise<{ estimated: number; actual: number; transactions_total: number }> {
-    const projectRows = await this.query(`SELECT estimated_cost, actual_cost FROM projects WHERE id = ${projectId}`);
-    const transactionRows = await this.query(`SELECT SUM(amount) as total FROM transactions WHERE project_id = ${projectId} AND type = 'expense'`);
-    
-    const project = projectRows[0] || {};
-    const transactionTotal = transactionRows[0]?.total || 0;
-    
-    return {
-      estimated: project.estimated_cost || 0,
-      actual: project.actual_cost || 0,
-      transactions_total: transactionTotal
-    };
+    return ProjectQueries.getCosts(this, projectId);
   }
 
-  // Analytics methods (simplified)
+  // Analytics methods - delegated to query classes
   async getTransactionsByDateRange(startDate: string, endDate: string, type?: 'income' | 'expense'): Promise<Transaction[]> {
-    let sql = `SELECT * FROM transactions WHERE date >= '${startDate}' AND date <= '${endDate}'`;
-    if (type) {
-      sql += ` AND type = '${type}'`;
-    }
-    sql += ' ORDER BY date DESC';
-    
-    const rows = await this.query(sql);
-    return rows.map(row => ({
-      id: row.id.toString(),
-      date: row.date,
-      amount: row.amount,
-      description: row.description,
-      category_id: row.category_id?.toString(),
-      company_id: row.company_id?.toString(),
-      project_id: row.project_id?.toString(),
-      account_last_four: row.account_last_four,
-      type: row.type,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    return TransactionQueries.getByDateRange(this, startDate, endDate, type);
   }
 
   async getSpendingByCategoryAsync(startDate: string, endDate: string): Promise<{ category_id: string; category_name: string; total: number; color: string }[]> {
-    const rows = await this.query(`
-      SELECT c.id as category_id, c.name as category_name, c.color, SUM(t.amount) as total
-      FROM transactions t
-      JOIN categories c ON t.category_id = c.id
-      WHERE t.date >= '${startDate}' AND t.date <= '${endDate}' AND t.type = 'expense'
-      GROUP BY c.id, c.name, c.color
-      ORDER BY total DESC
-    `);
-    
-    return rows.map(row => ({
-      category_id: row.category_id.toString(),
-      category_name: row.category_name,
-      total: row.total,
-      color: row.color
-    }));
+    return AnalyticsQueries.getSpendingByCategory(this, startDate, endDate);
   }
 
   async getIncomeByCategoryAsync(startDate: string, endDate: string): Promise<{ category_id: string; category_name: string; total: number; color: string }[]> {
-    const rows = await this.query(`
-      SELECT c.id as category_id, c.name as category_name, c.color, SUM(t.amount) as total
-      FROM transactions t
-      JOIN categories c ON t.category_id = c.id
-      WHERE t.date >= '${startDate}' AND t.date <= '${endDate}' AND t.type = 'income'
-      GROUP BY c.id, c.name, c.color
-      ORDER BY total DESC
-    `);
-    
-    return rows.map(row => ({
-      category_id: row.category_id.toString(),
-      category_name: row.category_name,
-      total: row.total,
-      color: row.color
-    }));
+    return AnalyticsQueries.getIncomeByCategory(this, startDate, endDate);
   }
 
   async getMonthlyTrendsAsync(months: number = 12): Promise<{ month: string; income: number; expense: number }[]> {
-    // Simplified implementation
-    return [];
+    return AnalyticsQueries.getMonthlyTrends(this, months);
   }
 
-  // Custom SQL query execution for advanced users
+  // Custom SQL query execution - delegated to utility class
   async executeCustomQuery(sql: string): Promise<any[]> {
-    // Sanitize the query to prevent dangerous operations
-    const trimmedSql = sql.trim().toLowerCase();
-    
-    // Block potentially dangerous operations
-    const dangerousKeywords = ['drop', 'delete', 'update', 'insert', 'alter', 'create', 'truncate'];
-    const isDangerous = dangerousKeywords.some(keyword => 
-      trimmedSql.includes(keyword + ' ') || trimmedSql.startsWith(keyword)
-    );
-    
-    if (isDangerous) {
-      throw new Error('Only SELECT queries are allowed for security reasons');
-    }
-
-    // Execute the query
-    return await this.query(sql);
+    return DatabaseUtils.executeCustomQuery(this, sql);
   }
 }
 
@@ -855,8 +467,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-
-  const createOrOpenDatabase = async (isNew: boolean): Promise<void> => {
+  const createOrOpenDatabase = useCallback(async (isNew: boolean): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
@@ -896,7 +507,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, isInitialized]);
 
   const loadDatabaseFromFile = async (file: File) => {
     if (!db || !isInitialized) {

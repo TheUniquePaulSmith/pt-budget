@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -30,6 +30,9 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
   const [isCheckingExisting, setIsCheckingExisting] = useState(true);
   const [isClient, setIsClient] = useState(false);
   
+  // Use a ref to prevent double execution of database check
+  const hasCheckedDatabase = useRef(false);
+  
   const { createOrOpenDatabase, loadDatabaseFromFile } = useDatabaseContext();
 
   // Ensure we're on the client side before accessing window
@@ -40,9 +43,12 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
   // Auto-check for existing database on component mount
   useEffect(() => {
     if (!isClient) return; // Wait for client-side hydration
+    if (hasCheckedDatabase.current) return; // Prevent double execution
 
     const checkForExistingDatabase = async () => {
       try {
+        hasCheckedDatabase.current = true; // Mark as checked
+        
         // Check for 'new' query parameter to bypass existing database check
         const urlParams = new URLSearchParams(window.location.search);
         const forceNew = urlParams.has('new');
@@ -78,7 +84,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
     };
 
     checkForExistingDatabase();
-  }, [isClient]);
+  }, [isClient, onDatabaseLoaded, createOrOpenDatabase]);
 
   const handleCreateNew = async () => {
     setLoading(true);

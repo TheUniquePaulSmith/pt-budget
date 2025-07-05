@@ -34,26 +34,6 @@ class WaSQLiteDatabaseManager {
       throw new Error('WA-SQLite requires browser environment');
     }
 
-    // Check browser support
-    // if (typeof SharedArrayBuffer === 'undefined') {
-    //   throw new Error('SharedArrayBuffer not available - COOP/COEP headers may be missing or browser not supported');
-    // }
-
-    // if (!navigator.storage?.getDirectory) {
-    //   throw new Error('OPFS not supported in this browser');
-    // }
-
-    // if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-    //   throw new Error('Secure context required for OPFS');
-    // }
-
-    // Create minimal polyfill for FileSystemSyncAccessHandle if needed
-    // if (!(globalThis as any).FileSystemSyncAccessHandle) {
-    //   (globalThis as any).FileSystemSyncAccessHandle = function() {};
-    //   (globalThis as any).FileSystemSyncAccessHandle.prototype = {};
-    //   console.warn('[WaSQLiteDB] FileSystemSyncAccessHandle not available - using polyfill');
-    // }
-
     try {
       dbLogger.info('Loading WA-SQLite modules...');
       
@@ -92,7 +72,7 @@ class WaSQLiteDatabaseManager {
     }
   }
 
-  //TODO: File name not used in initialization
+  
   async openDatabase(filename: string = '/budget-app.db'): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
@@ -297,6 +277,8 @@ class WaSQLiteDatabaseManager {
   async hasExistingDatabase(): Promise<boolean> {
     return this.isInitialized && this.db !== 0;
   }
+
+  
 
   async openExistingDatabase(): Promise<void> {
     await this.openDatabase();
@@ -736,9 +718,7 @@ interface DatabaseContextType {
   
   // Database operations
   initializeDatabase: () => Promise<void>;
-  checkForExistingDatabase: () => Promise<boolean>;
-  openExistingDatabase: () => Promise<void>;
-  createNewDatabase: () => Promise<void>;
+  createOrOpenDatabase: (isNew: boolean) => Promise<void>;
   loadDatabaseFromFile: (file: File) => Promise<void>;
   exportDatabase: () => Promise<Uint8Array | null>;
 
@@ -875,53 +855,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const checkForExistingDatabase = async (): Promise<boolean> => {
-    if (!db || !isInitialized) {
-      setError("Database not initialized");
-      return false;
-    }
 
-    try {
-      return await db.hasExistingDatabase();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to check for existing database"
-      );
-      return false;
-    }
-  };
-
-  const openExistingDatabase = async (): Promise<void> => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Initialize database manager if not already done
-      let dbManager = db;
-      if (!dbManager || !isInitialized) {
-        appLogger.info('Initializing database manager...');
-        dbManager = new WaSQLiteDatabaseManager();
-        await dbManager.initialize();
-        setDb(dbManager);
-        setIsInitialized(true);
-      }
-
-      appLogger.info('Opening existing database...');
-      await dbManager.openExistingDatabase();
-      setIsDatabaseLoaded(true);
-      refreshAllData();
-      appLogger.info('Existing database opened successfully');
-    } catch (err) {
-      appLogger.error('Failed to open existing database:', err);
-      setError(
-        err instanceof Error ? err.message : "Failed to open existing database"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const createNewDatabase = async (): Promise<void> => {
+  const createOrOpenDatabase = async (isNew: boolean): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
@@ -1381,9 +1316,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     budgets,
     projects,
     initializeDatabase,
-    checkForExistingDatabase,
-    openExistingDatabase,
-    createNewDatabase,
+    createOrOpenDatabase,
     loadDatabaseFromFile,
     exportDatabase,
     addTransaction,

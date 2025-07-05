@@ -43,12 +43,7 @@ import { useDatabaseContext } from '../contexts/DatabaseContext';
 import { appLogger } from '../lib/logger';
 
 export default function Home() {
-  // Test Winston logging
-  React.useEffect(() => {
-    appLogger.info('Home page component mounted');
-    appLogger.debug('This is a debug message');
-    appLogger.warn('This is a warning message');
-  }, []);
+  
 
   const { isDatabaseLoaded } = useDatabaseContext();
   const [showDashboard, setShowDashboard] = useState(false);

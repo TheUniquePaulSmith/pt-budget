@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -16,26 +16,72 @@ import {
   Download,
 } from '@mui/icons-material';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
+import { appLogger } from '../lib/logger';
 
 interface DatabaseInitializerProps {
   onDatabaseLoaded: () => void;
 }
 
+
+
 const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoaded }) => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true for auto-check
   const [error, setError] = useState<string | null>(null);
+  const [isCheckingExisting, setIsCheckingExisting] = useState(true);
   
-  const { createNewDatabase, loadDatabaseFromFile } = useDatabaseContext();
+  const { createOrOpenDatabase, loadDatabaseFromFile } = useDatabaseContext();
+
+  // Auto-check for existing database on component mount
+  useEffect(() => {
+    const checkForExistingDatabase = async () => {
+      try {
+        // Check for 'new' query parameter to bypass existing database check
+        const urlParams = new URLSearchParams(window.location.search);
+        const forceNew = urlParams.has('new');
+
+        if (forceNew) {
+          appLogger.info('Query parameter "new" detected, bypassing existing database check');
+          setIsCheckingExisting(false);
+          setLoading(false);
+          return;
+        }
+
+        appLogger.info('Checking for existing IndexedDB database...');
+        setIsCheckingExisting(true);
+
+        const dbName = 'ptbudgetapp';
+        const exists = (await window.indexedDB.databases()).map(db => db.name).includes(dbName);
+
+        if (exists) {
+          appLogger.info('Existing IndexedDB database found, loading');
+          await createOrOpenDatabase(true);
+          onDatabaseLoaded();
+        } else {
+          appLogger.info('No existing IndexedDB database found');
+          setIsCheckingExisting(false);
+        }        
+      } catch (err) {
+        appLogger.error('Failed to check for existing database:', err);
+        //setError('Failed to check for existing database. You can still create a new one.');
+        setIsCheckingExisting(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkForExistingDatabase();
+  }, []);
 
   const handleCreateNew = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      await createNewDatabase();
+      appLogger.info('Creating new database...');
+      await createOrOpenDatabase(false);
       onDatabaseLoaded();
     } catch (err) {
-      console.error('Failed to create database:', err);
+      appLogger.error('Failed to create database:', err);
       setError('Failed to create new database. Please try again.');
     } finally {
       setLoading(false);
@@ -47,6 +93,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
     setError(null);
     
     try {
+      appLogger.info('Loading database from file...');
       // Create file input element
       const input = document.createElement('input');
       input.type = 'file';
@@ -59,7 +106,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
             await loadDatabaseFromFile(file);
             onDatabaseLoaded();
           } catch (err) {
-            console.error('Failed to load database:', err);
+            appLogger.error('Failed to load database:', err);
             setError('Failed to load database file. Please check the file format.');
           } finally {
             setLoading(false);
@@ -71,16 +118,41 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
       
       input.click();
     } catch (err) {
-      console.error('Failed to load database:', err);
+      appLogger.error('Failed to load database:', err);
       setError('Failed to load database file. Please try again.');
       setLoading(false);
     }
   };
 
-  const handleDownloadSample = () => {
-    // You can implement sample database download here if needed
-    alert('Sample database download not implemented yet.');
-  };
+  // Show loading screen while checking for existing database
+  if (isCheckingExisting) {
+    return (
+      <Box sx={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        p: 2
+      }}>
+        <Paper sx={{ 
+          p: 4, 
+          maxWidth: 500, 
+          width: '100%',
+          textAlign: 'center'
+        }}>
+          <Typography variant="h4" gutterBottom>
+            Budget Tracker
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <CircularProgress size={40} />
+            <Typography variant="body1" color="text.secondary">
+              Checking for existing database...
+            </Typography>
+          </Box>
+        </Paper>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ 
@@ -132,16 +204,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
             Load Existing Database
           </Button>
 
-          <Button
-            variant="text"
-            size="large"
-            startIcon={<Download />}
-            onClick={handleDownloadSample}
-            disabled={loading}
-            fullWidth
-          >
-            Download Sample Database
-          </Button>
+        
         </Stack>
 
         <Typography variant="caption" color="text.secondary" sx={{ mt: 3, display: 'block' }}>

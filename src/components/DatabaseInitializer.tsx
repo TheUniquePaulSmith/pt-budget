@@ -28,11 +28,19 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
   const [loading, setLoading] = useState(true); // Start with loading true for auto-check
   const [error, setError] = useState<string | null>(null);
   const [isCheckingExisting, setIsCheckingExisting] = useState(true);
+  const [isClient, setIsClient] = useState(false);
   
   const { createOrOpenDatabase, loadDatabaseFromFile } = useDatabaseContext();
 
+  // Ensure we're on the client side before accessing window
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   // Auto-check for existing database on component mount
   useEffect(() => {
+    if (!isClient) return; // Wait for client-side hydration
+
     const checkForExistingDatabase = async () => {
       try {
         // Check for 'new' query parameter to bypass existing database check
@@ -40,7 +48,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
         const forceNew = urlParams.has('new');
 
         if (forceNew) {
-          appLogger.info('Query parameter "new" detected, bypassing existing database check');
+          appLogger.debug('Query parameter "new" detected, bypassing existing database check');
           setIsCheckingExisting(false);
           setLoading(false);
           return;
@@ -53,11 +61,11 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
         const exists = (await window.indexedDB.databases()).map(db => db.name).includes(dbName);
 
         if (exists) {
-          appLogger.info('Existing IndexedDB database found, loading');
-          await createOrOpenDatabase(true);
+          appLogger.debug('Existing IndexedDB database found, loading');
+          await createOrOpenDatabase(false);
           onDatabaseLoaded();
         } else {
-          appLogger.info('No existing IndexedDB database found');
+          appLogger.debug('No existing IndexedDB database found');
           setIsCheckingExisting(false);
         }        
       } catch (err) {
@@ -70,7 +78,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
     };
 
     checkForExistingDatabase();
-  }, []);
+  }, [isClient]);
 
   const handleCreateNew = async () => {
     setLoading(true);
@@ -78,7 +86,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
     
     try {
       appLogger.info('Creating new database...');
-      await createOrOpenDatabase(false);
+      await createOrOpenDatabase(true);
       onDatabaseLoaded();
     } catch (err) {
       appLogger.error('Failed to create database:', err);
@@ -125,7 +133,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
   };
 
   // Show loading screen while checking for existing database
-  if (isCheckingExisting) {
+  if (!isClient || isCheckingExisting) {
     return (
       <Box sx={{ 
         minHeight: '100vh', 
@@ -146,7 +154,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <CircularProgress size={40} />
             <Typography variant="body1" color="text.secondary">
-              Checking for existing database...
+              {!isClient ? 'Loading...' : 'Checking for existing database...'}
             </Typography>
           </Box>
         </Paper>

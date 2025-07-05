@@ -39,33 +39,33 @@ class WaSQLiteDatabaseManager {
       
       // Use dynamic function to avoid build-time module resolution
       const importModule = new Function('path', 'return import(path)');
-      
-      dbLogger.info('Loading SQLite async module...');
+
+      dbLogger.debug('Loading SQLite async module...');
       const sqliteModule = await importModule('/wa-sqlite/wa-sqlite-async.mjs');
       const SQLiteModule = sqliteModule.default;
-      
-      dbLogger.info('Loading SQLite API...');
+
+      dbLogger.debug('Loading SQLite API...');
       const apiModule = await importModule('/wa-sqlite/src/sqlite-api.js');
       const { Factory } = apiModule;
-      
-      dbLogger.info('Loading IDB Atomic VFS...');
+
+      dbLogger.debug('Loading IDB Atomic VFS...');
       const vfsModule = await importModule('/wa-sqlite/src/examples/IDBBatchAtomicVFS.js');
       const { IDBBatchAtomicVFS } = vfsModule;
 
-      dbLogger.info('Initializing SQLite WASM module...');
+      dbLogger.debug('Initializing SQLite WASM module...');
       const wasmModule = await SQLiteModule();
-      
-      dbLogger.info('Creating SQLite API...');
+
+      dbLogger.debug('Creating SQLite API...');
       this.sqlite3 = Factory(wasmModule);
 
-      dbLogger.info('Creating IDB VFS...');
+      dbLogger.debug('Creating IDB VFS...');
       this.vfs = await IDBBatchAtomicVFS.create('ptbudgetapp', wasmModule);
 
-      dbLogger.info('Registering IDB VFS...');
+      dbLogger.debug('Registering IDB VFS...');
       this.sqlite3.vfs_register(this.vfs, true);
       
       this.isInitialized = true;
-      dbLogger.info('Initialization complete');
+      dbLogger.debug('Initialization complete');
     } catch (error) {
       dbLogger.error('Initialization failed:', error);
       throw new Error(`Failed to initialize WA-SQLite: ${error instanceof Error ? error.message : String(error)}`);
@@ -79,7 +79,7 @@ class WaSQLiteDatabaseManager {
     }
 
     try {
-      dbLogger.info(`Opening database: ${filename}`);
+      dbLogger.debug(`Opening database: ${filename}`);
       
       this.db = await this.sqlite3.open_v2(
         filename,
@@ -91,7 +91,7 @@ class WaSQLiteDatabaseManager {
         throw new Error('Failed to open database');
       }
 
-      dbLogger.info(`Database opened successfully with handle: ${this.db}`);
+      dbLogger.debug(`Database opened successfully with handle: ${this.db}`);
       
       // Configure database for optimal performance and consistency
       await this.sqlite3.exec(this.db, 'PRAGMA journal_mode=DELETE');
@@ -99,7 +99,7 @@ class WaSQLiteDatabaseManager {
       await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=ON');
       
       await this.createTables();
-      dbLogger.info('Database ready for use');
+      dbLogger.debug('Database ready for use');
     } catch (error) {
       dbLogger.error('Failed to open database:', error);
       throw error;
@@ -864,20 +864,30 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       // Initialize database manager if not already done
       let dbManager = db;
       if (!dbManager || !isInitialized) {
-        appLogger.info('Initializing database manager...');
+        appLogger.debug('Initializing database manager...');
         dbManager = new WaSQLiteDatabaseManager();
         await dbManager.initialize();
         setDb(dbManager);
         setIsInitialized(true);
       }
-
-      appLogger.info('Creating new database...');
-      await dbManager.createNewDatabase();
-      setIsDatabaseLoaded(true);
-
-      // Load initial data
-      refreshAllData();
-      appLogger.info('New database created successfully');
+      if (isNew) {
+        appLogger.info('Creating new database...');
+        await dbManager.createNewDatabase();
+        setIsDatabaseLoaded(true);
+         
+        // Load initial data
+        refreshAllData();
+        appLogger.info('New database created successfully');
+      } else {
+        appLogger.info('Opening existing database...');
+        await dbManager.openExistingDatabase();
+        setIsDatabaseLoaded(true);
+        
+        // Load data from the existing database
+        refreshAllData();
+        appLogger.info('Existing database opened successfully');
+      }
+     
     } catch (err) {
       appLogger.error('Failed to create database:', err);
       setError(

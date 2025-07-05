@@ -85,7 +85,7 @@ class WaSQLiteDatabaseManager implements SQLiteExecutor {
   }
 
   
-  async openDatabase(filename: string = '/budget-app.db'): Promise<void> {
+  async openDatabase(filename: string = '/budget-app.db', isNew: boolean = false): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -95,7 +95,7 @@ class WaSQLiteDatabaseManager implements SQLiteExecutor {
       
       this.db = await this.sqlite3.open_v2(
         filename,
-        this.sqlite3.SQLITE_OPEN_CREATE | this.sqlite3.SQLITE_OPEN_READWRITE,
+        this.sqlite3.SQLITE_OPEN_CREATE | this.sqlite3.SQLITE_OPEN_READWRITE | this.sqlite3.SQLITE_OPEN_FULLMUTEX,
         this.vfs.name
       );
       
@@ -104,12 +104,18 @@ class WaSQLiteDatabaseManager implements SQLiteExecutor {
       }
 
       dbLogger.debug(`Database opened successfully with handle: ${this.db}`);
-      
+      if (isNew) {
+      console.log(`is new ${isNew}`);
       // Configure database for optimal performance and consistency
-      await this.sqlite3.exec(this.db, 'PRAGMA journal_mode=DELETE');
+      await this.sqlite3.exec(this.db, 'PRAGMA locking_mode=NORMAL');
+      dbLogger.debug('Setting PRAGMA locking_mode=NORMAL');
+      //await this.sqlite3.exec(this.db, 'PRAGMA journal_mode=DELETE');
+      //dbLogger.debug('Setting PRAGMA journal_mode=DELETE');
       await this.sqlite3.exec(this.db, 'PRAGMA synchronous=NORMAL');
+      dbLogger.debug('Setting PRAGMA synchronous=NORMAL');
       await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=ON');
-      
+      dbLogger.debug('Setting PRAGMA foreign_keys=ON');     
+      }
       await DatabaseSchema.createTables(this);
       dbLogger.debug('Database ready for use');
     } catch (error) {
@@ -195,11 +201,11 @@ class WaSQLiteDatabaseManager implements SQLiteExecutor {
   }
 
   async openExistingDatabase(): Promise<void> {
-    await this.openDatabase();
+    await this.openDatabase(undefined, false);
   }
 
   async createNewDatabase(): Promise<void> {
-    await this.openDatabase();
+    await this.openDatabase(undefined, true);
   }
 
   async loadDatabaseFromFile(file: File): Promise<void> {
@@ -211,7 +217,7 @@ class WaSQLiteDatabaseManager implements SQLiteExecutor {
   }
 
   // Transaction operations - delegated to query classes
-  async addTransactionAsync(transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
+  async addTransactionAsync(transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
     return TransactionQueries.create(this, transaction);
   }
 
@@ -507,7 +513,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } finally {
       setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db, isInitialized]);
 
   const loadDatabaseFromFile = async (file: File) => {

@@ -48,7 +48,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
     category_id: null as string | null,
     company_id: null as string | null,
     project_id: null as string | null,
-    account_last_four: '',
+    account_id: '' as string,
     is_recurring: false,
   });
   const [loading, setLoading] = useState(false);
@@ -65,6 +65,9 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
       }
       if (!formData.amount || parseFloat(formData.amount) <= 0) {
         throw new Error('Amount must be greater than 0');
+      }
+      if (!formData.account_id) {
+        throw new Error('Please select an account');
       }
 
       // Handle new category creation
@@ -86,16 +89,6 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
         companyId = await addCompany(companyInput.trim());
       }
 
-      // Handle new account creation
-      const accountLastFour = formData.account_last_four;
-      if (accountLastFour && !accounts.find(acc => acc.last_four === accountLastFour)) {
-        await addAccount({
-          name: `Account ending in ${accountLastFour}`,
-          last_four: accountLastFour,
-          type: formData.type === 'income' ? 'checking' : 'credit',
-        });
-      }
-
       // Create the transaction
       const transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'> = {
         description: formData.description,
@@ -105,7 +98,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
         category_id: categoryId || null,
         company_id: companyId || null,
         project_id: formData.project_id || null,
-        account_last_four: accountLastFour || '0000', // fallback to default
+        account_id: formData.account_id,
       };
 
       await addTransaction(transaction);
@@ -126,7 +119,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
       category_id: null,
       company_id: null,
       project_id: null,
-      account_last_four: '',
+      account_id: '',
       is_recurring: false,
     });
     setCompanyInput('');
@@ -264,31 +257,21 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
                 />
               )}
 
-              <Autocomplete
-                freeSolo
-                options={accounts}
-                getOptionLabel={(option) => typeof option === 'string' ? option : option.last_four}
-                value={accounts.find(acc => acc.last_four === formData.account_last_four) || null}
-                onChange={(_, value) => {
-                  if (value && typeof value !== 'string') {
-                    setFormData({ ...formData, account_last_four: value.last_four });
-                  }
-                }}
-                inputValue={formData.account_last_four}
-                onInputChange={(_, value) => setFormData({ ...formData, account_last_four: value })}
-                renderInput={(params) => (
-                  <TextField 
-                    {...params} 
-                    label="Account Last 4 Digits (Optional)" 
-                    helperText="Enter last 4 digits of account number"
-                    inputProps={{
-                      ...params.inputProps,
-                      maxLength: 4,
-                      pattern: '[0-9]{4}',
-                    }}
-                  />
-                )}
-              />
+              <FormControl fullWidth>
+                <InputLabel>Account</InputLabel>
+                <Select
+                  value={formData.account_id}
+                  label="Account"
+                  onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
+                  required
+                >
+                  {accounts.map((account) => (
+                    <MenuItem key={account.id} value={account.id}>
+                      {account.name} (••••{account.last_four})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
               <FormControlLabel
                 control={

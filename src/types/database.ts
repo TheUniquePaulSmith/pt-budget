@@ -5,11 +5,13 @@ export interface Transaction {
   date: string;
   amount: number;
   description: string;
+  account_id: string;
   category_id: string | null;
   company_id: string | null;
   project_id: string | null;
-  account_last_four: string;
   type: 'income' | 'expense';
+  transaction_hash?: string; // For duplicate detection
+  account_last_four?: string; // For compatibility during import/display
   created_at: string;
   updated_at: string;
 }
@@ -43,7 +45,7 @@ export interface Budget {
   id: string;
   category_id: string;
   amount: number;
-  period: 'weekly' | 'monthly' | 'yearly';
+  period: 'weekly' | 'monthly' | 'quarterly' | 'yearly';
   start_date: string;
   end_date: string;
   created_at: string;

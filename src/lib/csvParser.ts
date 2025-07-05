@@ -129,10 +129,10 @@ export class CSVParser {
       date: dateResult.date,
       amount: absoluteAmount,
       description,
+      account_id: '1', // Default account ID for CSV imports
       category_id: defaultCategoryId,
       company_id: null, // CSV import doesn't specify company
       project_id: null, // CSV import doesn't specify project
-      account_last_four: accountLastFour,
       type,
     };
 

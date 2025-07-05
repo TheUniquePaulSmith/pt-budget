@@ -314,7 +314,7 @@ export default function TransactionReport() {
       if (visibleColumns.company) row.push(transaction.company_name || '');
       if (visibleColumns.project) row.push(transaction.project_name || '');
       if (visibleColumns.amount) row.push(Math.abs(transaction.amount).toString());
-      if (visibleColumns.account) row.push(transaction.account_last_four);
+      if (visibleColumns.account) row.push(transaction.account_last_four || '');
       
       return row;
     });

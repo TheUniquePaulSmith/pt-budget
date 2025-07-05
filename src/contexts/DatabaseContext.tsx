@@ -256,6 +256,10 @@ class WaSQLiteDatabaseManager implements SQLiteExecutor {
     return AccountQueries.create(this, account);
   }
 
+  async deleteAccountAsync(id: string): Promise<void> {
+    return AccountQueries.delete(this, id);
+  }
+
   // Budget operations - delegated to query classes
   async getBudgetsAsync(): Promise<Budget[]> {
     return BudgetQueries.getAll(this);
@@ -361,6 +365,7 @@ interface DatabaseContextType {
   addAccount: (
     account: Omit<Account, "id" | "created_at" | "updated_at">
   ) => Promise<string>;
+  deleteAccount: (id: string) => Promise<void>;
   refreshAccounts: () => void;
 
   // Budget operations
@@ -419,6 +424,17 @@ interface DatabaseContextType {
 
   // Custom SQL query execution
   executeCustomQuery: (sql: string) => Promise<any[]>;
+
+  // CSV Import helpers
+  generateTransactionHash: (
+    accountId: string,
+    date: string,
+    amount: number,
+    description: string,
+    uniqueIdentifier?: string
+  ) => string;
+  checkTransactionHashExists: (transactionHash: string) => Promise<boolean>;
+  findAccountsByLastFour: (lastFour: string) => Account[];
 }
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -473,6 +489,30 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
+  const refreshAllData = useCallback(async () => {
+    if (!db || !isDatabaseLoaded) return;
+
+    try {
+      const [transactionsData, categoriesData, companiesData, accountsData, budgetsData, projectsData] = await Promise.all([
+        db.getTransactionsAsync(),
+        db.getCategoriesAsync(),
+        db.getCompaniesAsync(),
+        db.getAccountsAsync(),
+        db.getBudgetsAsync(),
+        db.getProjectsAsync()
+      ]);
+
+      setTransactions(transactionsData);
+      setCategories(categoriesData);
+      setCompanies(companiesData);
+      setAccounts(accountsData);
+      setBudgets(budgetsData);
+      setProjects(projectsData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to refresh data");
+    }
+  }, [db, isDatabaseLoaded]);
+
   const createOrOpenDatabase = useCallback(async (isNew: boolean): Promise<void> => {
     try {
       setIsLoading(true);
@@ -513,7 +553,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [db, isInitialized]);
+  }, [db, isInitialized, refreshAllData]);
 
   const loadDatabaseFromFile = async (file: File) => {
     if (!db || !isInitialized) {
@@ -555,29 +595,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   }, [db, isDatabaseLoaded]);
 
-  const refreshAllData = useCallback(async () => {
-    if (!db || !isDatabaseLoaded) return;
-
-    try {
-      const [transactionsData, categoriesData, companiesData, accountsData, budgetsData, projectsData] = await Promise.all([
-        db.getTransactionsAsync(),
-        db.getCategoriesAsync(),
-        db.getCompaniesAsync(),
-        db.getAccountsAsync(),
-        db.getBudgetsAsync(),
-        db.getProjectsAsync()
-      ]);
-
-      setTransactions(transactionsData);
-      setCategories(categoriesData);
-      setCompanies(companiesData);
-      setAccounts(accountsData);
-      setBudgets(budgetsData);
-      setProjects(projectsData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to refresh data");
-    }
-  }, [db, isDatabaseLoaded]);
+  
 
   // Transaction operations
   const addTransaction = async (
@@ -721,6 +739,23 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       );
     }
   }, [db, isDatabaseLoaded]);
+
+  const deleteAccount = async (id: string): Promise<void> => {
+    if (!db || !isDatabaseLoaded) {
+      throw new Error("Database not loaded");
+    }
+
+    try {
+      await db.deleteAccountAsync(id);
+      await refreshAccounts();
+      await refreshTransactions(); // Refresh transactions as account references may have been cleared
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to delete account";
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
 
   // Budget operations
   const addBudget = async (
@@ -931,6 +966,39 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
+  // CSV Import helper functions
+  const generateTransactionHash = (
+    accountId: string,
+    date: string,
+    amount: number,
+    description: string,
+    uniqueIdentifier?: string
+  ): string => {
+    return TransactionQueries.generateTransactionHashFromFields(
+      accountId,
+      date,
+      amount,
+      description,
+      uniqueIdentifier
+    );
+  };
+
+  const checkTransactionHashExists = async (transactionHash: string): Promise<boolean> => {
+    if (!db || !isDatabaseLoaded) return false;
+    try {
+      return await TransactionQueries.checkTransactionHashExists(db, transactionHash);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to check transaction hash"
+      );
+      return false;
+    }
+  };
+
+  const findAccountsByLastFour = (lastFour: string): Account[] => {
+    return accounts.filter(account => account.last_four === lastFour);
+  };
+
   const contextValue: DatabaseContextType = {
     isInitialized,
     isDatabaseLoaded,
@@ -954,6 +1022,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     findOrCreateCompany,
     refreshCompanies,
     addAccount,
+    deleteAccount,
     refreshAccounts,
     addBudget,
     refreshBudgets,
@@ -969,6 +1038,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     getIncomeByCategory,
     getMonthlyTrends,
     executeCustomQuery,
+    generateTransactionHash,
+    checkTransactionHashExists,
+    findAccountsByLastFour,
   };
 
   return (

@@ -17,6 +17,7 @@ import type {
   Budget,
   Project,
 } from "../types/database";
+import { dbLogger, appLogger } from "../lib/logger";
 
 // WA-SQLite Database Manager using OPFSAnyContextVFS
 class WaSQLiteDatabaseManager {
@@ -34,70 +35,71 @@ class WaSQLiteDatabaseManager {
     }
 
     // Check browser support
-    if (typeof SharedArrayBuffer === 'undefined') {
-      throw new Error('SharedArrayBuffer not available - COOP/COEP headers may be missing or browser not supported');
-    }
+    // if (typeof SharedArrayBuffer === 'undefined') {
+    //   throw new Error('SharedArrayBuffer not available - COOP/COEP headers may be missing or browser not supported');
+    // }
 
-    if (!navigator.storage?.getDirectory) {
-      throw new Error('OPFS not supported in this browser');
-    }
+    // if (!navigator.storage?.getDirectory) {
+    //   throw new Error('OPFS not supported in this browser');
+    // }
 
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-      throw new Error('Secure context required for OPFS');
-    }
+    // if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    //   throw new Error('Secure context required for OPFS');
+    // }
 
     // Create minimal polyfill for FileSystemSyncAccessHandle if needed
-    if (!(globalThis as any).FileSystemSyncAccessHandle) {
-      (globalThis as any).FileSystemSyncAccessHandle = function() {};
-      (globalThis as any).FileSystemSyncAccessHandle.prototype = {};
-      console.warn('[WaSQLiteDB] FileSystemSyncAccessHandle not available - using polyfill');
-    }
+    // if (!(globalThis as any).FileSystemSyncAccessHandle) {
+    //   (globalThis as any).FileSystemSyncAccessHandle = function() {};
+    //   (globalThis as any).FileSystemSyncAccessHandle.prototype = {};
+    //   console.warn('[WaSQLiteDB] FileSystemSyncAccessHandle not available - using polyfill');
+    // }
 
     try {
-      console.log('[WaSQLiteDB] Loading WA-SQLite modules...');
+      dbLogger.info('Loading WA-SQLite modules...');
       
       // Use dynamic function to avoid build-time module resolution
       const importModule = new Function('path', 'return import(path)');
       
-      console.log('[WaSQLiteDB] Loading SQLite async module...');
+      dbLogger.info('Loading SQLite async module...');
       const sqliteModule = await importModule('/wa-sqlite/wa-sqlite-async.mjs');
       const SQLiteModule = sqliteModule.default;
       
-      console.log('[WaSQLiteDB] Loading SQLite API...');
+      dbLogger.info('Loading SQLite API...');
       const apiModule = await importModule('/wa-sqlite/src/sqlite-api.js');
       const { Factory } = apiModule;
       
-      console.log('[WaSQLiteDB] Loading OPFS VFS...');
-      const vfsModule = await importModule('/wa-sqlite/src/examples/OPFSAnyContextVFS.js');
-      const { OPFSAnyContextVFS } = vfsModule;
+      dbLogger.info('Loading IDB Atomic VFS...');
+      const vfsModule = await importModule('/wa-sqlite/src/examples/IDBBatchAtomicVFS.js');
+      const { IDBBatchAtomicVFS } = vfsModule;
 
-      console.log('[WaSQLiteDB] Initializing SQLite WASM module...');
+      dbLogger.info('Initializing SQLite WASM module...');
       const wasmModule = await SQLiteModule();
       
-      console.log('[WaSQLiteDB] Creating SQLite API...');
+      dbLogger.info('Creating SQLite API...');
       this.sqlite3 = Factory(wasmModule);
-      
-      console.log('[WaSQLiteDB] Creating OPFS VFS...');
-      this.vfs = await OPFSAnyContextVFS.create('opfs-any-context', wasmModule);
-      
-      console.log('[WaSQLiteDB] Registering OPFS VFS...');
+
+      dbLogger.info('Creating IDB VFS...');
+      this.vfs = await IDBBatchAtomicVFS.create('ptbudgetapp', wasmModule);
+
+      dbLogger.info('Registering IDB VFS...');
       this.sqlite3.vfs_register(this.vfs, true);
       
       this.isInitialized = true;
-      console.log('[WaSQLiteDB] Initialization complete');
+      dbLogger.info('Initialization complete');
     } catch (error) {
-      console.error('[WaSQLiteDB] Initialization failed:', error);
+      dbLogger.error('Initialization failed:', error);
       throw new Error(`Failed to initialize WA-SQLite: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
+  //TODO: File name not used in initialization
   async openDatabase(filename: string = '/budget-app.db'): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
     try {
-      console.log(`[WaSQLiteDB] Opening database: ${filename}`);
+      dbLogger.info(`Opening database: ${filename}`);
       
       this.db = await this.sqlite3.open_v2(
         filename,
@@ -109,7 +111,7 @@ class WaSQLiteDatabaseManager {
         throw new Error('Failed to open database');
       }
 
-      console.log(`[WaSQLiteDB] Database opened successfully with handle: ${this.db}`);
+      dbLogger.info(`Database opened successfully with handle: ${this.db}`);
       
       // Configure database for optimal performance and consistency
       await this.sqlite3.exec(this.db, 'PRAGMA journal_mode=DELETE');
@@ -117,9 +119,9 @@ class WaSQLiteDatabaseManager {
       await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=ON');
       
       await this.createTables();
-      console.log(`[WaSQLiteDB] Database ready for use`);
+      dbLogger.info('Database ready for use');
     } catch (error) {
-      console.error('[WaSQLiteDB] Failed to open database:', error);
+      dbLogger.error('Failed to open database:', error);
       throw error;
     }
   }
@@ -199,15 +201,15 @@ class WaSQLiteDatabaseManager {
     // Insert default categories if none exist
     const categoryCount = await this.query('SELECT COUNT(*) as count FROM categories');
     if (categoryCount[0]?.count === 0) {
-      console.log('[WaSQLiteDB] No categories found, inserting default categories...');
+      dbLogger.info('No categories found, inserting default categories...');
       await this.insertDefaultCategories();
     } else {
-      console.log(`[WaSQLiteDB] Found ${categoryCount[0].count} existing categories`);
+      dbLogger.info(`Found ${categoryCount[0].count} existing categories`);
     }
     
     // Log available categories for debugging
     const allCategories = await this.query('SELECT id, name, type FROM categories');
-    console.log('[WaSQLiteDB] Available categories:', allCategories);
+    dbLogger.debug('Available categories:', allCategories);
   }
 
   private async insertDefaultCategories(): Promise<void> {
@@ -339,7 +341,7 @@ class WaSQLiteDatabaseManager {
     const sql = `INSERT INTO transactions (date, amount, description, category_id, company_id, project_id, account_last_four, type)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
     
-    console.log('[WaSQLiteDB] Adding transaction with data:', {
+    dbLogger.debug('Adding transaction with data:', {
       date: transaction.date,
       amount: transaction.amount,
       description: transaction.description,
@@ -357,26 +359,35 @@ class WaSQLiteDatabaseManager {
       this.sqlite3.bind_text(stmt, 3, transaction.description);
       
       if (transaction.category_id) {
-        console.log('[WaSQLiteDB] Binding category_id:', transaction.category_id, 'as int:', parseInt(transaction.category_id));
+        dbLogger.debug('Binding category_id as int', { 
+          original: transaction.category_id, 
+          parsed: parseInt(transaction.category_id) 
+        });
         this.sqlite3.bind_int(stmt, 4, parseInt(transaction.category_id));
       } else {
-        console.log('[WaSQLiteDB] Binding category_id as NULL');
+        dbLogger.debug('Binding category_id as NULL');
         this.sqlite3.bind_null(stmt, 4);
       }
       
       if (transaction.company_id) {
-        console.log('[WaSQLiteDB] Binding company_id:', transaction.company_id, 'as int:', parseInt(transaction.company_id));
+        dbLogger.debug('Binding company_id as int', { 
+          original: transaction.company_id, 
+          parsed: parseInt(transaction.company_id) 
+        });
         this.sqlite3.bind_int(stmt, 5, parseInt(transaction.company_id));
       } else {
-        console.log('[WaSQLiteDB] Binding company_id as NULL');
+        dbLogger.debug('Binding company_id as NULL');
         this.sqlite3.bind_null(stmt, 5);
       }
       
       if (transaction.project_id) {
-        console.log('[WaSQLiteDB] Binding project_id:', transaction.project_id, 'as int:', parseInt(transaction.project_id));
+        dbLogger.debug('Binding project_id as int', { 
+          original: transaction.project_id, 
+          parsed: parseInt(transaction.project_id) 
+        });
         this.sqlite3.bind_int(stmt, 6, parseInt(transaction.project_id));
       } else {
-        console.log('[WaSQLiteDB] Binding project_id as NULL');
+        dbLogger.debug('Binding project_id as NULL');
         this.sqlite3.bind_null(stmt, 6);
       }
       
@@ -384,7 +395,7 @@ class WaSQLiteDatabaseManager {
       this.sqlite3.bind_text(stmt, 8, transaction.type);
       
       await this.sqlite3.step(stmt);
-      console.log('[WaSQLiteDB] Transaction inserted successfully');
+      dbLogger.info('Transaction inserted successfully');
       // Statement is automatically finalized by the iterator
       return;
     }
@@ -888,20 +899,20 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       // Initialize database manager if not already done
       let dbManager = db;
       if (!dbManager || !isInitialized) {
-        console.log('[DatabaseContext] Initializing database manager...');
+        appLogger.info('Initializing database manager...');
         dbManager = new WaSQLiteDatabaseManager();
         await dbManager.initialize();
         setDb(dbManager);
         setIsInitialized(true);
       }
 
-      console.log('[DatabaseContext] Opening existing database...');
+      appLogger.info('Opening existing database...');
       await dbManager.openExistingDatabase();
       setIsDatabaseLoaded(true);
       refreshAllData();
-      console.log('[DatabaseContext] Existing database opened successfully');
+      appLogger.info('Existing database opened successfully');
     } catch (err) {
-      console.error('[DatabaseContext] Failed to open existing database:', err);
+      appLogger.error('Failed to open existing database:', err);
       setError(
         err instanceof Error ? err.message : "Failed to open existing database"
       );
@@ -918,22 +929,22 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       // Initialize database manager if not already done
       let dbManager = db;
       if (!dbManager || !isInitialized) {
-        console.log('[DatabaseContext] Initializing database manager...');
+        appLogger.info('Initializing database manager...');
         dbManager = new WaSQLiteDatabaseManager();
         await dbManager.initialize();
         setDb(dbManager);
         setIsInitialized(true);
       }
 
-      console.log('[DatabaseContext] Creating new database...');
+      appLogger.info('Creating new database...');
       await dbManager.createNewDatabase();
       setIsDatabaseLoaded(true);
 
       // Load initial data
       refreshAllData();
-      console.log('[DatabaseContext] New database created successfully');
+      appLogger.info('New database created successfully');
     } catch (err) {
-      console.error('[DatabaseContext] Failed to create database:', err);
+      appLogger.error('Failed to create database:', err);
       setError(
         err instanceof Error ? err.message : "Failed to create database"
       );
@@ -1208,12 +1219,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
 
     try {
-      console.log("Updating project with ID:", id);
-      console.log("Update data:", updates);
+      appLogger.debug('Updating project', { id, updates });
       await db.updateProjectAsync(id, updates);
       await refreshProjects();
     } catch (err) {
-      console.error("DatabaseContext updateProject error:", err);
+      appLogger.error('DatabaseContext updateProject error:', err);
       const errorMessage =
         err instanceof Error ? err.message : "Failed to update project";
       setError(errorMessage);

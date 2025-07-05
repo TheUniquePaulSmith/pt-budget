@@ -98,7 +98,7 @@ const DeveloperConsole: React.FC<DeveloperConsoleProps> = ({ isOpen }) => {
   };
 
   const handleCopyLog = (log: LogEntry) => {
-    const logText = `[${log.timestamp.toISOString()}] ${log.level.toUpperCase()}: ${log.message}${log.stack ? '\n' + log.stack : ''}`;
+    const logText = `[${log.timestamp}] ${log.level.toUpperCase()}: ${log.message}${log.stack ? '\n' + log.stack : ''}`;
     navigator.clipboard.writeText(logText);
   };
 
@@ -243,7 +243,7 @@ const DeveloperConsole: React.FC<DeveloperConsoleProps> = ({ isOpen }) => {
                         fontSize: '0.75rem'
                       }}
                     >
-                      {log.timestamp.toLocaleTimeString()}
+                      {new Date(log.timestamp).toLocaleTimeString()}
                     </Typography>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography

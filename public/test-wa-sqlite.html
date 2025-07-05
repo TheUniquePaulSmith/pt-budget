@@ -172,18 +172,22 @@
                 const moduleProps = Object.getOwnPropertyNames(module).filter(prop => typeof module[prop] === 'function');
                 log('All module function properties: ' + moduleProps.join(', '));
                 
-                log('Loading OPFSAnyContextVFS (works in main thread)...');
-                const { OPFSAnyContextVFS } = await import('/wa-sqlite/src/examples/OPFSAnyContextVFS.js');
+                log('Loading IDDBatchAtomicVFS (works in main thread)...');
+                const { IDBBatchAtomicVFS } = await import('/wa-sqlite/src/examples/IDBBatchAtomicVFS.js');
+
+                // log('Loading OPFSAnyContextVFS (works in main thread)...');
+                // const { OPFSAnyContextVFS } = await import('/wa-sqlite/src/examples/OPFSAnyContextVFS.js');
                 
                 log('Creating OPFS VFS (main thread compatible)...');
                 // Pass the raw module, not the sqlite3 API wrapper
-                window.vfs = await OPFSAnyContextVFS.create('opfs-any-context', module);
+                window.vfs = await IDBBatchAtomicVFS.create('idb-batch-atomic', module);
+                //window.vfs = await OPFSAnyContextVFS.create('opfs-any-context', module);
                 
-                log('Registering OPFS VFS...');
+                log('Registering IDB VFS...');
                 window.sqlite3.vfs_register(window.vfs, true);
-                
-                log('✓ Using OPFSAnyContextVFS for persistent storage');
-                
+
+                log('✓ Using IDBBatchAtomicVFS for persistent storage');
+
                 setStatus('WA-SQLite loaded successfully!', 'success');
                 log('✓ All modules loaded and initialized');
                 

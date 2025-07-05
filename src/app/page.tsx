@@ -38,9 +38,18 @@ import SettingsPage from '../components/SettingsPage';
 import ManageData from '../components/ManageData';
 import DeveloperConsolePage from '../components/DeveloperConsolePage';
 import SQLQueryPage from '../components/SQLQueryPage';
+import LoggingDemo from '../components/LoggingDemo';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
+import { appLogger } from '../lib/logger';
 
 export default function Home() {
+  // Test Winston logging
+  React.useEffect(() => {
+    appLogger.info('Home page component mounted');
+    appLogger.debug('This is a debug message');
+    appLogger.warn('This is a warning message');
+  }, []);
+
   const { isDatabaseLoaded } = useDatabaseContext();
   const [showDashboard, setShowDashboard] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -57,6 +66,7 @@ export default function Home() {
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon /> },
     { id: 'transactions', label: 'Transactions', icon: <TransactionsIcon /> },
     { id: 'sql-query', label: 'SQL Query', icon: <SQLIcon /> },
+    { id: 'logging-demo', label: 'Logging Demo', icon: <Settings /> },
   ];
 
   const handleDatabaseReady = () => {
@@ -266,6 +276,10 @@ export default function Home() {
 
       {currentPage === 'sql-query' && (
         <SQLQueryPage />
+      )}
+
+      {currentPage === 'logging-demo' && (
+        <LoggingDemo />
       )}
 
       {/* Manage Data Dialog */}

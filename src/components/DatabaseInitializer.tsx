@@ -145,7 +145,8 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
         </Stack>
 
         <Typography variant="caption" color="text.secondary" sx={{ mt: 3, display: 'block' }}>
-          Your data is stored locally and persists using OPFS
+          Your data is stored locally and persists in the browser only. 
+          You can export or import your database at any time.
         </Typography>
       </Paper>
     </Box>

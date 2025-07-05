@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -79,7 +79,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   const [error, setError] = useState<string | null>(null);
 
   // Function to analyze account column and find matching accounts
-  const analyzeAccountColumn = (data: any[], accountColumn: string) => {
+  const analyzeAccountColumn = useCallback((data: any[], accountColumn: string) => {
     // Get unique account values from CSV
     const uniqueAccountValues = [...new Set(data.map(row => String(row[accountColumn])))];
     
@@ -107,7 +107,43 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     });
     
     setAccountMatches(matches);
-  };
+  }, [accounts, findAccountsByLastFour]);
+
+  // Clear invalid column mappings when CSV data changes
+  useEffect(() => {
+    if (csvData.length > 0) {
+      const columnHeaders = Object.keys(csvData[0]);
+      const updatedMapping = { ...mapping };
+      let hasInvalidMappings = false;
+
+      // Check each mapping and clear if invalid
+      if (mapping.accountColumn && !columnHeaders.includes(mapping.accountColumn)) {
+        updatedMapping.accountColumn = '';
+        hasInvalidMappings = true;
+      }
+      if (mapping.dateColumn && !columnHeaders.includes(mapping.dateColumn)) {
+        updatedMapping.dateColumn = '';
+        hasInvalidMappings = true;
+      }
+      if (mapping.amountColumn && !columnHeaders.includes(mapping.amountColumn)) {
+        updatedMapping.amountColumn = '';
+        hasInvalidMappings = true;
+      }
+      if (mapping.descriptionColumn && !columnHeaders.includes(mapping.descriptionColumn)) {
+        updatedMapping.descriptionColumn = '';
+        hasInvalidMappings = true;
+      }
+      if (mapping.uniqueIdentifierColumn && !columnHeaders.includes(mapping.uniqueIdentifierColumn)) {
+        updatedMapping.uniqueIdentifierColumn = '';
+        hasInvalidMappings = true;
+      }
+
+      if (hasInvalidMappings) {
+        setMapping(updatedMapping);
+        setError('Some column mappings were cleared because they don&apos;t exist in the CSV. Please reselect them.');
+      }
+    }
+  }, [csvData, mapping]);
 
   // Analyze account column when it's selected and CSV data is available
   useEffect(() => {
@@ -117,7 +153,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       // Clear account matches if no account column is selected
       setAccountMatches([]);
     }
-  }, [csvData, mapping.accountColumn, findAccountsByLastFour]);
+  }, [csvData, mapping.accountColumn, analyzeAccountColumn, findAccountsByLastFour]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -144,14 +180,14 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
       // Auto-detect common column mappings
       if (result.length > 0) {
-        const headers = Object.keys(result[0]).map(h => h.toLowerCase());
+        const headers = Object.keys(result[0]);
         
         const newMapping: ColumnMapping = {
-          accountColumn: headers.find(h => h.includes('account') && h.includes('number')) || '',
-          dateColumn: headers.find(h => h.includes('date') || h.includes('time')) || '',
-          amountColumn: headers.find(h => h.includes('amount') || h.includes('billing')) || '',
-          descriptionColumn: headers.find(h => h.includes('merchant') || h.includes('description') || h.includes('memo')) || '',
-          uniqueIdentifierColumn: headers.find(h => h.includes('reference') || h.includes('id')) || '',
+          accountColumn: headers.find(h => h.toLowerCase().includes('account') && h.toLowerCase().includes('number')) || '',
+          dateColumn: headers.find(h => h.toLowerCase().includes('date') || h.toLowerCase().includes('time')) || '',
+          amountColumn: headers.find(h => h.toLowerCase().includes('amount') || h.toLowerCase().includes('billing')) || '',
+          descriptionColumn: headers.find(h => h.toLowerCase().includes('merchant') || h.toLowerCase().includes('description') || h.toLowerCase().includes('memo')) || '',
+          uniqueIdentifierColumn: headers.find(h => h.toLowerCase().includes('reference') || h.toLowerCase().includes('id')) || '',
         };
         
         setMapping(newMapping);
@@ -184,10 +220,15 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     csvAccountValue: string;
     hash: string;
   }> => {
-    return data.map(row => {
+    return data.filter(row => {
+      const csvAccountValue = String(row[columnMapping.accountColumn]);
+      const accountMapping = accountMappings.find(m => m.csvAccountValue === csvAccountValue);
+      return accountMapping?.selectedAccountId; // Only include rows with mapped accounts
+    }).map(row => {
       const csvAccountValue = String(row[columnMapping.accountColumn]);
       const accountMapping = accountMappings.find(m => m.csvAccountValue === csvAccountValue);
       
+      // We know this exists because we filtered above
       if (!accountMapping?.selectedAccountId) {
         throw new Error(`No account mapping found for ${csvAccountValue}`);
       }
@@ -247,16 +288,42 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   };
 
   const handleImport = async () => {
-    if (!csvData.length || !mapping.accountColumn || !mapping.dateColumn || !mapping.amountColumn || !mapping.descriptionColumn) {
-      setError('Please ensure database is loaded and required columns are mapped');
+    if (!csvData.length) {
+      setError('No CSV data available');
       return;
     }
 
-    // Check that all account mappings are complete
+    const columnHeaders = Object.keys(csvData[0]);
+    
+    // Validate that all required columns are mapped and exist in the CSV
+    const requiredMappings = [
+      { field: 'accountColumn', name: 'Account Number', value: mapping.accountColumn },
+      { field: 'dateColumn', name: 'Date', value: mapping.dateColumn },
+      { field: 'amountColumn', name: 'Amount', value: mapping.amountColumn },
+      { field: 'descriptionColumn', name: 'Description', value: mapping.descriptionColumn },
+    ];
+
+    for (const { name, value } of requiredMappings) {
+      if (!value) {
+        setError(`Please select a column for ${name}`);
+        return;
+      }
+      if (!columnHeaders.includes(value)) {
+        setError(`Selected ${name} column "${value}" does not exist in the CSV`);
+        return;
+      }
+    }
+
+    // Check if at least one account is mapped
+    const mappedAccounts = accountMatches.filter(match => match.selectedAccountId);
+    if (mappedAccounts.length === 0) {
+      setError('Please map at least one account to import transactions');
+      return;
+    }
+
     const unmappedAccounts = accountMatches.filter(match => !match.selectedAccountId);
     if (unmappedAccounts.length > 0) {
-      setError(`Please select accounts for: ${unmappedAccounts.map(m => m.csvAccountValue).join(', ')}`);
-      return;
+      console.warn(`Will skip transactions for unmapped accounts: ${unmappedAccounts.map(m => m.csvAccountValue).join(', ')}`);
     }
 
     setImporting(true);
@@ -265,9 +332,14 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     try {
       const mappedTransactions = mapTransactionsFromCSV(csvData, mapping, accountMatches);
       
+      // Calculate skipped transactions (those without account mapping)
+      const totalTransactions = csvData.length;
+      const mappableTransactions = mappedTransactions.length;
+      const initialSkippedCount = totalTransactions - mappableTransactions;
+      
       let successCount = 0;
       let failedCount = 0;
-      let skippedCount = 0;
+      let skippedCount = initialSkippedCount; // Start with pre-filtered skipped count
       let duplicateCount = 0;
       const errors: string[] = [];
 
@@ -329,8 +401,25 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     onClose();
   };
 
-  const canImport = mapping.accountColumn && mapping.dateColumn && mapping.amountColumn && mapping.descriptionColumn && csvData.length > 0 && accountMatches.every(match => match.selectedAccountId);
   const columnOptions = csvData.length > 0 ? Object.keys(csvData[0]) : [];
+  
+  // Calculate how many transactions can be imported
+  const importableTransactions = csvData.length > 0 && mapping.accountColumn && accountMatches.length > 0 
+    ? csvData.filter(row => {
+        const csvAccountValue = String(row[mapping.accountColumn]);
+        const accountMapping = accountMatches.find(m => m.csvAccountValue === csvAccountValue);
+        return accountMapping?.selectedAccountId;
+      }).length
+    : 0;
+    
+  const skippedTransactions = csvData.length - importableTransactions;
+
+  const canImport = csvData.length > 0 && 
+    mapping.accountColumn && columnOptions.includes(mapping.accountColumn) &&
+    mapping.dateColumn && columnOptions.includes(mapping.dateColumn) &&
+    mapping.amountColumn && columnOptions.includes(mapping.amountColumn) &&
+    mapping.descriptionColumn && columnOptions.includes(mapping.descriptionColumn) &&
+    importableTransactions > 0;
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
@@ -384,21 +473,15 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                 Map your CSV columns to transaction fields. All fields are required for proper import.
               </Typography>
               
-              {/* Debug button - remove after testing */}
-              <Button 
-                variant="outlined" 
-                size="small" 
-                onClick={() => {
-                  console.log('=== ACCOUNT LOOKUP DEBUG ===');
-                  console.log('Available accounts:', accounts);
-                  console.log('Testing lookup for "1682":', findAccountsByLastFour('1682'));
-                  console.log('Testing lookup for "3517":', findAccountsByLastFour('3517'));
-                  console.log('===========================');
-                }}
-                sx={{ mb: 2 }}
-              >
-                Debug Account Lookup
-              </Button>
+              {/* Show validation warning if invalid columns are selected */}
+              {(mapping.accountColumn && !columnOptions.includes(mapping.accountColumn)) ||
+               (mapping.dateColumn && !columnOptions.includes(mapping.dateColumn)) ||
+               (mapping.amountColumn && !columnOptions.includes(mapping.amountColumn)) ||
+               (mapping.descriptionColumn && !columnOptions.includes(mapping.descriptionColumn)) ? (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Some selected columns don&apos;t exist in your CSV. Please reselect the correct columns from the dropdown.
+                </Alert>
+              ) : null}
               
               <Box display="grid" gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={2} mt={2}>
                 <FormControl fullWidth required>
@@ -478,7 +561,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             <Box>
               <Alert severity="info">
                 <Typography variant="body2">
-                  Select an "Account Number Column" above to map CSV account numbers to your accounts.
+                  Select an &quot;Account Number Column&quot; above to map CSV account numbers to your accounts.
                 </Typography>
               </Alert>
             </Box>
@@ -609,7 +692,10 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             variant="contained" 
             disabled={!canImport || importing}
           >
-            {importing ? 'Importing...' : `Import ${csvData.length} Transactions`}
+            {importing ? 'Importing...' : 
+             importableTransactions > 0 
+               ? `Import ${importableTransactions} Transaction${importableTransactions === 1 ? '' : 's'}${skippedTransactions > 0 ? ` (${skippedTransactions} will be skipped)` : ''}`
+               : 'No transactions to import'}
           </Button>
         )}
       </DialogActions>

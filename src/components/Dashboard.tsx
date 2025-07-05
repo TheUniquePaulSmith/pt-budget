@@ -30,7 +30,6 @@ import {
   Settings,
   Save,
   Close,
-  BugReport,
 } from '@mui/icons-material';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
@@ -220,29 +219,6 @@ const Dashboard: React.FC = () => {  const {
     }
   };
 
-  // Test function for developer console
-  const testConsoleLogging = () => {
-    console.log('Dashboard: Test log message');
-    console.info('Dashboard: Test info message');
-    console.warn('Dashboard: Test warning message');
-    console.error('Dashboard: Test error message');
-    console.debug('Dashboard: Test debug message');
-    
-    // Test with objects
-    console.log('Dashboard: Test object:', { 
-      component: 'Dashboard', 
-      timestamp: new Date(),
-      summaryStats: summaryStats 
-    });
-    
-    // Test intentional error
-    try {
-      throw new Error('Dashboard: Test intentional error for debugging');
-    } catch (error) {
-      console.error('Dashboard: Caught error:', error);
-    }
-  };
-
   return (    <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
       {/* Header */}
       <Box 
@@ -262,7 +238,7 @@ const Dashboard: React.FC = () => {  const {
             fontWeight="bold"
             sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}
           >
-            Financial Dashboard
+            Budget Insights
           </Typography>
         </Box>
           <Stack 
@@ -278,15 +254,6 @@ const Dashboard: React.FC = () => {  const {
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Export Data
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<BugReport />}
-            onClick={testConsoleLogging}
-            size="small"
-            sx={{ width: { xs: '100%', sm: 'auto' } }}
-          >
-            Test Console
           </Button>
           <Button
             variant="outlined"

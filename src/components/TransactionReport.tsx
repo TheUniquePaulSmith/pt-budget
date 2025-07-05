@@ -54,6 +54,7 @@ interface TransactionWithDetails extends Transaction {
   category_name?: string;
   company_name?: string;
   project_name?: string;
+  account_name?: string;
 }
 
 export default function TransactionReport() {
@@ -62,6 +63,7 @@ export default function TransactionReport() {
     categories,
     companies,
     projects,
+    accounts,
     refreshTransactions,
   } = useDatabaseContext();
 
@@ -71,6 +73,7 @@ export default function TransactionReport() {
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [companyFilter, setCompanyFilter] = useState<string[]>([]);
   const [projectFilter, setProjectFilter] = useState<string[]>([]);
+  const [accountFilter, setAccountFilter] = useState<string[]>([]);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [minAmount, setMinAmount] = useState<string>('');
@@ -166,15 +169,17 @@ export default function TransactionReport() {
       const category = categories.find(c => c.id === transaction.category_id);
       const company = companies.find(c => c.id === transaction.company_id);
       const project = projects.find(p => p.id === transaction.project_id);
+      const account = accounts.find(a => a.id === transaction.account_id);
 
       return {
         ...transaction,
         category_name: category?.name || 'Unknown',
         company_name: company?.name || '',
         project_name: project?.name || '',
+        account_name: account?.name || 'Unknown Account',
       } as TransactionWithDetails;
     });
-  }, [transactions, categories, companies, projects]);
+  }, [transactions, categories, companies, projects, accounts]);
 
   // Filtered and sorted transactions
   const filteredTransactions = useMemo(() => {
@@ -186,7 +191,8 @@ export default function TransactionReport() {
           transaction.description.toLowerCase().includes(searchLower) ||
           transaction.category_name?.toLowerCase().includes(searchLower) ||
           transaction.company_name?.toLowerCase().includes(searchLower) ||
-          transaction.project_name?.toLowerCase().includes(searchLower);
+          transaction.project_name?.toLowerCase().includes(searchLower) ||
+          transaction.account_name?.toLowerCase().includes(searchLower);
         if (!matchesSearch) return false;
       }
 
@@ -201,6 +207,9 @@ export default function TransactionReport() {
 
       // Project filter
       if (projectFilter.length > 0 && transaction.project_id && !projectFilter.includes(transaction.project_id)) return false;
+
+      // Account filter
+      if (accountFilter.length > 0 && !accountFilter.includes(transaction.account_id)) return false;
 
       // Date range filter
       if (startDate && new Date(transaction.date) < startDate) return false;
@@ -236,7 +245,7 @@ export default function TransactionReport() {
       }
       return 0;
     });
-  }, [enhancedTransactions, searchTerm, typeFilter, categoryFilter, companyFilter, projectFilter, startDate, endDate, minAmount, maxAmount, orderBy, order]);
+  }, [enhancedTransactions, searchTerm, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, startDate, endDate, minAmount, maxAmount, orderBy, order]);
 
   // Summary statistics for filtered data
   const summaryStats = useMemo(() => {
@@ -277,6 +286,7 @@ export default function TransactionReport() {
     setCategoryFilter([]);
     setCompanyFilter([]);
     setProjectFilter([]);
+    setAccountFilter([]);
     setStartDate(null);
     setEndDate(null);
     setMinAmount('');
@@ -314,7 +324,7 @@ export default function TransactionReport() {
       if (visibleColumns.company) row.push(transaction.company_name || '');
       if (visibleColumns.project) row.push(transaction.project_name || '');
       if (visibleColumns.amount) row.push(Math.abs(transaction.amount).toString());
-      if (visibleColumns.account) row.push(transaction.account_last_four || '');
+      if (visibleColumns.account) row.push(transaction.account_name || '');
       
       return row;
     });
@@ -584,7 +594,7 @@ export default function TransactionReport() {
               />
             </Box>
 
-            {/* Fourth Row - Category and Company Filters */}
+            {/* Fourth Row - Category, Company, and Account Filters */}
             <Box sx={{ 
               display: 'grid',
               gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
@@ -624,6 +634,31 @@ export default function TransactionReport() {
                 onChange={(_, value) => setCompanyFilter(value.map(v => v.id))}
                 renderInput={(params) => (
                   <TextField {...params} label="Companies" />
+                )}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => {
+                    const { key, ...chipProps } = getTagProps({ index });
+                    return (
+                      <Chip
+                        key={key}
+                        label={option.name}
+                        size="small"
+                        {...chipProps}
+                      />
+                    );
+                  })
+                }
+              />
+
+              {/* Account Filter */}
+              <Autocomplete
+                multiple
+                options={accounts}
+                getOptionLabel={(option) => option.name}
+                value={accounts.filter(acc => accountFilter.includes(acc.id))}
+                onChange={(_, value) => setAccountFilter(value.map(v => v.id))}
+                renderInput={(params) => (
+                  <TextField {...params} label="Accounts" />
                 )}
                 renderTags={(value, getTagProps) =>
                   value.map((option, index) => {
@@ -757,7 +792,7 @@ export default function TransactionReport() {
                       </TableCell>
                     )}
                     {visibleColumns.account && (
-                      <TableCell sx={{ minWidth: 80 }}>****{transaction.account_last_four}</TableCell>
+                      <TableCell sx={{ minWidth: 120 }}>{transaction.account_name}</TableCell>
                     )}
                   </TableRow>
                 ))}

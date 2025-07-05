@@ -96,6 +96,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, subtitle
 const Dashboard: React.FC = () => {  const {
     transactions,
     categories,
+    accounts,
     getTransactionsByDateRange,
     getSpendingByCategory,
     getIncomeByCategory,
@@ -468,6 +469,7 @@ const Dashboard: React.FC = () => {  const {
           <Box>
             {transactions.slice(0, recentTransactionsLimit).map((transaction) => {
               const category = categories.find(c => c.id === transaction.category_id);
+              const account = accounts.find(a => a.id === transaction.account_id);
               return (
                 <Box
                   key={transaction.id}
@@ -483,7 +485,7 @@ const Dashboard: React.FC = () => {  const {
                       {transaction.description}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {format(parseISO(transaction.date), 'MMM dd, yyyy')} • {category?.name}
+                      {format(parseISO(transaction.date), 'MMM dd, yyyy')} • {category?.name} • {account?.name || 'Unknown Account'}
                     </Typography>
                   </Box>
                   <Typography

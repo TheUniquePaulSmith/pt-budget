@@ -35,8 +35,16 @@ export interface Company {
 export interface Account {
   id: string;
   name: string;
-  last_four: string;
   type: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccountAlias {
+  id: string;
+  account_id: string;
+  last_four: string;
+  alias_name?: string; // Optional friendly name for the alias
   created_at: string;
   updated_at: string;
 }

@@ -11,6 +11,7 @@ import type {
   Category,
   Company,
   Account,
+  AccountAlias,
   Budget,
   Project,
 } from "../types/database";
@@ -52,10 +53,19 @@ export class DatabaseSchema {
       `CREATE TABLE IF NOT EXISTS accounts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        last_four INTEGER NOT NULL,
         type TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS account_aliases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        last_four TEXT NOT NULL,
+        alias_name TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE,
+        UNIQUE(account_id, last_four)
       )`,
       `CREATE TABLE IF NOT EXISTS projects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,13 +164,19 @@ export class DatabaseSchema {
   }
 
   private static async insertDefaultAccounts(executor: SQLiteExecutor): Promise<void> {
-    const defaultAccounts = [
-      { name: 'Default Account', last_four: '0000', type: 'checking' },
-    ];
-
-    for (const account of defaultAccounts) {
-      await executor.exec(
-        `INSERT INTO accounts (name, last_four, type) VALUES ('${account.name}', '${account.last_four}', '${account.type}')`
+    // Insert default account
+    await executor.exec(
+      `INSERT INTO accounts (name, type) VALUES ('Default Account', 'checking')`
+    );
+    
+    // Get the inserted account ID
+    const result = await executor.query("SELECT id FROM accounts WHERE name = 'Default Account' LIMIT 1");
+    if (result.length > 0) {
+      const accountId = result[0].id;
+      // Insert default alias using parameterized query
+      await executor.query(
+        `INSERT INTO account_aliases (account_id, last_four) VALUES (?, '0000')`,
+        [accountId]
       );
     }
   }
@@ -528,7 +544,6 @@ export class AccountQueries {
     return rows.map(row => ({
       id: row.id.toString(),
       name: row.name,
-      last_four: row.last_four.toString(),
       type: row.type,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -540,13 +555,12 @@ export class AccountQueries {
     account: Omit<Account, 'id' | 'created_at' | 'updated_at'>
   ): Promise<string> {
     // First, try the RETURNING approach
-    const sqlWithReturning = `INSERT INTO accounts (name, last_four, type) VALUES (?, ?, ?) RETURNING id`;
+    const sqlWithReturning = `INSERT INTO accounts (name, type) VALUES (?, ?) RETURNING id`;
     
     try {
       for await (const stmt of executor.sqlite3.statements(executor.db, sqlWithReturning)) {
         executor.sqlite3.bind_text(stmt, 1, account.name);
-        executor.sqlite3.bind_text(stmt, 2, account.last_four);
-        executor.sqlite3.bind_text(stmt, 3, account.type);
+        executor.sqlite3.bind_text(stmt, 2, account.type);
         
         const result = await executor.sqlite3.step(stmt);
         
@@ -574,20 +588,19 @@ export class AccountQueries {
     }
     
     // Fallback: Insert without RETURNING and then query for the ID
-    const sqlInsert = `INSERT INTO accounts (name, last_four, type) VALUES (?, ?, ?)`;
+    const sqlInsert = `INSERT INTO accounts (name, type) VALUES (?, ?)`;
     
     for await (const stmt of executor.sqlite3.statements(executor.db, sqlInsert)) {
       executor.sqlite3.bind_text(stmt, 1, account.name);
-      executor.sqlite3.bind_text(stmt, 2, account.last_four);
-      executor.sqlite3.bind_text(stmt, 3, account.type);
+      executor.sqlite3.bind_text(stmt, 2, account.type);
       
       await executor.sqlite3.step(stmt);
     }
     
     // Query for the most recently inserted account with matching data
     const newAccounts = await executor.query(
-      'SELECT id FROM accounts WHERE name = ? AND last_four = ? AND type = ? ORDER BY id DESC LIMIT 1',
-      [account.name, account.last_four, account.type]
+      'SELECT id FROM accounts WHERE name = ? AND type = ? ORDER BY id DESC LIMIT 1',
+      [account.name, account.type]
     );
     
     if (newAccounts.length > 0) {
@@ -885,5 +898,149 @@ export class DatabaseUtils {
       dbLogger.warn('Failed to check for existing IndexedDB databases:', error);
       return false;
     }
+  }
+}
+
+/**
+ * Account Alias CRUD operations
+ */
+export class AccountAliasQueries {
+  static async getAll(executor: SQLiteExecutor): Promise<AccountAlias[]> {
+    const rows = await executor.query('SELECT * FROM account_aliases ORDER BY account_id, last_four');
+    return rows.map(row => ({
+      id: row.id.toString(),
+      account_id: row.account_id.toString(),
+      last_four: row.last_four,
+      alias_name: row.alias_name,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  static async getByAccountId(executor: SQLiteExecutor, accountId: string): Promise<AccountAlias[]> {
+    const rows = await executor.query('SELECT * FROM account_aliases WHERE account_id = ? ORDER BY last_four', [parseInt(accountId)]);
+    return rows.map(row => ({
+      id: row.id.toString(),
+      account_id: row.account_id.toString(),
+      last_four: row.last_four,
+      alias_name: row.alias_name,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  static async findByLastFour(executor: SQLiteExecutor, lastFour: string): Promise<AccountAlias[]> {
+    const rows = await executor.query('SELECT * FROM account_aliases WHERE last_four = ?', [lastFour]);
+    return rows.map(row => ({
+      id: row.id.toString(),
+      account_id: row.account_id.toString(),
+      last_four: row.last_four,
+      alias_name: row.alias_name,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  static async create(
+    executor: SQLiteExecutor,
+    alias: Omit<AccountAlias, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<string> {
+    // First, try the RETURNING approach
+    const sqlWithReturning = `INSERT INTO account_aliases (account_id, last_four, alias_name) VALUES (?, ?, ?) RETURNING id`;
+    
+    try {
+      for await (const stmt of executor.sqlite3.statements(executor.db, sqlWithReturning)) {
+        executor.sqlite3.bind_int(stmt, 1, parseInt(alias.account_id));
+        executor.sqlite3.bind_text(stmt, 2, alias.last_four);
+        executor.sqlite3.bind_text(stmt, 3, alias.alias_name || null);
+        
+        const result = await executor.sqlite3.step(stmt);
+        
+        // Check if we have columns regardless of the step result
+        const columnCount = executor.sqlite3.column_count(stmt);
+        
+        if (columnCount > 0) {
+          const id = executor.sqlite3.column_int(stmt, 0);
+          
+          if (id && id > 0) {
+            dbLogger.debug(`Account alias created with ID via RETURNING: ${id}`);
+            return id.toString();
+          }
+          
+          const idText = executor.sqlite3.column_text(stmt, 0);
+          
+          if (idText) {
+            dbLogger.debug(`Account alias created with ID via RETURNING (text): ${idText}`);
+            return idText;
+          }
+        }
+      }
+    } catch (error) {
+      dbLogger.warn('RETURNING clause failed, trying fallback method:', error);
+    }
+    
+    // Fallback: Insert without RETURNING and then query for the ID
+    const sqlInsert = `INSERT INTO account_aliases (account_id, last_four, alias_name) VALUES (?, ?, ?)`;
+    
+    for await (const stmt of executor.sqlite3.statements(executor.db, sqlInsert)) {
+      executor.sqlite3.bind_int(stmt, 1, parseInt(alias.account_id));
+      executor.sqlite3.bind_text(stmt, 2, alias.last_four);
+      executor.sqlite3.bind_text(stmt, 3, alias.alias_name || null);
+      
+      await executor.sqlite3.step(stmt);
+    }
+    
+    // Query for the most recently inserted alias with matching data
+    const newAliases = await executor.query(
+      'SELECT id FROM account_aliases WHERE account_id = ? AND last_four = ? ORDER BY id DESC LIMIT 1',
+      [parseInt(alias.account_id), alias.last_four]
+    );
+    
+    if (newAliases.length > 0) {
+      const id = newAliases[0].id;
+      dbLogger.debug('Account alias created with ID via fallback:', id);
+      return id.toString();
+    }
+
+    throw new Error('Failed to create account alias or retrieve ID');
+  }
+
+  static async update(
+    executor: SQLiteExecutor,
+    id: string,
+    alias: Partial<Omit<AccountAlias, 'id' | 'created_at' | 'updated_at'>>
+  ): Promise<void> {
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (alias.last_four !== undefined) {
+      updates.push('last_four = ?');
+      values.push(alias.last_four);
+    }
+
+    if (alias.alias_name !== undefined) {
+      updates.push('alias_name = ?');
+      values.push(alias.alias_name);
+    }
+
+    if (updates.length === 0) {
+      throw new Error('No fields to update');
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(parseInt(id));
+
+    const sql = `UPDATE account_aliases SET ${updates.join(', ')} WHERE id = ?`;
+    await executor.exec(sql);
+  }
+
+  static async delete(executor: SQLiteExecutor, id: string): Promise<void> {
+    await executor.exec(`DELETE FROM account_aliases WHERE id = ${parseInt(id)}`);
+    dbLogger.debug(`Account alias with ID ${id} deleted successfully`);
+  }
+
+  static async deleteByAccountId(executor: SQLiteExecutor, accountId: string): Promise<void> {
+    await executor.exec(`DELETE FROM account_aliases WHERE account_id = ${parseInt(accountId)}`);
+    dbLogger.debug(`All aliases for account ID ${accountId} deleted successfully`);
   }
 }

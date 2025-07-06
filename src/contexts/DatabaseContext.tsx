@@ -16,6 +16,7 @@ import type {
   Account,
   Budget,
   Project,
+  AccountAlias,
 } from "../types/database";
 import { dbLogger, appLogger } from "../lib/logger";
 import {
@@ -24,6 +25,7 @@ import {
   CategoryQueries,
   CompanyQueries,
   AccountQueries,
+  AccountAliasQueries,
   BudgetQueries,
   ProjectQueries,
   AnalyticsQueries,
@@ -298,6 +300,35 @@ class WaSQLiteDatabaseManager implements SQLiteExecutor {
     return ProjectQueries.getCosts(this, projectId);
   }
 
+  // Account Alias operations - delegated to query classes
+  async getAccountAliasesAsync(): Promise<AccountAlias[]> {
+    return AccountAliasQueries.getAll(this);
+  }
+
+  async getAccountAliasesByAccountIdAsync(accountId: string): Promise<AccountAlias[]> {
+    return AccountAliasQueries.getByAccountId(this, accountId);
+  }
+
+  async findAccountAliasesByLastFourAsync(lastFour: string): Promise<AccountAlias[]> {
+    return AccountAliasQueries.findByLastFour(this, lastFour);
+  }
+
+  async addAccountAliasAsync(alias: Omit<AccountAlias, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
+    return AccountAliasQueries.create(this, alias);
+  }
+
+  async updateAccountAliasAsync(id: string, alias: Partial<Omit<AccountAlias, 'id' | 'created_at' | 'updated_at'>>): Promise<void> {
+    return AccountAliasQueries.update(this, id, alias);
+  }
+
+  async deleteAccountAliasAsync(id: string): Promise<void> {
+    return AccountAliasQueries.delete(this, id);
+  }
+
+  async deleteAccountAliasesByAccountIdAsync(accountId: string): Promise<void> {
+    return AccountAliasQueries.deleteByAccountId(this, accountId);
+  }
+
   // Analytics methods - delegated to query classes
   async getTransactionsByDateRange(startDate: string, endDate: string, type?: 'income' | 'expense'): Promise<Transaction[]> {
     return TransactionQueries.getByDateRange(this, startDate, endDate, type);
@@ -319,6 +350,37 @@ class WaSQLiteDatabaseManager implements SQLiteExecutor {
   async executeCustomQuery(sql: string): Promise<any[]> {
     return DatabaseUtils.executeCustomQuery(this, sql);
   }
+
+  // Method to clear corrupted database and start fresh
+  async clearAndRecreateDatabase(): Promise<void> {
+    try {
+      dbLogger.warn('Clearing corrupted database...');
+      
+      // Close existing database connection
+      if (this.db !== 0) {
+        await this.sqlite3.close(this.db);
+        this.db = 0;
+      }
+
+      // Clear the VFS (this should remove the corrupted database file)
+      if (this.vfs) {
+        try {
+          // Try to delete the database file through the VFS
+          await this.vfs.delete('/budget-app.db');
+        } catch (err) {
+          dbLogger.debug('Could not delete database file through VFS:', err);
+        }
+      }
+
+      // Create a new database
+      await this.openDatabase('/budget-app.db', true);
+      
+      dbLogger.info('Database cleared and recreated successfully');
+    } catch (error) {
+      dbLogger.error('Failed to clear and recreate database:', error);
+      throw error;
+    }
+  }
 }
 
 interface DatabaseContextType {
@@ -337,6 +399,7 @@ interface DatabaseContextType {
   accounts: Account[];
   budgets: Budget[];
   projects: Project[];
+  accountAliases: AccountAlias[];
   
   // Database operations
   initializeDatabase: () => Promise<void>;
@@ -394,6 +457,20 @@ interface DatabaseContextType {
     transactions_total: number;
   }>;
 
+  // Account Alias operations
+  getAccountAliases: () => Promise<AccountAlias[]>;
+  getAccountAliasesByAccountId: (accountId: string) => Promise<AccountAlias[]>;
+  findAccountAliasesByLastFour: (lastFour: string) => Promise<AccountAlias[]>;
+  addAccountAlias: (
+    alias: Omit<AccountAlias, "id" | "created_at" | "updated_at">
+  ) => Promise<string>;
+  updateAccountAlias: (
+    id: string,
+    alias: Partial<Omit<AccountAlias, "id" | "created_at" | "updated_at">>
+  ) => Promise<void>;
+  deleteAccountAlias: (id: string) => Promise<void>;
+  refreshAccountAliases: () => void;
+
   // Analytics
   getTransactionsByDateRange: (
     startDate: string,
@@ -435,6 +512,9 @@ interface DatabaseContextType {
   ) => string;
   checkTransactionHashExists: (transactionHash: string) => Promise<boolean>;
   findAccountsByLastFour: (lastFour: string) => Account[];
+  
+  // Database corruption recovery
+  handleDatabaseCorruption: () => Promise<void>;
 }
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -469,6 +549,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [accountAliases, setAccountAliases] = useState<AccountAlias[]>([]);
 
   const initializeDatabase = async () => {
     try {
@@ -493,22 +574,50 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     if (!db || !isDatabaseLoaded) return;
 
     try {
-      const [transactionsData, categoriesData, companiesData, accountsData, budgetsData, projectsData] = await Promise.all([
+      // Try to refresh data, but handle individual failures gracefully
+      const results = await Promise.allSettled([
         db.getTransactionsAsync(),
         db.getCategoriesAsync(),
         db.getCompaniesAsync(),
         db.getAccountsAsync(),
         db.getBudgetsAsync(),
-        db.getProjectsAsync()
+        db.getProjectsAsync(),
+        db.getAccountAliasesAsync()
       ]);
 
-      setTransactions(transactionsData);
-      setCategories(categoriesData);
-      setCompanies(companiesData);
-      setAccounts(accountsData);
-      setBudgets(budgetsData);
-      setProjects(projectsData);
+      // Process results and set data, using empty arrays for failed queries
+      const [transactionsResult, categoriesResult, companiesResult, accountsResult, budgetsResult, projectsResult, accountAliasesResult] = results;
+
+      setTransactions(transactionsResult.status === 'fulfilled' ? transactionsResult.value : []);
+      setCategories(categoriesResult.status === 'fulfilled' ? categoriesResult.value : []);
+      setCompanies(companiesResult.status === 'fulfilled' ? companiesResult.value : []);
+      setAccounts(accountsResult.status === 'fulfilled' ? accountsResult.value : []);
+      setBudgets(budgetsResult.status === 'fulfilled' ? budgetsResult.value : []);
+      setProjects(projectsResult.status === 'fulfilled' ? projectsResult.value : []);
+      setAccountAliases(accountAliasesResult.status === 'fulfilled' ? accountAliasesResult.value : []);
+
+      // Log any individual failures (but don't spam the console)
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const dataTypes = ['transactions', 'categories', 'companies', 'accounts', 'budgets', 'projects', 'accountAliases'];
+          
+          // Handle account aliases failure more gracefully
+          if (index === 6) { // accountAliases index
+            const error = result.reason;
+            if (error instanceof Error && (error.message.includes('malformed') || error.message.includes('no such table'))) {
+              appLogger.warn("Account aliases table may not exist yet or database is corrupted");
+              // Don't set error state for missing table on fresh database
+            } else {
+              appLogger.error(`Failed to refresh ${dataTypes[index]}:`, result.reason);
+            }
+          } else {
+            appLogger.error(`Failed to refresh ${dataTypes[index]}:`, result.reason);
+          }
+        }
+      });
+
     } catch (err) {
+      appLogger.error("Error during data refresh:", err);
       setError(err instanceof Error ? err.message : "Failed to refresh data");
     }
   }, [db, isDatabaseLoaded]);
@@ -896,6 +1005,114 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
+  // Account Alias operations
+  const getAccountAliases = async (): Promise<AccountAlias[]> => {
+    if (!db) throw new Error("Database not initialized");
+    try {
+      const aliases = await db.getAccountAliasesAsync();
+      return aliases;
+    } catch (error) {
+      appLogger.error("Error getting account aliases:", error);
+      throw error;
+    }
+  };
+
+  const getAccountAliasesByAccountId = async (accountId: string): Promise<AccountAlias[]> => {
+    if (!db) throw new Error("Database not initialized");
+    try {
+      const aliases = await db.getAccountAliasesByAccountIdAsync(accountId);
+      return aliases;
+    } catch (error) {
+      appLogger.error("Error getting account aliases by account ID:", error);
+      throw error;
+    }
+  };
+
+  const findAccountAliasesByLastFour = async (lastFour: string): Promise<AccountAlias[]> => {
+    if (!db) throw new Error("Database not initialized");
+    try {
+      const aliases = await db.findAccountAliasesByLastFourAsync(lastFour);
+      return aliases;
+    } catch (error) {
+      appLogger.error("Error finding account aliases by last four:", error);
+      throw error;
+    }
+  };
+
+  const addAccountAlias = async (
+    alias: Omit<AccountAlias, "id" | "created_at" | "updated_at">
+  ): Promise<string> => {
+    if (!db) throw new Error("Database not initialized");
+    try {
+      const id = await db.addAccountAliasAsync(alias);
+      await refreshAccountAliases();
+      return id;
+    } catch (error) {
+      appLogger.error("Error adding account alias:", error);
+      throw error;
+    }
+  };
+
+  const updateAccountAlias = async (
+    id: string,
+    alias: Partial<Omit<AccountAlias, "id" | "created_at" | "updated_at">>
+  ): Promise<void> => {
+    if (!db) throw new Error("Database not initialized");
+    try {
+      await db.updateAccountAliasAsync(id, alias);
+      await refreshAccountAliases();
+    } catch (error) {
+      appLogger.error("Error updating account alias:", error);
+      throw error;
+    }
+  };
+
+  const deleteAccountAlias = async (id: string): Promise<void> => {
+    if (!db) throw new Error("Database not initialized");
+    try {
+      await db.deleteAccountAliasAsync(id);
+      await refreshAccountAliases();
+    } catch (error) {
+      appLogger.error("Error deleting account alias:", error);
+      throw error;
+    }
+  };
+
+  // Account alias refresh state to prevent duplicate calls
+  const [isRefreshingAliases, setIsRefreshingAliases] = useState(false);
+
+  const refreshAccountAliases = useCallback(async () => {
+    if (!db || !isDatabaseLoaded || isRefreshingAliases) return;
+    
+    setIsRefreshingAliases(true);
+    try {
+      const aliasesData = await db.getAccountAliasesAsync();
+      setAccountAliases(aliasesData);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("Unknown error");
+      appLogger.error(
+        "Error refreshing account aliases:",
+        {
+          error: error.message,
+          isDatabaseLoaded,
+          dbInitialized: !!db
+        }
+      );
+      
+      // Check if this is a database corruption error
+      if (error.message.includes('malformed') || error.message.includes('corrupted')) {
+        appLogger.error("Database corruption detected during alias refresh.");
+        setAccountAliases([]);
+        setError("Database corruption detected. Please use the recovery option in settings.");
+      } else {
+        // Set empty array on other errors to prevent UI issues
+        setAccountAliases([]);
+      }
+    } finally {
+      setIsRefreshingAliases(false);
+    }
+  }, [db, isDatabaseLoaded, isRefreshingAliases]);
+
   // Analytics operations
   const getTransactionsByDateRange = async (
     startDate: string,
@@ -996,8 +1213,46 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   const findAccountsByLastFour = (lastFour: string): Account[] => {
-    return accounts.filter(account => account.last_four === lastFour);
+    // Now we need to find accounts through their aliases
+    const matchingAliases = accountAliases.filter(alias => alias.last_four === lastFour);
+    return accounts.filter(account => 
+      matchingAliases.some(alias => alias.account_id === account.id)
+    );
   };
+
+  // Database corruption recovery
+  const handleDatabaseCorruption = useCallback(async () => {
+    appLogger.warn("Attempting to recover from database corruption...");
+    
+    try {
+      // Reset all state
+      setTransactions([]);
+      setCategories([]);
+      setCompanies([]);
+      setAccounts([]);
+      setBudgets([]);
+      setProjects([]);
+      setAccountAliases([]);
+      setIsDatabaseLoaded(false);
+      setError(null);
+      
+      // Clear and recreate the corrupted database
+      if (db) {
+        await db.clearAndRecreateDatabase();
+        setIsDatabaseLoaded(true);
+        // Refresh data after recreation
+        await refreshAllData();
+      } else {
+        // If no db instance, create a new one
+        await createOrOpenDatabase(true);
+      }
+      
+      appLogger.info("Database recovered successfully");
+    } catch (err) {
+      appLogger.error("Failed to recover from database corruption:", err);
+      setError("Database corruption recovery failed. Please refresh the page and create a new database.");
+    }
+  }, [db, createOrOpenDatabase, refreshAllData]);
 
   const contextValue: DatabaseContextType = {
     isInitialized,
@@ -1010,6 +1265,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     accounts,
     budgets,
     projects,
+    accountAliases,
     initializeDatabase,
     createOrOpenDatabase,
     loadDatabaseFromFile,
@@ -1033,6 +1289,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     getProjectById,
     getTransactionsByProject,
     getProjectCosts,
+    getAccountAliases,
+    getAccountAliasesByAccountId,
+    findAccountAliasesByLastFour,
+    addAccountAlias,
+    updateAccountAlias,
+    deleteAccountAlias,
+    refreshAccountAliases,
     getTransactionsByDateRange,
     getSpendingByCategory,
     getIncomeByCategory,
@@ -1041,6 +1304,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     generateTransactionHash,
     checkTransactionHashExists,
     findAccountsByLastFour,
+    handleDatabaseCorruption,
   };
 
   return (

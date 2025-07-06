@@ -267,7 +267,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
                 >
                   {accounts.map((account) => (
                     <MenuItem key={account.id} value={account.id}>
-                      {account.name} (••••{account.last_four})
+                      {account.name} ({account.type})
                     </MenuItem>
                   ))}
                 </Select>

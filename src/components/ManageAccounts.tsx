@@ -7,13 +7,6 @@ import {
   Card,
   CardContent,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -26,18 +19,37 @@ import {
   IconButton,
   Chip,
   Alert,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   AccountBalance as AccountIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
-import { Account } from '@/types/database';
+import { Account, AccountAlias } from '@/types/database';
 
 export default function ManageAccounts() {
-  const { accounts, addAccount, deleteAccount, refreshAccounts } = useDatabaseContext();
+  const { 
+    accounts, 
+    accountAliases, 
+    addAccount, 
+    deleteAccount, 
+    refreshAccounts,
+    addAccountAlias,
+    updateAccountAlias,
+    deleteAccountAlias,
+    refreshAccountAliases
+  } = useDatabaseContext();
+  
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,15 +57,25 @@ export default function ManageAccounts() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
   
+  // Alias management state
+  const [aliasDialogOpen, setAliasDialogOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [editingAlias, setEditingAlias] = useState<AccountAlias | null>(null);
+  const [aliasFormData, setAliasFormData] = useState({
+    last_four: '',
+    alias_name: '',
+  });
+  
   const [formData, setFormData] = useState({
     name: '',
-    last_four: '',
     type: 'checking' as 'checking' | 'savings' | 'credit',
   });
 
   // Refresh accounts when component mounts or when database loads
   useEffect(() => {
     refreshAccounts();
+    // Note: Account aliases are already loaded via refreshAllData in the context
+    // No need to call refreshAccountAliases separately here
   }, [refreshAccounts]);
 
   const handleOpenDialog = (account?: Account) => {
@@ -61,14 +83,12 @@ export default function ManageAccounts() {
       setEditingAccount(account);
       setFormData({
         name: account.name,
-        last_four: account.last_four,
         type: account.type as 'checking' | 'savings' | 'credit',
       });
     } else {
       setEditingAccount(null);
       setFormData({
         name: '',
-        last_four: '',
         type: 'checking',
       });
     }
@@ -81,7 +101,6 @@ export default function ManageAccounts() {
     setEditingAccount(null);
     setFormData({
       name: '',
-      last_four: '',
       type: 'checking',
     });
     setError(null);
@@ -97,37 +116,32 @@ export default function ManageAccounts() {
       if (!formData.name.trim()) {
         throw new Error('Account name is required');
       }
-      if (!formData.last_four.trim()) {
-        throw new Error('Last 4 digits are required');
-      }
-      if (formData.last_four.length !== 4 || !/^\d{4}$/.test(formData.last_four)) {
-        throw new Error('Last 4 digits must be exactly 4 numbers');
-      }
 
-      // Check for duplicate last_four (excluding current account when editing)
-      const existingAccount = accounts.find(acc => 
-        acc.last_four === formData.last_four && 
-        (!editingAccount || acc.id !== editingAccount.id)
+      // Check for duplicate account names
+      const isDuplicateName = accounts.some(acc =>
+        acc.name.toLowerCase() === formData.name.toLowerCase() &&
+        acc.id !== editingAccount?.id
       );
-      if (existingAccount) {
-        throw new Error('An account with these last 4 digits already exists');
+
+      if (isDuplicateName) {
+        throw new Error('An account with this name already exists');
       }
 
       if (editingAccount) {
-        // TODO: Implement account editing when needed
-        throw new Error('Account editing not yet implemented');
+        // For now, we'll just close the dialog since we don't have an update function
+        // In a full implementation, you'd add an updateAccount function
+        throw new Error('Account editing is not yet implemented');
       } else {
+        // Create new account
         await addAccount({
-          name: formData.name.trim(),
-          last_four: formData.last_four,
+          name: formData.name,
           type: formData.type,
         });
       }
 
-      await refreshAccounts();
       handleCloseDialog();
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'An error occurred');
+      setError(error instanceof Error ? error.message : 'Failed to save account');
     } finally {
       setLoading(false);
     }
@@ -135,7 +149,7 @@ export default function ManageAccounts() {
 
   const handleDeleteClick = (account: Account) => {
     setAccountToDelete(account);
-    setError(null); // Clear any previous errors
+    setError(null);
     setDeleteDialogOpen(true);
   };
 
@@ -156,123 +170,210 @@ export default function ManageAccounts() {
     }
   };
 
-  const handleDeleteCancel = () => {
-    setDeleteDialogOpen(false);
-    setAccountToDelete(null);
+  const handleAliasDialog = (account: Account, alias?: AccountAlias) => {
+    setSelectedAccount(account);
+    if (alias) {
+      setEditingAlias(alias);
+      setAliasFormData({
+        last_four: alias.last_four,
+        alias_name: alias.alias_name || '',
+      });
+    } else {
+      setEditingAlias(null);
+      setAliasFormData({
+        last_four: '',
+        alias_name: '',
+      });
+    }
+    setAliasDialogOpen(true);
   };
 
-  const getAccountTypeColor = (type: string) => {
-    switch (type) {
-      case 'checking': return 'primary';
-      case 'savings': return 'success';
-      case 'credit': return 'warning';
-      default: return 'default';
+  const handleAliasSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAccount) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (!aliasFormData.last_four.trim()) {
+        throw new Error('Last four digits are required');
+      }
+      if (aliasFormData.last_four.length !== 4 || !/^\d{4}$/.test(aliasFormData.last_four)) {
+        throw new Error('Last four digits must be exactly 4 numbers');
+      }
+
+      // Check for duplicate aliases
+      const isDuplicateAlias = accountAliases.some(alias =>
+        alias.last_four === aliasFormData.last_four &&
+        alias.id !== editingAlias?.id
+      );
+
+      if (isDuplicateAlias) {
+        throw new Error('An alias with these last four digits already exists');
+      }
+
+      if (editingAlias) {
+        await updateAccountAlias(editingAlias.id, {
+          last_four: aliasFormData.last_four,
+          alias_name: aliasFormData.alias_name.trim() || undefined,
+        });
+      } else {
+        await addAccountAlias({
+          account_id: selectedAccount.id,
+          last_four: aliasFormData.last_four,
+          alias_name: aliasFormData.alias_name.trim() || undefined,
+        });
+      }
+
+      setAliasDialogOpen(false);
+      setSelectedAccount(null);
+      setEditingAlias(null);
+      setAliasFormData({ last_four: '', alias_name: '' });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to save alias');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getAccountTypeLabel = (type: string) => {
-    switch (type) {
-      case 'checking': return 'Checking';
-      case 'savings': return 'Savings';
-      case 'credit': return 'Credit Card';
-      default: return type;
+  const handleDeleteAlias = async (alias: AccountAlias) => {
+    if (!window.confirm('Are you sure you want to delete this alias?')) return;
+
+    try {
+      await deleteAccountAlias(alias.id);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to delete alias');
     }
+  };
+
+  const getAccountAliases = (accountId: string) => {
+    return accountAliases.filter(alias => alias.account_id === accountId);
   };
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4" component="h1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AccountIcon />
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" component="h1" fontWeight="bold">
           Manage Accounts
         </Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => handleOpenDialog()}
+          sx={{ minWidth: 150 }}
         >
           Add Account
         </Button>
       </Box>
 
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
       <Card>
         <CardContent>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Account Overview
+          <Typography variant="h6" gutterBottom>
+            Accounts and Aliases
           </Typography>
-          
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Each account can have multiple aliases (last 4 digits). When importing CSV files, 
+            transactions will be matched to accounts based on these aliases.
+          </Typography>
+
           {accounts.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                No accounts found. Add your first account to get started.
-              </Typography>
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={() => handleOpenDialog()}
-              >
-                Add First Account
-              </Button>
-            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+              No accounts found. Add your first account to get started.
+            </Typography>
           ) : (
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Account Name</TableCell>
-                    <TableCell>Last 4 Digits</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Created</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {accounts.map((account) => (
-                    <TableRow key={account.id} hover>
-                      <TableCell>
-                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                          {account.name}
+            <Box>
+              {accounts.map((account) => {
+                const aliases = getAccountAliases(account.id);
+                return (
+                  <Accordion key={account.id} sx={{ mb: 1 }}>
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                        <AccountIcon sx={{ mr: 2, color: 'primary.main' }} />
+                        <Box sx={{ flexGrow: 1 }}>
+                          <Typography variant="subtitle1" fontWeight="medium">
+                            {account.name}
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                            <Chip label={account.type} size="small" />
+                            {aliases.length > 0 && (
+                              <Chip 
+                                label={`${aliases.length} alias${aliases.length > 1 ? 'es' : ''}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            )}
+                          </Box>
+                        </Box>
+                      </Box>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="subtitle2">
+                          Account Aliases (Last 4 Digits)
                         </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                          ••••{account.last_four}
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Button
+                            size="small"
+                            startIcon={<AddIcon />}
+                            onClick={() => handleAliasDialog(account)}
+                          >
+                            Add Alias
+                          </Button>
+                          <IconButton
+                            onClick={() => handleDeleteClick(account)}
+                            color="error"
+                            size="small"
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                      
+                      {aliases.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          No aliases configured. Add an alias to link CSV imports to this account.
                         </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={getAccountTypeLabel(account.type)}
-                          color={getAccountTypeColor(account.type) as any}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {new Date(account.created_at).toLocaleDateString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleOpenDialog(account)}
-                          title="Edit Account"
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDeleteClick(account)}
-                          title="Delete Account"
-                          color="error"
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                      ) : (
+                        <List dense>
+                          {aliases.map((alias) => (
+                            <ListItem key={alias.id} divider>
+                              <ListItemText
+                                primary={`****${alias.last_four}`}
+                                secondary={alias.alias_name || 'No description'}
+                              />
+                              <ListItemSecondaryAction>
+                                <IconButton
+                                  edge="end"
+                                  onClick={() => handleAliasDialog(account, alias)}
+                                  size="small"
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                                <IconButton
+                                  edge="end"
+                                  onClick={() => handleDeleteAlias(alias)}
+                                  size="small"
+                                  color="error"
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </ListItemSecondaryAction>
+                            </ListItem>
+                          ))}
+                        </List>
+                      )}
+                    </AccordionDetails>
+                  </Accordion>
+                );
+              })}
+            </Box>
           )}
         </CardContent>
       </Card>
@@ -282,107 +383,108 @@ export default function ManageAccounts() {
         <DialogTitle>
           {editingAccount ? 'Edit Account' : 'Add New Account'}
         </DialogTitle>
-        <form onSubmit={handleSubmit}>
-          <DialogContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-              {error && (
-                <Alert severity="error">{error}</Alert>
-              )}
-              
-              <TextField
-                label="Account Name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-                fullWidth
-                helperText="Enter a friendly name for this account (e.g., 'Chase Checking', 'Savings Account')"
-              />
-
-              <TextField
-                label="Last 4 Digits"
-                value={formData.last_four}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                  setFormData({ ...formData, last_four: value });
-                }}
-                required
-                fullWidth
-                inputProps={{
-                  maxLength: 4,
-                  pattern: '[0-9]{4}',
-                }}
-                helperText="Enter the last 4 digits of the account number"
-              />
-
-              <FormControl fullWidth>
-                <InputLabel>Account Type</InputLabel>
-                <Select
-                  value={formData.type}
-                  label="Account Type"
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                >
-                  <MenuItem value="checking">Checking Account</MenuItem>
-                  <MenuItem value="savings">Savings Account</MenuItem>
-                  <MenuItem value="credit">Credit Card</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseDialog}>Cancel</Button>
-            <Button type="submit" variant="contained" disabled={loading}>
-              {loading ? 'Saving...' : editingAccount ? 'Update Account' : 'Add Account'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={handleDeleteCancel}
-        aria-labelledby="delete-confirmation-dialog-title"
-        aria-describedby="delete-confirmation-dialog-description"
-      >
-        <DialogTitle id="delete-confirmation-dialog-title">
-          Confirm Deletion
-        </DialogTitle>
         <DialogContent>
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-          )}
-          {accountToDelete && (
-            <Box>
-              <Typography variant="body1" gutterBottom>
-                Are you sure you want to delete the following account?
-              </Typography>
-              <Typography variant="body2" sx={{ mb: 1 }}>
-                <strong>Name:</strong> {accountToDelete.name}
-              </Typography>
-              <Typography variant="body2" sx={{ mb: 1 }}>
-                <strong>Last 4 digits:</strong> ••••{accountToDelete.last_four}
-              </Typography>
-              <Typography variant="body2" sx={{ mb: 2 }}>
-                <strong>Type:</strong> {accountToDelete.type}
-              </Typography>
-              <Alert severity="warning">
-                This action cannot be undone. If this account has linked transactions, 
-                the deletion will fail to protect your data integrity.
-              </Alert>
-            </Box>
-          )}
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Account Name"
+              fullWidth
+              variant="outlined"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              required
+            />
+            
+            <FormControl fullWidth margin="dense" variant="outlined">
+              <InputLabel>Account Type</InputLabel>
+              <Select
+                value={formData.type}
+                label="Account Type"
+                onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as 'checking' | 'savings' | 'credit' }))}
+              >
+                <MenuItem value="checking">Checking</MenuItem>
+                <MenuItem value="savings">Savings</MenuItem>
+                <MenuItem value="credit">Credit Card</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDeleteCancel} color="primary">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteConfirm}
-            color="secondary"
-            variant="contained"
+          <Button onClick={handleCloseDialog}>Cancel</Button>
+          <Button 
+            onClick={handleSubmit} 
+            variant="contained" 
             disabled={loading}
           >
-            {loading ? 'Deleting...' : 'Delete Account'}
+            {loading ? 'Saving...' : editingAccount ? 'Update' : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add/Edit Alias Dialog */}
+      <Dialog open={aliasDialogOpen} onClose={() => setAliasDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editingAlias ? 'Edit Alias' : 'Add New Alias'}
+        </DialogTitle>
+        <DialogContent>
+          {selectedAccount && (
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
+              for {selectedAccount.name}
+            </Typography>
+          )}
+          <Box component="form" onSubmit={handleAliasSubmit} sx={{ mt: 1 }}>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Last Four Digits"
+              fullWidth
+              variant="outlined"
+              value={aliasFormData.last_four}
+              onChange={(e) => setAliasFormData(prev => ({ ...prev, last_four: e.target.value }))}
+              inputProps={{ maxLength: 4, pattern: '[0-9]{4}' }}
+              required
+              helperText="Enter the last 4 digits of the account number"
+            />
+            
+            <TextField
+              margin="dense"
+              label="Alias Description (Optional)"
+              fullWidth
+              variant="outlined"
+              value={aliasFormData.alias_name}
+              onChange={(e) => setAliasFormData(prev => ({ ...prev, alias_name: e.target.value }))}
+              helperText="e.g., 'Primary Checking', 'Business Account', etc."
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAliasDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleAliasSubmit} 
+            variant="contained" 
+            disabled={loading}
+          >
+            {loading ? 'Saving...' : editingAlias ? 'Update' : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Account Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Account</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete the account "{accountToDelete?.name}"?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This action cannot be undone. All aliases associated with this account will also be deleted.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteConfirm} color="error" disabled={loading}>
+            {loading ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

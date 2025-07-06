@@ -86,8 +86,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     console.debug(`Available accounts in database:`, accounts.map(acc => ({
       id: acc.id,
       name: acc.name,
-      last_four: acc.last_four,
-      type: typeof acc.last_four
+      type: acc.type
     })));
     
     const matches: AccountMatch[] = uniqueAccountValues.map(csvValue => {
@@ -601,7 +600,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                         >
                           {match.matchingAccounts.map(account => (
                             <MenuItem key={account.id} value={account.id}>
-                              {account.name} (••••{account.last_four}) - {account.type}
+                              {account.name} - {account.type}
                             </MenuItem>
                           ))}
                         </Select>

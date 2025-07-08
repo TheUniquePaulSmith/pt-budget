@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -19,6 +19,10 @@ interface DatabaseStatusBarProps {
 }
 
 const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
   const getStatusColor = () => {
     if (!status.isWorkerAlive) return '#9e9e9e'; // Gray for disconnected worker
     if (status.dbStatus === 'connected') return '#4caf50'; // Green for connected
@@ -44,18 +48,33 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
   };
 
   const getTooltipText = () => {
-    const timeSinceHeartbeat = status.lastHeartbeat ? Date.now() - status.lastHeartbeat : 0;
+    const timeSinceHeartbeat = status.lastHeartbeat ? currentTime - status.lastHeartbeat : 0;
     const heartbeatText = status.lastHeartbeat 
-      ? `Last heartbeat: ${Math.floor(timeSinceHeartbeat / 1000)}s ago`
+      ? `Heartbeat: ${Math.floor(timeSinceHeartbeat / 1000)}s ago`
       : 'No heartbeat received';
     
-    return `
-      Worker Status: ${status.isWorkerAlive ? 'Alive' : 'Dead'}
+    return `Worker Status: ${status.isWorkerAlive ? 'Alive' : 'Dead'}
       Database Status: ${status.dbStatus}
-      Version: ${status.version}
       ${heartbeatText}
     `;
   };
+
+  useEffect(() => {
+    if (tooltipOpen) {
+      intervalRef.current = setInterval(() => {
+        setCurrentTime(Date.now());
+      }, 1000);
+    } else if(intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [tooltipOpen]);
+
 
   return (
     <Paper 
@@ -80,6 +99,9 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
         minHeight: 32
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* Empty box to align status bar to right */}
+        </Box>
+        {/* <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Tooltip title={getTooltipText()} arrow>
             <Chip
               icon={getStatusIcon()}
@@ -96,14 +118,12 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
               }}
             />
           </Tooltip>
-        </Box>
+        </Box> */}
         
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Typography variant="caption" color="text.secondary">
             v{status.version}
-          </Typography>
-          
-          {status.isWorkerAlive && (
+          </Typography>   
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Circle 
                 sx={{ 
@@ -115,13 +135,27 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
                     '50%': { opacity: 0.5 },
                     '100%': { opacity: 1 },
                   }
-                }} 
-              />
-              <Typography variant="caption" color="text.secondary">
-                {status.isConnected ? 'Connected' : 'Disconnected'}
-              </Typography>
+                }} />
+              <Tooltip 
+              title={getTooltipText()} 
+              arrow 
+              onOpen={() => setTooltipOpen(true)}
+              onClose={() => setTooltipOpen(false)}
+              componentsProps={{
+                tooltip: {
+                  sx: {
+                    whiteSpace: 'pre-line',
+                    wordBreak: 'break-word',
+                  },
+                },
+              }}
+              >
+                <Typography variant="caption" color="text.secondary" style={{cursor: 'pointer'}}>
+                  {status.isConnected ? 'Connected' : 'Disconnected'}
+                </Typography>
+              </Tooltip>
             </Box>
-          )}
+          
         </Box>
       </Box>
     </Paper>

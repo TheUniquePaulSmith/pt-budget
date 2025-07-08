@@ -228,7 +228,7 @@ export class DatabaseWorkerService {
   }
 
   public async ping(): Promise<DatabaseResponse> {
-    return this.sendMessage('ping', null, 5000);
+    return this.sendMessage('ping', null, 10000);
   }
 
   public async exportDatabase(): Promise<Uint8Array> {

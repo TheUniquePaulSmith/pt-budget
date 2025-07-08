@@ -496,7 +496,7 @@ class DatabaseWorker {
 
   async handleMessage(event, port) {
     const { id, type, payload } = event.data;
-    
+    console.debug(`[DB Worker] Received message: ${type}`, payload);
     let response;
     
     try {
@@ -518,6 +518,7 @@ class DatabaseWorker {
           
         case 'query':
           response = await this.executeQuery(payload.sql, payload.parameters);
+          console.debug(`[DB Worker] Response for query: `, response);
           break;
           
         case 'exec':

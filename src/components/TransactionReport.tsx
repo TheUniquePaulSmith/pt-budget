@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -64,6 +64,7 @@ export default function TransactionReport() {
     companies,
     projects,
     accounts,
+    isDatabaseLoaded,
     refreshTransactions,
   } = useDatabaseContext();
 
@@ -83,6 +84,8 @@ export default function TransactionReport() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [orderBy, setOrderBy] = useState<keyof Transaction>('date');
   const [order, setOrder] = useState<Order>('desc');
+
+  const loadingRef = useRef(false);
   
   // Column visibility state
   const [showColumnControls, setShowColumnControls] = useState(false);
@@ -159,9 +162,23 @@ export default function TransactionReport() {
     });
   };
 
-  useEffect(() => {
-    refreshTransactions();
-  }, [refreshTransactions]);
+ useEffect(() => {
+  if (isDatabaseLoaded && !loadingRef.current) {  // 👈 Guard check
+    loadingRef.current = true;                     // 👈 Set guard
+    console.debug('Database loaded, refreshing transactions');
+    
+    const loadData = async () => {
+      try {
+        await refreshTransactions();
+      } catch (error) {
+        console.error('Error loading transaction data:', error);
+      } finally {
+        loadingRef.current = false;               // 👈 Reset guard
+      }
+    };
+    loadData();
+  }
+}, [isDatabaseLoaded, refreshTransactions]);
 
   // Enhanced transactions with related data
   const enhancedTransactions = useMemo(() => {

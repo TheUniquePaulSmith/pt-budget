@@ -234,7 +234,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                       <strong>Warning:</strong> This will permanently delete all existing data and create a new database.
                     </Typography>
                     <Typography variant="body2">
-                      Use this option only if you're experiencing database corruption errors.
+                      Use this option only if you&apos;re experiencing database corruption errors.
                       Make sure to export your data first if possible.
                     </Typography>
                   </Alert>

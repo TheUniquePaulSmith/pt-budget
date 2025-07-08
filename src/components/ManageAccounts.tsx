@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -36,11 +36,13 @@ import {
 } from '@mui/icons-material';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
 import { Account, AccountAlias } from '@/types/database';
+import { set } from 'date-fns';
 
 export default function ManageAccounts() {
   const { 
     accounts, 
     accountAliases, 
+    isDatabaseLoaded,
     addAccount, 
     deleteAccount, 
     refreshAccounts,
@@ -71,12 +73,26 @@ export default function ManageAccounts() {
     type: 'checking' as 'checking' | 'savings' | 'credit',
   });
 
-  // Refresh accounts when component mounts or when database loads
-  useEffect(() => {
-    refreshAccounts();
-    // Note: Account aliases are already loaded via refreshAllData in the context
-    // No need to call refreshAccountAliases separately here
-  }, [refreshAccounts]);
+  const loadingRef = useRef(false);
+
+// Replace both useEffects with this single one
+useEffect(() => {
+  if (isDatabaseLoaded && !loadingRef.current) {
+    loadingRef.current = true;
+    console.debug('Database loaded, refreshing accounts and aliases');
+    const loadData = async () => {
+      try {
+        await refreshAccounts();
+        await refreshAccountAliases(); // Wait for accounts to finish first
+      } catch (error) {
+        console.error('Error loading account data:', error);
+      } finally {
+        loadingRef.current = false;
+      }
+    };
+    loadData();
+  }
+}, [isDatabaseLoaded, refreshAccounts, refreshAccountAliases]);
 
   const handleOpenDialog = (account?: Account) => {
     if (account) {
@@ -475,7 +491,7 @@ export default function ManageAccounts() {
         <DialogTitle>Delete Account</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete the account "{accountToDelete?.name}"?
+            Are you sure you want to delete the account &quot;{accountToDelete?.name}&quot;?
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             This action cannot be undone. All aliases associated with this account will also be deleted.

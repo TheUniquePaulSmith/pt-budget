@@ -906,6 +906,7 @@ export class DatabaseUtils {
  */
 export class AccountAliasQueries {
   static async getAll(executor: SQLiteExecutor): Promise<AccountAlias[]> {
+    console.debug('Fetching all account aliases');
     const rows = await executor.query('SELECT * FROM account_aliases ORDER BY account_id, last_four');
     return rows.map(row => ({
       id: row.id.toString(),

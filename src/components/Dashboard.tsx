@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Box,
   Grid,
@@ -104,13 +104,20 @@ const Dashboard: React.FC = () => {  const {
     exportDatabase,
     refreshTransactions,
     isDatabaseLoaded,
-  } = useDatabaseContext();const [tabValue, setTabValue] = useState(0);
+  } = useDatabaseContext();
+  
+  const [tabValue, setTabValue] = useState(0);
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');  
-  const [addTransactionOpen, setAddTransactionOpen] = useState(false);  const [csvImportOpen, setCsvImportOpen] = useState(false);  const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
+  const [addTransactionOpen, setAddTransactionOpen] = useState(false);  
+  const [csvImportOpen, setCsvImportOpen] = useState(false);  
+  const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
+  const loadingRef = useRef(false);
 
   // Refresh transactions when database is loaded
   React.useEffect(() => {
-    if (isDatabaseLoaded) {
+    if (isDatabaseLoaded && !loadingRef.current) {
+      loadingRef.current = true;
+      console.debug('Database loaded, refreshing transactions');
       refreshTransactions();
     }
   }, [isDatabaseLoaded, refreshTransactions]);

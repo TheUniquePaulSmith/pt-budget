@@ -189,19 +189,6 @@ class WaSQLiteDatabaseManager implements SQLiteExecutor {
     await this.sqlite3.exec(this.db, sql);
   }
 
-  lastInsertRowId(): number {
-    return this.sqlite3.last_insert_rowid(this.db);
-  }
-
-  // Database interface methods required by the context
-  async hasExistingDatabase(): Promise<boolean> {
-    return this.isInitialized && this.db !== 0;
-  }
-
-  async checkForExistingIndexedDB(): Promise<boolean> {
-    return DatabaseUtils.checkForExistingIndexedDB();
-  }
-
   async openExistingDatabase(): Promise<void> {
     await this.openDatabase(undefined, false);
   }
@@ -838,14 +825,21 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
   const refreshAccounts = useCallback(async () => {
+    console.log("refreshAccounts: DatabaseContext Call");
     if (!db || !isDatabaseLoaded) return;
     try {
+      
       const accountsData = await db.getAccountsAsync();
       setAccounts(accountsData);
+
+      // const aliasesData = await db.getAccountAliasesAsync();
+      // setAccountAliases(aliasesData);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to refresh accounts"
+
       );
+      throw err;
     }
   }, [db, isDatabaseLoaded]);
 
@@ -1078,13 +1072,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  // Account alias refresh state to prevent duplicate calls
-  const [isRefreshingAliases, setIsRefreshingAliases] = useState(false);
-
   const refreshAccountAliases = useCallback(async () => {
-    if (!db || !isDatabaseLoaded || isRefreshingAliases) return;
+    if (!db || !isDatabaseLoaded) return;
     
-    setIsRefreshingAliases(true);
     try {
       const aliasesData = await db.getAccountAliasesAsync();
       setAccountAliases(aliasesData);
@@ -1098,20 +1088,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
           dbInitialized: !!db
         }
       );
-      
-      // Check if this is a database corruption error
-      if (error.message.includes('malformed') || error.message.includes('corrupted')) {
-        appLogger.error("Database corruption detected during alias refresh.");
-        setAccountAliases([]);
-        setError("Database corruption detected. Please use the recovery option in settings.");
-      } else {
-        // Set empty array on other errors to prevent UI issues
-        setAccountAliases([]);
-      }
-    } finally {
-      setIsRefreshingAliases(false);
     }
-  }, [db, isDatabaseLoaded, isRefreshingAliases]);
+  }, [db, isDatabaseLoaded]);
 
   // Analytics operations
   const getTransactionsByDateRange = async (

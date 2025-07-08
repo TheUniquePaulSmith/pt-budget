@@ -60,7 +60,6 @@ interface DatabaseContextType {
   createOrOpenDatabase: (isNew: boolean) => Promise<void>;
   loadDatabaseFromFile: (file: File) => Promise<void>;
   exportDatabase: () => Promise<Uint8Array | null>;
-  checkDatabaseExists: (dbName?: string) => Promise<boolean>;
 
   // Transaction operations
   addTransaction: (
@@ -919,28 +918,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   }, [db, createOrOpenDatabase, refreshAllData]);
 
-  const checkDatabaseExists = useCallback(async (dbName = 'ptbudgetapp'): Promise<boolean> => {
-    try {
-      // Initialize database manager if not already done
-      let dbManager = db;
-      if (!dbManager || !isInitialized) {
-        appLogger.debug('Initializing database manager for existence check...');
-        dbManager = new WorkerDatabaseManager();
-        await dbManager.initialize();
-        setDb(dbManager);
-        setIsInitialized(true);
-      }
-
-      appLogger.debug(`Checking if database '${dbName}' exists...`);
-      const exists = await dbManager.checkDatabaseExists(dbName);
-      appLogger.debug(`Database '${dbName}' exists: ${exists}`);
-      return exists;
-    } catch (err) {
-      appLogger.error('Failed to check database existence:', err);
-      throw err;
-    }
-  }, [db, isInitialized]);
-
   const contextValue: DatabaseContextType = {
     isInitialized,
     isDatabaseLoaded,
@@ -993,7 +970,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     checkTransactionHashExists,
     findAccountsByLastFour,
     handleDatabaseCorruption,
-    checkDatabaseExists,
   };
 
   return (

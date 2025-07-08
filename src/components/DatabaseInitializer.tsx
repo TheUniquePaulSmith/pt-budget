@@ -32,7 +32,7 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
   
   // Use a ref to prevent double execution of database check
   const hasCheckedDatabase = useRef(false);
-  
+
   const { createOrOpenDatabase, loadDatabaseFromFile } = useDatabaseContext();
 
   // Ensure we're on the client side before accessing window
@@ -63,8 +63,8 @@ const DatabaseInitializer: React.FC<DatabaseInitializerProps> = ({ onDatabaseLoa
         appLogger.info('Checking for existing IndexedDB database...');
         setIsCheckingExisting(true);
 
-        const dbName = 'ptbudgetapp';
-        const exists = (await window.indexedDB.databases()).map(db => db.name).includes(dbName);
+          const databases = await indexedDB.databases();
+          const exists = databases.some(db => db.name === 'ptbudgetapp');
 
         if (exists) {
           appLogger.debug('Existing IndexedDB database found, loading');

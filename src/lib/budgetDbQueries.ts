@@ -21,8 +21,6 @@ import { dbLogger } from "./logger";
  * Core database interface for executing SQL queries
  */
 export interface SQLiteExecutor {
-  sqlite3: any;
-  db: number;
   query: (sql: string, parameters?: any[]) => Promise<any[]>;
   exec: (sql: string) => Promise<void>;
 }
@@ -306,72 +304,28 @@ export class TransactionQueries {
       type: transaction.type
     });
 
-    // Use the proper for await loop with statements iterator
-    for await (const stmt of executor.sqlite3.statements(executor.db, sql)) {
-      executor.sqlite3.bind_text(stmt, 1, transaction.date);
-      executor.sqlite3.bind_double(stmt, 2, transaction.amount);
-      executor.sqlite3.bind_text(stmt, 3, transaction.description);
-      executor.sqlite3.bind_text(stmt, 4, transactionHash);
-      
-      if (transaction.category_id) {
-        dbLogger.debug('Binding category_id as int', { 
-          original: transaction.category_id, 
-          parsed: parseInt(transaction.category_id) 
-        });
-        executor.sqlite3.bind_int(stmt, 5, parseInt(transaction.category_id));
-      } else {
-        dbLogger.debug('Binding category_id as NULL');
-        executor.sqlite3.bind_null(stmt, 5);
-      }
-      
-      if (transaction.company_id) {
-        dbLogger.debug('Binding company_id as int', { 
-          original: transaction.company_id, 
-          parsed: parseInt(transaction.company_id) 
-        });
-        executor.sqlite3.bind_int(stmt, 6, parseInt(transaction.company_id));
-      } else {
-        dbLogger.debug('Binding company_id as NULL');
-        executor.sqlite3.bind_null(stmt, 6);
-      }
-      
-      if (transaction.project_id) {
-        dbLogger.debug('Binding project_id as int', { 
-          original: transaction.project_id, 
-          parsed: parseInt(transaction.project_id) 
-        });
-        executor.sqlite3.bind_int(stmt, 7, parseInt(transaction.project_id));
-      } else {
-        dbLogger.debug('Binding project_id as NULL');
-        executor.sqlite3.bind_null(stmt, 7);
-      }
-      
-      if (transaction.account_id) {
-        dbLogger.debug('Binding account_id as int', { 
-          original: transaction.account_id, 
-          parsed: parseInt(transaction.account_id) 
-        });
-        executor.sqlite3.bind_int(stmt, 8, parseInt(transaction.account_id));
-      } else {
-        dbLogger.debug('Binding account_id as NULL');
-        executor.sqlite3.bind_null(stmt, 8);
-      }
-      
-      executor.sqlite3.bind_text(stmt, 9, transaction.type);
-      
-      const result = await executor.sqlite3.step(stmt);
-      
-      const columnCount = executor.sqlite3.column_count(stmt);
-      if (columnCount > 0) {
-        const id = executor.sqlite3.column_int(stmt, 0);
-        if (id && id > 0) {
-          dbLogger.info(`Transaction inserted successfully with ID: ${id}`);
-          return id.toString();
-        }
-      }
+    // Use parameterized query
+    const parameters = [
+      transaction.date,
+      transaction.amount,
+      transaction.description,
+      transactionHash,
+      transaction.category_id ? parseInt(transaction.category_id) : null,
+      transaction.company_id ? parseInt(transaction.company_id) : null,
+      transaction.project_id ? parseInt(transaction.project_id) : null,
+      transaction.account_id ? parseInt(transaction.account_id) : null,
+      transaction.type
+    ];
+    
+    const result = await executor.query(sql, parameters);
+    
+    if (result.length > 0 && result[0].id) {
+      const id = result[0].id;
+      dbLogger.info(`Transaction inserted successfully with ID: ${id}`);
+      return id.toString();
     }
     
-    throw new Error('Failed to prepare statement');
+    throw new Error('Failed to insert transaction');
   }
 
   static async getAll(executor: SQLiteExecutor): Promise<Transaction[]> {
@@ -465,21 +419,12 @@ export class CategoryQueries {
   ): Promise<string> {
     const sql = `INSERT INTO categories (name, type, color) VALUES (?, ?, ?) RETURNING id`;
     
-    for await (const stmt of executor.sqlite3.statements(executor.db, sql)) {
-      executor.sqlite3.bind_text(stmt, 1, category.name);
-      executor.sqlite3.bind_text(stmt, 2, category.type);
-      executor.sqlite3.bind_text(stmt, 3, category.color);
-      
-      const result = await executor.sqlite3.step(stmt);
-      
-      const columnCount = executor.sqlite3.column_count(stmt);
-      if (columnCount > 0) {
-        const id = executor.sqlite3.column_int(stmt, 0);
-        if (id && id > 0) {
-          dbLogger.debug(`Category created with ID: ${id}`);
-          return id.toString();
-        }
-      }
+    const result = await executor.query(sql, [category.name, category.type, category.color]);
+    
+    if (result.length > 0 && result[0].id) {
+      const id = result[0].id;
+      dbLogger.debug(`Category created with ID: ${id}`);
+      return id.toString();
     }
 
     throw new Error('Failed to create category or retrieve ID');
@@ -503,19 +448,12 @@ export class CompanyQueries {
   static async create(executor: SQLiteExecutor, name: string): Promise<string> {
     const sql = `INSERT INTO companies (name) VALUES (?) RETURNING id`;
     
-    for await (const stmt of executor.sqlite3.statements(executor.db, sql)) {
-      executor.sqlite3.bind_text(stmt, 1, name);
-      
-      const result = await executor.sqlite3.step(stmt);
-      
-      const columnCount = executor.sqlite3.column_count(stmt);
-      if (columnCount > 0) {
-        const id = executor.sqlite3.column_int(stmt, 0);
-        if (id && id > 0) {
-          dbLogger.debug(`Company created with ID: ${id}`);
-          return id.toString();
-        }
-      }
+    const result = await executor.query(sql, [name]);
+    
+    if (result.length > 0 && result[0].id) {
+      const id = result[0].id;
+      dbLogger.debug(`Company created with ID: ${id}`);
+      return id.toString();
     }
 
     throw new Error('Failed to create company or retrieve ID');
@@ -558,30 +496,12 @@ export class AccountQueries {
     const sqlWithReturning = `INSERT INTO accounts (name, type) VALUES (?, ?) RETURNING id`;
     
     try {
-      for await (const stmt of executor.sqlite3.statements(executor.db, sqlWithReturning)) {
-        executor.sqlite3.bind_text(stmt, 1, account.name);
-        executor.sqlite3.bind_text(stmt, 2, account.type);
-        
-        const result = await executor.sqlite3.step(stmt);
-        
-        // Check if we have columns regardless of the step result
-        const columnCount = executor.sqlite3.column_count(stmt);
-        
-        if (columnCount > 0) {
-          const id = executor.sqlite3.column_int(stmt, 0);
-          
-          if (id && id > 0) {
-            dbLogger.debug(`Account created with ID via RETURNING: ${id}`);
-            return id.toString();
-          }
-          
-          const idText = executor.sqlite3.column_text(stmt, 0);
-          
-          if (idText) {
-            dbLogger.debug(`Account created with ID via RETURNING (text): ${idText}`);
-            return idText;
-          }
-        }
+      const result = await executor.query(sqlWithReturning, [account.name, account.type]);
+      
+      if (result.length > 0 && result[0].id) {
+        const id = result[0].id;
+        dbLogger.debug(`Account created with ID: ${id}`);
+        return id.toString();
       }
     } catch (error) {
       dbLogger.warn('RETURNING clause failed, trying fallback method:', error);
@@ -590,12 +510,7 @@ export class AccountQueries {
     // Fallback: Insert without RETURNING and then query for the ID
     const sqlInsert = `INSERT INTO accounts (name, type) VALUES (?, ?)`;
     
-    for await (const stmt of executor.sqlite3.statements(executor.db, sqlInsert)) {
-      executor.sqlite3.bind_text(stmt, 1, account.name);
-      executor.sqlite3.bind_text(stmt, 2, account.type);
-      
-      await executor.sqlite3.step(stmt);
-    }
+    await executor.query(sqlInsert, [account.name, account.type]);
     
     // Query for the most recently inserted account with matching data
     const newAccounts = await executor.query(
@@ -649,23 +564,18 @@ export class BudgetQueries {
   ): Promise<string> {
     const sql = `INSERT INTO budgets (category_id, amount, period, start_date, end_date) VALUES (?, ?, ?, ?, ?) RETURNING id`;
     
-    for await (const stmt of executor.sqlite3.statements(executor.db, sql)) {
-      executor.sqlite3.bind_int(stmt, 1, parseInt(budget.category_id));
-      executor.sqlite3.bind_double(stmt, 2, budget.amount);
-      executor.sqlite3.bind_text(stmt, 3, budget.period);
-      executor.sqlite3.bind_text(stmt, 4, budget.start_date);
-      executor.sqlite3.bind_text(stmt, 5, budget.end_date);
-      
-      const result = await executor.sqlite3.step(stmt);
-      
-      const columnCount = executor.sqlite3.column_count(stmt);
-      if (columnCount > 0) {
-        const id = executor.sqlite3.column_int(stmt, 0);
-        if (id && id > 0) {
-          dbLogger.debug(`Budget created with ID: ${id}`);
-          return id.toString();
-        }
-      }
+    const result = await executor.query(sql, [
+      parseInt(budget.category_id),
+      budget.amount,
+      budget.period,
+      budget.start_date,
+      budget.end_date
+    ]);
+    
+    if (result.length > 0 && result[0].id) {
+      const id = result[0].id;
+      dbLogger.debug(`Budget created with ID: ${id}`);
+      return id.toString();
     }
 
     throw new Error('Failed to create budget or retrieve ID');
@@ -702,39 +612,23 @@ export class ProjectQueries {
     const sql = `INSERT INTO projects (name, company_name, contact_details, project_category, status, start_date, end_date, estimated_cost, actual_cost, notes) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`;
     
-    for await (const stmt of executor.sqlite3.statements(executor.db, sql)) {
-      executor.sqlite3.bind_text(stmt, 1, project.name);
-      executor.sqlite3.bind_text(stmt, 2, project.company_name);
-      executor.sqlite3.bind_text(stmt, 3, project.contact_details || '');
-      executor.sqlite3.bind_text(stmt, 4, project.project_category);
-      executor.sqlite3.bind_text(stmt, 5, project.status);
-      executor.sqlite3.bind_text(stmt, 6, project.start_date || '');
-      executor.sqlite3.bind_text(stmt, 7, project.end_date || '');
-      
-      if (project.estimated_cost !== null && project.estimated_cost !== undefined) {
-        executor.sqlite3.bind_double(stmt, 8, project.estimated_cost);
-      } else {
-        executor.sqlite3.bind_null(stmt, 8);
-      }
-      
-      if (project.actual_cost !== null && project.actual_cost !== undefined) {
-        executor.sqlite3.bind_double(stmt, 9, project.actual_cost);
-      } else {
-        executor.sqlite3.bind_null(stmt, 9);
-      }
-      
-      executor.sqlite3.bind_text(stmt, 10, project.notes || '');
-      
-      const result = await executor.sqlite3.step(stmt);
-      
-      const columnCount = executor.sqlite3.column_count(stmt);
-      if (columnCount > 0) {
-        const id = executor.sqlite3.column_int(stmt, 0);
-        if (id && id > 0) {
-          dbLogger.debug(`Project created with ID: ${id}`);
-          return id.toString();
-        }
-      }
+    const result = await executor.query(sql, [
+      project.name,
+      project.company_name,
+      project.contact_details || '',
+      project.project_category,
+      project.status,
+      project.start_date || '',
+      project.end_date || '',
+      project.estimated_cost ?? null,
+      project.actual_cost ?? null,
+      project.notes || ''
+    ]);
+    
+    if (result.length > 0 && result[0].id) {
+      const id = result[0].id;
+      dbLogger.debug(`Project created with ID: ${id}`);
+      return id.toString();
     }
 
     throw new Error('Failed to create project or retrieve ID');
@@ -950,31 +844,16 @@ export class AccountAliasQueries {
     const sqlWithReturning = `INSERT INTO account_aliases (account_id, last_four, alias_name) VALUES (?, ?, ?) RETURNING id`;
     
     try {
-      for await (const stmt of executor.sqlite3.statements(executor.db, sqlWithReturning)) {
-        executor.sqlite3.bind_int(stmt, 1, parseInt(alias.account_id));
-        executor.sqlite3.bind_text(stmt, 2, alias.last_four);
-        executor.sqlite3.bind_text(stmt, 3, alias.alias_name || null);
-        
-        const result = await executor.sqlite3.step(stmt);
-        
-        // Check if we have columns regardless of the step result
-        const columnCount = executor.sqlite3.column_count(stmt);
-        
-        if (columnCount > 0) {
-          const id = executor.sqlite3.column_int(stmt, 0);
-          
-          if (id && id > 0) {
-            dbLogger.debug(`Account alias created with ID via RETURNING: ${id}`);
-            return id.toString();
-          }
-          
-          const idText = executor.sqlite3.column_text(stmt, 0);
-          
-          if (idText) {
-            dbLogger.debug(`Account alias created with ID via RETURNING (text): ${idText}`);
-            return idText;
-          }
-        }
+      const result = await executor.query(sqlWithReturning, [
+        parseInt(alias.account_id),
+        alias.last_four,
+        alias.alias_name || null
+      ]);
+      
+      if (result.length > 0 && result[0].id) {
+        const id = result[0].id;
+        dbLogger.debug(`Account alias created with ID: ${id}`);
+        return id.toString();
       }
     } catch (error) {
       dbLogger.warn('RETURNING clause failed, trying fallback method:', error);
@@ -983,13 +862,11 @@ export class AccountAliasQueries {
     // Fallback: Insert without RETURNING and then query for the ID
     const sqlInsert = `INSERT INTO account_aliases (account_id, last_four, alias_name) VALUES (?, ?, ?)`;
     
-    for await (const stmt of executor.sqlite3.statements(executor.db, sqlInsert)) {
-      executor.sqlite3.bind_int(stmt, 1, parseInt(alias.account_id));
-      executor.sqlite3.bind_text(stmt, 2, alias.last_four);
-      executor.sqlite3.bind_text(stmt, 3, alias.alias_name || null);
-      
-      await executor.sqlite3.step(stmt);
-    }
+    await executor.query(sqlInsert, [
+      parseInt(alias.account_id),
+      alias.last_four,
+      alias.alias_name || null
+    ]);
     
     // Query for the most recently inserted alias with matching data
     const newAliases = await executor.query(

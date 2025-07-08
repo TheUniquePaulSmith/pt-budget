@@ -19,6 +19,8 @@ import type {
   AccountAlias,
 } from "../types/database";
 import { dbLogger, appLogger } from "../lib/logger";
+import { WorkerDatabaseManager } from "../lib/workerDatabaseManager";
+import type { WorkerStatus } from "../lib/databaseWorkerService";
 import {
   DatabaseSchema,
   TransactionQueries,
@@ -30,345 +32,7 @@ import {
   ProjectQueries,
   AnalyticsQueries,
   DatabaseUtils,
-  type SQLiteExecutor,
 } from "../lib/budgetDbQueries";
-
-// WA-SQLite Database Manager using OPFSAnyContextVFS
-class WaSQLiteDatabaseManager implements SQLiteExecutor {
-  sqlite3: any = null;
-  db: number = 0;
-  private vfs: any = null;
-  private isInitialized = false;
-
-  async initialize(): Promise<void> {
-    if (this.isInitialized) return;
-
-    // Only initialize in browser context
-    if (typeof window === 'undefined') {
-      throw new Error('WA-SQLite requires browser environment');
-    }
-
-    try {
-      dbLogger.info('Loading WA-SQLite modules...');
-      
-      // Use dynamic function to avoid build-time module resolution
-      const importModule = new Function('path', 'return import(path)');
-
-      dbLogger.debug('Loading SQLite async module...');
-      const sqliteModule = await importModule('/wa-sqlite/wa-sqlite-async.mjs');
-      const SQLiteModule = sqliteModule.default;
-
-      dbLogger.debug('Loading SQLite API...');
-      const apiModule = await importModule('/wa-sqlite/src/sqlite-api.js');
-      const { Factory } = apiModule;
-
-      dbLogger.debug('Loading IDB Atomic VFS...');
-      const vfsModule = await importModule('/wa-sqlite/src/examples/IDBBatchAtomicVFS.js');
-      const { IDBBatchAtomicVFS } = vfsModule;
-
-      dbLogger.debug('Initializing SQLite WASM module...');
-      const wasmModule = await SQLiteModule();
-
-      dbLogger.debug('Creating SQLite API...');
-      this.sqlite3 = Factory(wasmModule);
-
-      dbLogger.debug('Creating IDB VFS...');
-      this.vfs = await IDBBatchAtomicVFS.create('ptbudgetapp', wasmModule);
-
-      dbLogger.debug('Registering IDB VFS...');
-      this.sqlite3.vfs_register(this.vfs, true);
-      
-      this.isInitialized = true;
-      dbLogger.debug('Initialization complete');
-    } catch (error) {
-      dbLogger.error('Initialization failed:', error);
-      throw new Error(`Failed to initialize WA-SQLite: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  
-  async openDatabase(filename: string = '/budget-app.db', isNew: boolean = false): Promise<void> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-
-    try {
-      dbLogger.debug(`Opening database: ${filename}`);
-      
-      this.db = await this.sqlite3.open_v2(
-        filename,
-        this.sqlite3.SQLITE_OPEN_CREATE | this.sqlite3.SQLITE_OPEN_READWRITE | this.sqlite3.SQLITE_OPEN_FULLMUTEX,
-        this.vfs.name
-      );
-      
-      if (!this.db) {
-        throw new Error('Failed to open database');
-      }
-
-      dbLogger.debug(`Database opened successfully with handle: ${this.db}`);
-      if (isNew) {
-      console.log(`is new ${isNew}`);
-      // Configure database for optimal performance and consistency
-      await this.sqlite3.exec(this.db, 'PRAGMA locking_mode=NORMAL');
-      dbLogger.debug('Setting PRAGMA locking_mode=NORMAL');
-      //await this.sqlite3.exec(this.db, 'PRAGMA journal_mode=DELETE');
-      //dbLogger.debug('Setting PRAGMA journal_mode=DELETE');
-      await this.sqlite3.exec(this.db, 'PRAGMA synchronous=NORMAL');
-      dbLogger.debug('Setting PRAGMA synchronous=NORMAL');
-      await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=ON');
-      dbLogger.debug('Setting PRAGMA foreign_keys=ON');     
-      }
-      await DatabaseSchema.createTables(this);
-      dbLogger.debug('Database ready for use');
-    } catch (error) {
-      dbLogger.error('Failed to open database:', error);
-      throw error;
-    }
-  }
-
-  async query(sql: string, parameters: any[] = []): Promise<any[]> {
-    const results: any[] = [];
-    
-    // Prepare the statement if parameters are provided
-    if (parameters.length > 0) {
-      // Use the proper for await loop with statements iterator
-      for await (const stmt of this.sqlite3.statements(this.db, sql)) {
-        // Bind parameters
-        for (let i = 0; i < parameters.length; i++) {
-          const param = parameters[i];
-          if (param === null || param === undefined) {
-            this.sqlite3.bind_null(stmt, i + 1);
-          } else if (typeof param === 'number') {
-            if (Number.isInteger(param)) {
-              this.sqlite3.bind_int(stmt, i + 1, param);
-            } else {
-              this.sqlite3.bind_double(stmt, i + 1, param);
-            }
-          } else if (typeof param === 'string') {
-            this.sqlite3.bind_text(stmt, i + 1, param);
-          } else {
-            this.sqlite3.bind_text(stmt, i + 1, String(param));
-          }
-        }
-        
-        // Execute and collect results
-        const columnNames: string[] = [];
-        while (await this.sqlite3.step(stmt) === this.sqlite3.SQLITE_ROW) {
-          if (columnNames.length === 0) {
-            // Get column names on first row
-            const columnCount = this.sqlite3.column_count(stmt);
-            for (let i = 0; i < columnCount; i++) {
-              columnNames.push(this.sqlite3.column_name(stmt, i));
-            }
-          }
-          
-          const row: any = {};
-          columnNames.forEach((column, index) => {
-            const value = this.sqlite3.column(stmt, index);
-            row[column] = value;
-          });
-          results.push(row);
-        }
-        // Statement is automatically finalized by the iterator
-      }
-    } else {
-      // Use exec for simple queries without parameters
-      await this.sqlite3.exec(this.db, sql, (row: any, columns: string[]) => {
-        const rowObj: any = {};
-        columns.forEach((column, index) => {
-          rowObj[column] = row[index];
-        });
-        results.push(rowObj);
-      });
-    }
-    
-    return results;
-  }
-
-  async exec(sql: string): Promise<void> {
-    await this.sqlite3.exec(this.db, sql);
-  }
-
-  async openExistingDatabase(): Promise<void> {
-    await this.openDatabase(undefined, false);
-  }
-
-  async createNewDatabase(): Promise<void> {
-    await this.openDatabase(undefined, true);
-  }
-
-  async loadDatabaseFromFile(file: File): Promise<void> {
-    throw new Error('File loading not yet implemented');
-  }
-
-  async exportDatabase(): Promise<Uint8Array> {
-    throw new Error('Database export not yet implemented');
-  }
-
-  // Transaction operations - delegated to query classes
-  async addTransactionAsync(transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-    return TransactionQueries.create(this, transaction);
-  }
-
-  async getTransactionsAsync(): Promise<Transaction[]> {
-    return TransactionQueries.getAll(this);
-  }
-
-  // Category operations - delegated to query classes
-  async getCategoriesAsync(): Promise<Category[]> {
-    return CategoryQueries.getAll(this);
-  }
-
-  async addCategoryAsync(category: Omit<Category, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-    return CategoryQueries.create(this, category);
-  }
-
-  // Company operations - delegated to query classes
-  async getCompaniesAsync(): Promise<Company[]> {
-    return CompanyQueries.getAll(this);
-  }
-
-  async addCompanyAsync(name: string): Promise<string> {
-    return CompanyQueries.create(this, name);
-  }
-
-  async findCompanyByNameAsync(name: string): Promise<Company | null> {
-    return CompanyQueries.findByName(this, name);
-  }
-
-  // Account operations - delegated to query classes
-  async getAccountsAsync(): Promise<Account[]> {
-    return AccountQueries.getAll(this);
-  }
-
-  async addAccountAsync(account: Omit<Account, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-    return AccountQueries.create(this, account);
-  }
-
-  async deleteAccountAsync(id: string): Promise<void> {
-    return AccountQueries.delete(this, id);
-  }
-
-  // Budget operations - delegated to query classes
-  async getBudgetsAsync(): Promise<Budget[]> {
-    return BudgetQueries.getAll(this);
-  }
-
-  async addBudgetAsync(budget: Omit<Budget, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-    return BudgetQueries.create(this, budget);
-  }
-
-  // Project operations - delegated to query classes
-  async getProjectsAsync(): Promise<Project[]> {
-    return ProjectQueries.getAll(this);
-  }
-
-  async addProjectAsync(project: Omit<Project, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-    return ProjectQueries.create(this, project);
-  }
-
-  async getProjectByIdAsync(id: string): Promise<Project | null> {
-    return ProjectQueries.getById(this, id);
-  }
-
-  async updateProjectAsync(id: string, updates: Partial<Omit<Project, 'id' | 'created_at' | 'updated_at'>>): Promise<void> {
-    return ProjectQueries.update(this, id, updates);
-  }
-
-  async deleteProjectAsync(id: string): Promise<void> {
-    return ProjectQueries.delete(this, id);
-  }
-
-  async getTransactionsByProjectAsync(projectId: string): Promise<Transaction[]> {
-    return TransactionQueries.getByProject(this, projectId);
-  }
-
-  async getProjectCostsAsync(projectId: string): Promise<{ estimated: number; actual: number; transactions_total: number }> {
-    return ProjectQueries.getCosts(this, projectId);
-  }
-
-  // Account Alias operations - delegated to query classes
-  async getAccountAliasesAsync(): Promise<AccountAlias[]> {
-    return AccountAliasQueries.getAll(this);
-  }
-
-  async getAccountAliasesByAccountIdAsync(accountId: string): Promise<AccountAlias[]> {
-    return AccountAliasQueries.getByAccountId(this, accountId);
-  }
-
-  async findAccountAliasesByLastFourAsync(lastFour: string): Promise<AccountAlias[]> {
-    return AccountAliasQueries.findByLastFour(this, lastFour);
-  }
-
-  async addAccountAliasAsync(alias: Omit<AccountAlias, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-    return AccountAliasQueries.create(this, alias);
-  }
-
-  async updateAccountAliasAsync(id: string, alias: Partial<Omit<AccountAlias, 'id' | 'created_at' | 'updated_at'>>): Promise<void> {
-    return AccountAliasQueries.update(this, id, alias);
-  }
-
-  async deleteAccountAliasAsync(id: string): Promise<void> {
-    return AccountAliasQueries.delete(this, id);
-  }
-
-  async deleteAccountAliasesByAccountIdAsync(accountId: string): Promise<void> {
-    return AccountAliasQueries.deleteByAccountId(this, accountId);
-  }
-
-  // Analytics methods - delegated to query classes
-  async getTransactionsByDateRange(startDate: string, endDate: string, type?: 'income' | 'expense'): Promise<Transaction[]> {
-    return TransactionQueries.getByDateRange(this, startDate, endDate, type);
-  }
-
-  async getSpendingByCategoryAsync(startDate: string, endDate: string): Promise<{ category_id: string; category_name: string; total: number; color: string }[]> {
-    return AnalyticsQueries.getSpendingByCategory(this, startDate, endDate);
-  }
-
-  async getIncomeByCategoryAsync(startDate: string, endDate: string): Promise<{ category_id: string; category_name: string; total: number; color: string }[]> {
-    return AnalyticsQueries.getIncomeByCategory(this, startDate, endDate);
-  }
-
-  async getMonthlyTrendsAsync(months: number = 12): Promise<{ month: string; income: number; expense: number }[]> {
-    return AnalyticsQueries.getMonthlyTrends(this, months);
-  }
-
-  // Custom SQL query execution - delegated to utility class
-  async executeCustomQuery(sql: string): Promise<any[]> {
-    return DatabaseUtils.executeCustomQuery(this, sql);
-  }
-
-  // Method to clear corrupted database and start fresh
-  async clearAndRecreateDatabase(): Promise<void> {
-    try {
-      dbLogger.warn('Clearing corrupted database...');
-      
-      // Close existing database connection
-      if (this.db !== 0) {
-        await this.sqlite3.close(this.db);
-        this.db = 0;
-      }
-
-      // Clear the VFS (this should remove the corrupted database file)
-      if (this.vfs) {
-        try {
-          // Try to delete the database file through the VFS
-          await this.vfs.delete('/budget-app.db');
-        } catch (err) {
-          dbLogger.debug('Could not delete database file through VFS:', err);
-        }
-      }
-
-      // Create a new database
-      await this.openDatabase('/budget-app.db', true);
-      
-      dbLogger.info('Database cleared and recreated successfully');
-    } catch (error) {
-      dbLogger.error('Failed to clear and recreate database:', error);
-      throw error;
-    }
-  }
-}
 
 interface DatabaseContextType {
   // Database instance
@@ -378,6 +42,9 @@ interface DatabaseContextType {
   // Loading states
   isLoading: boolean;
   error: string | null;
+  
+  // Worker status
+  workerStatus: WorkerStatus;
   
   // Data
   transactions: Transaction[];
@@ -393,6 +60,7 @@ interface DatabaseContextType {
   createOrOpenDatabase: (isNew: boolean) => Promise<void>;
   loadDatabaseFromFile: (file: File) => Promise<void>;
   exportDatabase: () => Promise<Uint8Array | null>;
+  checkDatabaseExists: (dbName?: string) => Promise<boolean>;
 
   // Transaction operations
   addTransaction: (
@@ -523,11 +191,18 @@ interface DatabaseProviderProps {
 export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   children,
 }) => {
-  const [db, setDb] = useState<WaSQLiteDatabaseManager | null>(null);
+  const [db, setDb] = useState<WorkerDatabaseManager | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isDatabaseLoaded, setIsDatabaseLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [workerStatus, setWorkerStatus] = useState<WorkerStatus>({
+    isWorkerAlive: false,
+    isConnected: false,
+    dbStatus: 'disconnected',
+    version: '1.0.0',
+    lastHeartbeat: 0
+  });
 
   // Data states
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -538,12 +213,24 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const [projects, setProjects] = useState<Project[]>([]);
   const [accountAliases, setAccountAliases] = useState<AccountAlias[]>([]);
 
+  // Setup worker status monitoring
+  useEffect(() => {
+    if (!db) return;
+
+    const workerService = db.getWorkerService();
+    const unsubscribe = workerService.onStatusChange((status) => {
+      setWorkerStatus(status);
+    });
+
+    return unsubscribe;
+  }, [db]);
+
   const initializeDatabase = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const dbManager = new WaSQLiteDatabaseManager();
+      const dbManager = new WorkerDatabaseManager();
       await dbManager.initialize();
 
       setDb(dbManager);
@@ -618,7 +305,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       let dbManager = db;
       if (!dbManager || !isInitialized) {
         appLogger.debug('Initializing database manager...');
-        dbManager = new WaSQLiteDatabaseManager();
+        dbManager = new WorkerDatabaseManager();
         await dbManager.initialize();
         setDb(dbManager);
         setIsInitialized(true);
@@ -1232,11 +919,34 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   }, [db, createOrOpenDatabase, refreshAllData]);
 
+  const checkDatabaseExists = useCallback(async (dbName = 'ptbudgetapp'): Promise<boolean> => {
+    try {
+      // Initialize database manager if not already done
+      let dbManager = db;
+      if (!dbManager || !isInitialized) {
+        appLogger.debug('Initializing database manager for existence check...');
+        dbManager = new WorkerDatabaseManager();
+        await dbManager.initialize();
+        setDb(dbManager);
+        setIsInitialized(true);
+      }
+
+      appLogger.debug(`Checking if database '${dbName}' exists...`);
+      const exists = await dbManager.checkDatabaseExists(dbName);
+      appLogger.debug(`Database '${dbName}' exists: ${exists}`);
+      return exists;
+    } catch (err) {
+      appLogger.error('Failed to check database existence:', err);
+      throw err;
+    }
+  }, [db, isInitialized]);
+
   const contextValue: DatabaseContextType = {
     isInitialized,
     isDatabaseLoaded,
     isLoading,
     error,
+    workerStatus,
     transactions,
     categories,
     companies,
@@ -1283,6 +993,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     checkTransactionHashExists,
     findAccountsByLastFour,
     handleDatabaseCorruption,
+    checkDatabaseExists,
   };
 
   return (

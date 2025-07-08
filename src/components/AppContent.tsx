@@ -40,6 +40,7 @@ import SettingsPage from './SettingsPage';
 import ManageData from './ManageData';
 import DeveloperConsolePage from './DeveloperConsolePage';
 import SQLQueryPage from './SQLQueryPage';
+import DatabaseStatusBar from './DatabaseStatusBar';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
 import { appLogger } from '../lib/logger';
 
@@ -48,7 +49,7 @@ import { appLogger } from '../lib/logger';
  * This is separated from the page.tsx to prevent SSR issues
  */
 export default function AppContent() {
-  const { isDatabaseLoaded } = useDatabaseContext();
+  const { isDatabaseLoaded, workerStatus } = useDatabaseContext();
   const [showDashboard, setShowDashboard] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showSettings, setShowSettings] = useState(false);
@@ -285,6 +286,9 @@ export default function AppContent() {
         open={manageDataOpen}
         onClose={() => setManageDataOpen(false)}
       />
+
+      {/* Database Status Bar */}
+      <DatabaseStatusBar status={workerStatus} />
     </Box>
   );
 }

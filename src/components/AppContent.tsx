@@ -31,7 +31,6 @@ import {
   Code as SQLIcon,
   AccountBalance as AccountIcon
 } from '@mui/icons-material';
-import DatabaseInitializer from './DatabaseInitializer';
 import Dashboard from './Dashboard';
 import ManageProjects from './ManageProjects';
 import ManageAccounts from './ManageAccounts';
@@ -41,8 +40,8 @@ import ManageData from './ManageData';
 import DeveloperConsolePage from './DeveloperConsolePage';
 import SQLQueryPage from './SQLQueryPage';
 import DatabaseStatusBar from './DatabaseStatusBar';
-import { useDatabaseContext } from '../contexts/SimplifiedDatabaseContext';
-import { appLogger } from '../lib/logger';
+import { useDatabaseContext } from '../contexts/DatabaseContext';
+//import { appLogger } from '../lib/logger';
 
 /**
  * Main application component that handles all the routing and state management

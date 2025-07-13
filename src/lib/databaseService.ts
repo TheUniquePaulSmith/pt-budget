@@ -6,7 +6,7 @@
  */
 
 import { databaseWorkerService } from './databaseWorkerService';
-import { dbLogger } from './logger';
+//import { dbLogger } from './logger';
 import type {
   Transaction,
   Category,
@@ -31,17 +31,23 @@ import {
 
 export class DatabaseService {
   private isInitialized = false;
+  public dbExistsBeforeInit = false;
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
     try {
-      dbLogger.info('Initializing database service...');
+    // Before initializing, check if the database already exists
+      console.info('[DB Service] Initializing database service...');
+      if (await this.databaseAlreadyExists()) {
+        this.dbExistsBeforeInit = true;
+      };
+
       await databaseWorkerService.initialize();
       this.isInitialized = true;
-      dbLogger.info('Database service initialized successfully');
+      console.info('[DB Service] Database service initialized successfully');
     } catch (error) {
-      dbLogger.error('Failed to initialize database service:', error);
+      console.error('[DB Service] Failed to initialize database service:', error);
       throw error;
     }
   }
@@ -52,16 +58,16 @@ export class DatabaseService {
     }
 
     try {
-      dbLogger.debug(`Opening database: ${filename}`);
+      console.debug(`Opening database: ${filename}`);
       await databaseWorkerService.openDatabase(filename, isNew);
       
       if (isNew) {
         await this.createTables();
       }
       
-      dbLogger.debug('Database opened successfully');
+      console.debug('Database opened successfully');
     } catch (error) {
-      dbLogger.error('Failed to open database:', error);
+      console.error('Failed to open database:', error);
       throw error;
     }
   }
@@ -76,7 +82,7 @@ export class DatabaseService {
 
   async loadDatabaseFromFile(file: File): Promise<void> {
     try {
-      dbLogger.info('Loading database from file through worker...');
+      console.info('Loading database from file through worker...');
       
       const arrayBuffer = await file.arrayBuffer();
       const fileData = new Uint8Array(arrayBuffer);
@@ -87,41 +93,47 @@ export class DatabaseService {
         throw new Error(response.sqlResponse?.error || 'Failed to import database');
       }
       
-      dbLogger.info('Database loaded successfully from file');
+      console.info('Database loaded successfully from file');
     } catch (error) {
-      dbLogger.error('Failed to load database from file:', error);
+      console.error('Failed to load database from file:', error);
       throw error;
     }
   }
 
   async exportDatabase(): Promise<Uint8Array> {
     try {
-      dbLogger.info('Exporting database through worker...');
+      console.info('Exporting database through worker...');
       const data = await databaseWorkerService.exportDatabase();
-      dbLogger.info('Database exported successfully');
+      console.info('Database exported successfully');
       return data;
     } catch (error) {
-      dbLogger.error('Failed to export database:', error);
+      console.error('Failed to export database:', error);
       throw error;
     }
   }
 
   async clearAndRecreateDatabase(): Promise<void> {
     try {
-      dbLogger.warn('Clearing corrupted database...');
+      console.warn('Clearing corrupted database...');
       await this.openDatabase('/budget-app.db', true);
-      dbLogger.info('Database cleared and recreated successfully');
+      console.info('Database cleared and recreated successfully');
     } catch (error) {
-      dbLogger.error('Failed to clear and recreate database:', error);
+      console.error('Failed to clear and recreate database:', error);
       throw error;
     }
   }
 
-  async checkForExistingDatabase(): Promise<boolean> {
+  async databaseAlreadyExists(): Promise<boolean> {
+    // Because the SharedWorker and App share the same IndexedDB service, we can just check if the database exists in the services versus the SharedWorker
+    console.info('[DB Service] Checking for existing database...');
     try {
-      return await databaseWorkerService.checkDatabaseExists();
+        //Logic to check for indexedDB database existence
+          const databases = await indexedDB.databases();
+          const exists = databases.some(db => db.name === 'ptbudgetapp');
+        console.info(`[DB Service] Database exists: ${exists}`);
+        return exists;
     } catch (error) {
-      dbLogger.error('Failed to check for existing database:', error);
+      console.error('Failed to check for existing database:', error);
       return false;
     }
   }
@@ -132,7 +144,7 @@ export class DatabaseService {
 
   private async createTables(): Promise<void> {
     try {
-      dbLogger.info('Creating database tables...');
+      console.info('Creating database tables...');
       
       // Create all tables
       await databaseWorkerService.exec(CREATE_TABLES.CATEGORIES);
@@ -147,9 +159,9 @@ export class DatabaseService {
       await databaseWorkerService.exec(DEFAULT_DATA.CATEGORIES);
       await databaseWorkerService.exec(DEFAULT_DATA.ACCOUNTS);
       
-      dbLogger.info('Database tables created successfully');
+      console.info('Database tables created successfully');
     } catch (error) {
-      dbLogger.error('Failed to create tables:', error);
+      console.error('Failed to create tables:', error);
       throw error;
     }
   }
@@ -180,7 +192,7 @@ export class DatabaseService {
       
       return result[0].id.toString();
     } catch (error) {
-      dbLogger.error('Failed to add transaction:', error);
+      console.error('Failed to add transaction:', error);
       throw error;
     }
   }
@@ -190,7 +202,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(TRANSACTION_QUERIES.GET_ALL);
       return rows.map(this.mapToTransaction);
     } catch (error) {
-      dbLogger.error('Failed to get transactions:', error);
+      console.error('Failed to get transactions:', error);
       throw error;
     }
   }
@@ -200,7 +212,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(TRANSACTION_QUERIES.GET_BY_PROJECT, [projectId]);
       return rows.map(this.mapToTransaction);
     } catch (error) {
-      dbLogger.error('Failed to get transactions by project:', error);
+      console.error('Failed to get transactions by project:', error);
       throw error;
     }
   }
@@ -215,7 +227,7 @@ export class DatabaseService {
       }
       return rows.map(this.mapToTransaction);
     } catch (error) {
-      dbLogger.error('Failed to get transactions by date range:', error);
+      console.error('Failed to get transactions by date range:', error);
       throw error;
     }
   }
@@ -226,7 +238,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(CATEGORY_QUERIES.GET_ALL);
       return rows.map(this.mapToCategory);
     } catch (error) {
-      dbLogger.error('Failed to get categories:', error);
+      console.error('Failed to get categories:', error);
       throw error;
     }
   }
@@ -240,7 +252,7 @@ export class DatabaseService {
       ]);
       return result[0].id.toString();
     } catch (error) {
-      dbLogger.error('Failed to add category:', error);
+      console.error('Failed to add category:', error);
       throw error;
     }
   }
@@ -251,7 +263,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(COMPANY_QUERIES.GET_ALL);
       return rows.map(this.mapToCompany);
     } catch (error) {
-      dbLogger.error('Failed to get companies:', error);
+      console.error('Failed to get companies:', error);
       throw error;
     }
   }
@@ -261,7 +273,7 @@ export class DatabaseService {
       const result = await databaseWorkerService.query(COMPANY_QUERIES.CREATE, [name]);
       return result[0].id.toString();
     } catch (error) {
-      dbLogger.error('Failed to add company:', error);
+      console.error('Failed to add company:', error);
       throw error;
     }
   }
@@ -271,7 +283,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(COMPANY_QUERIES.FIND_BY_NAME, [name]);
       return rows.length > 0 ? this.mapToCompany(rows[0]) : null;
     } catch (error) {
-      dbLogger.error('Failed to find company by name:', error);
+      console.error('Failed to find company by name:', error);
       throw error;
     }
   }
@@ -284,7 +296,7 @@ export class DatabaseService {
       }
       return await this.addCompany(name);
     } catch (error) {
-      dbLogger.error('Failed to find or create company:', error);
+      console.error('Failed to find or create company:', error);
       throw error;
     }
   }
@@ -295,7 +307,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(ACCOUNT_QUERIES.GET_ALL);
       return rows.map(this.mapToAccount);
     } catch (error) {
-      dbLogger.error('Failed to get accounts:', error);
+      console.error('Failed to get accounts:', error);
       throw error;
     }
   }
@@ -310,7 +322,7 @@ export class DatabaseService {
       ]);
       return result[0].id.toString();
     } catch (error) {
-      dbLogger.error('Failed to add account:', error);
+      console.error('Failed to add account:', error);
       throw error;
     }
   }
@@ -319,7 +331,7 @@ export class DatabaseService {
     try {
       await databaseWorkerService.query(ACCOUNT_QUERIES.DELETE, [id]);
     } catch (error) {
-      dbLogger.error('Failed to delete account:', error);
+      console.error('Failed to delete account:', error);
       throw error;
     }
   }
@@ -330,7 +342,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(BUDGET_QUERIES.GET_ALL);
       return rows.map(this.mapToBudget);
     } catch (error) {
-      dbLogger.error('Failed to get budgets:', error);
+      console.error('Failed to get budgets:', error);
       throw error;
     }
   }
@@ -346,7 +358,7 @@ export class DatabaseService {
       ]);
       return result[0].id.toString();
     } catch (error) {
-      dbLogger.error('Failed to add budget:', error);
+      console.error('Failed to add budget:', error);
       throw error;
     }
   }
@@ -357,7 +369,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(PROJECT_QUERIES.GET_ALL);
       return rows.map(this.mapToProject);
     } catch (error) {
-      dbLogger.error('Failed to get projects:', error);
+      console.error('Failed to get projects:', error);
       throw error;
     }
   }
@@ -378,7 +390,7 @@ export class DatabaseService {
       ]);
       return result[0].id.toString();
     } catch (error) {
-      dbLogger.error('Failed to add project:', error);
+      console.error('Failed to add project:', error);
       throw error;
     }
   }
@@ -388,7 +400,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(PROJECT_QUERIES.GET_BY_ID, [id]);
       return rows.length > 0 ? this.mapToProject(rows[0]) : null;
     } catch (error) {
-      dbLogger.error('Failed to get project by id:', error);
+      console.error('Failed to get project by id:', error);
       throw error;
     }
   }
@@ -414,7 +426,7 @@ export class DatabaseService {
         id
       ]);
     } catch (error) {
-      dbLogger.error('Failed to update project:', error);
+      console.error('Failed to update project:', error);
       throw error;
     }
   }
@@ -423,7 +435,7 @@ export class DatabaseService {
     try {
       await databaseWorkerService.query(PROJECT_QUERIES.DELETE, [id]);
     } catch (error) {
-      dbLogger.error('Failed to delete project:', error);
+      console.error('Failed to delete project:', error);
       throw error;
     }
   }
@@ -438,7 +450,7 @@ export class DatabaseService {
         transactions_total: result.transactions_total || 0
       };
     } catch (error) {
-      dbLogger.error('Failed to get project costs:', error);
+      console.error('Failed to get project costs:', error);
       throw error;
     }
   }
@@ -449,7 +461,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(ACCOUNT_ALIAS_QUERIES.GET_ALL);
       return rows.map(this.mapToAccountAlias);
     } catch (error) {
-      dbLogger.error('Failed to get account aliases:', error);
+      console.error('Failed to get account aliases:', error);
       throw error;
     }
   }
@@ -459,7 +471,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(ACCOUNT_ALIAS_QUERIES.GET_BY_ACCOUNT_ID, [accountId]);
       return rows.map(this.mapToAccountAlias);
     } catch (error) {
-      dbLogger.error('Failed to get account aliases by account id:', error);
+      console.error('Failed to get account aliases by account id:', error);
       throw error;
     }
   }
@@ -469,7 +481,7 @@ export class DatabaseService {
       const rows = await databaseWorkerService.query(ACCOUNT_ALIAS_QUERIES.FIND_BY_LAST_FOUR, [lastFour]);
       return rows.map(this.mapToAccountAlias);
     } catch (error) {
-      dbLogger.error('Failed to find account aliases by last four:', error);
+      console.error('Failed to find account aliases by last four:', error);
       throw error;
     }
   }
@@ -483,7 +495,7 @@ export class DatabaseService {
       ]);
       return result[0].id.toString();
     } catch (error) {
-      dbLogger.error('Failed to add account alias:', error);
+      console.error('Failed to add account alias:', error);
       throw error;
     }
   }
@@ -503,7 +515,7 @@ export class DatabaseService {
         id
       ]);
     } catch (error) {
-      dbLogger.error('Failed to update account alias:', error);
+      console.error('Failed to update account alias:', error);
       throw error;
     }
   }
@@ -512,7 +524,7 @@ export class DatabaseService {
     try {
       await databaseWorkerService.query(ACCOUNT_ALIAS_QUERIES.DELETE, [id]);
     } catch (error) {
-      dbLogger.error('Failed to delete account alias:', error);
+      console.error('Failed to delete account alias:', error);
       throw error;
     }
   }
@@ -521,7 +533,7 @@ export class DatabaseService {
     try {
       await databaseWorkerService.query(ACCOUNT_ALIAS_QUERIES.DELETE_BY_ACCOUNT_ID, [accountId]);
     } catch (error) {
-      dbLogger.error('Failed to delete account aliases by account id:', error);
+      console.error('Failed to delete account aliases by account id:', error);
       throw error;
     }
   }
@@ -537,7 +549,7 @@ export class DatabaseService {
         color: row.color
       }));
     } catch (error) {
-      dbLogger.error('Failed to get spending by category:', error);
+      console.error('Failed to get spending by category:', error);
       throw error;
     }
   }
@@ -552,7 +564,7 @@ export class DatabaseService {
         color: row.color
       }));
     } catch (error) {
-      dbLogger.error('Failed to get income by category:', error);
+      console.error('Failed to get income by category:', error);
       throw error;
     }
   }
@@ -566,7 +578,7 @@ export class DatabaseService {
         expense: row.expense || 0
       }));
     } catch (error) {
-      dbLogger.error('Failed to get monthly trends:', error);
+      console.error('Failed to get monthly trends:', error);
       throw error;
     }
   }
@@ -574,10 +586,10 @@ export class DatabaseService {
   // Custom SQL query execution
   async executeCustomQuery(sql: string): Promise<any[]> {
     try {
-      dbLogger.debug('Executing custom query:', sql);
+      console.debug('Executing custom query:', sql);
       return await databaseWorkerService.query(sql);
     } catch (error) {
-      dbLogger.error('Failed to execute custom query:', error);
+      console.error('Failed to execute custom query:', error);
       throw error;
     }
   }

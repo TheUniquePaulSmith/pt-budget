@@ -51,19 +51,24 @@ export class DatabaseWorkerService {
     }
 
     try {
+      //Define the worker & port
       this.worker = new SharedWorker('/database-worker.js', { name: 'wa-SQLite' });
       this.port = this.worker.port;
       
+      //Add event listeners for messages and errors
       this.port.addEventListener('message', this.handleMessage.bind(this));
       this.port.addEventListener('messageerror', this.handleError.bind(this));
       
+      //Start the worker
       this.port.start();
-      
-      console.log('[DB Service] Database worker service initialized');
       
       // Start monitoring heartbeat
       this.startHeartbeatMonitoring();
-      
+
+      // // Send initialization message to worker
+      // this.port.postMessage({ id: this.generateMessageId(), type: 'initialize', payload: null });
+
+      console.log('[DB Service] Database worker service started and ready to receive messages');
     } catch (error) {
       console.error('[DB Service] Failed to initialize worker:', error);
       this.updateStatus({ isWorkerAlive: false });
@@ -73,6 +78,19 @@ export class DatabaseWorkerService {
   private handleMessage(event: MessageEvent<DatabaseResponse>) {
     const response = event.data;
     
+
+    // Handle initialization response
+    if (response.type === 'initialize_response') {
+      if (response.isSuccessful && response.dbStatus === 'initialized') {
+        this.status = {
+          isWorkerAlive: true,
+          isConnected: true,
+          dbStatus: 'initialized',
+          version: response.version,
+          lastHeartbeat: Date.now()
+        };
+      }
+    }
 
     // Handle heartbeat messages
     if (response.type === 'heartbeat') {

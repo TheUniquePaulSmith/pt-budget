@@ -112,6 +112,22 @@ interface DatabaseContextType {
   addAccountAlias: (
     alias: Omit<AccountAlias, "id" | "created_at" | "updated_at">
   ) => Promise<string>;
+  updateAccountAlias: (
+    id: string,
+    alias: Partial<Omit<AccountAlias, "id" | "created_at" | "updated_at">>
+  ) => Promise<void>;
+  deleteAccountAlias: (id: string) => Promise<void>;
+
+  generateTransactionHash: (
+    accountId: string,
+    date: string,
+    amount: number,
+    description: string,
+    uniqueIdentifier?: string
+  ) => string;
+  checkTransactionHashExists: (hash: string) => Promise<boolean>;
+  findAccountsByLastFour: (lastFour: string) => Account[];
+  executeCustomQuery: (sql: string) => Promise<any[]>;
 }
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -151,11 +167,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   
   const hasCheckedDatabase = useRef(false);
 
-   const initializeAndCheck = async () => {
-      // First test browser compatibility
-      setInitializationState('testing-browser');
-      // Browser testing will trigger the next phase via handleBrowserTestComplete
-    };
+   
 
    const handleBrowserTestComplete = async (isCompatible: boolean, testResults: any) => {
       setIsBrowserCompatible(isCompatible);
@@ -204,7 +216,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     if (typeof window === 'undefined') return; // SSR guard
     if (hasCheckedDatabase.current) return; // Prevent double execution
 
-    // Initialize the database service
+    // Initialize the database tester service to check if the browser supports required features
+    const initializeAndCheck = async () => {
+      // First test browser compatibility
+      setInitializationState('testing-browser');
+      // Browser testing will trigger the next phase via handleBrowserTestComplete
+    };
+    
     initializeAndCheck();
   }, []);
 
@@ -628,6 +646,122 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
+  const updateAccountAlias = async (
+    id: string,
+    alias: Partial<Omit<AccountAlias, "id" | "created_at" | "updated_at">>
+  ): Promise<void> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      await databaseService.updateAccountAlias(id, alias);
+      await refreshAccountAliases();
+    } catch (err) {
+      console.error('Failed to update account alias:', err);
+      throw err;
+    }
+  };
+
+  const deleteAccountAlias = async (id: string): Promise<void> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      await databaseService.deleteAccountAlias(id);
+      await refreshAccountAliases();
+    } catch (err) {
+      console.error('Failed to delete account alias:', err);
+      throw err;
+    }
+  };
+
+  // Helper functions for CSV import
+  const generateTransactionHash = (
+    accountId: string,
+    date: string,
+    amount: number,
+    description: string,
+    uniqueIdentifier?: string
+  ): string => {
+    return DatabaseService.generateTransactionHashFromFields(
+      accountId,
+      date,
+      amount,
+      description,
+      uniqueIdentifier
+    );
+  };
+
+  const checkTransactionHashExists = async (hash: string): Promise<boolean> => {
+    if (!databaseService) {
+      return false;
+    }
+
+    try {
+      // Query the database directly to check if hash exists
+      const result = await databaseService.getWorkerService().query(
+        'SELECT COUNT(*) as count FROM transactions WHERE transaction_hash = ?',
+        [hash]
+      );
+      return result[0]?.count > 0;
+    } catch (err) {
+      console.error('Failed to check transaction hash:', err);
+      return false;
+    }
+  };
+
+  const findAccountsByLastFour = (lastFour: string): Account[] => {
+    try {
+      // Find account aliases with the matching last four digits from the loaded data
+      const matchingAliases = accountAliases.filter(alias => alias.last_four === lastFour);
+      
+      // Get the accounts for those aliases
+      const accountIds = matchingAliases.map(alias => alias.account_id);
+      const uniqueAccountIds = [...new Set(accountIds)];
+      
+      // Filter existing accounts that match the IDs
+      const matchingAccounts = accounts.filter(account => 
+        uniqueAccountIds.includes(account.id)
+      );
+      
+      return matchingAccounts;
+    } catch (err) {
+      console.error('Failed to find accounts by last four:', err);
+      return [];
+    }
+  };
+
+  // Custom SQL query execution
+  const executeCustomQuery = async (sql: string): Promise<any[]> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      // Sanitize the query to prevent dangerous operations
+      const trimmedSql = sql.trim().toLowerCase();
+      
+      // Block potentially dangerous operations
+      const dangerousKeywords = ['drop', 'delete', 'update', 'insert', 'alter', 'create', 'truncate'];
+      const isDangerous = dangerousKeywords.some(keyword => 
+        trimmedSql.includes(keyword + ' ') || trimmedSql.startsWith(keyword)
+      );
+      
+      if (isDangerous) {
+        throw new Error('Only SELECT queries are allowed for security reasons');
+      }
+
+      // Execute the query using the worker service
+      const result = await databaseService.getWorkerService().query(sql);
+      return result;
+    } catch (err) {
+      console.error('Failed to execute custom query:', err);
+      throw err;
+    }
+  };
+
   // Render setup UI during initialization states
   const handleCreateNew = async () => {
     try {
@@ -817,6 +951,12 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     getAccountAliasesByAccountId,
     findAccountAliasesByLastFour,
     addAccountAlias,
+    updateAccountAlias,
+    deleteAccountAlias,
+    generateTransactionHash,
+    checkTransactionHashExists,
+    findAccountsByLastFour,
+    executeCustomQuery,
   };
 
   return (

@@ -26,7 +26,7 @@ import {
   ArrowBack,
 } from '@mui/icons-material';
 import StorageQuota from './StorageQuota';
-import { useDatabaseContext } from '../contexts/DatabaseContext';
+import { useDatabaseContext } from '@/contexts/DatabaseContext';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -50,12 +50,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const [tabValue, setTabValue] = useState(0);
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
-  const [isRecovering, setIsRecovering] = useState(false);
 
   const {
     exportDatabase,
     isDatabaseLoaded,
-    handleDatabaseCorruption,
     error,
   } = useDatabaseContext();
 
@@ -73,19 +71,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
       URL.revokeObjectURL(url);
     }
   };
-
-  const handleRecoverDatabase = async () => {
-    if (confirm('This will delete all existing data and create a new database. Are you sure you want to continue?')) {
-      setIsRecovering(true);
-      try {
-        await handleDatabaseCorruption();
-      } finally {
-        setIsRecovering(false);
-      }
-    }
-  };
-
-
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -209,37 +194,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
               </Box>
 
               <Divider />
-
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Database Recovery
-                </Typography>
-                {error && error.includes('corruption') && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    Database corruption detected. Use the recovery option below to fix the issue.
-                  </Alert>
-                )}
-                <Stack spacing={2}>
-                  <Button
-                    variant="outlined"
-                    color="warning"
-                    startIcon={<Security />}
-                    onClick={handleRecoverDatabase}
-                    disabled={isRecovering}
-                  >
-                    {isRecovering ? 'Recovering Database...' : 'Recover Corrupted Database'}
-                  </Button>
-                  <Alert severity="warning">
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      <strong>Warning:</strong> This will permanently delete all existing data and create a new database.
-                    </Typography>
-                    <Typography variant="body2">
-                      Use this option only if you&apos;re experiencing database corruption errors.
-                      Make sure to export your data first if possible.
-                    </Typography>
-                  </Alert>
-                </Stack>
-              </Box>
 
             </Stack>
           </TabPanel>

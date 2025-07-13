@@ -38,7 +38,7 @@ import {
   ContentCopy,
   History,
 } from '@mui/icons-material';
-import { useDatabaseContext } from '../contexts/DatabaseContext';
+import { useDatabaseContext } from '@/contexts/DatabaseContext';
 
 interface QueryResult {
   columns: string[];

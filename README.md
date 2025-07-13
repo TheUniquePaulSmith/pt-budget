@@ -124,21 +124,21 @@ budget-tracker/
 ```
 
  # Worker Service logical structure
-1. database.ts - ✅ DEFINITELY KEEP
+## 1. database.ts - ✅ DEFINITELY KEEP
 Purpose: TypeScript type definitions
 
 Defines interfaces for all your data models (Transaction, Category, etc.)
 Essential for type safety throughout your application
 Referenced by both services and UI components
 This is your "contract" for data structure
-2. databaseWorkerService.ts - ✅ DEFINITELY KEEP
+## databaseWorkerService.ts - ✅ DEFINITELY KEEP
 Purpose: Communication layer with SharedWorker
 
 Handles message passing between main thread and worker
 Manages worker lifecycle, connections, heartbeat
 Provides low-level database operations (query, exec, import/export)
 This is your "transport layer"
-3. databaseService.ts - ✅ DEFINITELY KEEP
+## databaseService.ts - ✅ DEFINITELY KEEP
 Purpose: Business logic and high-level operations
 
 Contains actual SQL queries and business rules

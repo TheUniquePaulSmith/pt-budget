@@ -54,16 +54,8 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
     if (hasStartedTest.current) return; // Prevent double execution
 
     hasStartedTest.current = true;
-    runCompatibilityTest();
 
-    // return () => {
-    //   if (workerRef.current) {
-    //     workerRef.current.port.close();
-    //   }
-    // };
-  }, []);
-
-  const runCompatibilityTest = async () => {
+     const runCompatibilityTest = async () => {
     try {
       // First check if SharedWorker is supported
       if (typeof SharedWorker === 'undefined') {
@@ -154,6 +146,16 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
       onTestComplete(false, failedResults);
     }
   };
+    runCompatibilityTest();
+
+    // return () => {
+    //   if (workerRef.current) {
+    //     workerRef.current.port.close();
+    //   }
+    // };
+  }, [onTestComplete]);
+
+ 
 
   const getTestIcon = (passed: boolean, inProgress: boolean) => {
     if (inProgress) {

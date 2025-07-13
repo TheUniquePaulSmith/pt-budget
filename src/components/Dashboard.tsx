@@ -34,7 +34,7 @@ import {
 import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { BarChart } from '@mui/x-charts/BarChart';
-import { useDatabaseContext } from '../contexts/DatabaseContext';
+import { useDatabaseContext } from '@/contexts/DatabaseContext';
 import { format, subDays, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import AddTransaction from './AddTransaction';
 import CSVImport from './CSVImport';
@@ -97,10 +97,10 @@ const Dashboard: React.FC = () => {  const {
     transactions,
     categories,
     accounts,
-    getTransactionsByDateRange,
-    getSpendingByCategory,
-    getIncomeByCategory,
-    getMonthlyTrends,
+    //getTransactionsByDateRange,
+    //getSpendingByCategory,
+    //getIncomeByCategory,
+    //getMonthlyTrends,
     exportDatabase,
     refreshTransactions,
     isDatabaseLoaded,

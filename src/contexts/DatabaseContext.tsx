@@ -11,6 +11,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { Box, Typography, Button, CircularProgress, Alert, Paper } from '@mui/material';
 import { DatasetOutlined, CreateNewFolder, Upload } from '@mui/icons-material';
 import { DatabaseService } from '../lib/databaseService';
+import { TestBrowser } from '../components/TestBrowser';
 import type { WorkerStatus } from '../lib/databaseWorkerService';
 import type {
   Transaction,
@@ -123,7 +124,7 @@ export const useDatabaseContext = () => {
   return context;
 };
 
-type InitializationState = 'checking' | 'needs-setup' | 'initialized' | 'error';
+type InitializationState = 'checking' | 'testing-browser' | 'needs-setup' | 'initialized' | 'error';
 
 interface DatabaseProviderProps {
   children: React.ReactNode;
@@ -137,6 +138,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [workerStatus, setWorkerStatus] = useState<WorkerStatus | null>(null);
+  const [isBrowserCompatible, setIsBrowserCompatible] = useState<boolean | null>(null);
   
   // Data state
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -150,6 +152,21 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const hasCheckedDatabase = useRef(false);
 
    const initializeAndCheck = async () => {
+      // First test browser compatibility
+      setInitializationState('testing-browser');
+      // Browser testing will trigger the next phase via handleBrowserTestComplete
+    };
+
+   const handleBrowserTestComplete = async (isCompatible: boolean, testResults: any) => {
+      setIsBrowserCompatible(isCompatible);
+      
+      if (!isCompatible) {
+        setError('Your browser is not compatible with this application. Please use a modern browser with WebAssembly and SharedWorker support.');
+        setInitializationState('error');
+        return;
+      }
+
+      // Browser is compatible, proceed with database initialization
       try {
         const service = new DatabaseService();
       
@@ -653,6 +670,21 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
           <CircularProgress size={60} sx={{ mb: 2 }} />
           <Typography variant="h6">Initializing database...</Typography>
         </Box>
+      </Box>
+    );
+  }
+
+  // Show browser compatibility testing
+  if (initializationState === 'testing-browser') {
+    return (
+      <Box sx={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        p: 2
+      }}>
+        <TestBrowser onTestComplete={handleBrowserTestComplete} />
       </Box>
     );
   }

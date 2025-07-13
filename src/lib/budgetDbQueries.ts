@@ -507,23 +507,6 @@ export class AccountQueries {
       dbLogger.warn('RETURNING clause failed, trying fallback method:', error);
     }
     
-    // Fallback: Insert without RETURNING and then query for the ID
-    const sqlInsert = `INSERT INTO accounts (name, type) VALUES (?, ?)`;
-    
-    await executor.query(sqlInsert, [account.name, account.type]);
-    
-    // Query for the most recently inserted account with matching data
-    const newAccounts = await executor.query(
-      'SELECT id FROM accounts WHERE name = ? AND type = ? ORDER BY id DESC LIMIT 1',
-      [account.name, account.type]
-    );
-    
-    if (newAccounts.length > 0) {
-      const id = newAccounts[0].id;
-      dbLogger.debug('Account created with ID via fallback:', id);
-      return id.toString();
-    }
-
     throw new Error('Failed to create account or retrieve ID');
   }
 

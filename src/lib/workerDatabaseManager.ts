@@ -62,6 +62,7 @@ export class WorkerDatabaseManager implements SQLiteExecutor {
       return await databaseWorkerService.query(sql, parameters);
     } catch (error) {
       dbLogger.error('Query failed:', error);
+      dbLogger.debug(`SQL: ${sql}, Parameters: ${JSON.stringify(parameters)}`);
       throw error;
     }
   }

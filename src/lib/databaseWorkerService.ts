@@ -51,7 +51,7 @@ export class DatabaseWorkerService {
     }
 
     try {
-      this.worker = new SharedWorker('/database-worker.js');
+      this.worker = new SharedWorker('/database-worker.js', { name: 'wa-SQLite' });
       this.port = this.worker.port;
       
       this.port.addEventListener('message', this.handleMessage.bind(this));
@@ -73,6 +73,7 @@ export class DatabaseWorkerService {
   private handleMessage(event: MessageEvent<DatabaseResponse>) {
     const response = event.data;
     
+
     // Handle heartbeat messages
     if (response.type === 'heartbeat') {
       this.updateStatus({
@@ -106,8 +107,9 @@ export class DatabaseWorkerService {
       });
     }
 
-    // Handle pending message responses
+    //Handle pending message responses
     if (response.id) {
+      console.debug(`[DB Service] Received message: ${response.type} with ID: ${response.id}`, response);
       const pending = this.pendingMessages.get(response.id);
       if (pending) {
         clearTimeout(pending.timeout);
@@ -193,6 +195,7 @@ export class DatabaseWorkerService {
       const message: DatabaseMessage = { id, type, payload };
 
       const timeout = setTimeout(() => {
+        console.warn(`[DB Service] Message timeout: ${type} with ID: ${id}`);
         this.pendingMessages.delete(id);
         reject(new Error(`Message timeout: ${type}`));
       }, timeoutMs);
@@ -200,7 +203,8 @@ export class DatabaseWorkerService {
       this.pendingMessages.set(id, { resolve, reject, timeout });
 
       try {
-        this.port.postMessage(message);
+        this.port.postMessage(message);        
+        console.debug(`[DB Service] Sent message: ${type} with ID: ${id}`);
       } catch (error) {
         clearTimeout(timeout);
         this.pendingMessages.delete(id);
@@ -228,7 +232,7 @@ export class DatabaseWorkerService {
   }
 
   public async ping(): Promise<DatabaseResponse> {
-    return this.sendMessage('ping', null, 10000);
+    return this.sendMessage('ping', null, 5000);
   }
 
   public async exportDatabase(): Promise<Uint8Array> {

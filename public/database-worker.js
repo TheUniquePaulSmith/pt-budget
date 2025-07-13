@@ -4,6 +4,7 @@
 class DatabaseWorker {
   constructor() {
     this.sqlite3 = null;
+    this.sqlite3Constants = null;
     this.db = 0;
     this.vfs = null;
     this.isInitialized = false;
@@ -29,6 +30,9 @@ class DatabaseWorker {
 
       const apiModule = await import('/wa-sqlite/src/sqlite-api.js');
       const { Factory } = apiModule;
+
+      //Load constants
+      this.sqlite3Constants = await import('/wa-sqlite/src/sqlite-constants.js');
 
       const vfsModule = await import('/wa-sqlite/src/examples/IDBBatchAtomicVFS.js');
       const { IDBBatchAtomicVFS } = vfsModule;
@@ -78,7 +82,7 @@ class DatabaseWorker {
       
       this.db = await this.sqlite3.open_v2(
         filename,
-        this.sqlite3.SQLITE_OPEN_CREATE | this.sqlite3.SQLITE_OPEN_READWRITE | this.sqlite3.SQLITE_OPEN_FULLMUTEX,
+        this.sqlite3.SQLITE_OPEN_CREATE | this.sqlite3.SQLITE_OPEN_READWRITE,
         this.vfs.name
       );
       
@@ -133,6 +137,9 @@ class DatabaseWorker {
 
     try {
       const results = [];
+
+       // Add a small delay to prevent rapid concurrent access
+      await new Promise(resolve => setTimeout(resolve, 10));
       
       // Prepare the statement if parameters are provided
       if (parameters.length > 0) {
@@ -157,7 +164,7 @@ class DatabaseWorker {
           
           // Execute and collect results
           const columnNames = [];
-          while (await this.sqlite3.step(stmt) === this.sqlite3.SQLITE_ROW) {
+          while (await this.sqlite3.step(stmt) === (this.sqlite3Constants.SQLITE_ROW || this.sqlite3Constants.SQLITE_DONE)) {
             if (columnNames.length === 0) {
               const columnCount = this.sqlite3.column_count(stmt);
               for (let i = 0; i < columnCount; i++) {
@@ -496,7 +503,7 @@ class DatabaseWorker {
 
   async handleMessage(event, port) {
     const { id, type, payload } = event.data;
-    console.debug(`[DB Worker] Received message: ${type}`, payload);
+    console.debug(`[DB Worker] Received message ${id}: ${type}`, payload);
     let response;
     
     try {

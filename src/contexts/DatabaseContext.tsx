@@ -168,10 +168,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const hasCheckedDatabase = useRef(false);
 
    const handleBrowserTestComplete = async (isCompatible: boolean, testResults: any) => {
-      setIsBrowserCompatible(isCompatible);
-   };
-
-   const handleBrowserTestComplete = async (isCompatible: boolean, testResults: any) => {
       
       if (!isCompatible) {
         return;

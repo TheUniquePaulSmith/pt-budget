@@ -41,7 +41,7 @@ import ManageData from './ManageData';
 import DeveloperConsolePage from './DeveloperConsolePage';
 import SQLQueryPage from './SQLQueryPage';
 import DatabaseStatusBar from './DatabaseStatusBar';
-import { useDatabaseContext } from '../contexts/DatabaseContext';
+import { useDatabaseContext } from '../contexts/SimplifiedDatabaseContext';
 import { appLogger } from '../lib/logger';
 
 /**
@@ -50,7 +50,6 @@ import { appLogger } from '../lib/logger';
  */
 export default function AppContent() {
   const { isDatabaseLoaded, workerStatus } = useDatabaseContext();
-  const [showDashboard, setShowDashboard] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showSettings, setShowSettings] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -68,10 +67,6 @@ export default function AppContent() {
     { id: 'sql-query', label: 'SQL Query', icon: <SQLIcon /> },
   ];
 
-  const handleDatabaseReady = () => {
-    setShowDashboard(true);
-  };
-
   const handlePageChange = (page: string) => {
     setCurrentPage(page);
     setMobileMenuOpen(false);
@@ -81,12 +76,10 @@ export default function AppContent() {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
-  if (!isDatabaseLoaded && !showDashboard) {
-    return (
-      <Box>
-        <DatabaseInitializer onDatabaseLoaded={handleDatabaseReady} />
-      </Box>
-    );
+  // The database initialization is now handled by SimplifiedDatabaseContext
+  // We only render the main app when database is loaded
+  if (!isDatabaseLoaded) {
+    return null; // The context will show initialization UI
   }
 
   if (showSettings) {
@@ -288,7 +281,13 @@ export default function AppContent() {
       />
 
       {/* Database Status Bar */}
-      <DatabaseStatusBar status={workerStatus} />
+      <DatabaseStatusBar status={workerStatus || {
+        isWorkerAlive: false,
+        isConnected: false,
+        dbStatus: 'disconnected',
+        version: '1.0.0',
+        lastHeartbeat: 0
+      }} />
     </Box>
   );
 }

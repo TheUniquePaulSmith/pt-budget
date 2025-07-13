@@ -1,13 +1,23 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Temporarily disable export for development to enable headers
   output: 'export',
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
   distDir: 'dist',
   images: {
     unoptimized: true,
+  },
+  turbopack: {
+    resolveAlias: {
+      fs: {browser: './empty.js'},
+      path: {browser: './empty.js'},
+      crypto: {browser: './empty.js'},
+      stream: {browser: './empty.js'},
+      util: {browser: './empty.js'},
+      buffer: {browser: './empty.js'},
+      os: {browser: './empty.js'},
+    }
   },
   // Headers for SharedArrayBuffer support (required for wa-sqlite)
   // async headers() {
@@ -27,23 +37,23 @@ const nextConfig: NextConfig = {
   //     },
   //   ];
   // },
-  webpack: (config, { isServer }) => {
-    // Basic fallbacks for Node.js modules in the browser
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        path: false,
-        crypto: false,
-        stream: false,
-        util: false,
-        buffer: false,
-        os: false,
-      };
-    }
+  // webpack: (config, { isServer }) => {
+  //   // Basic fallbacks for Node.js modules in the browser
+  //   if (!isServer) {
+  //     config.resolve.fallback = {
+  //       ...config.resolve.fallback,
+  //       fs: false,
+  //       path: false,
+  //       crypto: false,
+  //       stream: false,
+  //       util: false,
+  //       buffer: false,
+  //       os: false,
+  //     };
+  //   }
     
-    return config;
-  },
+  //   return config;
+  // },
 };
 
 export default nextConfig;

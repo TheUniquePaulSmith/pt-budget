@@ -173,7 +173,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       setIsBrowserCompatible(isCompatible);
       
       if (!isCompatible) {
-        setError('Your browser is not compatible with this application. Please use a modern browser with WebAssembly and SharedWorker support.');
+        //setError('Your browser is not compatible with this application. Please use a modern browser with WebAssembly and SharedWorker support.');
         setInitializationState('error');
         return;
       }

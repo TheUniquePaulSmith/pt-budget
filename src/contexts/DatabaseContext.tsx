@@ -171,12 +171,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       setIsBrowserCompatible(isCompatible);
    };
 
-   const handleOnContinue = async () => {
+   const handleBrowserTestComplete = async (isCompatible: boolean, testResults: any) => {
       
-      if (!isBrowserCompatible) {
-        setError('Your browser is not compatible with this application. Please use a modern browser with WebAssembly and SharedWorker support.');
-        setInitializationState('error');
+      if (!isCompatible) {
         return;
+        // setError('Your browser is not compatible with this application. Please use a modern browser with WebAssembly and SharedWorker support.');
+        // setInitializationState('error');
+        // return;
       }
 
       // Browser is compatible, proceed with database initialization
@@ -820,16 +821,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         p: 2
       }}>
         <TestBrowser onTestComplete={handleBrowserTestComplete} />
-        <Box sx={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        p: 2}}>
-          <Button variant="contained" onClick={handleOnContinue}>
-            Continue to Database Setup
-          </Button>
-        </Box>
       </Box>
     );
   }

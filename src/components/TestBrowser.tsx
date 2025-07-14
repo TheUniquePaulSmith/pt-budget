@@ -1,41 +1,41 @@
 /**
  * TestBrowser Component
- * 
+ *
  * Performs browser compatibility testing for WA-SQLite functionality
  * using a dedicated shared worker to test basic database operations.
  */
 
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Box, 
-  Typography, 
-  CircularProgress, 
-  Alert, 
-  List, 
-  ListItem, 
-  ListItemIcon, 
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Box,
+  Typography,
+  CircularProgress,
+  Alert,
+  List,
+  ListItem,
+  ListItemIcon,
   ListItemText,
   Paper,
-  Chip
-} from '@mui/material';
-import { 
-  CheckCircle, 
-  Error, 
-  Warning, 
+  Chip,
+} from "@mui/material";
+import {
+  CheckCircle,
+  Error,
+  Warning,
   Storage,
   Memory,
   Code,
-  BugReport
-} from '@mui/icons-material';
+  BugReport,
+} from "@mui/icons-material";
 
 interface TestResults {
-  sharedWorkerSupport: boolean;
-  wasmSupport: boolean;
-  sqliteSupport: boolean;
-  vfsSupport: boolean;
-  overallCompatible: boolean;
+  sharedWorkerSupport: boolean | null;
+  wasmSupport: boolean | null;
+  sqliteSupport: boolean | null;
+  vfsSupport: boolean | null;
+  overallCompatible: boolean | null;
 }
 
 interface TestBrowserProps {
@@ -50,102 +50,127 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
   const hasStartedTest = useRef(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return; // SSR guard
+    if (typeof window === "undefined") return; // SSR guard
     if (hasStartedTest.current) return; // Prevent double execution
 
     hasStartedTest.current = true;
 
-     const runCompatibilityTest = async () => {
-    try {
-      // First check if SharedWorker is supported
-      if (typeof SharedWorker === 'undefined') {
+    const runCompatibilityTest = async () => {
+      try {
+        console.log("[TestBrowser] Starting compatibility test...");
         const results: TestResults = {
-          sharedWorkerSupport: false,
-          wasmSupport: false,
-          sqliteSupport: false,
-          vfsSupport: false,
-          overallCompatible: false
+          sharedWorkerSupport: null,
+          wasmSupport: null,
+          sqliteSupport: null,
+          vfsSupport: null,
+          overallCompatible: null,
         };
-        setTestResults(results);
-        setIsTestingInProgress(false);
-        onTestComplete(false, results);
-        return;
-      }
-
-      console.log('[TestBrowser] Starting compatibility test...');
-      
-      // Create the test worker
-      const worker = new SharedWorker('/database-tester.js');
-      workerRef.current = worker;
-      
-      worker.port.start();
-      
-      // Set up message handler
-      worker.port.onmessage = (event) => {
-        const { type, testResults: results, isSuccessful, error: workerError } = event.data;
-        
-        if (type === 'test_results') {
-          console.log('[TestBrowser] Received test results:', results);
+        // First check if WASM is supported
+        if (
+          !(
+            typeof WebAssembly === "object" &&
+            typeof WebAssembly.instantiate === "function"
+          )
+        ) {
+          results.wasmSupport = false;
           setTestResults(results);
           setIsTestingInProgress(false);
-          onTestComplete(results.overallCompatible, results);
-        } else if (type === 'error') {
-          console.error('[TestBrowser] Worker error:', workerError);
-          setError(workerError);
+          onTestComplete(false, results);
+          return;
+        } else {
+          results.wasmSupport = true;
+          setTestResults(results);
+        }
+
+        // Second check if SharedWorker is supported
+        if (typeof SharedWorker === "undefined") {
+          results.sharedWorkerSupport = false;
+          setTestResults(results);
           setIsTestingInProgress(false);
-          
+          onTestComplete(false, results);
+          return;
+        } else {
+          results.sharedWorkerSupport = true;
+        }
+
+        // Third create the test worker
+        const worker = new SharedWorker("/database-tester.js");
+        workerRef.current = worker;
+
+        worker.port.start();
+
+        // Set up message handler
+        worker.port.onmessage = (event) => {
+          const {
+            type,
+            testResults: results,
+            isSuccessful,
+            error: workerError,
+          } = event.data;
+
+          if (type === "test_results") {
+            console.log("[TestBrowser] Received test results:", results);
+            setTestResults(results);
+            setIsTestingInProgress(false);
+            onTestComplete(results.overallCompatible, results);
+          } else if (type === "error") {
+            console.error("[TestBrowser] Worker error:", workerError);
+            setError(workerError);
+            setIsTestingInProgress(false);
+
+            const failedResults: TestResults = {
+              sharedWorkerSupport: true,
+              wasmSupport: false,
+              sqliteSupport: false,
+              vfsSupport: false,
+              overallCompatible: false,
+            };
+            onTestComplete(false, failedResults);
+          } else if (type === "tester_connected") {
+            console.log(
+              "[TestBrowser] Test worker connected, starting test..."
+            );
+            // Start the compatibility test
+            worker.port.postMessage({
+              id: Date.now(),
+              type: "test_compatibility",
+            });
+          }
+        };
+
+        worker.onerror = (error: ErrorEvent) => {
+          console.error("[TestBrowser] Worker error:", error);
+          setError("Failed to communicate with test worker");
+          setIsTestingInProgress(false);
+
           const failedResults: TestResults = {
             sharedWorkerSupport: true,
             wasmSupport: false,
             sqliteSupport: false,
             vfsSupport: false,
-            overallCompatible: false
+            overallCompatible: false,
           };
           onTestComplete(false, failedResults);
-        } else if (type === 'tester_connected') {
-          console.log('[TestBrowser] Test worker connected, starting test...');
-          // Start the compatibility test
-          worker.port.postMessage({
-            id: Date.now(),
-            type: 'test_compatibility'
-          });
+        };
+      } catch (err: unknown) {
+        console.error("[TestBrowser] Failed to start compatibility test:", err);
+        let errorMessage = "Unknown error during compatibility test";
+        if (err && typeof err === "object" && "message" in err) {
+          errorMessage = String(err.message);
         }
-      };
-
-      worker.onerror = (error: ErrorEvent) => {
-        console.error('[TestBrowser] Worker error:', error);
-        setError('Failed to communicate with test worker');
+        setError(errorMessage);
         setIsTestingInProgress(false);
-        
+
         const failedResults: TestResults = {
-          sharedWorkerSupport: true,
+          sharedWorkerSupport: false,
           wasmSupport: false,
           sqliteSupport: false,
           vfsSupport: false,
-          overallCompatible: false
+          overallCompatible: false,
         };
         onTestComplete(false, failedResults);
-      };
-
-    } catch (err: unknown) {
-      console.error('[TestBrowser] Failed to start compatibility test:', err);
-      let errorMessage = 'Unknown error during compatibility test';
-      if (err && typeof err === 'object' && 'message' in err) {
-        errorMessage = String(err.message);
       }
-      setError(errorMessage);
-      setIsTestingInProgress(false);
-      
-      const failedResults: TestResults = {
-        sharedWorkerSupport: false,
-        wasmSupport: false,
-        sqliteSupport: false,
-        vfsSupport: false,
-        overallCompatible: false
-      };
-      onTestComplete(false, failedResults);
-    }
-  };
+    };
     runCompatibilityTest();
 
     // return () => {
@@ -155,59 +180,56 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
     // };
   }, [onTestComplete]);
 
- 
-
   const getTestIcon = (passed: boolean, inProgress: boolean) => {
     if (inProgress) {
       return <CircularProgress size={20} />;
     }
-    return passed ? (
-      <CheckCircle color="success" />
-    ) : (
-      <Error color="error" />
-    );
+    return passed ? <CheckCircle color="success" /> : <Error color="error" />;
   };
 
-  const getTestStatus = (passed: boolean, inProgress: boolean): string => {
-    if (inProgress) return 'Testing...';
-    return passed ? 'Passed' : 'Failed';
+  const getTestStatus = (
+    passed: boolean,
+    inProgress: boolean,
+    hasResults: boolean
+  ): string => {
+    if (inProgress) return "Testing...";
+    if (!hasResults) return "Not tested";
+    return passed ? "Passed" : "Failed";
   };
 
   const testItems = [
     {
-      key: 'sharedWorkerSupport',
-      label: 'SharedWorker Support',
-      description: 'Browser supports SharedWorker API',
-      icon: <Code />
+      key: "wasmSupport",
+      label: "WebAssembly Support",
+      description: "Browser supports WebAssembly",
+      icon: <Memory />,
     },
     {
-      key: 'wasmSupport', 
-      label: 'WebAssembly Support',
-      description: 'Browser supports WebAssembly',
-      icon: <Memory />
+      key: "sharedWorkerSupport",
+      label: "SharedWorker Support",
+      description: "Browser supports SharedWorker API",
+      icon: <Code />,
     },
     {
-      key: 'sqliteSupport',
-      label: 'SQLite WASM Module',
-      description: 'WA-SQLite module loads and initializes',
-      icon: <Storage />
+      key: "sqliteSupport",
+      label: "SQLite WASM Module",
+      description: "WA-SQLite module loads and initializes",
+      icon: <Storage />,
     },
     {
-      key: 'vfsSupport',
-      label: 'Virtual File System',
-      description: 'IndexedDB VFS backend works correctly',
-      icon: <BugReport />
-    }
+      key: "vfsSupport",
+      label: "Virtual File System",
+      description: "IndexedDB VFS backend works correctly",
+      icon: <Storage />,
+    },
   ];
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 600 }}>
+    <Box sx={{ width: "100%", maxWidth: 600 }}>
       <Paper sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
           {isTestingInProgress && <CircularProgress size={24} sx={{ mr: 2 }} />}
-          <Typography variant="h6">
-            Browser Compatibility Test
-          </Typography>
+          <Typography variant="h6">Browser Compatibility Test</Typography>
         </Box>
 
         {error && (
@@ -218,49 +240,61 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
 
         <List>
           {testItems.map((item) => {
-            const testValue = testResults?.[item.key as keyof TestResults] ?? false;
-            const inProgress = isTestingInProgress && !testResults;
-            
+            const testValue = testResults?.[item.key as keyof TestResults];
+            const inProgress = isTestingInProgress && testValue === null;
+            const hasResults = testResults !== null && testValue !== null;
+
             return (
               <ListItem key={item.key} sx={{ px: 0 }}>
-                <ListItemIcon>
-                  {item.icon}
-                </ListItemIcon>
+                <ListItemIcon>{item.icon}</ListItemIcon>
                 <ListItemText
                   primary={item.label}
                   secondary={item.description}
                 />
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Chip
                     size="small"
-                    label={getTestStatus(testValue, inProgress)}
-                    color={inProgress ? 'default' : (testValue ? 'success' : 'error')}
-                    variant={inProgress ? 'outlined' : 'filled'}
+                    label={getTestStatus(testValue === true, inProgress, hasResults)}
+                    color={
+                      inProgress
+                        ? "default"
+                        : hasResults
+                        ? testValue
+                          ? "success"
+                          : "error"
+                        : "default"
+                    }
+                    variant={inProgress || !hasResults ? "outlined" : "filled"}
                   />
-                  {getTestIcon(testValue, inProgress)}
+                  {getTestIcon(testValue === true, inProgress)}
                 </Box>
               </ListItem>
             );
           })}
         </List>
 
-        {testResults && (
-          <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        {testResults && !isTestingInProgress && (
+          <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: "divider" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Typography variant="subtitle1" fontWeight="bold">
                 Overall Result:
               </Typography>
               <Chip
-                label={testResults.overallCompatible ? 'Compatible' : 'Incompatible'}
-                color={testResults.overallCompatible ? 'success' : 'error'}
-                icon={testResults.overallCompatible ? <CheckCircle /> : <Warning />}
+                label={
+                  testResults.overallCompatible ? "Compatible" : "Incompatible"
+                }
+                color={testResults.overallCompatible ? "success" : "error"}
+                icon={
+                  testResults.overallCompatible ? <CheckCircle /> : <Warning />
+                }
               />
             </Box>
-            
+
             {!testResults.overallCompatible && (
               <Alert severity="warning" sx={{ mt: 2 }}>
-                Your browser may not fully support all required features for the budget application. 
-                Some functionality may be limited or unavailable.
+                Your browser may not fully support all required features for the
+                budget application. Some functionality may be limited or
+                unavailable.
               </Alert>
             )}
           </Box>

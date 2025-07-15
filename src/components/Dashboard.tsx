@@ -475,8 +475,6 @@ const Dashboard: React.FC = () => {  const {
         {transactions.length > 0 ? (
           <Box>
             {transactions.slice(0, recentTransactionsLimit).map((transaction) => {
-              const category = categories.find(c => c.id === transaction.category_id);
-              const account = accounts.find(a => a.id === transaction.account_id);
               return (
                 <Box
                   key={transaction.id}
@@ -492,7 +490,7 @@ const Dashboard: React.FC = () => {  const {
                       {transaction.description}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {format(parseISO(transaction.date), 'MMM dd, yyyy')} • {category?.name} • {account?.name || 'Unknown Account'}
+                      {format(parseISO(transaction.date), 'MMM dd, yyyy')} • {transaction.category_name || 'Uncategorized'} • {transaction.account_name || 'Unknown Account'}
                     </Typography>
                   </Box>
                   <Typography

@@ -14,7 +14,7 @@ import type {
   Account,
   Budget,
   Project,
-  AccountAlias,
+  User,
 } from "../types/database";
 import {
   TRANSACTION_QUERIES,
@@ -23,7 +23,7 @@ import {
   ACCOUNT_QUERIES,
   BUDGET_QUERIES,
   PROJECT_QUERIES,
-  ACCOUNT_ALIAS_QUERIES,
+  USER_QUERIES,
   ANALYTICS_QUERIES,
 } from "./sqlQueries";
 
@@ -222,13 +222,24 @@ export class DatabaseService {
           transaction.project_id || null,
           transaction.type,
           hash,
-          transaction.account_last_four || null,
         ]
       );
 
       return result[0].id.toString();
     } catch (error) {
       console.error("Failed to add transaction:", error);
+      throw error;
+    }
+  }
+
+  async getAllTransactionHashes(): Promise<string[]> {
+    try {
+      const rows = await databaseWorkerService.query(
+        TRANSACTION_QUERIES.GET_ALL_HASHES
+      );
+      return rows.map(row => row.transaction_hash);
+    } catch (error) {
+      console.error("Failed to get all transaction hashes:", error);
       throw error;
     }
   }
@@ -374,10 +385,10 @@ export class DatabaseService {
   ): Promise<string> {
     try {
       const result = await databaseWorkerService.query(ACCOUNT_QUERIES.CREATE, [
+        account.user_id,
         account.name,
         account.type,
-        null, // institution (not in current type definition)
-        0, // balance (not in current type definition)
+        account.last_four,
       ]);
       return result[0].id.toString();
     } catch (error) {
@@ -537,107 +548,76 @@ export class DatabaseService {
     }
   }
 
-  // Account Alias operations
-  async getAccountAliases(): Promise<AccountAlias[]> {
+  // User operations
+  async getUsers(): Promise<User[]> {
     try {
-      const rows = await databaseWorkerService.query(
-        ACCOUNT_ALIAS_QUERIES.GET_ALL
-      );
-      return rows.map(this.mapToAccountAlias);
+      const rows = await databaseWorkerService.query(USER_QUERIES.GET_ALL);
+      return rows.map(this.mapToUser);
     } catch (error) {
-      console.error("Failed to get account aliases:", error);
+      console.error("Failed to get users:", error);
       throw error;
     }
   }
 
-  async getAccountAliasesByAccountId(
-    accountId: string
-  ): Promise<AccountAlias[]> {
+  async getUserById(id: string): Promise<User | null> {
     try {
-      const rows = await databaseWorkerService.query(
-        ACCOUNT_ALIAS_QUERIES.GET_BY_ACCOUNT_ID,
-        [accountId]
-      );
-      return rows.map(this.mapToAccountAlias);
+      const rows = await databaseWorkerService.query(USER_QUERIES.GET_BY_ID, [
+        id,
+      ]);
+      return rows.length > 0 ? this.mapToUser(rows[0]) : null;
     } catch (error) {
-      console.error("Failed to get account aliases by account id:", error);
+      console.error("Failed to get user by id:", error);
       throw error;
     }
   }
 
-  async findAccountAliasesByLastFour(
-    lastFour: string
-  ): Promise<AccountAlias[]> {
-    try {
-      const rows = await databaseWorkerService.query(
-        ACCOUNT_ALIAS_QUERIES.FIND_BY_LAST_FOUR,
-        [lastFour]
-      );
-      return rows.map(this.mapToAccountAlias);
-    } catch (error) {
-      console.error("Failed to find account aliases by last four:", error);
-      throw error;
-    }
-  }
-
-  async addAccountAlias(
-    alias: Omit<AccountAlias, "id" | "created_at" | "updated_at">
+  async addUser(
+    user: Omit<User, "id" | "created_at" | "updated_at">
   ): Promise<string> {
     try {
-      const result = await databaseWorkerService.query(
-        ACCOUNT_ALIAS_QUERIES.CREATE,
-        [alias.account_id, alias.last_four, alias.alias_name || null]
-      );
+      const result = await databaseWorkerService.query(USER_QUERIES.CREATE, [
+        user.display_name,
+      ]);
       return result[0].id.toString();
     } catch (error) {
-      console.error("Failed to add account alias:", error);
+      console.error("Failed to add user:", error);
       throw error;
     }
   }
 
-  async updateAccountAlias(
+  async updateUser(
     id: string,
-    alias: Partial<Omit<AccountAlias, "id" | "created_at" | "updated_at">>
+    updates: Partial<Omit<User, "id" | "created_at" | "updated_at">>
   ): Promise<void> {
     try {
-      const existing = await databaseWorkerService.query(
-        ACCOUNT_ALIAS_QUERIES.GET_BY_ID,
-        [id]
-      );
-      if (existing.length === 0) {
-        throw new Error("Account alias not found");
-      }
-
-      const current = existing[0];
-      await databaseWorkerService.query(ACCOUNT_ALIAS_QUERIES.UPDATE, [
-        alias.account_id ?? current.account_id,
-        alias.last_four ?? current.last_four,
-        alias.alias_name ?? current.alias_name,
+      await databaseWorkerService.query(USER_QUERIES.UPDATE, [
+        updates.display_name,
         id,
       ]);
     } catch (error) {
-      console.error("Failed to update account alias:", error);
+      console.error("Failed to update user:", error);
       throw error;
     }
   }
 
-  async deleteAccountAlias(id: string): Promise<void> {
+  async deleteUser(id: string): Promise<void> {
     try {
-      await databaseWorkerService.query(ACCOUNT_ALIAS_QUERIES.DELETE, [id]);
+      await databaseWorkerService.query(USER_QUERIES.DELETE, [id]);
     } catch (error) {
-      console.error("Failed to delete account alias:", error);
+      console.error("Failed to delete user:", error);
       throw error;
     }
   }
 
-  async deleteAccountAliasesByAccountId(accountId: string): Promise<void> {
+  async getAccountsByUserId(userId: string): Promise<Account[]> {
     try {
-      await databaseWorkerService.query(
-        ACCOUNT_ALIAS_QUERIES.DELETE_BY_ACCOUNT_ID,
-        [accountId]
+      const rows = await databaseWorkerService.query(
+        ACCOUNT_QUERIES.GET_BY_USER_ID,
+        [userId]
       );
+      return rows.map(this.mapToAccount);
     } catch (error) {
-      console.error("Failed to delete account aliases by account id:", error);
+      console.error("Failed to get accounts by user id:", error);
       throw error;
     }
   }
@@ -742,9 +722,16 @@ export class DatabaseService {
       project_id: row.project_id?.toString() || null,
       type: row.type,
       transaction_hash: row.transaction_hash || undefined,
-      account_last_four: row.account_last_four || undefined,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      // Joined fields from SQL queries
+      category_name: row.category_name || undefined,
+      category_color: row.category_color || undefined,
+      category_type: row.category_type || undefined,
+      company_name: row.company_name || undefined,
+      account_name: row.account_name || undefined,
+      account_type: row.account_type || undefined,
+      project_name: row.project_name || undefined,
     };
   }
 
@@ -771,8 +758,10 @@ export class DatabaseService {
   private mapToAccount(row: any): Account {
     return {
       id: row.id.toString(),
+      user_id: row.user_id.toString(),
       name: row.name,
       type: row.type,
+      last_four: row.last_four,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
@@ -809,12 +798,10 @@ export class DatabaseService {
     };
   }
 
-  private mapToAccountAlias(row: any): AccountAlias {
+  private mapToUser(row: any): User {
     return {
       id: row.id.toString(),
-      account_id: row.account_id.toString(),
-      last_four: row.last_four,
-      alias_name: row.alias_name,
+      display_name: row.display_name,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

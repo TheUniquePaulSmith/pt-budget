@@ -7,7 +7,7 @@
 
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Box, Typography, Button, CircularProgress, Alert, Paper } from '@mui/material';
 import { DatasetOutlined, CreateNewFolder, Upload } from '@mui/icons-material';
 import { DatabaseService } from '../lib/databaseService';
@@ -20,7 +20,7 @@ import type {
   Account,
   Budget,
   Project,
-  AccountAlias,
+  User,
 } from '../types/database';
 //import { appLogger } from '../lib/logger';
 
@@ -44,7 +44,7 @@ interface DatabaseContextType {
   accounts: Account[];
   budgets: Budget[];
   projects: Project[];
-  accountAliases: AccountAlias[];
+  users: User[];
   
   // Database operations
   createOrOpenDatabase: (isNew: boolean) => Promise<void>;
@@ -58,13 +58,15 @@ interface DatabaseContextType {
   refreshAccounts: () => Promise<void>;
   refreshBudgets: () => Promise<void>;
   refreshProjects: () => Promise<void>;
-  refreshAccountAliases: () => Promise<void>;
+  refreshUsers: () => Promise<void>;
   refreshAll: () => Promise<void>;
 
   // Transaction operations
   addTransaction: (
     transaction: Omit<Transaction, "id" | "created_at" | "updated_at">
   ) => Promise<void>;
+
+  getAllTransactionHashes: () => Promise<string[]>;
 
   // Category operations
   addCategory: (
@@ -105,18 +107,18 @@ interface DatabaseContextType {
     transactions_total: number;
   }>;
 
-  // Account Alias operations
-  getAccountAliases: () => Promise<AccountAlias[]>;
-  getAccountAliasesByAccountId: (accountId: string) => Promise<AccountAlias[]>;
-  findAccountAliasesByLastFour: (lastFour: string) => Promise<AccountAlias[]>;
-  addAccountAlias: (
-    alias: Omit<AccountAlias, "id" | "created_at" | "updated_at">
+  // User operations
+  getUsers: () => Promise<User[]>;
+  getUserById: (id: string) => Promise<User | null>;
+  addUser: (
+    user: Omit<User, "id" | "created_at" | "updated_at">
   ) => Promise<string>;
-  updateAccountAlias: (
+  updateUser: (
     id: string,
-    alias: Partial<Omit<AccountAlias, "id" | "created_at" | "updated_at">>
+    updates: Partial<Omit<User, "id" | "created_at" | "updated_at">>
   ) => Promise<void>;
-  deleteAccountAlias: (id: string) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
+  getAccountsByUserId: (userId: string) => Promise<Account[]>;
 
   generateTransactionHash: (
     accountId: string,
@@ -163,7 +165,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [accountAliases, setAccountAliases] = useState<AccountAlias[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   
   const hasCheckedDatabase = useRef(false);
 
@@ -233,7 +235,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         accountsData,
         budgetsData,
         projectsData,
-        accountAliasesData
+        usersData
       ] = await Promise.all([
         service.getTransactions(),
         service.getCategories(),
@@ -241,7 +243,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         service.getAccounts(),
         service.getBudgets(),
         service.getProjects(),
-        service.getAccountAliases()
+        service.getUsers()
       ]);
 
       setTransactions(transactionsData);
@@ -250,7 +252,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       setAccounts(accountsData);
       setBudgets(budgetsData);
       setProjects(projectsData);
-      setAccountAliases(accountAliasesData);
+      setUsers(usersData);
     } catch (err) {
       console.error('Failed to load data:', err);
       throw err;
@@ -319,7 +321,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   // Data refresh operations
-  const refreshTransactions = async () => {
+  const refreshTransactions = useCallback(async () => {
     if (!databaseService) return;
     try {
       const data = await databaseService.getTransactions();
@@ -327,9 +329,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } catch (err) {
       console.error('Failed to refresh transactions:', err);
     }
-  };
+  }, [databaseService]);
 
-  const refreshCategories = async () => {
+  const refreshCategories = useCallback(async () => {
     if (!databaseService) return;
     try {
       const data = await databaseService.getCategories();
@@ -337,9 +339,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } catch (err) {
       console.error('Failed to refresh categories:', err);
     }
-  };
+  }, [databaseService]);
 
-  const refreshCompanies = async () => {
+  const refreshCompanies = useCallback(async () => {
     if (!databaseService) return;
     try {
       const data = await databaseService.getCompanies();
@@ -347,9 +349,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } catch (err) {
       console.error('Failed to refresh companies:', err);
     }
-  };
+  }, [databaseService]);
 
-  const refreshAccounts = async () => {
+  const refreshAccounts = useCallback(async () => {
     if (!databaseService) return;
     try {
       const data = await databaseService.getAccounts();
@@ -357,9 +359,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } catch (err) {
       console.error('Failed to refresh accounts:', err);
     }
-  };
+  }, [databaseService]);
 
-  const refreshBudgets = async () => {
+  const refreshBudgets = useCallback(async () => {
     if (!databaseService) return;
     try {
       const data = await databaseService.getBudgets();
@@ -367,9 +369,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } catch (err) {
       console.error('Failed to refresh budgets:', err);
     }
-  };
+  }, [databaseService]);
 
-  const refreshProjects = async () => {
+  const refreshProjects = useCallback(async () => {
     if (!databaseService) return;
     try {
       const data = await databaseService.getProjects();
@@ -377,26 +379,26 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     } catch (err) {
       console.error('Failed to refresh projects:', err);
     }
-  };
+  }, [databaseService]);
 
-  const refreshAccountAliases = async () => {
+  const refreshUsers = useCallback(async () => {
     if (!databaseService) return;
     try {
-      const data = await databaseService.getAccountAliases();
-      setAccountAliases(data);
+      const data = await databaseService.getUsers();
+      setUsers(data);
     } catch (err) {
-      console.error('Failed to refresh account aliases:', err);
+      console.error('Failed to refresh users:', err);
     }
-  };
+  }, [databaseService]);
 
-  const refreshAll = async () => {
+  const refreshAll = useCallback(async () => {
     if (!databaseService) return;
     try {
       await loadAllData(databaseService);
     } catch (err) {
       console.error('Failed to refresh all data:', err);
     }
-  };
+  }, [databaseService]);
 
   // Transaction operations
   const addTransaction = async (transaction: Omit<Transaction, "id" | "created_at" | "updated_at">) => {
@@ -409,6 +411,19 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       await refreshTransactions();
     } catch (err) {
       console.error('Failed to add transaction:', err);
+      throw err;
+    }
+  };
+
+  const getAllTransactionHashes = async (): Promise<string[]> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      return await databaseService.getAllTransactionHashes();
+    } catch (err) {
+      console.error('Failed to get all transaction hashes:', err);
       throw err;
     }
   };
@@ -589,89 +604,89 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  // Account Alias operations
-  const getAccountAliases = async (): Promise<AccountAlias[]> => {
+  // User operations
+  const getUsers = async (): Promise<User[]> => {
     if (!databaseService) {
       return [];
     }
 
     try {
-      return await databaseService.getAccountAliases();
+      return await databaseService.getUsers();
     } catch (err) {
-      console.error('Failed to get account aliases:', err);
+      console.error('Failed to get users:', err);
       return [];
     }
   };
 
-  const getAccountAliasesByAccountId = async (accountId: string): Promise<AccountAlias[]> => {
+  const getUserById = async (id: string): Promise<User | null> => {
     if (!databaseService) {
-      return [];
+      return null;
     }
 
     try {
-      return await databaseService.getAccountAliasesByAccountId(accountId);
+      return await databaseService.getUserById(id);
     } catch (err) {
-      console.error('Failed to get account aliases by account id:', err);
-      return [];
+      console.error('Failed to get user by id:', err);
+      return null;
     }
   };
 
-  const findAccountAliasesByLastFour = async (lastFour: string): Promise<AccountAlias[]> => {
-    if (!databaseService) {
-      return [];
-    }
-
-    try {
-      return await databaseService.findAccountAliasesByLastFour(lastFour);
-    } catch (err) {
-      console.error('Failed to find account aliases by last four:', err);
-      return [];
-    }
-  };
-
-  const addAccountAlias = async (alias: Omit<AccountAlias, "id" | "created_at" | "updated_at">): Promise<string> => {
+  const addUser = async (user: Omit<User, "id" | "created_at" | "updated_at">): Promise<string> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
 
     try {
-      const id = await databaseService.addAccountAlias(alias);
-      await refreshAccountAliases();
+      const id = await databaseService.addUser(user);
+      await refreshUsers();
       return id;
     } catch (err) {
-      console.error('Failed to add account alias:', err);
+      console.error('Failed to add user:', err);
       throw err;
     }
   };
 
-  const updateAccountAlias = async (
+  const updateUser = async (
     id: string,
-    alias: Partial<Omit<AccountAlias, "id" | "created_at" | "updated_at">>
+    updates: Partial<Omit<User, "id" | "created_at" | "updated_at">>
   ): Promise<void> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
 
     try {
-      await databaseService.updateAccountAlias(id, alias);
-      await refreshAccountAliases();
+      await databaseService.updateUser(id, updates);
+      await refreshUsers();
     } catch (err) {
-      console.error('Failed to update account alias:', err);
+      console.error('Failed to update user:', err);
       throw err;
     }
   };
 
-  const deleteAccountAlias = async (id: string): Promise<void> => {
+  const deleteUser = async (id: string): Promise<void> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
 
     try {
-      await databaseService.deleteAccountAlias(id);
-      await refreshAccountAliases();
+      await databaseService.deleteUser(id);
+      await refreshUsers();
     } catch (err) {
-      console.error('Failed to delete account alias:', err);
+      console.error('Failed to delete user:', err);
       throw err;
+    }
+  };
+
+  const getAccountsByUserId = async (userId: string): Promise<Account[]> => {
+    if (!databaseService) {
+      return [];
+    }
+
+    try {
+      return await databaseService.getAccountsByUserId(userId);
+    } catch (err) {
+      console.error('Failed to get accounts by user id:', err);
+      return [];
     }
   };
 
@@ -712,18 +727,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
 
   const findAccountsByLastFour = (lastFour: string): Account[] => {
     try {
-      // Find account aliases with the matching last four digits from the loaded data
-      const matchingAliases = accountAliases.filter(alias => alias.last_four === lastFour);
-      
-      // Get the accounts for those aliases
-      const accountIds = matchingAliases.map(alias => alias.account_id);
-      const uniqueAccountIds = [...new Set(accountIds)];
-      
-      // Filter existing accounts that match the IDs
-      const matchingAccounts = accounts.filter(account => 
-        uniqueAccountIds.includes(account.id)
-      );
-      
+      // Find accounts with the matching last four digits directly
+      const matchingAccounts = accounts.filter(account => account.last_four === lastFour);
       return matchingAccounts;
     } catch (err) {
       console.error('Failed to find accounts by last four:', err);
@@ -920,7 +925,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     accounts,
     budgets,
     projects,
-    accountAliases,
+    users,
     createOrOpenDatabase,
     loadDatabaseFromFile,
     exportDatabase,
@@ -930,7 +935,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     refreshAccounts,
     refreshBudgets,
     refreshProjects,
-    refreshAccountAliases,
+    refreshUsers,
     refreshAll,
     addTransaction,
     addCategory,
@@ -945,16 +950,17 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     getProjectById,
     getTransactionsByProject,
     getProjectCosts,
-    getAccountAliases,
-    getAccountAliasesByAccountId,
-    findAccountAliasesByLastFour,
-    addAccountAlias,
-    updateAccountAlias,
-    deleteAccountAlias,
+    getUsers,
+    getUserById,
+    addUser,
+    updateUser,
+    deleteUser,
+    getAccountsByUserId,
     generateTransactionHash,
     checkTransactionHashExists,
     findAccountsByLastFour,
     executeCustomQuery,
+    getAllTransactionHashes
   };
 
   return (

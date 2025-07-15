@@ -44,18 +44,11 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { useDatabaseContext } from '../contexts/DatabaseContext';
-import { Transaction } from '../types/database';
+import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { Transaction, Category, Company, Account } from '@/types/database';
 import { format, parseISO } from 'date-fns';
 
 type Order = 'asc' | 'desc';
-
-interface TransactionWithDetails extends Transaction {
-  category_name?: string;
-  company_name?: string;
-  project_name?: string;
-  account_name?: string;
-}
 
 export default function TransactionReport() {
   const {
@@ -182,25 +175,13 @@ export default function TransactionReport() {
 
   // Enhanced transactions with related data
   const enhancedTransactions = useMemo(() => {
-    return transactions.map(transaction => {
-      const category = categories.find(c => c.id === transaction.category_id);
-      const company = companies.find(c => c.id === transaction.company_id);
-      const project = projects.find(p => p.id === transaction.project_id);
-      const account = accounts.find(a => a.id === transaction.account_id);
-
-      return {
-        ...transaction,
-        category_name: category?.name || 'Unknown',
-        company_name: company?.name || '',
-        project_name: project?.name || '',
-        account_name: account?.name || 'Unknown Account',
-      } as TransactionWithDetails;
-    });
-  }, [transactions, categories, companies, projects, accounts]);
+    // Since transactions already include joined data from SQL, we can use them directly
+    return transactions;
+  }, [transactions]);
 
   // Filtered and sorted transactions
   const filteredTransactions = useMemo(() => {
-    return enhancedTransactions.filter(transaction => {
+    return enhancedTransactions.filter((transaction: Transaction) => {
       // Search term filter
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
@@ -238,7 +219,7 @@ export default function TransactionReport() {
       if (maxAmount && absAmount > parseFloat(maxAmount)) return false;
 
       return true;
-    }).sort((a, b) => {
+    }).sort((a: Transaction, b: Transaction) => {
       let aValue: any = a[orderBy];
       let bValue: any = b[orderBy];
 
@@ -267,12 +248,12 @@ export default function TransactionReport() {
   // Summary statistics for filtered data
   const summaryStats = useMemo(() => {
     const totalIncome = filteredTransactions
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter((t: Transaction) => t.type === 'income')
+      .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
     
     const totalExpenses = filteredTransactions
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      .filter((t: Transaction) => t.type === 'expense')
+      .reduce((sum: number, t: Transaction) => sum + Math.abs(t.amount), 0);
     
     return {
       totalIncome,
@@ -331,7 +312,7 @@ export default function TransactionReport() {
     });
 
     // Build CSV data based on visible columns
-    const csvData = filteredTransactions.map(transaction => {
+    const csvData = filteredTransactions.map((transaction: Transaction) => {
       const row: string[] = [];
       
       if (visibleColumns.date) row.push(transaction.date);
@@ -347,7 +328,7 @@ export default function TransactionReport() {
     });
 
     const csvContent = [headers, ...csvData]
-      .map(row => row.map(field => `"${field}"`).join(','))
+      .map((row: any[]) => row.map((field: any) => `"${field}"`).join(','))
       .join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -622,7 +603,7 @@ export default function TransactionReport() {
                 multiple
                 options={categories}
                 getOptionLabel={(option) => option.name}
-                value={categories.filter(cat => categoryFilter.includes(cat.id))}
+                value={categories.filter((cat: Category) => categoryFilter.includes(cat.id))}
                 onChange={(_, value) => setCategoryFilter(value.map(v => v.id))}
                 renderInput={(params) => (
                   <TextField {...params} label="Categories" />
@@ -647,7 +628,7 @@ export default function TransactionReport() {
                 multiple
                 options={companies}
                 getOptionLabel={(option) => option.name}
-                value={companies.filter(comp => companyFilter.includes(comp.id))}
+                value={companies.filter((comp: Company) => companyFilter.includes(comp.id))}
                 onChange={(_, value) => setCompanyFilter(value.map(v => v.id))}
                 renderInput={(params) => (
                   <TextField {...params} label="Companies" />
@@ -672,7 +653,7 @@ export default function TransactionReport() {
                 multiple
                 options={accounts}
                 getOptionLabel={(option) => option.name}
-                value={accounts.filter(acc => accountFilter.includes(acc.id))}
+                value={accounts.filter((acc: Account) => accountFilter.includes(acc.id))}
                 onChange={(_, value) => setAccountFilter(value.map(v => v.id))}
                 renderInput={(params) => (
                   <TextField {...params} label="Accounts" />
@@ -750,7 +731,7 @@ export default function TransactionReport() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {paginatedTransactions.map((transaction) => (
+                {paginatedTransactions.map((transaction: Transaction) => (
                   <TableRow key={transaction.id} hover>
                     {visibleColumns.date && (
                       <TableCell sx={{ minWidth: 100 }}>

@@ -11,9 +11,16 @@ export interface Transaction {
   project_id: string | null;
   type: 'income' | 'expense';
   transaction_hash?: string; // For duplicate detection
-  account_last_four?: string; // For compatibility during import/display
   created_at: string;
   updated_at: string;
+  // Joined fields from SQL queries
+  category_name?: string;
+  category_color?: string;
+  category_type?: string;
+  company_name?: string;
+  account_name?: string;
+  account_type?: string;
+  project_name?: string;
 }
 
 export interface Category {
@@ -32,19 +39,19 @@ export interface Company {
   updated_at: string;
 }
 
-export interface Account {
+export interface User {
   id: string;
-  name: string;
-  type: string;
+  display_name: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface AccountAlias {
+export interface Account {
   id: string;
-  account_id: string;
-  last_four: string;
-  alias_name?: string; // Optional friendly name for the alias
+  user_id: string;
+  name: string; // User-friendly name for the account
+  type: 'checking' | 'savings' | 'credit';
+  last_four: string; // Last 4 digits of account number
   created_at: string;
   updated_at: string;
 }

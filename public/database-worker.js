@@ -88,14 +88,15 @@ class DatabaseWorker {
       try {
           await this.sqlite3.exec(this.db, CREATE_TABLES.CATEGORIES);
           await this.sqlite3.exec(this.db, CREATE_TABLES.COMPANIES);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.USERS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNTS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTIONS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGETS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.PROJECTS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNT_ALIASES);
 
           // Insert default data
           await this.sqlite3.exec(this.db, DEFAULT_DATA.CATEGORIES);
+          await this.sqlite3.exec(this.db, DEFAULT_DATA.USERS);
           await this.sqlite3.exec(this.db, DEFAULT_DATA.ACCOUNTS);
 
         console.info("[DB Worker] Database tables created successfully");

@@ -1,11 +1,9 @@
 /**
  * SQL Query Definitions
- * 
+ *
  * This file contains all raw SQL strings used throughout the application.
  * Keeping them centralized helps with debugging and maintenance.
  */
-
-
 
 // Transaction Queries
 export const TRANSACTION_QUERIES = {
@@ -26,13 +24,13 @@ export const TRANSACTION_QUERIES = {
     LEFT JOIN projects p ON t.project_id = p.id
     ORDER BY t.date DESC, t.id DESC
   `,
-  
+
   CREATE: `
-    INSERT INTO transactions (date, amount, description, account_id, category_id, company_id, project_id, type, transaction_hash, account_last_four)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO transactions (date, amount, description, account_id, category_id, company_id, project_id, type, transaction_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     RETURNING id
   `,
-  
+
   GET_BY_PROJECT: `
     SELECT 
       t.*,
@@ -49,7 +47,7 @@ export const TRANSACTION_QUERIES = {
     WHERE t.project_id = ?
     ORDER BY t.date DESC, t.id DESC
   `,
-  
+
   GET_BY_DATE_RANGE: `
     SELECT 
       t.*,
@@ -68,7 +66,7 @@ export const TRANSACTION_QUERIES = {
     WHERE t.date BETWEEN ? AND ?
     ORDER BY t.date DESC, t.id DESC
   `,
-  
+
   GET_BY_DATE_RANGE_AND_TYPE: `
     SELECT 
       t.*,
@@ -87,10 +85,14 @@ export const TRANSACTION_QUERIES = {
     WHERE t.date BETWEEN ? AND ? AND c.type = ?
     ORDER BY t.date DESC, t.id DESC
   `,
-  
+
   CHECK_HASH_EXISTS: `
     SELECT COUNT(*) as count FROM transactions WHERE transaction_hash = ?
-  `
+    `,
+  
+  GET_ALL_HASHES: `
+    SELECT transaction_hash FROM transactions
+  `,
 };
 
 // Category Queries
@@ -99,7 +101,7 @@ export const CATEGORY_QUERIES = {
   CREATE: `INSERT INTO categories (name, color, type) VALUES (?, ?, ?) RETURNING id`,
   GET_BY_ID: `SELECT * FROM categories WHERE id = ?`,
   UPDATE: `UPDATE categories SET name = ?, color = ?, type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-  DELETE: `DELETE FROM categories WHERE id = ?`
+  DELETE: `DELETE FROM categories WHERE id = ?`,
 };
 
 // Company Queries
@@ -109,16 +111,34 @@ export const COMPANY_QUERIES = {
   FIND_BY_NAME: `SELECT * FROM companies WHERE LOWER(name) = LOWER(?) LIMIT 1`,
   GET_BY_ID: `SELECT * FROM companies WHERE id = ?`,
   UPDATE: `UPDATE companies SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-  DELETE: `DELETE FROM companies WHERE id = ?`
+  DELETE: `DELETE FROM companies WHERE id = ?`,
+};
+
+// User Queries
+export const USER_QUERIES = {
+  GET_ALL: `SELECT * FROM users ORDER BY display_name`,
+  CREATE: `INSERT INTO users (display_name) VALUES (?) RETURNING id`,
+  GET_BY_ID: `SELECT * FROM users WHERE id = ?`,
+  UPDATE: `UPDATE users SET display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  DELETE: `DELETE FROM users WHERE id = ?`,
 };
 
 // Account Queries
 export const ACCOUNT_QUERIES = {
-  GET_ALL: `SELECT * FROM accounts ORDER BY name`,
-  CREATE: `INSERT INTO accounts (name, type, institution, balance) VALUES (?, ?, ?, ?) RETURNING id`,
+  GET_ALL: `
+    SELECT 
+      a.*,
+      u.display_name as user_display_name
+    FROM accounts a
+    LEFT JOIN users u ON a.user_id = u.id
+    ORDER BY u.display_name, a.name
+  `,
+  CREATE: `INSERT INTO accounts (user_id, name, type, last_four) VALUES (?, ?, ?, ?) RETURNING id`,
   GET_BY_ID: `SELECT * FROM accounts WHERE id = ?`,
-  UPDATE: `UPDATE accounts SET name = ?, type = ?, institution = ?, balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-  DELETE: `DELETE FROM accounts WHERE id = ?`
+  GET_BY_USER_ID: `SELECT * FROM accounts WHERE user_id = ? ORDER BY name`,
+  UPDATE: `UPDATE accounts SET user_id = ?, name = ?, type = ?, last_four = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  DELETE: `DELETE FROM accounts WHERE id = ?`,
+  FIND_BY_LAST_FOUR: `SELECT * FROM accounts WHERE last_four = ?`,
 };
 
 // Budget Queries
@@ -136,7 +156,7 @@ export const BUDGET_QUERIES = {
   CREATE: `INSERT INTO budgets (category_id, amount, period, start_date, end_date) VALUES (?, ?, ?, ?, ?) RETURNING id`,
   GET_BY_ID: `SELECT * FROM budgets WHERE id = ?`,
   UPDATE: `UPDATE budgets SET category_id = ?, amount = ?, period = ?, start_date = ?, end_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-  DELETE: `DELETE FROM budgets WHERE id = ?`
+  DELETE: `DELETE FROM budgets WHERE id = ?`,
 };
 
 // Project Queries
@@ -155,27 +175,7 @@ export const PROJECT_QUERIES = {
     LEFT JOIN transactions t ON p.id = t.project_id
     WHERE p.id = ?
     GROUP BY p.id, p.estimated_cost, p.actual_cost
-  `
-};
-
-// Account Alias Queries
-export const ACCOUNT_ALIAS_QUERIES = {
-  GET_ALL: `
-    SELECT 
-      aa.*,
-      a.name as account_name,
-      a.type as account_type
-    FROM account_aliases aa
-    LEFT JOIN accounts a ON aa.account_id = a.id
-    ORDER BY a.name, aa.alias_name
   `,
-  CREATE: `INSERT INTO account_aliases (account_id, last_four, alias_name) VALUES (?, ?, ?) RETURNING id`,
-  GET_BY_ACCOUNT_ID: `SELECT * FROM account_aliases WHERE account_id = ? ORDER BY alias_name`,
-  FIND_BY_LAST_FOUR: `SELECT * FROM account_aliases WHERE last_four = ?`,
-  GET_BY_ID: `SELECT * FROM account_aliases WHERE id = ?`,
-  UPDATE: `UPDATE account_aliases SET account_id = ?, last_four = ?, alias_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-  DELETE: `DELETE FROM account_aliases WHERE id = ?`,
-  DELETE_BY_ACCOUNT_ID: `DELETE FROM account_aliases WHERE account_id = ?`
 };
 
 // Analytics Queries
@@ -193,7 +193,7 @@ export const ANALYTICS_QUERIES = {
     HAVING total > 0
     ORDER BY total DESC
   `,
-  
+
   INCOME_BY_CATEGORY: `
     SELECT 
       c.id as category_id,
@@ -207,7 +207,7 @@ export const ANALYTICS_QUERIES = {
     HAVING total > 0
     ORDER BY total DESC
   `,
-  
+
   MONTHLY_TRENDS: `
     SELECT 
       strftime('%Y-%m', t.date) as month,
@@ -218,7 +218,7 @@ export const ANALYTICS_QUERIES = {
     WHERE t.date >= date('now', '-? months')
     GROUP BY strftime('%Y-%m', t.date)
     ORDER BY month DESC
-  `
+  `,
 };
 
 // Utility Queries
@@ -227,5 +227,5 @@ export const UTILITY_QUERIES = {
   GET_DATABASE_VERSION: `PRAGMA user_version`,
   SET_DATABASE_VERSION: `PRAGMA user_version = ?`,
   VACUUM: `VACUUM`,
-  ANALYZE: `ANALYZE`
+  ANALYZE: `ANALYZE`,
 };

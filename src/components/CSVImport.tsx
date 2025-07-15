@@ -49,6 +49,7 @@ interface ColumnMapping {
 
 interface AccountMatch {
   csvAccountValue: string;
+  lastFourValue: string;
   matchingAccounts: Account[];
   selectedAccountId: string | null;
 }
@@ -57,9 +58,8 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   const { 
     addTransaction, 
     accounts, 
-    generateTransactionHash, 
-    checkTransactionHashExists, 
-    findAccountsByLastFour 
+    generateTransactionHash,
+    getAllTransactionHashes
   } = useDatabaseContext();
   
   const [file, setFile] = useState<File | null>(null);
@@ -95,18 +95,20 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       const lastFour = lastFourMatch ? lastFourMatch[1] : '';
       console.debug(`Analyzing account column: ${csvValue}, extracted last four: "${lastFour}" (type: ${typeof lastFour})`);
       
-      const matchingAccounts = lastFour ? findAccountsByLastFour(lastFour) : [];
+      // Filter accounts directly here instead of using findAccountsByLastFour
+      const matchingAccounts = lastFour ? accounts.filter(account => account.last_four === lastFour) : [];
       console.debug(`Found ${matchingAccounts.length} matching accounts for last four "${lastFour}":`, matchingAccounts);
       
       return {
         csvAccountValue: csvValue,
+        lastFourValue: lastFour,
         matchingAccounts,
         selectedAccountId: matchingAccounts.length === 1 ? matchingAccounts[0].id : null,
       };
     });
     
     setAccountMatches(matches);
-  }, [accounts, findAccountsByLastFour]);
+  }, [accounts]);
 
   // Clear invalid column mappings when CSV data changes
   useEffect(() => {
@@ -152,7 +154,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       // Clear account matches if no account column is selected
       setAccountMatches([]);
     }
-  }, [csvData, mapping.accountColumn, analyzeAccountColumn, findAccountsByLastFour]);
+  }, [csvData, mapping.accountColumn, analyzeAccountColumn]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -217,6 +219,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   ): Array<{
     transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>;
     csvAccountValue: string;
+    lastFourValue: string;
     hash: string;
   }> => {
     return data.filter(row => {
@@ -226,7 +229,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     }).map(row => {
       const csvAccountValue = String(row[columnMapping.accountColumn]);
       const accountMapping = accountMappings.find(m => m.csvAccountValue === csvAccountValue);
-      
+      const lastFourValue = accountMapping?.lastFourValue || '';
       // We know this exists because we filtered above
       if (!accountMapping?.selectedAccountId) {
         throw new Error(`No account mapping found for ${csvAccountValue}`);
@@ -270,8 +273,9 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       };
 
       // Generate hash for duplicate detection
+      //Hash is date, amount, description, 
       const hash = generateTransactionHash(
-        accountMapping.selectedAccountId,
+        csvAccountValue,
         date,
         amount,
         description,
@@ -281,6 +285,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       return {
         transaction: { ...transaction, transaction_hash: hash },
         csvAccountValue,
+        lastFourValue,
         hash,
       };
     });
@@ -336,6 +341,10 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       const mappableTransactions = mappedTransactions.length;
       const initialSkippedCount = totalTransactions - mappableTransactions;
       
+      // Grab all transaction hashes from the database to check for duplicates
+      const existingHashes = await getAllTransactionHashes();
+
+
       let successCount = 0;
       let failedCount = 0;
       let skippedCount = initialSkippedCount; // Start with pre-filtered skipped count
@@ -345,7 +354,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       for (const { transaction, csvAccountValue, hash } of mappedTransactions) {
         try {
           // Check for duplicates first
-          const isDuplicate = await checkTransactionHashExists(hash);
+          const isDuplicate = existingHashes.includes(hash);
           if (isDuplicate) {
             duplicateCount++;
             continue;

@@ -20,15 +20,25 @@ export const CREATE_TABLES = {
     )
   `,
   
+  USERS: `
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      display_name TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `,
+  
   ACCOUNTS: `
     CREATE TABLE IF NOT EXISTS accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
       name TEXT NOT NULL,
-      type TEXT CHECK(type IN ('checking', 'savings', 'credit', 'investment', 'other')) NOT NULL,
-      institution TEXT,
-      balance REAL DEFAULT 0,
+      type TEXT CHECK(type IN ('checking', 'savings', 'credit')) NOT NULL,
+      last_four TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
     )
   `,
   
@@ -38,15 +48,15 @@ export const CREATE_TABLES = {
       date DATE NOT NULL,
       amount REAL NOT NULL,
       description TEXT NOT NULL,
-      account_id TEXT NOT NULL,
+      account_id INTEGER NOT NULL,
       category_id INTEGER,
       company_id INTEGER,
       project_id INTEGER,
       type TEXT CHECK(type IN ('income', 'expense')) NOT NULL,
       transaction_hash TEXT UNIQUE,
-      account_last_four TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (account_id) REFERENCES accounts (id),
       FOREIGN KEY (category_id) REFERENCES categories (id),
       FOREIGN KEY (company_id) REFERENCES companies (id),
       FOREIGN KEY (project_id) REFERENCES projects (id)
@@ -85,15 +95,12 @@ export const CREATE_TABLES = {
     )
   `,
   
-  ACCOUNT_ALIASES: `
-    CREATE TABLE IF NOT EXISTS account_aliases (
+  USERS: `
+    CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      account_id INTEGER NOT NULL,
-      last_four TEXT,
-      alias_name TEXT,
+      display_name TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `
 };
@@ -118,10 +125,15 @@ export const DEFAULT_DATA = {
     (14, 'Other Income', '#ffeb3b', 'income')
   `,
   
+  USERS: `
+    INSERT OR IGNORE INTO users (id, display_name) VALUES
+    (1, 'Default User')
+  `,
+  
   ACCOUNTS: `
-    INSERT OR IGNORE INTO accounts (id, name, type, institution) VALUES
-    (1, 'Primary Checking', 'checking', 'Default Bank'),
-    (2, 'Savings Account', 'savings', 'Default Bank'),
-    (3, 'Credit Card', 'credit', 'Default Bank')
+    INSERT OR IGNORE INTO accounts (id, user_id, name, type, last_four) VALUES
+    (1, 1, 'Primary Checking', 'checking', '1234'),
+    (2, 1, 'Savings Account', 'savings', '5678'),
+    (3, 1, 'Credit Card', 'credit', '9012')
   `
 };

@@ -273,6 +273,14 @@ export class DatabaseWorkerService {
     throw new Error(response.sqlResponse?.error || 'Failed to check database existence');
   }
 
+  public async createTables(): Promise<DatabaseResponse> {
+    const response = await this.sendMessage('create_tables');
+    if (response.isSuccessful) {
+      return response;
+    }
+    throw new Error(response.sqlResponse?.error || 'Failed to create tables');
+  }
+
   // Cleanup
   public destroy() {
     if (this.heartbeatTimeout) {

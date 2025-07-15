@@ -1,6 +1,10 @@
 // Database Shared Worker
 // This worker handles all SQLite operations and communicates with the main thread
 
+//import database schema
+// Note: ES6 imports will be handled dynamically in the initialize method
+
+
 class DatabaseWorker {
   constructor() {
     this.sqlite3 = null;
@@ -12,6 +16,10 @@ class DatabaseWorker {
     this.ports = new Set();
     this.heartbeatInterval = null;
     this.dbVersion = '1.0.0';
+    
+    // Query processing queue and lock
+    this.queryQueue = [];
+    this.isProcessingQuery = false;
     
     // Start heartbeat
     this.startHeartbeat();
@@ -70,6 +78,65 @@ class DatabaseWorker {
       });
       throw error;
     }
+  }
+
+  async createTables() {
+    console.info("[DB Worker] Creating database tables...");
+    const {CREATE_TABLES, DEFAULT_DATA} = await import('/database-schema.js');
+
+    // Create all tables
+      try {
+          await this.sqlite3.exec(this.db, CREATE_TABLES.CATEGORIES);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.COMPANIES);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNTS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTIONS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGETS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.PROJECTS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNT_ALIASES);
+
+          // Insert default data
+          await this.sqlite3.exec(this.db, DEFAULT_DATA.CATEGORIES);
+          await this.sqlite3.exec(this.db, DEFAULT_DATA.ACCOUNTS);
+
+        console.info("[DB Worker] Database tables created successfully");
+      } catch (error) {
+        console.error("[DB Worker] Failed to create tables:", error);
+        throw error;
+      }
+    }
+
+  // Queue management for sequential query processing
+  async enqueueQuery(queryFunction) {
+    return new Promise((resolve, reject) => {
+      this.queryQueue.push({
+        execute: queryFunction,
+        resolve,
+        reject
+      });
+      
+      this.processQueue();
+    });
+  }
+
+  async processQueue() {
+    if (this.isProcessingQuery || this.queryQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingQuery = true;
+
+    while (this.queryQueue.length > 0) {
+      const queryItem = this.queryQueue.shift();
+      
+      try {
+        const result = await queryItem.execute();
+        queryItem.resolve(result);
+      } catch (error) {
+        queryItem.reject(error);
+      }
+    }
+
+    this.isProcessingQuery = false;
   }
 
   async openDatabase(filename = '/budget-app.db', isNew = false) {
@@ -135,79 +202,79 @@ class DatabaseWorker {
       };
     }
 
-    try {
-      const results = [];
-
-       // Add a small delay to prevent rapid concurrent access
-      await new Promise(resolve => setTimeout(resolve, 10));
-      
-      // Prepare the statement if parameters are provided
-      if (parameters.length > 0) {
-        for await (const stmt of this.sqlite3.statements(this.db, sql)) {
-          // Bind parameters
-          for (let i = 0; i < parameters.length; i++) {
-            const param = parameters[i];
-            if (param === null || param === undefined) {
-              this.sqlite3.bind_null(stmt, i + 1);
-            } else if (typeof param === 'number') {
-              if (Number.isInteger(param)) {
-                this.sqlite3.bind_int(stmt, i + 1, param);
+    // Queue the query operation to prevent concurrent access
+    return await this.enqueueQuery(async () => {
+      try {
+        const results = [];
+        
+        // Prepare the statement if parameters are provided
+        if (parameters.length > 0) {
+          for await (const stmt of this.sqlite3.statements(this.db, sql)) {
+            // Bind parameters
+            for (let i = 0; i < parameters.length; i++) {
+              const param = parameters[i];
+              if (param === null || param === undefined) {
+                this.sqlite3.bind_null(stmt, i + 1);
+              } else if (typeof param === 'number') {
+                if (Number.isInteger(param)) {
+                  this.sqlite3.bind_int(stmt, i + 1, param);
+                } else {
+                  this.sqlite3.bind_double(stmt, i + 1, param);
+                }
+              } else if (typeof param === 'string') {
+                this.sqlite3.bind_text(stmt, i + 1, param);
               } else {
-                this.sqlite3.bind_double(stmt, i + 1, param);
-              }
-            } else if (typeof param === 'string') {
-              this.sqlite3.bind_text(stmt, i + 1, param);
-            } else {
-              this.sqlite3.bind_text(stmt, i + 1, String(param));
-            }
-          }
-          
-          // Execute and collect results
-          const columnNames = [];
-          while (await this.sqlite3.step(stmt) === (this.sqlite3Constants.SQLITE_ROW || this.sqlite3Constants.SQLITE_DONE)) {
-            if (columnNames.length === 0) {
-              const columnCount = this.sqlite3.column_count(stmt);
-              for (let i = 0; i < columnCount; i++) {
-                columnNames.push(this.sqlite3.column_name(stmt, i));
+                this.sqlite3.bind_text(stmt, i + 1, String(param));
               }
             }
             
-            const row = {};
-            columnNames.forEach((column, index) => {
-              const value = this.sqlite3.column(stmt, index);
-              row[column] = value;
-            });
-            results.push(row);
+            // Execute and collect results
+            const columnNames = [];
+            while (await this.sqlite3.step(stmt) === (this.sqlite3Constants.SQLITE_ROW || this.sqlite3Constants.SQLITE_DONE)) {
+              if (columnNames.length === 0) {
+                const columnCount = this.sqlite3.column_count(stmt);
+                for (let i = 0; i < columnCount; i++) {
+                  columnNames.push(this.sqlite3.column_name(stmt, i));
+                }
+              }
+              
+              const row = {};
+              columnNames.forEach((column, index) => {
+                const value = this.sqlite3.column(stmt, index);
+                row[column] = value;
+              });
+              results.push(row);
+            }
           }
-        }
-      } else {
-        // Use exec for simple queries without parameters
-        await this.sqlite3.exec(this.db, sql, (row, columns) => {
-          const rowObj = {};
-          columns.forEach((column, index) => {
-            rowObj[column] = row[index];
+        } else {
+          // Use exec for simple queries without parameters
+          await this.sqlite3.exec(this.db, sql, (row, columns) => {
+            const rowObj = {};
+            columns.forEach((column, index) => {
+              rowObj[column] = row[index];
+            });
+            results.push(rowObj);
           });
-          results.push(rowObj);
-        });
+        }
+        
+        return {
+          type: 'query_success',
+          isSuccessful: true,
+          dbStatus: 'connected',
+          version: this.dbVersion,
+          sqlResponse: { results, sql, parameters }
+        };
+      } catch (error) {
+        console.error('[DB Worker] Query execution failed:', error);
+        return {
+          type: 'query_error',
+          isSuccessful: false,
+          dbStatus: 'connected',
+          version: this.dbVersion,
+          sqlResponse: { error: error.message, sql, parameters }
+        };
       }
-      
-      return {
-        type: 'query_success',
-        isSuccessful: true,
-        dbStatus: 'connected',
-        version: this.dbVersion,
-        sqlResponse: { results, sql, parameters }
-      };
-    } catch (error) {
-      console.error('[DB Worker] Query execution failed:', error);
-      return {
-        type: 'query_error',
-        isSuccessful: false,
-        dbStatus: 'connected',
-        version: this.dbVersion,
-        sqlResponse: { error: error.message, sql, parameters }
-      };
-    }
+    });
   }
 
   async executeCommand(sql) {
@@ -221,153 +288,156 @@ class DatabaseWorker {
       };
     }
 
-    try {
-      await this.sqlite3.exec(this.db, sql);
-      return {
-        type: 'command_success',
-        isSuccessful: true,
-        dbStatus: 'connected',
-        version: this.dbVersion,
-        sqlResponse: { sql }
-      };
-    } catch (error) {
-      console.error('[DB Worker] Command execution failed:', error);
-      return {
-        type: 'command_error',
-        isSuccessful: false,
-        dbStatus: 'connected',
-        version: this.dbVersion,
-        sqlResponse: { error: error.message, sql }
-      };
-    }
+    // Queue the command operation to prevent concurrent access
+    return await this.enqueueQuery(async () => {
+      try {
+        await this.sqlite3.exec(this.db, sql);
+        return {
+          type: 'command_success',
+          isSuccessful: true,
+          dbStatus: 'connected',
+          version: this.dbVersion,
+          sqlResponse: { sql }
+        };
+      } catch (error) {
+        console.error('[DB Worker] Command execution failed:', error);
+        return {
+          type: 'command_error',
+          isSuccessful: false,
+          dbStatus: 'connected',
+          version: this.dbVersion,
+          sqlResponse: { error: error.message, sql }
+        };
+      }
+    });
   }
 
-  async createTables() {
-    if (!this.isConnected || !this.db) {
-      throw new Error('Database not connected');
-    }
+  // async createTables() {
+  //   if (!this.isConnected || !this.db) {
+  //     throw new Error('Database not connected');
+  //   }
 
-    try {
-      // Create all the database tables
-      const tableQueries = [
-        // Categories table
-        `CREATE TABLE IF NOT EXISTS categories (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-          color TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`,
+  //   try {
+  //     // Create all the database tables
+  //     const tableQueries = [
+  //       // Categories table
+  //       `CREATE TABLE IF NOT EXISTS categories (
+  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+  //         name TEXT NOT NULL,
+  //         type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+  //         color TEXT NOT NULL,
+  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  //       )`,
         
-        // Companies table
-        `CREATE TABLE IF NOT EXISTS companies (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL UNIQUE,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`,
+  //       // Companies table
+  //       `CREATE TABLE IF NOT EXISTS companies (
+  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+  //         name TEXT NOT NULL UNIQUE,
+  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  //       )`,
         
-        // Projects table
-        `CREATE TABLE IF NOT EXISTS projects (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          company_name TEXT NOT NULL,
-          contact_details TEXT,
-          project_category TEXT NOT NULL CHECK (project_category IN ('plumbing', 'electrical', 'hvac', 'roofing', 'flooring', 'painting', 'landscaping', 'general_contractor', 'other')),
-          status TEXT NOT NULL CHECK (status IN ('planning', 'in_progress', 'completed', 'on_hold')),
-          start_date TEXT,
-          end_date TEXT,
-          estimated_cost REAL,
-          actual_cost REAL,
-          notes TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`,
+  //       // Projects table
+  //       `CREATE TABLE IF NOT EXISTS projects (
+  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+  //         name TEXT NOT NULL,
+  //         company_name TEXT NOT NULL,
+  //         contact_details TEXT,
+  //         project_category TEXT NOT NULL CHECK (project_category IN ('plumbing', 'electrical', 'hvac', 'roofing', 'flooring', 'painting', 'landscaping', 'general_contractor', 'other')),
+  //         status TEXT NOT NULL CHECK (status IN ('planning', 'in_progress', 'completed', 'on_hold')),
+  //         start_date TEXT,
+  //         end_date TEXT,
+  //         estimated_cost REAL,
+  //         actual_cost REAL,
+  //         notes TEXT,
+  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  //       )`,
         
-        // Accounts table
-        `CREATE TABLE IF NOT EXISTS accounts (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          type TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`,
+  //       // Accounts table
+  //       `CREATE TABLE IF NOT EXISTS accounts (
+  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+  //         name TEXT NOT NULL,
+  //         type TEXT NOT NULL,
+  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  //       )`,
         
-        // Account aliases table
-        `CREATE TABLE IF NOT EXISTS account_aliases (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          account_id INTEGER NOT NULL,
-          last_four TEXT NOT NULL,
-          alias_name TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE,
-          UNIQUE(last_four, account_id)
-        )`,
+  //       // Account aliases table
+  //       `CREATE TABLE IF NOT EXISTS account_aliases (
+  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+  //         account_id INTEGER NOT NULL,
+  //         last_four TEXT NOT NULL,
+  //         alias_name TEXT,
+  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  //         FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE,
+  //         UNIQUE(last_four, account_id)
+  //       )`,
         
-        // Transactions table
-        `CREATE TABLE IF NOT EXISTS transactions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          date TEXT NOT NULL,
-          amount REAL NOT NULL,
-          description TEXT NOT NULL,
-          account_id INTEGER,
-          category_id INTEGER,
-          company_id INTEGER,
-          project_id INTEGER,
-          type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-          transaction_hash TEXT UNIQUE,
-          account_last_four TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE SET NULL,
-          FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL,
-          FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL,
-          FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL
-        )`,
+  //       // Transactions table
+  //       `CREATE TABLE IF NOT EXISTS transactions (
+  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+  //         date TEXT NOT NULL,
+  //         amount REAL NOT NULL,
+  //         description TEXT NOT NULL,
+  //         account_id INTEGER,
+  //         category_id INTEGER,
+  //         company_id INTEGER,
+  //         project_id INTEGER,
+  //         type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+  //         transaction_hash TEXT UNIQUE,
+  //         account_last_four TEXT,
+  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  //         FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE SET NULL,
+  //         FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL,
+  //         FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL,
+  //         FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL
+  //       )`,
         
-        // Budgets table
-        `CREATE TABLE IF NOT EXISTS budgets (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          category_id INTEGER NOT NULL,
-          amount REAL NOT NULL,
-          period TEXT NOT NULL CHECK (period IN ('weekly', 'monthly', 'quarterly', 'yearly')),
-          start_date TEXT NOT NULL,
-          end_date TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
-        )`
-      ];
+  //       // Budgets table
+  //       `CREATE TABLE IF NOT EXISTS budgets (
+  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+  //         category_id INTEGER NOT NULL,
+  //         amount REAL NOT NULL,
+  //         period TEXT NOT NULL CHECK (period IN ('weekly', 'monthly', 'quarterly', 'yearly')),
+  //         start_date TEXT NOT NULL,
+  //         end_date TEXT NOT NULL,
+  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  //         FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
+  //       )`
+  //     ];
 
-      // Execute each table creation query
-      for (const query of tableQueries) {
-        await this.sqlite3.exec(this.db, query);
-      }
+  //     // Execute each table creation query
+  //     for (const query of tableQueries) {
+  //       await this.sqlite3.exec(this.db, query);
+  //     }
 
-      // Create indexes
-      const indexQueries = [
-        'CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date)',
-        'CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id)',
-        'CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id)',
-        'CREATE INDEX IF NOT EXISTS idx_transactions_project ON transactions(project_id)',
-        'CREATE INDEX IF NOT EXISTS idx_transactions_company ON transactions(company_id)',
-        'CREATE INDEX IF NOT EXISTS idx_transactions_hash ON transactions(transaction_hash)',
-        'CREATE INDEX IF NOT EXISTS idx_account_aliases_last_four ON account_aliases(last_four)',
-        'CREATE INDEX IF NOT EXISTS idx_account_aliases_account ON account_aliases(account_id)'
-      ];
+  //     // Create indexes
+  //     const indexQueries = [
+  //       'CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date)',
+  //       'CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id)',
+  //       'CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id)',
+  //       'CREATE INDEX IF NOT EXISTS idx_transactions_project ON transactions(project_id)',
+  //       'CREATE INDEX IF NOT EXISTS idx_transactions_company ON transactions(company_id)',
+  //       'CREATE INDEX IF NOT EXISTS idx_transactions_hash ON transactions(transaction_hash)',
+  //       'CREATE INDEX IF NOT EXISTS idx_account_aliases_last_four ON account_aliases(last_four)',
+  //       'CREATE INDEX IF NOT EXISTS idx_account_aliases_account ON account_aliases(account_id)'
+  //     ];
 
-      for (const query of indexQueries) {
-        await this.sqlite3.exec(this.db, query);
-      }
+  //     for (const query of indexQueries) {
+  //       await this.sqlite3.exec(this.db, query);
+  //     }
 
-      console.log('[DB Worker] Database tables created successfully');
-    } catch (error) {
-      console.error('[DB Worker] Failed to create tables:', error);
-      throw error;
-    }
-  }
+  //     console.log('[DB Worker] Database tables created successfully');
+  //   } catch (error) {
+  //     console.error('[DB Worker] Failed to create tables:', error);
+  //     throw error;
+  //   }
+  // }
 
   async exportDatabase() {
     if (!this.isConnected || !this.db) {
@@ -522,7 +592,18 @@ class DatabaseWorker {
         case 'open_database':
           response = await this.openDatabase(payload?.filename, payload?.isNew);
           break;
-          
+
+        case 'create_tables':
+          await this.createTables();
+          response = {
+            type: 'create_tables_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: { message: 'Tables created successfully' }
+          };
+          break;
+
         case 'query':
           response = await this.executeQuery(payload.sql, payload.parameters);
           console.debug(`[DB Worker] Response for query: `, response);

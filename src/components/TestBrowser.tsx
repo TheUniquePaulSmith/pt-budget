@@ -28,6 +28,7 @@ import {
   Memory,
   Code,
   BugReport,
+  SkipNext,
 } from "@mui/icons-material";
 
 interface TestResults {
@@ -180,9 +181,12 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
     // };
   }, [onTestComplete]);
 
-  const getTestIcon = (passed: boolean, inProgress: boolean) => {
+  const getTestIcon = (passed: boolean, inProgress: boolean, hasResults: boolean) => {
     if (inProgress) {
       return <CircularProgress size={20} />;
+    }
+    if (!hasResults) {
+      return <SkipNext color="disabled" />;
     }
     return passed ? <CheckCircle color="success" /> : <Error color="error" />;
   };
@@ -266,7 +270,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
                     }
                     variant={inProgress || !hasResults ? "outlined" : "filled"}
                   />
-                  {getTestIcon(testValue === true, inProgress)}
+                  {getTestIcon(testValue === true, inProgress, hasResults)}
                 </Box>
               </ListItem>
             );

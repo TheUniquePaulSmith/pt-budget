@@ -12,9 +12,10 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 - **100% Client-Side** - No backend servers or server-side rendering
 - **SQLite Database** - Uses wa-sqlite (SQLite compiled to WebAssembly) for robust data management
 - **SharedWorker Architecture** - Database operations run in a dedicated SharedWorker for performance isolation
-- **OPFS Storage** - Uses Origin Private File System for persistent storage
+- **Browser Local Storage** - Uses IndexedDB and browser storage for persistent data
 - **File System Access API** - Modern browser API for direct file saving/loading
 - **React + TypeScript** - Built with Next.js framework and Material-UI components
+- **Automated Compatibility Testing** - Built-in browser capability detection and testing
 
 ## ✨ Key Features
 
@@ -43,12 +44,14 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 - **Multiple Database Options:**
   - Create new database with file save location
   - Load existing database files
-- **Persistent Storage** - Data persists automatically using OPFS
+- **Persistent Storage** - Data persists automatically using IndexedDB
 - **Data Export** - Complete database backups in .db format
 - **SharedWorker Database Engine** - Database operations run in isolation for optimal performance
 - **Cross-Tab Synchronization** - Multiple browser tabs share the same database instance
 
 ### 🔧 Advanced Features
+- **Browser Compatibility Testing** - Automatic detection of required browser features
+- **Real-time Compatibility Checks** - Tests SharedWorker, WebAssembly, SQLite, and storage support
 - **Settings Management** - Comprehensive settings page with multiple tabs
 - **Storage Quota Monitoring** - Track browser storage usage
 - **Cross-Browser Compatibility** - Graceful degradation for browsers without File System Access API
@@ -65,10 +68,26 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 
 ## 🔒 Data Security & Privacy
 
-- **Local-First Approach** - All data stays on your device
-- **No Cloud Dependencies** - No external servers or data transmission
-- **File-Based Backups** - You control your own data files
-- **OPFS Storage** - Secure, persistent local storage
+### 🛡️ Complete Privacy Protection
+- **100% Local Processing** - All data processing happens entirely in your browser
+- **Zero Server Communication** - No data is ever transmitted to external servers
+- **No Analytics or Tracking** - Application doesn't collect any usage data or personal information
+- **No Third-Party Services** - No external APIs, CDNs, or cloud services are used
+- **Offline Capability** - Works completely offline once loaded
+
+### 🔐 Data Security Features
+- **Local-First Architecture** - All financial data stays exclusively on your device
+- **Browser-Native Encryption** - IndexedDB provides built-in data protection
+- **File-Based Backups** - You maintain complete control over your data files
+- **No Data Sharing** - Impossible for data to be shared since there's no backend
+- **Secure Storage** - Uses browser's secure IndexedDB for persistent storage
+
+### 🏠 Data Ownership & Control
+- **Full Data Ownership** - You own and control all your financial data
+- **Export Anytime** - Complete database export functionality available
+- **No Vendor Lock-in** - Standard SQLite format ensures data portability
+- **Manual Backups** - Create and manage your own backup files
+- **Clear Data Path** - Transparent about where and how data is stored
 
 ## 🌟 Unique Selling Points
 
@@ -77,8 +96,9 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 3. **File System Integration** - Direct file saving like desktop applications
 4. **Project-Specific Budgeting** - Specialized for home project management
 5. **Advanced Analytics** - Professional-grade financial reporting
-6. **Persistent Storage** - Data persists automatically using OPFS
+6. **Persistent Storage** - Data persists automatically using IndexedDB
 7. **SharedWorker Architecture** - Multi-tab synchronization with isolated database operations
+8. **Built-in Compatibility Testing** - Automatic browser feature detection and validation
 
 ## 📊 Database Schema
 
@@ -194,7 +214,7 @@ The database layer follows a clean, multi-tier architecture with clear separatio
 **4. `/workers/databaseWorker.ts` - Execution Layer**
 - SharedWorker that runs database operations in isolation
 - Manages wa-sqlite WebAssembly instance
-- Handles OPFS storage and file operations
+- Handles IndexedDB storage and file operations
 - Processes heavy operations without blocking UI
 
 #### Architecture Flow

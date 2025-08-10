@@ -113,7 +113,11 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
             console.log("[TestBrowser] Received test results:", results);
             setTestResults(results);
             setIsTestingInProgress(false);
-            onTestComplete(results.overallCompatible, results);
+            
+            // Add a 2-second delay to let users see the test results
+            setTimeout(() => {
+              onTestComplete(results.overallCompatible, results);
+            }, 2000);
           } else if (type === "error") {
             console.error("[TestBrowser] Worker error:", workerError);
             setError(workerError);

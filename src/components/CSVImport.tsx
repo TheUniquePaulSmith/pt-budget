@@ -269,6 +269,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         category_id: null,
         company_id: null,
         project_id: null,
+        trip_id: null,
         type,
       };
 

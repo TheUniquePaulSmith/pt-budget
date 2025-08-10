@@ -21,6 +21,7 @@ import type {
   Budget,
   Project,
   User,
+  Trip,
 } from '../types/database';
 //import { appLogger } from '../lib/logger';
 
@@ -45,6 +46,7 @@ interface DatabaseContextType {
   budgets: Budget[];
   projects: Project[];
   users: User[];
+  trips: Trip[];
   
   // Database operations
   createOrOpenDatabase: (isNew: boolean) => Promise<void>;
@@ -59,6 +61,7 @@ interface DatabaseContextType {
   refreshBudgets: () => Promise<void>;
   refreshProjects: () => Promise<void>;
   refreshUsers: () => Promise<void>;
+  refreshTrips: () => Promise<void>;
   refreshAll: () => Promise<void>;
 
   // Transaction operations
@@ -120,6 +123,29 @@ interface DatabaseContextType {
   deleteUser: (id: string) => Promise<void>;
   getAccountsByUserId: (userId: string) => Promise<Account[]>;
 
+  // Trip operations
+  getTrips: () => Promise<Trip[]>;
+  getTripById: (id: string) => Promise<Trip | null>;
+  addTrip: (
+    trip: Omit<Trip, "id" | "created_at" | "updated_at">
+  ) => Promise<string>;
+  updateTrip: (
+    id: string,
+    updates: Partial<Omit<Trip, "id" | "created_at" | "updated_at">>
+  ) => Promise<void>;
+  deleteTrip: (id: string) => Promise<void>;
+  getTransactionsByTrip: (tripId: string) => Promise<Transaction[]>;
+  getTripCosts: (
+    tripId: string
+  ) => Promise<{
+    estimated: number;
+    actual: number;
+    transactions_total: number;
+  }>;
+
+  // Transaction labeling
+  updateTransactionLabels: (id: string, projectId: string | null, tripId: string | null) => Promise<void>;
+
   generateTransactionHash: (
     accountId: string,
     date: string,
@@ -166,6 +192,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
   
   const hasCheckedDatabase = useRef(false);
 
@@ -235,7 +262,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         accountsData,
         budgetsData,
         projectsData,
-        usersData
+        usersData,
+        tripsData
       ] = await Promise.all([
         service.getTransactions(),
         service.getCategories(),
@@ -243,7 +271,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         service.getAccounts(),
         service.getBudgets(),
         service.getProjects(),
-        service.getUsers()
+        service.getUsers(),
+        service.getTrips()
       ]);
 
       setTransactions(transactionsData);
@@ -253,6 +282,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       setBudgets(budgetsData);
       setProjects(projectsData);
       setUsers(usersData);
+      setTrips(tripsData);
     } catch (err) {
       console.error('Failed to load data:', err);
       throw err;
@@ -391,14 +421,29 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   }, [databaseService]);
 
-  const refreshAll = useCallback(async () => {
+  const refreshTrips = useCallback(async () => {
     if (!databaseService) return;
     try {
-      await loadAllData(databaseService);
+      const data = await databaseService.getTrips();
+      setTrips(data);
     } catch (err) {
-      console.error('Failed to refresh all data:', err);
+      console.error('Failed to refresh trips:', err);
     }
   }, [databaseService]);
+
+  const refreshAll = useCallback(async () => {
+    if (!databaseService) return;
+    await Promise.all([
+      refreshTransactions(),
+      refreshCategories(),
+      refreshCompanies(),
+      refreshAccounts(),
+      refreshBudgets(),
+      refreshProjects(),
+      refreshUsers(),
+      refreshTrips(),
+    ]);
+  }, [databaseService, refreshTransactions, refreshCategories, refreshCompanies, refreshAccounts, refreshBudgets, refreshProjects, refreshUsers, refreshTrips]);
 
   // Transaction operations
   const addTransaction = async (transaction: Omit<Transaction, "id" | "created_at" | "updated_at">) => {
@@ -707,6 +752,62 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     );
   };
 
+  // Transaction labeling
+  const updateTransactionLabels = async (id: string, projectId: string | null, tripId: string | null) => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    await databaseService.updateTransactionLabels(id, projectId, tripId);
+    await refreshTransactions();
+  };
+
+  // Trip operations
+  const getTrips = async (): Promise<Trip[]> => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    return await databaseService.getTrips();
+  };
+
+  const getTripById = async (id: string): Promise<Trip | null> => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    return await databaseService.getTripById(id);
+  };
+
+  const addTrip = async (trip: Omit<Trip, "id" | "created_at" | "updated_at">): Promise<string> => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    const id = await databaseService.addTrip(trip);
+    await refreshTrips();
+    return id;
+  };
+
+  const updateTrip = async (
+    id: string,
+    updates: Partial<Omit<Trip, "id" | "created_at" | "updated_at">>
+  ): Promise<void> => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    await databaseService.updateTrip(id, updates);
+    await refreshTrips();
+  };
+
+  const deleteTrip = async (id: string): Promise<void> => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    await databaseService.deleteTrip(id);
+    await refreshTrips();
+  };
+
+  const getTransactionsByTrip = async (tripId: string): Promise<Transaction[]> => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    return await databaseService.getTransactionsByTrip(tripId);
+  };
+
+  const getTripCosts = async (
+    tripId: string
+  ): Promise<{
+    estimated: number;
+    actual: number;
+    transactions_total: number;
+  }> => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    return await databaseService.getTripCosts(tripId);
+  };
+
   const checkTransactionHashExists = async (hash: string): Promise<boolean> => {
     if (!databaseService) {
       return false;
@@ -926,6 +1027,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     budgets,
     projects,
     users,
+    trips,
     createOrOpenDatabase,
     loadDatabaseFromFile,
     exportDatabase,
@@ -936,6 +1038,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     refreshBudgets,
     refreshProjects,
     refreshUsers,
+    refreshTrips,
     refreshAll,
     addTransaction,
     addCategory,
@@ -960,7 +1063,15 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     checkTransactionHashExists,
     findAccountsByLastFour,
     executeCustomQuery,
-    getAllTransactionHashes
+    getAllTransactionHashes,
+    updateTransactionLabels,
+    getTrips,
+    getTripById,
+    addTrip,
+    updateTrip,
+    deleteTrip,
+    getTransactionsByTrip,
+    getTripCosts
   };
 
   return (

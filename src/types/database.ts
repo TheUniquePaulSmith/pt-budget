@@ -9,6 +9,7 @@ export interface Transaction {
   category_id: string | null;
   company_id: string | null;
   project_id: string | null;
+  trip_id: string | null;
   type: 'income' | 'expense';
   transaction_hash?: string; // For duplicate detection
   created_at: string;
@@ -21,6 +22,7 @@ export interface Transaction {
   account_name?: string;
   account_type?: string;
   project_name?: string;
+  trip_name?: string;
 }
 
 export interface Category {
@@ -74,6 +76,22 @@ export interface Project {
   contact_details: string;
   project_category: 'plumbing' | 'electrical' | 'hvac' | 'roofing' | 'flooring' | 'painting' | 'landscaping' | 'general_contractor' | 'other';
   status: 'planning' | 'in_progress' | 'completed' | 'on_hold';
+  start_date?: string | null;
+  end_date?: string | null;
+  estimated_cost?: number | null;
+  actual_cost?: number | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Trip {
+  id: string;
+  name: string;
+  destination?: string | null;
+  purpose?: string | null;
+  trip_category: 'business' | 'vacation' | 'family' | 'medical' | 'education' | 'other';
+  status: 'planning' | 'in_progress' | 'completed' | 'cancelled';
   start_date?: string | null;
   end_date?: string | null;
   estimated_cost?: number | null;

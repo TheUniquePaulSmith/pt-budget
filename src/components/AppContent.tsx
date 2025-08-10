@@ -29,10 +29,12 @@ import {
   Storage as ManageDataIcon,
   BugReport,
   Code as SQLIcon,
-  AccountBalance as AccountIcon
+  AccountBalance as AccountIcon,
+  FlightTakeoff as TripsIcon
 } from '@mui/icons-material';
 import Dashboard from './Dashboard';
 import ManageProjects from './ManageProjects';
+import ManageTrips from './ManageTrips';
 import ManageAccounts from './ManageAccounts';
 import TransactionReport from './TransactionReport';
 import SettingsPage from './SettingsPage';
@@ -61,6 +63,7 @@ export default function AppContent() {
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon /> },
+    { id: 'trips', label: 'Trips', icon: <TripsIcon /> },
     { id: 'accounts', label: 'Accounts', icon: <AccountIcon /> },
     { id: 'transactions', label: 'Transactions', icon: <TransactionsIcon /> },
     { id: 'sql-query', label: 'SQL Query', icon: <SQLIcon /> },
@@ -259,6 +262,10 @@ export default function AppContent() {
       
       {currentPage === 'projects' && (
         <ManageProjects />
+      )}
+      
+      {currentPage === 'trips' && (
+        <ManageTrips />
       )}
       
       {currentPage === 'accounts' && (

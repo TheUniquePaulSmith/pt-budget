@@ -11,6 +11,7 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 - **Single Page Application (SPA)** - No server dependencies required
 - **100% Client-Side** - No backend servers or server-side rendering
 - **SQLite Database** - Uses wa-sqlite (SQLite compiled to WebAssembly) for robust data management
+- **SharedWorker Architecture** - Database operations run in a dedicated SharedWorker for performance isolation
 - **OPFS Storage** - Uses Origin Private File System for persistent storage
 - **File System Access API** - Modern browser API for direct file saving/loading
 - **React + TypeScript** - Built with Next.js framework and Material-UI components
@@ -44,6 +45,8 @@ A powerful yet user-friendly budget tracking application that provides enterpris
   - Load existing database files
 - **Persistent Storage** - Data persists automatically using OPFS
 - **Data Export** - Complete database backups in .db format
+- **SharedWorker Database Engine** - Database operations run in isolation for optimal performance
+- **Cross-Tab Synchronization** - Multiple browser tabs share the same database instance
 
 ### 🔧 Advanced Features
 - **Settings Management** - Comprehensive settings page with multiple tabs
@@ -51,6 +54,7 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 - **Cross-Browser Compatibility** - Graceful degradation for browsers without File System Access API
 - **Auto-Save Status Indicator** - Real-time status in navigation bar with tooltips
 - **Data Validation** - Robust error handling and data integrity checks
+- **Message-Based Architecture** - Clean communication between UI and database worker
 
 ### 🎨 User Experience
 - **Modern Material Design** - Clean, intuitive interface
@@ -74,6 +78,16 @@ A powerful yet user-friendly budget tracking application that provides enterpris
 4. **Project-Specific Budgeting** - Specialized for home project management
 5. **Advanced Analytics** - Professional-grade financial reporting
 6. **Persistent Storage** - Data persists automatically using OPFS
+7. **SharedWorker Architecture** - Multi-tab synchronization with isolated database operations
+
+## 📊 Database Schema
+
+For detailed information about the database structure and relationships, see [Database Schema - ER Diagram](./erDiagram.md). This includes:
+- Complete entity relationship diagram
+- Table structures and constraints
+- Foreign key relationships
+- CSV import mapping documentation
+- Duplicate detection strategy
 
 ## 🚀 Getting Started
 
@@ -116,48 +130,107 @@ budget-tracker/
 │   ├── contexts/
 │   │   └── DatabaseContext.tsx # Database state management
 │   ├── lib/
-│   │   └── waSqliteDatabase.ts # wa-sqlite database manager
-│   └── types/                  # TypeScript type definitions
+│   │   ├── waSqliteDatabase.ts # wa-sqlite WebAssembly integration
+│   │   ├── databaseService.ts  # Business logic and high-level operations
+│   │   ├── databaseWorkerService.ts # SharedWorker communication layer
+│   │   └── sqlQueries.ts       # Centralized SQL query definitions
+│   ├── types/
+│   │   └── database.ts         # TypeScript type definitions
+│   └── workers/
+│       └── databaseWorker.ts   # SharedWorker for database operations
 ├── public/
 │   └── wa-sqlite/             # wa-sqlite WebAssembly files
 └── ...
 ```
 
- # Worker Service logical structure
-## 1. database.ts - ✅ DEFINITELY KEEP
-Purpose: TypeScript type definitions
+### SharedWorker Database Architecture
 
-Defines interfaces for all your data models (Transaction, Category, etc.)
-Essential for type safety throughout your application
-Referenced by both services and UI components
-This is your "contract" for data structure
-## databaseWorkerService.ts - ✅ DEFINITELY KEEP
-Purpose: Communication layer with SharedWorker
-
-Handles message passing between main thread and worker
-Manages worker lifecycle, connections, heartbeat
-Provides low-level database operations (query, exec, import/export)
-This is your "transport layer"
-## databaseService.ts - ✅ DEFINITELY KEEP
-Purpose: Business logic and high-level operations
-
-Contains actual SQL queries and business rules
-Maps database rows to TypeScript objects
-Handles transaction hashing, validation, etc.
-Provides clean API for your React components
-This is your "business logic layer"
-Why You Need All Three:
-Clear Separation of Concerns:
-Each Has Distinct Responsibilities:
-File	What It Does	Why It's Needed
-database.ts	Type definitions	Type safety, IntelliSense, contracts
-databaseWorkerService.ts	Worker communication	Message passing, connection management
-databaseService.ts	Business logic	SQL queries, data mapping, validation
+The application uses a sophisticated multi-layered architecture for database operations:
 
 ```
-React Components → DatabaseService → databaseWorkerService → SharedWorker
-                     (business)        (transport)         (execution)
+React Components → DatabaseService → DatabaseWorkerService → SharedWorker
+                     (business)        (transport)           (execution)
 ```
+
+**Layer Breakdown:**
+
+1. **database.ts** - Type definitions and interfaces for all data models
+2. **databaseService.ts** - Business logic layer containing SQL queries, data mapping, and validation
+3. **databaseWorkerService.ts** - Communication layer managing message passing with SharedWorker
+4. **databaseWorker.ts** - SharedWorker that runs database operations in isolation
+
+**SharedWorker Benefits:**
+- **Performance Isolation** - Database operations don't block the main UI thread
+- **Multi-Tab Synchronization** - Multiple browser tabs share the same database instance
+- **Memory Efficiency** - Single database connection shared across all tabs
+- **Background Processing** - Heavy operations (CSV imports, exports) run in background
+
+### Database Service Architecture Details
+
+The database layer follows a clean, multi-tier architecture with clear separation of concerns:
+
+#### Core Database Files
+
+**1. `/types/database.ts` - Type Definitions**
+- Defines TypeScript interfaces for all data models (Transaction, Category, Company, etc.)
+- Provides type safety and IntelliSense throughout the application
+- Acts as the "contract" defining data structure expectations
+- Referenced by both services and UI components
+
+**2. `databaseWorkerService.ts` - Communication Layer**
+- Manages message passing between main thread and SharedWorker
+- Handles worker lifecycle, connection management, and heartbeat monitoring
+- Provides low-level database operations (query, exec, import/export)
+- Acts as the "transport layer" for database communication
+- Implements timeout handling and error recovery
+
+**3. `databaseService.ts` - Business Logic Layer**
+- Contains actual SQL queries and business rules
+- Maps database rows to TypeScript objects
+- Handles transaction hashing, duplicate detection, and validation
+- Provides clean, high-level API for React components
+- Implements domain-specific operations (analytics, project costs, etc.)
+
+**4. `/workers/databaseWorker.ts` - Execution Layer**
+- SharedWorker that runs database operations in isolation
+- Manages wa-sqlite WebAssembly instance
+- Handles OPFS storage and file operations
+- Processes heavy operations without blocking UI
+
+#### Architecture Flow
+
+```
+React Components → DatabaseService → DatabaseWorkerService → SharedWorker
+                     (business)        (transport)           (execution)
+```
+
+| Layer | File | Responsibility | Why It's Essential |
+|-------|------|----------------|-------------------|
+| **Types** | `database.ts` | Type definitions | Type safety, IntelliSense, contracts |
+| **Business** | `databaseService.ts` | SQL queries, data mapping, validation | Clean API, business logic isolation |
+| **Transport** | `databaseWorkerService.ts` | Message passing, connection management | Worker communication, error handling |
+| **Execution** | `databaseWorker.ts` | Database operations, storage management | Performance isolation, multi-tab sync |
+
+#### Supporting Database Files
+
+**5. `sqlQueries.ts` - SQL Query Definitions**
+- Contains all SQL statements organized by entity (transactions, categories, etc.)
+- Centralizes query management for maintainability
+- Separates SQL logic from business logic
+- Enables easy query optimization and debugging
+
+**6. `waSqliteDatabase.ts` - SQLite Integration Layer**
+- Manages wa-sqlite WebAssembly initialization
+- Handles SQLite-specific operations and configurations
+- Provides SQLite instance management
+- Bridges between JavaScript and SQLite WASM
+
+This architecture ensures:
+- **Maintainability** - Clear separation of concerns makes code easy to modify
+- **Testability** - Each layer can be tested independently
+- **Performance** - Database operations don't block the UI thread
+- **Scalability** - Easy to add new features without affecting existing code
+- **Type Safety** - TypeScript ensures data integrity across all layers
 ## 🛠️ Building for Production
 
 Build the application:
@@ -177,11 +250,12 @@ The build is optimized for production and includes:
 - **Modern Browsers** - Chrome, Firefox, Safari, Edge (latest versions)
 - **File System Access API** - Available in Chromium-based browsers for auto-save
 - **Graceful Degradation** - Manual export/import in browsers without File System Access
+- [Note] Does not currently work on Chrome for Android, but slated to be fixed in late 2025
 
 ## 📋 Requirements
 
-- Node.js 18+ 
 - Modern web browser with JavaScript enabled
+- Node.js 18+ (for development)
 - ~50MB available browser storage for large databases
 
 ## 🤝 Contributing

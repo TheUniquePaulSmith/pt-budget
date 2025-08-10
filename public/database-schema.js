@@ -52,6 +52,7 @@ export const CREATE_TABLES = {
       category_id INTEGER,
       company_id INTEGER,
       project_id INTEGER,
+      trip_id INTEGER,
       type TEXT CHECK(type IN ('income', 'expense')) NOT NULL,
       transaction_hash TEXT UNIQUE,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -59,7 +60,8 @@ export const CREATE_TABLES = {
       FOREIGN KEY (account_id) REFERENCES accounts (id),
       FOREIGN KEY (category_id) REFERENCES categories (id),
       FOREIGN KEY (company_id) REFERENCES companies (id),
-      FOREIGN KEY (project_id) REFERENCES projects (id)
+      FOREIGN KEY (project_id) REFERENCES projects (id),
+      FOREIGN KEY (trip_id) REFERENCES trips (id)
     )
   `,
   
@@ -85,6 +87,24 @@ export const CREATE_TABLES = {
       contact_details TEXT,
       project_category TEXT CHECK(project_category IN ('plumbing', 'electrical', 'hvac', 'roofing', 'flooring', 'painting', 'landscaping', 'general_contractor', 'other')) DEFAULT 'other',
       status TEXT CHECK(status IN ('planning', 'in_progress', 'completed', 'on_hold')) DEFAULT 'planning',
+      start_date DATE,
+      end_date DATE,
+      estimated_cost REAL DEFAULT 0,
+      actual_cost REAL DEFAULT 0,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `,
+  
+  TRIPS: `
+    CREATE TABLE IF NOT EXISTS trips (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      destination TEXT,
+      purpose TEXT,
+      trip_category TEXT CHECK(trip_category IN ('business', 'vacation', 'family', 'medical', 'education', 'other')) DEFAULT 'other',
+      status TEXT CHECK(status IN ('planning', 'in_progress', 'completed', 'cancelled')) DEFAULT 'planning',
       start_date DATE,
       end_date DATE,
       estimated_cost REAL DEFAULT 0,
@@ -126,5 +146,11 @@ export const DEFAULT_DATA = {
     (1, 1, 'Primary Checking', 'checking', '1234'),
     (2, 1, 'Savings Account', 'savings', '5678'),
     (3, 1, 'Credit Card', 'credit', '9012')
+  `,
+  
+  TRIPS: `
+    INSERT OR IGNORE INTO trips (id, name, destination, purpose, trip_category, status) VALUES
+    (1, 'Summer Vacation 2024', 'Hawaii', 'Family vacation', 'vacation', 'planning'),
+    (2, 'Business Conference NYC', 'New York', 'Annual company conference', 'business', 'planning')
   `
 };

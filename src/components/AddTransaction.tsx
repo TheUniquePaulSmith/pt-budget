@@ -99,6 +99,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
         company_id: companyId || null,
         project_id: formData.project_id || null,
         account_id: formData.account_id,
+        trip_id: null, // Trip association handled separately
       };
 
       await addTransaction(transaction);

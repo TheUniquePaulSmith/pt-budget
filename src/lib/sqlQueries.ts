@@ -16,19 +16,27 @@ export const TRANSACTION_QUERIES = {
       comp.name as company_name,
       a.name as account_name,
       a.type as account_type,
-      p.name as project_name
+      p.name as project_name,
+      tr.name as trip_name
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     LEFT JOIN companies comp ON t.company_id = comp.id
     LEFT JOIN accounts a ON t.account_id = a.id
     LEFT JOIN projects p ON t.project_id = p.id
+    LEFT JOIN trips tr ON t.trip_id = tr.id
     ORDER BY t.date DESC, t.id DESC
   `,
 
   CREATE: `
-    INSERT INTO transactions (date, amount, description, account_id, category_id, company_id, project_id, type, transaction_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO transactions (date, amount, description, account_id, category_id, company_id, project_id, trip_id, type, transaction_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     RETURNING id
+  `,
+
+  UPDATE_PROJECT_TRIP: `
+    UPDATE transactions 
+    SET project_id = ?, trip_id = ?, updated_at = CURRENT_TIMESTAMP 
+    WHERE id = ?
   `,
 
   GET_BY_PROJECT: `
@@ -48,6 +56,23 @@ export const TRANSACTION_QUERIES = {
     ORDER BY t.date DESC, t.id DESC
   `,
 
+  GET_BY_TRIP: `
+    SELECT 
+      t.*,
+      c.name as category_name,
+      c.color as category_color,
+      c.type as category_type,
+      comp.name as company_name,
+      a.name as account_name,
+      a.type as account_type
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN companies comp ON t.company_id = comp.id
+    LEFT JOIN accounts a ON t.account_id = a.id
+    WHERE t.trip_id = ?
+    ORDER BY t.date DESC, t.id DESC
+  `,
+
   GET_BY_DATE_RANGE: `
     SELECT 
       t.*,
@@ -57,12 +82,14 @@ export const TRANSACTION_QUERIES = {
       comp.name as company_name,
       a.name as account_name,
       a.type as account_type,
-      p.name as project_name
+      p.name as project_name,
+      tr.name as trip_name
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     LEFT JOIN companies comp ON t.company_id = comp.id
     LEFT JOIN accounts a ON t.account_id = a.id
     LEFT JOIN projects p ON t.project_id = p.id
+    LEFT JOIN trips tr ON t.trip_id = tr.id
     WHERE t.date BETWEEN ? AND ?
     ORDER BY t.date DESC, t.id DESC
   `,
@@ -76,12 +103,14 @@ export const TRANSACTION_QUERIES = {
       comp.name as company_name,
       a.name as account_name,
       a.type as account_type,
-      p.name as project_name
+      p.name as project_name,
+      tr.name as trip_name
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     LEFT JOIN companies comp ON t.company_id = comp.id
     LEFT JOIN accounts a ON t.account_id = a.id
     LEFT JOIN projects p ON t.project_id = p.id
+    LEFT JOIN trips tr ON t.trip_id = tr.id
     WHERE t.date BETWEEN ? AND ? AND c.type = ?
     ORDER BY t.date DESC, t.id DESC
   `,
@@ -176,6 +205,45 @@ export const PROJECT_QUERIES = {
     WHERE p.id = ?
     GROUP BY p.id, p.estimated_cost, p.actual_cost
   `,
+};
+
+// Trip Queries
+export const TRIP_QUERIES = {
+  GET_ALL: `
+    SELECT * FROM trips 
+    ORDER BY name ASC
+  `,
+
+  CREATE: `
+    INSERT INTO trips (name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING id
+  `,
+
+  GET_BY_ID: `
+    SELECT * FROM trips WHERE id = ?
+  `,
+
+  UPDATE: `
+    UPDATE trips 
+    SET name = ?, destination = ?, purpose = ?, trip_category = ?, status = ?, start_date = ?, end_date = ?, estimated_cost = ?, actual_cost = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `,
+
+  DELETE: `
+    DELETE FROM trips WHERE id = ?
+  `,
+
+  GET_COSTS: `
+    SELECT 
+      COALESCE(t.estimated_cost, 0) as estimated,
+      COALESCE(t.actual_cost, 0) as actual,
+      COALESCE(SUM(ABS(tr.amount)), 0) as transactions_total
+    FROM trips t
+    LEFT JOIN transactions tr ON tr.trip_id = t.id
+    WHERE t.id = ?
+    GROUP BY t.id
+  `
 };
 
 // Analytics Queries

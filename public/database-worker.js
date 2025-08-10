@@ -93,6 +93,7 @@ class DatabaseWorker {
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTIONS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGETS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.PROJECTS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.TRIPS);
 
           // Insert default data
           await this.sqlite3.exec(this.db, DEFAULT_DATA.CATEGORIES);

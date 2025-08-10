@@ -31,6 +31,8 @@ import {
   Collapse,
   useMediaQuery,
   useTheme,
+  Tooltip,
+  alpha,
 } from '@mui/material';
 import {
   FilterList,
@@ -40,11 +42,13 @@ import {
   ViewColumn,
   ExpandMore,
   ExpandLess,
+  Label as LabelIcon,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import TransactionLabelDialog from './TransactionLabelDialog';
 import { Transaction, Category, Company, Account } from '@/types/database';
 import { format, parseISO } from 'date-fns';
 
@@ -75,6 +79,8 @@ export default function TransactionReport() {
   // Table state
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [orderBy, setOrderBy] = useState<keyof Transaction>('date');
   const [order, setOrder] = useState<Order>('desc');
 
@@ -85,12 +91,13 @@ export default function TransactionReport() {
   const [visibleColumns, setVisibleColumns] = useState({
     date: true,
     description: true,
-    type: true,
     category: true,
     company: true,
     project: true,
+    label: true,
     amount: true,
     account: true,
+    actions: true,
   });
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -101,12 +108,13 @@ export default function TransactionReport() {
       setVisibleColumns({
         date: true,
         description: true,
-        type: false,
         category: false,
         company: false,
         project: false,
+        label: false,
         amount: true,
         account: false,
+        actions: true,
       });
     }
   }, [isMobile]);
@@ -114,12 +122,13 @@ export default function TransactionReport() {
   const columnLabels = {
     date: 'Date',
     description: 'Description',
-    type: 'Type',
     category: 'Category',
     company: 'Company',
     project: 'Project',
+    label: 'Label',
     amount: 'Amount',
     account: 'Account',
+    actions: 'Actions',
   };
 
   const handleColumnToggle = (column: keyof typeof visibleColumns) => {
@@ -133,12 +142,13 @@ export default function TransactionReport() {
     setVisibleColumns({
       date: true,
       description: true,
-      type: true,
       category: true,
       company: true,
       project: true,
+      label: true,
       amount: true,
       account: true,
+      actions: true,
     });
   };
 
@@ -146,12 +156,13 @@ export default function TransactionReport() {
     setVisibleColumns({
       date: true,
       description: true,
-      type: false,
       category: false,
       company: false,
       project: false,
+      label: false,
       amount: true,
       account: false,
+      actions: true,
     });
   };
 
@@ -291,13 +302,54 @@ export default function TransactionReport() {
     setMaxAmount('');
     setPage(0);
   };
+
+  const handleLabelTransaction = (transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setLabelDialogOpen(true);
+  };
+
+  const handleLabelDialogClose = () => {
+    setLabelDialogOpen(false);
+    setSelectedTransaction(null);
+  };
+
+  const handleLabelSuccess = () => {
+    // Transaction will be refreshed by the dialog
+    console.log('Transaction labeled successfully');
+  };
+
+  const renderTransactionLabel = (transaction: Transaction) => {
+    if (transaction.project_id && transaction.project_name) {
+      return (
+        <Chip
+          label={`Project: ${transaction.project_name}`}
+          color="primary"
+          size="small"
+          variant="outlined"
+        />
+      );
+    }
+    
+    if (transaction.trip_id && transaction.trip_name) {
+      return (
+        <Chip
+          label={`Trip: ${transaction.trip_name}`}
+          color="secondary"
+          size="small"
+          variant="outlined"
+        />
+      );
+    }
+    
+    return null;
+  };
+
   const handleExportCSV = () => {
     // Build headers based on visible columns
     const headers: string[] = [];
     const columnMapping: { [key: string]: string } = {
       date: 'Date',
       description: 'Description',
-      type: 'Type',
       category: 'Category',
       company: 'Company',
       project: 'Project',
@@ -317,7 +369,6 @@ export default function TransactionReport() {
       
       if (visibleColumns.date) row.push(transaction.date);
       if (visibleColumns.description) row.push(transaction.description);
-      if (visibleColumns.type) row.push(transaction.type);
       if (visibleColumns.category) row.push(transaction.category_name || '');
       if (visibleColumns.company) row.push(transaction.company_name || '');
       if (visibleColumns.project) row.push(transaction.project_name || '');
@@ -648,6 +699,31 @@ export default function TransactionReport() {
                 }
               />
 
+              {/* Project Filter */}
+              <Autocomplete
+                multiple
+                options={projects}
+                getOptionLabel={(option) => option.name}
+                value={projects.filter((proj: any) => projectFilter.includes(proj.id))}
+                onChange={(_, value) => setProjectFilter(value.map(v => v.id))}
+                renderInput={(params) => (
+                  <TextField {...params} label="Projects" />
+                )}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => {
+                    const { key, ...chipProps } = getTagProps({ index });
+                    return (
+                      <Chip
+                        key={key}
+                        label={option.name}
+                        size="small"
+                        {...chipProps}
+                      />
+                    );
+                  })
+                }
+              />
+
               {/* Account Filter */}
               <Autocomplete
                 multiple
@@ -702,9 +778,6 @@ export default function TransactionReport() {
                       </TableSortLabel>
                     </TableCell>
                   )}
-                  {visibleColumns.type && (
-                    <TableCell>Type</TableCell>
-                  )}
                   {visibleColumns.category && (
                     <TableCell>Category</TableCell>
                   )}
@@ -713,6 +786,9 @@ export default function TransactionReport() {
                   )}
                   {visibleColumns.project && (
                     <TableCell>Project</TableCell>
+                  )}
+                  {visibleColumns.label && (
+                    <TableCell>Label</TableCell>
                   )}
                   {visibleColumns.amount && (
                     <TableCell align="right">
@@ -728,11 +804,33 @@ export default function TransactionReport() {
                   {visibleColumns.account && (
                     <TableCell>Account</TableCell>
                   )}
+                  {visibleColumns.actions && (
+                    <TableCell align="center">Actions</TableCell>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
                 {paginatedTransactions.map((transaction: Transaction) => (
-                  <TableRow key={transaction.id} hover>
+                  <TableRow 
+                    key={transaction.id} 
+                    hover
+                    sx={{
+                      backgroundColor: alpha(
+                        transaction.type === 'income' 
+                          ? theme.palette.success.main 
+                          : theme.palette.error.main,
+                        0.1
+                      ),
+                      '&:hover': {
+                        backgroundColor: alpha(
+                          transaction.type === 'income' 
+                            ? theme.palette.success.main 
+                            : theme.palette.error.main,
+                          0.2
+                        ) + ' !important'
+                      }
+                    }}
+                  >
                     {visibleColumns.date && (
                       <TableCell sx={{ minWidth: 100 }}>
                         {format(parseISO(transaction.date), isMobile ? 'MM/dd/yy' : 'MMM dd, yyyy')}
@@ -759,15 +857,6 @@ export default function TransactionReport() {
                         </Box>
                       </TableCell>
                     )}
-                    {visibleColumns.type && (
-                      <TableCell>
-                        <Chip
-                          label={transaction.type}
-                          size="small"
-                          color={transaction.type === 'income' ? 'success' : 'error'}
-                        />
-                      </TableCell>
-                    )}
                     {visibleColumns.category && (
                       <TableCell sx={{ minWidth: 120 }}>{transaction.category_name}</TableCell>
                     )}
@@ -776,6 +865,11 @@ export default function TransactionReport() {
                     )}
                     {visibleColumns.project && (
                       <TableCell sx={{ minWidth: 120 }}>{transaction.project_name || '-'}</TableCell>
+                    )}
+                    {visibleColumns.label && (
+                      <TableCell sx={{ minWidth: 120 }}>
+                        {renderTransactionLabel(transaction)}
+                      </TableCell>
                     )}
                     {visibleColumns.amount && (
                       <TableCell align="right" sx={{ minWidth: 100 }}>
@@ -791,6 +885,17 @@ export default function TransactionReport() {
                     )}
                     {visibleColumns.account && (
                       <TableCell sx={{ minWidth: 120 }}>{transaction.account_name}</TableCell>
+                    )}
+                    {visibleColumns.actions && (
+                      <TableCell align="center" sx={{ minWidth: 80 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleLabelTransaction(transaction)}
+                          title="Label Transaction"
+                        >
+                          <LabelIcon />
+                        </IconButton>
+                      </TableCell>
                     )}
                   </TableRow>
                 ))}
@@ -826,6 +931,13 @@ export default function TransactionReport() {
             </Typography>
           </Box>
         )}
+
+        <TransactionLabelDialog
+          open={labelDialogOpen}
+          onClose={handleLabelDialogClose}
+          transaction={selectedTransaction}
+          onSuccess={handleLabelSuccess}
+        />
       </Box>
     </LocalizationProvider>
   );

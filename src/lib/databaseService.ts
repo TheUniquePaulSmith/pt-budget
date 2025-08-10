@@ -7,15 +7,6 @@
 
 import { databaseWorkerService } from "./databaseWorkerService";
 //import { dbLogger } from './logger';
-import type {
-  Transaction,
-  Category,
-  Company,
-  Account,
-  Budget,
-  Project,
-  User,
-} from "../types/database";
 import {
   TRANSACTION_QUERIES,
   CATEGORY_QUERIES,
@@ -24,8 +15,19 @@ import {
   BUDGET_QUERIES,
   PROJECT_QUERIES,
   USER_QUERIES,
-  ANALYTICS_QUERIES,
-} from "./sqlQueries";
+  TRIP_QUERIES,
+  ANALYTICS_QUERIES
+} from './sqlQueries';
+import { 
+  Transaction, 
+  Category, 
+  Company, 
+  Account, 
+  Budget, 
+  Project, 
+  User,
+  Trip
+} from '../types/database';
 
 export class DatabaseService {
   private isInitialized = false;
@@ -220,6 +222,7 @@ export class DatabaseService {
           transaction.category_id || null,
           transaction.company_id || null,
           transaction.project_id || null,
+          transaction.trip_id || null,
           transaction.type,
           hash,
         ]
@@ -548,6 +551,81 @@ export class DatabaseService {
     }
   }
 
+  // Trip operations
+  async getTrips(): Promise<Trip[]> {
+    const result = await this.getWorkerService().query(TRIP_QUERIES.GET_ALL);
+    return result.map((row: any) => this.mapToTrip(row));
+  }
+
+  async addTrip(
+    trip: Omit<Trip, "id" | "created_at" | "updated_at">
+  ): Promise<string> {
+    const result = await this.getWorkerService().query(TRIP_QUERIES.CREATE, [
+      trip.name,
+      trip.destination || null,
+      trip.purpose || null,
+      trip.trip_category,
+      trip.status,
+      trip.start_date || null,
+      trip.end_date || null,
+      trip.estimated_cost || null,
+      trip.actual_cost || null,
+      trip.notes || null,
+    ]);
+    return String(result[0].id);
+  }
+
+  async getTripById(id: string): Promise<Trip | null> {
+    const result = await this.getWorkerService().query(TRIP_QUERIES.GET_BY_ID, [id]);
+    return result.length > 0 ? this.mapToTrip(result[0]) : null;
+  }
+
+  async updateTrip(
+    id: string,
+    updates: Partial<Omit<Trip, "id" | "created_at" | "updated_at">>
+  ): Promise<void> {
+    const trip = await this.getTripById(id);
+    if (!trip) throw new Error('Trip not found');
+
+    await this.getWorkerService().query(TRIP_QUERIES.UPDATE, [
+      updates.name !== undefined ? updates.name : trip.name,
+      updates.destination !== undefined ? updates.destination : trip.destination,
+      updates.purpose !== undefined ? updates.purpose : trip.purpose,
+      updates.trip_category !== undefined ? updates.trip_category : trip.trip_category,
+      updates.status !== undefined ? updates.status : trip.status,
+      updates.start_date !== undefined ? updates.start_date : trip.start_date,
+      updates.end_date !== undefined ? updates.end_date : trip.end_date,
+      updates.estimated_cost !== undefined ? updates.estimated_cost : trip.estimated_cost,
+      updates.actual_cost !== undefined ? updates.actual_cost : trip.actual_cost,
+      updates.notes !== undefined ? updates.notes : trip.notes,
+      id,
+    ]);
+  }
+
+  async deleteTrip(id: string): Promise<void> {
+    await this.getWorkerService().query(TRIP_QUERIES.DELETE, [id]);
+  }
+
+  async getTripCosts(
+    tripId: string
+  ): Promise<{
+    estimated: number;
+    actual: number;
+    transactions_total: number;
+  }> {
+    const result = await this.getWorkerService().query(TRIP_QUERIES.GET_COSTS, [tripId]);
+    return result.length > 0 ? {
+      estimated: Number(result[0].estimated) || 0,
+      actual: Number(result[0].actual) || 0,
+      transactions_total: Number(result[0].transactions_total) || 0,
+    } : { estimated: 0, actual: 0, transactions_total: 0 };
+  }
+
+  async getTransactionsByTrip(tripId: string): Promise<Transaction[]> {
+    const result = await this.getWorkerService().query(TRANSACTION_QUERIES.GET_BY_TRIP, [tripId]);
+    return result.map((row: any) => this.mapToTransaction(row));
+  }
+
   // User operations
   async getUsers(): Promise<User[]> {
     try {
@@ -732,6 +810,8 @@ export class DatabaseService {
       account_name: row.account_name || undefined,
       account_type: row.account_type || undefined,
       project_name: row.project_name || undefined,
+      trip_name: row.trip_name || undefined,
+      trip_id: row.trip_id ? String(row.trip_id) : null,
     };
   }
 
@@ -807,6 +887,24 @@ export class DatabaseService {
     };
   }
 
+  private mapToTrip(row: any): Trip {
+    return {
+      id: String(row.id),
+      name: row.name,
+      destination: row.destination,
+      purpose: row.purpose,
+      trip_category: row.trip_category,
+      status: row.status,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      estimated_cost: row.estimated_cost ? Number(row.estimated_cost) : null,
+      actual_cost: row.actual_cost ? Number(row.actual_cost) : null,
+      notes: row.notes,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
+  }
+
   private generateTransactionHash(
     transaction: Omit<Transaction, "id" | "created_at" | "updated_at">
   ): string {
@@ -845,5 +943,13 @@ export class DatabaseService {
     }
 
     return Math.abs(hash).toString(16);
+  }
+
+  async updateTransactionLabels(id: string, projectId: string | null, tripId: string | null): Promise<void> {
+    await this.getWorkerService().query(TRANSACTION_QUERIES.UPDATE_PROJECT_TRIP, [
+      projectId,
+      tripId,
+      id,
+    ]);
   }
 }

@@ -56,6 +56,27 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
 
     hasStartedTest.current = true;
 
+    // Check if test has been run successfully before
+    const STORAGE_KEY = "budgetApp_browserTestPassed";
+    const previousTestResults = localStorage.getItem(STORAGE_KEY);
+
+    if (previousTestResults) {
+      try {
+        const savedResults: TestResults = JSON.parse(previousTestResults);
+        console.log("[TestBrowser] Using cached test results from previous session");
+        setTestResults(savedResults);
+        setIsTestingInProgress(false);
+        // Delay callback slightly to ensure parent component is ready
+        setTimeout(() => {
+          onTestComplete(savedResults.overallCompatible, savedResults);
+        }, 100);
+        return;
+      } catch (err) {
+        console.warn("[TestBrowser] Failed to parse cached test results, running test again", err);
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+
     const runCompatibilityTest = async () => {
       try {
         console.log("[TestBrowser] Starting compatibility test...");
@@ -113,6 +134,17 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
             console.log("[TestBrowser] Received test results:", results);
             setTestResults(results);
             setIsTestingInProgress(false);
+            
+            // Save successful test results to localStorage
+            if (results.overallCompatible) {
+              const STORAGE_KEY = "budgetApp_browserTestPassed";
+              try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(results));
+                console.log("[TestBrowser] Saved test results to localStorage for future sessions");
+              } catch (err) {
+                console.warn("[TestBrowser] Failed to save test results to localStorage", err);
+              }
+            }
             
             // Add a 2-second delay to let users see the test results
             setTimeout(() => {

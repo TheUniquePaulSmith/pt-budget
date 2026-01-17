@@ -255,6 +255,25 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
 
     // Initialize the database tester service to check if the browser supports required features
     const initializeAndCheck = async () => {
+      // Check if browser test has already passed in a previous session
+      const STORAGE_KEY = "budgetApp_browserTestPassed";
+      const previousTestResults = localStorage.getItem(STORAGE_KEY);
+
+      if (previousTestResults) {
+        try {
+          const savedResults = JSON.parse(previousTestResults);
+          if (savedResults.overallCompatible) {
+            console.log('[DB Context] Using cached browser compatibility results, skipping test');
+            // Skip the test UI and proceed directly to database initialization
+            await handleBrowserTestComplete(true, savedResults);
+            return;
+          }
+        } catch (err) {
+          console.warn('[DB Context] Failed to parse cached test results, running test again', err);
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+
       // First test browser compatibility
       setInitializationState('testing-browser');
       // Browser testing will trigger the next phase via handleBrowserTestComplete

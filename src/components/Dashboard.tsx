@@ -275,18 +275,28 @@ const Dashboard: React.FC = () => {
       })
       .forEach(t => {
         if (!t.category_id) return;
-        const existing = categoryTotals.get(t.category_id) || { label: t.category_name || 'Unknown', value: 0, color: '#999' };
-        categoryTotals.set(t.category_id, {
-          ...existing,
-          value: existing.value + Math.abs(t.amount),
-        });
+        const categoryId = Number(t.category_id);
+        const category = categories.find(c => Number(c.id) === categoryId);
+        const existing = categoryTotals.get(categoryId);
+        if (existing) {
+          categoryTotals.set(categoryId, {
+            ...existing,
+            value: existing.value + Math.abs(t.amount),
+          });
+        } else {
+          categoryTotals.set(categoryId, {
+            label: category?.name || t.category_name || 'Unknown',
+            value: Math.abs(t.amount),
+            color: category?.color || '#999',
+          });
+        }
       });
     
     return Array.from(categoryTotals.entries()).map(([id, data]) => ({
       id,
       ...data,
     }));
-  }, [transactions, dateRanges]);
+  }, [transactions, dateRanges, categories]);
 
   const incomeData = useMemo(() => {
     const startDate = new Date(dateRanges.start);
@@ -301,18 +311,28 @@ const Dashboard: React.FC = () => {
       })
       .forEach(t => {
         if (!t.category_id) return;
-        const existing = categoryTotals.get(t.category_id) || { label: t.category_name || 'Unknown', value: 0, color: '#999' };
-        categoryTotals.set(t.category_id, {
-          ...existing,
-          value: existing.value + t.amount,
-        });
+        const categoryId = Number(t.category_id);
+        const category = categories.find(c => Number(c.id) === categoryId);
+        const existing = categoryTotals.get(categoryId);
+        if (existing) {
+          categoryTotals.set(categoryId, {
+            ...existing,
+            value: existing.value + t.amount,
+          });
+        } else {
+          categoryTotals.set(categoryId, {
+            label: category?.name || t.category_name || 'Unknown',
+            value: t.amount,
+            color: category?.color || '#999',
+          });
+        }
       });
     
     return Array.from(categoryTotals.entries()).map(([id, data]) => ({
       id,
       ...data,
     }));
-  }, [transactions, dateRanges]);
+  }, [transactions, dateRanges, categories]);
 
   const trendsData = useMemo(() => {
     // For trends, show last 6 months from the end date

@@ -127,7 +127,7 @@ export const CREATE_TABLES = {
       project_id INTEGER,
       trip_id INTEGER,
       type TEXT CHECK(type IN ('income', 'expense')) NOT NULL,
-      transaction_hash TEXT UNIQUE
+      transaction_hash TEXT
     )
   `
 };

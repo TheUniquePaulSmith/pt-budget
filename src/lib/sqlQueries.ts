@@ -152,6 +152,10 @@ export const TRANSACTION_QUERIES = {
   COUNT_TEMP_TRANSACTIONS: `
     SELECT COUNT(*) as count FROM temp_import_transactions
   `,
+
+  DELETE_TEMP_TRANSACTIONS_BY_IDS: `
+    DELETE FROM temp_import_transactions WHERE id IN (__IDS__)
+  `,
 };
 
 // Category Queries

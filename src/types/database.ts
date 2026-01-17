@@ -56,6 +56,8 @@ export interface Account {
   last_four: string; // Last 4 digits of account number
   created_at: string;
   updated_at: string;
+  // Joined fields from SQL queries
+  user_display_name?: string;
 }
 
 export interface Budget {

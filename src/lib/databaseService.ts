@@ -258,10 +258,11 @@ export class DatabaseService {
 
   async insertIntoTempTable(
     transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
-  ): Promise<void> {
+  ): Promise<number[]> {
     try {
+      const insertedIds: number[] = [];
       for (const transaction of transactions) {
-        await databaseWorkerService.query(TRANSACTION_QUERIES.INSERT_TEMP_TRANSACTION, [
+        const result = await databaseWorkerService.query(TRANSACTION_QUERIES.INSERT_TEMP_TRANSACTION, [
           transaction.date,
           transaction.amount,
           transaction.description,
@@ -273,7 +274,11 @@ export class DatabaseService {
           transaction.type,
           transaction.transaction_hash || null,
         ]);
+        // SQLite returns the last inserted rowid
+        const lastId = await databaseWorkerService.query('SELECT last_insert_rowid() as id');
+        insertedIds.push(lastId[0].id);
       }
+      return insertedIds;
     } catch (error) {
       console.error("Failed to insert into temp table:", error);
       throw error;
@@ -303,6 +308,21 @@ export class DatabaseService {
       return result[0]?.count || 0;
     } catch (error) {
       console.error("Failed to bulk insert from temp table:", error);
+      throw error;
+    }
+  }
+
+  async deleteFromTempTable(tempIds: number[]): Promise<void> {
+    try {
+      if (tempIds.length === 0) return;
+      
+      // Build comma-separated list of IDs
+      const idsString = tempIds.join(',');
+      const deleteQuery = TRANSACTION_QUERIES.DELETE_TEMP_TRANSACTIONS_BY_IDS.replace('__IDS__', idsString);
+      
+      await databaseWorkerService.query(deleteQuery);
+    } catch (error) {
+      console.error("Failed to delete from temp table:", error);
       throw error;
     }
   }
@@ -933,6 +953,7 @@ export class DatabaseService {
       last_four: row.last_four,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      user_display_name: row.user_display_name,
     };
   }
 

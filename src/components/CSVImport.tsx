@@ -19,11 +19,15 @@ import {
   Select,
   MenuItem,
   Chip,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
-import { CloudUpload, CheckCircle, Error as ErrorIcon } from '@mui/icons-material';
+import { CloudUpload, CheckCircle, Error as ErrorIcon, ExpandMore } from '@mui/icons-material';
 import Papa from 'papaparse';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
 import { Transaction, Account } from '@/types/database';
+import InternalDuplicatesResolver from './InternalDuplicatesResolver';
 
 interface CSVImportProps {
   open: boolean;
@@ -43,8 +47,20 @@ interface AnalysisResult {
   totalRows: number;
   mappableRows: number;
   duplicateCount: number;
+  internalDuplicates: number;
   uniqueCount: number;
   skippedRows: number;
+  duplicateGroups?: DuplicateGroup[];
+}
+
+interface DuplicateGroup {
+  hash: string;
+  transactions: Array<{
+    index: number;
+    transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>;
+    csvAccountValue: string;
+    tempId: number;
+  }>;
 }
 
 interface ColumnMapping {
@@ -68,6 +84,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     generateTransactionHash,
     truncateImportTable,
     insertIntoTempTable,
+    deleteFromTempTable,
     checkDuplicateTransactions,
     bulkInsertFromTempTable,
   } = useDatabaseContext();
@@ -89,6 +106,17 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateResolverOpen, setDuplicateResolverOpen] = useState(false);
+  const [excludedTransactionIndices, setExcludedTransactionIndices] = useState<Set<number>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<{
+    columnMapping: boolean;
+    accountMapping: boolean;
+    preview: boolean;
+  }>({
+    columnMapping: true,
+    accountMapping: true,
+    preview: true,
+  });
 
   // Function to analyze account column and find matching accounts
   const analyzeAccountColumn = useCallback((data: any[], accountColumn: string) => {
@@ -303,6 +331,57 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       };
     });
   };
+
+  const toggleSection = (section: 'columnMapping' | 'accountMapping' | 'preview') => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
+  const handleResolveDuplicates = async (selectedIndices: Set<number>) => {
+    if (!analysisResult || !analysisResult.duplicateGroups) return;
+
+    // Collect temp_ids of excluded transactions
+    const tempIdsToDelete: number[] = [];
+    
+    analysisResult.duplicateGroups.forEach(group => {
+      group.transactions.forEach(item => {
+        if (!selectedIndices.has(item.index)) {
+          tempIdsToDelete.push(item.tempId);
+        }
+      });
+    });
+    
+    setDuplicateResolverOpen(false);
+    
+    // Delete excluded transactions from temp table
+    try {
+      if (tempIdsToDelete.length > 0) {
+        await deleteFromTempTable(tempIdsToDelete);
+      }
+      
+      // Recalculate counts after deletion
+      const existingHashes = await checkDuplicateTransactions();
+      const duplicateCount = existingHashes.length;
+      
+      // Calculate remaining transaction count
+      const remainingCount = analysisResult.mappableRows - tempIdsToDelete.length;
+      const uniqueCount = remainingCount - duplicateCount;
+
+      // Update analysis result
+      setAnalysisResult({
+        ...analysisResult,
+        internalDuplicates: 0, // All resolved
+        duplicateCount,
+        uniqueCount,
+        duplicateGroups: undefined, // Clear duplicate groups after resolution
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update analysis after duplicate resolution');
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!csvData.length) {
       setError('No CSV data available');
@@ -340,6 +419,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     setAnalyzing(true);
     setError(null);
     setAnalysisResult(null);
+    
+    // Collapse mapping and preview sections when analyzing
+    setExpandedSections({
+      columnMapping: false,
+      accountMapping: false,
+      preview: false,
+    });
 
     try {
       const mappedTransactions = mapTransactionsFromCSV(csvData, mapping, accountMatches);
@@ -348,21 +434,72 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       const mappableRows = mappedTransactions.length;
       const skippedRows = totalRows - mappableRows;
       
-      // Clear import table and insert all transactions
-      await truncateImportTable();
-      await insertIntoTempTable(mappedTransactions.map(t => t.transaction));
+      // Detect internal duplicates within the CSV itself and group them
+      type TransactionItem = {
+        index: number;
+        transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>;
+        csvAccountValue: string;
+      };
+      const hashMap = new Map<string, Array<TransactionItem>>();
       
-      // Check for duplicates using the temp table
+      mappedTransactions.forEach((mapped, index) => {
+        if (!hashMap.has(mapped.hash)) {
+          hashMap.set(mapped.hash, []);
+        }
+        hashMap.get(mapped.hash)!.push({
+          index,
+          transaction: mapped.transaction,
+          csvAccountValue: mapped.csvAccountValue,
+        });
+      });
+      
+      // Insert ALL mapped transactions into temp table
+      await truncateImportTable();
+      const allTransactions = mappedTransactions.map(m => m.transaction);
+      const tempIds = await insertIntoTempTable(allTransactions);
+      
+      // Map temp_ids back to transactions in hashMap
+      mappedTransactions.forEach((mapped, index) => {
+        const tempId = tempIds[index];
+        const items = hashMap.get(mapped.hash);
+        if (items) {
+          const item = items.find(i => i.index === index);
+          if (item) {
+            (item as any).tempId = tempId; // Add tempId to the transaction item
+          }
+        }
+      });
+      
+      // Find duplicate groups (hashes with more than 1 transaction)
+      const duplicateGroups: DuplicateGroup[] = [];
+      let internalDuplicateCount = 0;
+      
+      hashMap.forEach((transactions, hash) => {
+        if (transactions.length > 1) {
+          duplicateGroups.push({ 
+            hash, 
+            transactions: transactions.map(t => ({
+              ...t,
+              tempId: (t as any).tempId
+            }))
+          });
+          internalDuplicateCount += transactions.length - 1; // Count extras beyond the first
+        }
+      });
+      
+      // Check for duplicates against existing database transactions
       const existingHashes = await checkDuplicateTransactions();
       const duplicateCount = existingHashes.length;
-      const uniqueCount = mappableRows - duplicateCount;
+      const uniqueCount = mappableRows - internalDuplicateCount - duplicateCount;
 
       setAnalysisResult({
         totalRows,
         mappableRows,
         duplicateCount,
+        internalDuplicates: internalDuplicateCount,
         uniqueCount,
         skippedRows,
+        duplicateGroups: duplicateGroups.length > 0 ? duplicateGroups : undefined,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze transactions');
@@ -442,6 +579,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     setAnalysisResult(null);
     setImportResult(null);
     setError(null);
+    setDuplicateResolverOpen(false);
+    setExcludedTransactionIndices(new Set());
+    setExpandedSections({
+      columnMapping: true,
+      accountMapping: true,
+      preview: true,
+    });
     onClose();
   };
 
@@ -509,13 +653,20 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
           {/* Column Mapping */}
           {csvData.length > 0 && !loading && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Map CSV Columns
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Map your CSV columns to transaction fields. All fields are required for proper import.
-              </Typography>
+            <Accordion 
+              expanded={expandedSections.columnMapping} 
+              onChange={() => toggleSection('columnMapping')}
+            >
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="h6">
+                  Map CSV Columns
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box display="flex" flexDirection="column" gap={2}>
+                  <Typography variant="body2" color="text.secondary">
+                    Map your CSV columns to transaction fields. All fields are required for proper import.
+                  </Typography>
               
               {/* Show validation warning if invalid columns are selected */}
               {(mapping.accountColumn && !columnOptions.includes(mapping.accountColumn)) ||
@@ -594,10 +745,12 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                   </Select>
                 </FormControl>
               </Box>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                Optional: Additional field to include in duplicate detection hash (e.g., transaction reference number)
-              </Typography>
-            </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Optional: Additional field to include in duplicate detection hash (e.g., transaction reference number)
+                  </Typography>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
           )}
 
           {/* Account Mapping Helper Message */}
@@ -613,16 +766,23 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
           {/* Account Mapping */}
           {accountMatches.length > 0 && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Map CSV Account Numbers to Your Accounts
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Select which of your accounts corresponds to each account number found in the CSV.
-              </Typography>
-              
-              <Box sx={{ mt: 2 }}>
-                {accountMatches.map((match) => (
+            <Accordion 
+              expanded={expandedSections.accountMapping} 
+              onChange={() => toggleSection('accountMapping')}
+            >
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="h6">
+                  Map CSV Account Numbers to Your Accounts
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box display="flex" flexDirection="column" gap={2}>
+                  <Typography variant="body2" color="text.secondary">
+                    Select which of your accounts corresponds to each account number found in the CSV.
+                  </Typography>
+                
+                  <Box sx={{ mt: 2 }}>
+                    {accountMatches.map((match) => (
                   <Box key={match.csvAccountValue} sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                     <Box sx={{ mb: 1, fontWeight: 'medium', display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="body1" component="span">
@@ -645,7 +805,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                         >
                           {match.matchingAccounts.map(account => (
                             <MenuItem key={account.id} value={account.id}>
-                              {account.name} - {account.type}
+                              {account.user_display_name ? `${account.user_display_name} - ` : ''}{account.name} - {account.type}
                             </MenuItem>
                           ))}
                         </Select>
@@ -653,17 +813,25 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                     )}
                   </Box>
                 ))}
-              </Box>
-            </Box>
+                </Box>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
           )}
 
           {/* Data Preview */}
           {preview.length > 0 && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Preview (First 5 rows)
-              </Typography>
-              <Box sx={{ maxHeight: 300, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+            <Accordion 
+              expanded={expandedSections.preview} 
+              onChange={() => toggleSection('preview')}
+            >
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="h6">
+                  Preview (First 5 rows)
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{ maxHeight: 300, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
                 <List dense>
                   {preview.map((row, index) => (
                     <ListItem key={index} divider={index < preview.length - 1}>
@@ -680,10 +848,11 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                         }
                       />
                     </ListItem>
-                  ))}
-                </List>
-              </Box>
-            </Box>
+                    ))}
+                  </List>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
           )}
 
           {/* Import Progress */}
@@ -722,8 +891,28 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                 <Typography variant="body2">
                   • Skipped (unmapped accounts): {analysisResult.skippedRows}
                 </Typography>
+                {analysisResult.internalDuplicates > 0 && (
+                  <Box>
+                    <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', color: 'warning.main' }}>
+                      • Internal duplicates in CSV: {analysisResult.internalDuplicates}
+                    </Typography>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        ml: 2, 
+                        color: 'primary.main', 
+                        textDecoration: 'underline', 
+                        cursor: 'pointer',
+                        '&:hover': { color: 'primary.dark' }
+                      }}
+                      onClick={() => setDuplicateResolverOpen(true)}
+                    >
+                      → Resolve internal duplicates
+                    </Typography>
+                  </Box>
+                )}
                 <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', color: analysisResult.duplicateCount > 0 ? 'warning.main' : 'success.main' }}>
-                  • Duplicates found: {analysisResult.duplicateCount}
+                  • Already in database: {analysisResult.duplicateCount}
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main' }}>
                   • Unique transactions to import: {analysisResult.uniqueCount}
@@ -789,6 +978,16 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           </>
         )}
       </DialogActions>
+
+      {/* Internal Duplicates Resolver */}
+      {analysisResult?.duplicateGroups && (
+        <InternalDuplicatesResolver
+          open={duplicateResolverOpen}
+          onClose={() => setDuplicateResolverOpen(false)}
+          duplicateGroups={analysisResult.duplicateGroups}
+          onResolve={handleResolveDuplicates}
+        />
+      )}
     </Dialog>
   );
 }

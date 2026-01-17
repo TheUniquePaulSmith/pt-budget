@@ -73,7 +73,8 @@ interface DatabaseContextType {
   truncateImportTable: () => Promise<void>;
   insertIntoTempTable: (
     transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
-  ) => Promise<void>;
+  ) => Promise<number[]>;
+  deleteFromTempTable: (tempIds: number[]) => Promise<void>;
   checkDuplicateTransactions: () => Promise<string[]>;
   bulkInsertFromTempTable: () => Promise<number>;
   addTransactionsBatch: (
@@ -497,15 +498,28 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
 
   const insertIntoTempTable = async (
     transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
-  ): Promise<void> => {
+  ): Promise<number[]> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
 
     try {
-      await databaseService.insertIntoTempTable(transactions);
+      return await databaseService.insertIntoTempTable(transactions);
     } catch (err) {
       console.error('Failed to insert into temp table:', err);
+      throw err;
+    }
+  };
+
+  const deleteFromTempTable = async (tempIds: number[]): Promise<void> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      await databaseService.deleteFromTempTable(tempIds);
+    } catch (err) {
+      console.error('Failed to delete from temp table:', err);
       throw err;
     }
   };
@@ -1153,6 +1167,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     getAllTransactionHashes,
     truncateImportTable,
     insertIntoTempTable,
+    deleteFromTempTable,
     checkDuplicateTransactions,
     bulkInsertFromTempTable,
     addTransactionsBatch,

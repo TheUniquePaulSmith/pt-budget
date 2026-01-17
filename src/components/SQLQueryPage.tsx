@@ -17,6 +17,7 @@ import {
   CircularProgress,
   Chip,
   Stack,
+  TablePagination,
   Card,
   CardContent,
   IconButton,
@@ -66,6 +67,8 @@ export default function SQLQueryPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [queryHistory, setQueryHistory] = useState<QueryHistory[]>([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   // Sample queries for reference
   const sampleQueries = [
@@ -141,6 +144,7 @@ ORDER BY m.name, p.cid;`
     setLoading(true);
     setError(null);
     setResult(null);
+    setPage(0);
 
     const startTime = performance.now();
     const historyEntry: QueryHistory = {
@@ -209,6 +213,16 @@ ORDER BY m.name, p.cid;`
     setQuery('');
     setResult(null);
     setError(null);
+    setPage(0);
+  };
+
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
   };
 
   const copyToClipboard = async (text: string) => {
@@ -457,50 +471,64 @@ ORDER BY m.name, p.cid;`
           </Box>
 
           {result.rows.length > 0 ? (
-            <TableContainer sx={{ maxHeight: isMobile ? 400 : 600, overflowX: 'auto' }}>
-              <Table stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    {result.columns.map((column, index) => (
-                      <TableCell 
-                        key={index}
-                        sx={{ 
-                          fontWeight: 'bold',
-                          minWidth: 100,
-                          bgcolor: 'grey.50'
-                        }}
-                      >
-                        {column}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {result.rows.map((row, rowIndex) => (
-                    <TableRow key={rowIndex} hover>
-                      {row.map((cell, cellIndex) => (
+            <>
+              <TableContainer sx={{ maxHeight: isMobile ? 400 : 600, overflowX: 'auto' }}>
+                <Table stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      {result.columns.map((column, index) => (
                         <TableCell 
-                          key={cellIndex}
-                          sx={{
-                            fontFamily: cell === null ? 'inherit' : 'monospace',
-                            fontSize: '0.875rem',
-                            fontStyle: cell === null ? 'italic' : 'normal',
-                            color: cell === null ? 'text.secondary' : 'inherit',
-                            maxWidth: 300,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
+                          key={index}
+                          sx={{ 
+                            fontWeight: 'bold',
+                            minWidth: 100,
+                            bgcolor: 'grey.50'
                           }}
-                          title={formatValue(cell)}
                         >
-                          {formatValue(cell)}
+                          {column}
                         </TableCell>
                       ))}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {result.rows
+                      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                      .map((row, rowIndex) => (
+                        <TableRow key={page * rowsPerPage + rowIndex} hover>
+                          {row.map((cell, cellIndex) => (
+                            <TableCell 
+                              key={cellIndex}
+                              sx={{
+                                fontFamily: cell === null ? 'inherit' : 'monospace',
+                                fontSize: '0.875rem',
+                                fontStyle: cell === null ? 'italic' : 'normal',
+                                color: cell === null ? 'text.secondary' : 'inherit',
+                                maxWidth: 300,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title={formatValue(cell)}
+                            >
+                              {formatValue(cell)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50, 100, 250, 500]}
+                component="div"
+                count={result.rows.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                sx={{ borderTop: 1, borderColor: 'divider' }}
+              />
+            </>
           ) : (
             <Box sx={{ p: 3, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">

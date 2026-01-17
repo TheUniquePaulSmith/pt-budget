@@ -113,6 +113,22 @@ export const CREATE_TABLES = {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
+  `,
+
+  TEMP_IMPORT_TRANSACTIONS: `
+    CREATE TABLE IF NOT EXISTS temp_import_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date DATE NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT NOT NULL,
+      account_id INTEGER NOT NULL,
+      category_id INTEGER,
+      company_id INTEGER,
+      project_id INTEGER,
+      trip_id INTEGER,
+      type TEXT CHECK(type IN ('income', 'expense')) NOT NULL,
+      transaction_hash TEXT UNIQUE
+    )
   `
 };
 

@@ -39,6 +39,14 @@ interface ImportResult {
   errors: string[];
 }
 
+interface AnalysisResult {
+  totalRows: number;
+  mappableRows: number;
+  duplicateCount: number;
+  uniqueCount: number;
+  skippedRows: number;
+}
+
 interface ColumnMapping {
   accountColumn: string;
   dateColumn: string;
@@ -56,10 +64,12 @@ interface AccountMatch {
 
 export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) {
   const { 
-    addTransaction, 
     accounts, 
     generateTransactionHash,
-    getAllTransactionHashes
+    truncateImportTable,
+    insertIntoTempTable,
+    checkDuplicateTransactions,
+    bulkInsertFromTempTable,
   } = useDatabaseContext();
   
   const [file, setFile] = useState<File | null>(null);
@@ -75,6 +85,8 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   const [accountMatches, setAccountMatches] = useState<AccountMatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -291,8 +303,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       };
     });
   };
-
-  const handleImport = async () => {
+  const handleAnalyze = async () => {
     if (!csvData.length) {
       setError('No CSV data available');
       return;
@@ -322,63 +333,78 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     // Check if at least one account is mapped
     const mappedAccounts = accountMatches.filter(match => match.selectedAccountId);
     if (mappedAccounts.length === 0) {
-      setError('Please map at least one account to import transactions');
+      setError('Please map at least one account to analyze transactions');
       return;
     }
 
-    const unmappedAccounts = accountMatches.filter(match => !match.selectedAccountId);
-    if (unmappedAccounts.length > 0) {
-      console.warn(`Will skip transactions for unmapped accounts: ${unmappedAccounts.map(m => m.csvAccountValue).join(', ')}`);
+    setAnalyzing(true);
+    setError(null);
+    setAnalysisResult(null);
+
+    try {
+      const mappedTransactions = mapTransactionsFromCSV(csvData, mapping, accountMatches);
+      
+      const totalRows = csvData.length;
+      const mappableRows = mappedTransactions.length;
+      const skippedRows = totalRows - mappableRows;
+      
+      // Clear import table and insert all transactions
+      await truncateImportTable();
+      await insertIntoTempTable(mappedTransactions.map(t => t.transaction));
+      
+      // Check for duplicates using the temp table
+      const existingHashes = await checkDuplicateTransactions();
+      const duplicateCount = existingHashes.length;
+      const uniqueCount = mappableRows - duplicateCount;
+
+      setAnalysisResult({
+        totalRows,
+        mappableRows,
+        duplicateCount,
+        uniqueCount,
+        skippedRows,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to analyze transactions');
+      // Clean up import table on error
+      await truncateImportTable();
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+  const handleImport = async () => {
+    if (!csvData.length) {
+      setError('No CSV data available');
+      return;
+    }
+    
+    // If analysis was not done, require it first
+    if (!analysisResult) {
+      setError('Please analyze the file first before importing');
+      return;
     }
 
     setImporting(true);
     setError(null);
 
     try {
-      const mappedTransactions = mapTransactionsFromCSV(csvData, mapping, accountMatches);
+      // Bulk insert from temp table (excludes duplicates)
+      const successCount = await bulkInsertFromTempTable();
       
-      // Calculate skipped transactions (those without account mapping)
+      // Clean up import table after successful import
+      await truncateImportTable();
+
       const totalTransactions = csvData.length;
-      const mappableTransactions = mappedTransactions.length;
-      const initialSkippedCount = totalTransactions - mappableTransactions;
-      
-      // Grab all transaction hashes from the database to check for duplicates
-      const existingHashes = await getAllTransactionHashes();
-
-
-      let successCount = 0;
-      let failedCount = 0;
-      let skippedCount = initialSkippedCount; // Start with pre-filtered skipped count
-      let duplicateCount = 0;
-      const errors: string[] = [];
-
-      for (const { transaction, csvAccountValue, hash } of mappedTransactions) {
-        try {
-          // Check for duplicates first
-          const isDuplicate = existingHashes.includes(hash);
-          if (isDuplicate) {
-            duplicateCount++;
-            continue;
-          }
-
-          await addTransaction(transaction);
-          successCount++;
-        } catch (err) {
-          if (err instanceof Error && err.message.includes('No account mapping found')) {
-            skippedCount++;
-          } else {
-            failedCount++;
-            errors.push(`Account ${csvAccountValue}: ${err instanceof Error ? err.message : 'Unknown error'}`);
-          }
-        }
-      }
+      const mappableTransactions = analysisResult.mappableRows;
+      const skippedCount = analysisResult.skippedRows;
+      const duplicateCount = analysisResult.duplicateCount;
 
       setImportResult({
         success: successCount,
-        failed: failedCount,
+        failed: 0,
         skipped: skippedCount,
         duplicates: duplicateCount,
-        errors: errors.slice(0, 10), // Show first 10 errors
+        errors: [],
       });
 
       if (successCount > 0) {
@@ -386,12 +412,19 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import transactions');
+      // Clean up import table on error
+      await truncateImportTable();
     } finally {
       setImporting(false);
     }
   };
 
   const handleClose = () => {
+    // Clear import table when closing modal
+    truncateImportTable().catch(err => 
+      console.error('Error clearing import table on close:', err)
+    );
+    
     setFile(null);
     setCsvData([]);
     setPreview([]);
@@ -405,6 +438,8 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     setAccountMatches([]);
     setLoading(false);
     setImporting(false);
+    setAnalyzing(false);
+    setAnalysisResult(null);
     setImportResult(null);
     setError(null);
     onClose();
@@ -422,7 +457,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     : 0;
     
   const skippedTransactions = csvData.length - importableTransactions;
-
+    
   const canImport = csvData.length > 0 && 
     mapping.accountColumn && columnOptions.includes(mapping.accountColumn) &&
     mapping.dateColumn && columnOptions.includes(mapping.dateColumn) &&
@@ -661,6 +696,42 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             </Box>
           )}
 
+          {/* Analysis Progress */}
+          {analyzing && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Analyzing file for duplicates...
+              </Typography>
+              <LinearProgress />
+            </Box>
+          )}
+
+          {/* Analysis Results */}
+          {analysisResult && !importResult && (
+            <Box>
+              <Alert severity="info" icon={<CheckCircle />}>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Analysis Complete:</strong>
+                </Typography>
+                <Typography variant="body2">
+                  • Total rows in CSV: {analysisResult.totalRows}
+                </Typography>
+                <Typography variant="body2">
+                  • Rows with mapped accounts: {analysisResult.mappableRows}
+                </Typography>
+                <Typography variant="body2">
+                  • Skipped (unmapped accounts): {analysisResult.skippedRows}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', color: analysisResult.duplicateCount > 0 ? 'warning.main' : 'success.main' }}>
+                  • Duplicates found: {analysisResult.duplicateCount}
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                  • Unique transactions to import: {analysisResult.uniqueCount}
+                </Typography>
+              </Alert>
+            </Box>
+          )}
+
           {/* Import Results */}
           {importResult && (
             <Box>
@@ -696,16 +767,26 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           {importResult ? 'Close' : 'Cancel'}
         </Button>
         {!importResult && (
-          <Button 
-            onClick={handleImport} 
-            variant="contained" 
-            disabled={!canImport || importing}
-          >
-            {importing ? 'Importing...' : 
-             importableTransactions > 0 
-               ? `Import ${importableTransactions} Transaction${importableTransactions === 1 ? '' : 's'}${skippedTransactions > 0 ? ` (${skippedTransactions} will be skipped)` : ''}`
-               : 'No transactions to import'}
-          </Button>
+          <>
+            <Button 
+              onClick={handleAnalyze} 
+              variant="outlined" 
+              disabled={!canImport || analyzing || importing}
+              sx={{ mr: 1 }}
+            >
+              {analyzing ? 'Analyzing...' : 'Analyze File'}
+            </Button>
+            <Button 
+              onClick={handleImport} 
+              variant="contained" 
+              disabled={!analysisResult || importing || analyzing}
+            >
+              {importing ? 'Importing...' : 
+               analysisResult 
+                 ? `Import ${analysisResult.uniqueCount} Transaction${analysisResult.uniqueCount === 1 ? '' : 's'}`
+                 : 'Analyze File First'}
+            </Button>
+          </>
         )}
       </DialogActions>
     </Dialog>

@@ -201,7 +201,24 @@ export class DatabaseWorkerService {
     return `msg_${++this.messageId}_${Date.now()}`;
   }
 
-  private sendMessage<T = any>(type: string, payload?: any, timeoutMs = 30000): Promise<DatabaseResponse> {
+  // Operation-specific timeout configurations
+  private readonly OPERATION_TIMEOUTS = {
+    query: 10000,        // 10s for queries
+    exec: 5000,          // 5s for commands
+    ping: 5000,          // 5s for heartbeat
+    initialize: 30000,   // 30s for initialization
+    open_database: 30000, // 30s for opening database
+    export_database: 60000, // 1min for exports
+    import_database: 120000, // 2min for CSV imports
+    default: 30000       // 30s default for other operations
+  };
+
+  private getTimeoutForOperation(type: string): number {
+    return this.OPERATION_TIMEOUTS[type as keyof typeof this.OPERATION_TIMEOUTS] 
+      || this.OPERATION_TIMEOUTS.default;
+  }
+
+  private sendMessage<T = any>(type: string, payload?: any, customTimeoutMs?: number): Promise<DatabaseResponse> {
     return new Promise((resolve, reject) => {
       // Handle server-side or worker not available
       if (typeof window === 'undefined' || !this.port) {
@@ -212,10 +229,13 @@ export class DatabaseWorkerService {
       const id = this.generateMessageId();
       const message: DatabaseMessage = { id, type, payload };
 
+      // Use custom timeout if provided, otherwise use operation-specific timeout
+      const timeoutMs = customTimeoutMs ?? this.getTimeoutForOperation(type);
+
       const timeout = setTimeout(() => {
-        console.warn(`[DB Service] Message timeout: ${type} with ID: ${id}`);
+        console.warn(`[DB Service] Message timeout after ${timeoutMs}ms: ${type} with ID: ${id}`);
         this.pendingMessages.delete(id);
-        reject(new Error(`Message timeout: ${type}`));
+        reject(new Error(`Database operation timed out after ${timeoutMs}ms: ${type}`));
       }, timeoutMs);
 
       this.pendingMessages.set(id, { resolve, reject, timeout });
@@ -238,6 +258,10 @@ export class DatabaseWorkerService {
 
   public async openDatabase(filename?: string, isNew?: boolean): Promise<DatabaseResponse> {
     return this.sendMessage('open_database', { filename, isNew });
+  }
+
+  public async createTables(): Promise<DatabaseResponse> {
+    return this.sendMessage('create_tables');
   }
 
   public async query(sql: string, parameters: any[] = []): Promise<any[]> {
@@ -263,22 +287,6 @@ export class DatabaseWorkerService {
 
   public async importDatabase(fileData: Uint8Array): Promise<DatabaseResponse> {
     return this.sendMessage('import_database', { fileData });
-  }
-
-  public async checkDatabaseExists(dbName = 'ptbudgetapp'): Promise<boolean> {
-    const response = await this.sendMessage('check_database_exists', { dbName });
-    if (response.isSuccessful) {
-      return response.sqlResponse?.exists || false;
-    }
-    throw new Error(response.sqlResponse?.error || 'Failed to check database existence');
-  }
-
-  public async createTables(): Promise<DatabaseResponse> {
-    const response = await this.sendMessage('create_tables');
-    if (response.isSuccessful) {
-      return response;
-    }
-    throw new Error(response.sqlResponse?.error || 'Failed to create tables');
   }
 
   // Cleanup

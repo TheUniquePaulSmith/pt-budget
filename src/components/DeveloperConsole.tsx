@@ -98,7 +98,28 @@ const DeveloperConsole: React.FC<DeveloperConsoleProps> = ({ isOpen }) => {
   };
 
   const handleCopyLog = (log: LogEntry) => {
-    const logText = `[${log.timestamp}] ${log.level.toUpperCase()}: ${log.message}${log.stack ? '\n' + log.stack : ''}`;
+    let logText = `[${log.timestamp}] ${log.level.toUpperCase()}`;
+    
+    if (log.sourceFile) {
+      logText += ` ${log.sourceFile}:${log.sourceLine}:${log.sourceColumn}`;
+    }
+    
+    logText += `\n${log.message}`;
+    
+    if (log.args.length > 1) {
+      logText += '\nArguments: ' + log.args.slice(1).map(arg => {
+        try {
+          return typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg);
+        } catch {
+          return '[Circular or non-serializable object]';
+        }
+      }).join(', ');
+    }
+    
+    if (log.stack) {
+      logText += '\n' + log.stack;
+    }
+    
     navigator.clipboard.writeText(logText);
   };
 
@@ -214,7 +235,7 @@ const DeveloperConsole: React.FC<DeveloperConsoleProps> = ({ isOpen }) => {
           ) : (
             filteredLogs.map(log => {
               const isExpanded = expandedLogs.has(log.id);
-              const hasExpandableContent = log.message.length > 100 || log.stack;
+              const hasExpandableContent = log.message.length > 100 || log.stack || log.args.length > 1;
               
               return (
                 <Box
@@ -246,6 +267,23 @@ const DeveloperConsole: React.FC<DeveloperConsoleProps> = ({ isOpen }) => {
                       {new Date(log.timestamp).toLocaleTimeString()}
                     </Typography>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
+                      {/* Source location */}
+                      {log.sourceFile && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontFamily: 'monospace',
+                            fontSize: '0.7rem',
+                            color: 'primary.main',
+                            display: 'block',
+                            mb: 0.5,
+                          }}
+                        >
+                          {log.sourceFile}:{log.sourceLine}:{log.sourceColumn}
+                        </Typography>
+                      )}
+                      
+                      {/* Message */}
                       <Typography
                         variant="body2"
                         sx={{
@@ -259,6 +297,49 @@ const DeveloperConsole: React.FC<DeveloperConsoleProps> = ({ isOpen }) => {
                       >
                         {log.message}
                       </Typography>
+                      
+                      {/* Additional arguments */}
+                      {isExpanded && log.args.length > 1 && (
+                        <Box sx={{ mt: 1 }}>
+                          {log.args.slice(1).map((arg, idx) => (
+                            <Typography
+                              key={idx}
+                              variant="body2"
+                              sx={{
+                                fontFamily: 'monospace',
+                                fontSize: '0.75rem',
+                                mt: 0.5,
+                                p: 1,
+                                backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                                borderRadius: 1,
+                                whiteSpace: 'pre-wrap',
+                              }}
+                            >
+                              {typeof arg === 'object' ? (
+                                <span style={{ color: '#795548' }}>
+                                  {JSON.stringify(arg, null, 2)}
+                                </span>
+                              ) : (
+                                String(arg)
+                              )}
+                            </Typography>
+                          ))}
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontSize: '0.65rem',
+                              color: 'warning.main',
+                              fontStyle: 'italic',
+                              display: 'block',
+                              mt: 0.5,
+                            }}
+                          >
+                            ⚠️ Object arguments are stored by reference and may have been mutated
+                          </Typography>
+                        </Box>
+                      )}
+                      
+                      {/* Stack trace */}
                       {log.stack && isExpanded && (
                         <Typography
                           variant="body2"

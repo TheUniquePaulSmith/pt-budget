@@ -94,6 +94,7 @@ class DatabaseWorker {
           await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGETS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.PROJECTS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRIPS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.TEMP_IMPORT_TRANSACTIONS);
 
           // Insert default data
           await this.sqlite3.exec(this.db, DEFAULT_DATA.CATEGORIES);
@@ -268,12 +269,19 @@ class DatabaseWorker {
         };
       } catch (error) {
         console.error('[DB Worker] Query execution failed:', error);
+        console.error('[DB Worker] Failed SQL:', sql);
+        console.error('[DB Worker] Parameters:', parameters);
         return {
           type: 'query_error',
           isSuccessful: false,
           dbStatus: 'connected',
           version: this.dbVersion,
-          sqlResponse: { error: error.message, sql, parameters }
+          sqlResponse: { 
+            error: error.message, 
+            sql, 
+            parameters,
+            stackTrace: error.stack 
+          }
         };
       }
     });
@@ -313,133 +321,6 @@ class DatabaseWorker {
       }
     });
   }
-
-  // async createTables() {
-  //   if (!this.isConnected || !this.db) {
-  //     throw new Error('Database not connected');
-  //   }
-
-  //   try {
-  //     // Create all the database tables
-  //     const tableQueries = [
-  //       // Categories table
-  //       `CREATE TABLE IF NOT EXISTS categories (
-  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
-  //         name TEXT NOT NULL,
-  //         type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-  //         color TEXT NOT NULL,
-  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  //       )`,
-        
-  //       // Companies table
-  //       `CREATE TABLE IF NOT EXISTS companies (
-  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
-  //         name TEXT NOT NULL UNIQUE,
-  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  //       )`,
-        
-  //       // Projects table
-  //       `CREATE TABLE IF NOT EXISTS projects (
-  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
-  //         name TEXT NOT NULL,
-  //         company_name TEXT NOT NULL,
-  //         contact_details TEXT,
-  //         project_category TEXT NOT NULL CHECK (project_category IN ('plumbing', 'electrical', 'hvac', 'roofing', 'flooring', 'painting', 'landscaping', 'general_contractor', 'other')),
-  //         status TEXT NOT NULL CHECK (status IN ('planning', 'in_progress', 'completed', 'on_hold')),
-  //         start_date TEXT,
-  //         end_date TEXT,
-  //         estimated_cost REAL,
-  //         actual_cost REAL,
-  //         notes TEXT,
-  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  //       )`,
-        
-  //       // Accounts table
-  //       `CREATE TABLE IF NOT EXISTS accounts (
-  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
-  //         name TEXT NOT NULL,
-  //         type TEXT NOT NULL,
-  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  //       )`,
-        
-  //       // Account aliases table
-  //       `CREATE TABLE IF NOT EXISTS account_aliases (
-  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
-  //         account_id INTEGER NOT NULL,
-  //         last_four TEXT NOT NULL,
-  //         alias_name TEXT,
-  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  //         FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE,
-  //         UNIQUE(last_four, account_id)
-  //       )`,
-        
-  //       // Transactions table
-  //       `CREATE TABLE IF NOT EXISTS transactions (
-  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
-  //         date TEXT NOT NULL,
-  //         amount REAL NOT NULL,
-  //         description TEXT NOT NULL,
-  //         account_id INTEGER,
-  //         category_id INTEGER,
-  //         company_id INTEGER,
-  //         project_id INTEGER,
-  //         type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-  //         transaction_hash TEXT UNIQUE,
-  //         account_last_four TEXT,
-  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  //         FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE SET NULL,
-  //         FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL,
-  //         FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL,
-  //         FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL
-  //       )`,
-        
-  //       // Budgets table
-  //       `CREATE TABLE IF NOT EXISTS budgets (
-  //         id INTEGER PRIMARY KEY AUTOINCREMENT,
-  //         category_id INTEGER NOT NULL,
-  //         amount REAL NOT NULL,
-  //         period TEXT NOT NULL CHECK (period IN ('weekly', 'monthly', 'quarterly', 'yearly')),
-  //         start_date TEXT NOT NULL,
-  //         end_date TEXT NOT NULL,
-  //         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  //         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  //         FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
-  //       )`
-  //     ];
-
-  //     // Execute each table creation query
-  //     for (const query of tableQueries) {
-  //       await this.sqlite3.exec(this.db, query);
-  //     }
-
-  //     // Create indexes
-  //     const indexQueries = [
-  //       'CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date)',
-  //       'CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id)',
-  //       'CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id)',
-  //       'CREATE INDEX IF NOT EXISTS idx_transactions_project ON transactions(project_id)',
-  //       'CREATE INDEX IF NOT EXISTS idx_transactions_company ON transactions(company_id)',
-  //       'CREATE INDEX IF NOT EXISTS idx_transactions_hash ON transactions(transaction_hash)',
-  //       'CREATE INDEX IF NOT EXISTS idx_account_aliases_last_four ON account_aliases(last_four)',
-  //       'CREATE INDEX IF NOT EXISTS idx_account_aliases_account ON account_aliases(account_id)'
-  //     ];
-
-  //     for (const query of indexQueries) {
-  //       await this.sqlite3.exec(this.db, query);
-  //     }
-
-  //     console.log('[DB Worker] Database tables created successfully');
-  //   } catch (error) {
-  //     console.error('[DB Worker] Failed to create tables:', error);
-  //     throw error;
-  //   }
-  // }
 
   async exportDatabase() {
     if (!this.isConnected || !this.db) {

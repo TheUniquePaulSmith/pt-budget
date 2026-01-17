@@ -122,6 +122,36 @@ export const TRANSACTION_QUERIES = {
   GET_ALL_HASHES: `
     SELECT transaction_hash FROM transactions
   `,
+
+  TRUNCATE_IMPORT_TABLE: `
+    DELETE FROM temp_import_transactions
+  `,
+
+  INSERT_TEMP_TRANSACTION: `
+    INSERT INTO temp_import_transactions (date, amount, description, account_id, category_id, company_id, project_id, trip_id, type, transaction_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+
+  CHECK_DUPLICATES_IN_TEMP: `
+    SELECT t.transaction_hash 
+    FROM transactions t
+    WHERE EXISTS (
+      SELECT 1 FROM temp_import_transactions tmp WHERE tmp.transaction_hash = t.transaction_hash
+    )
+  `,
+
+  BULK_INSERT_FROM_TEMP: `
+    INSERT INTO transactions (date, amount, description, account_id, category_id, company_id, project_id, trip_id, type, transaction_hash)
+    SELECT date, amount, description, account_id, category_id, company_id, project_id, trip_id, type, transaction_hash
+    FROM temp_import_transactions
+    WHERE NOT EXISTS (
+      SELECT 1 FROM transactions t WHERE t.transaction_hash = temp_import_transactions.transaction_hash
+    )
+  `,
+
+  COUNT_TEMP_TRANSACTIONS: `
+    SELECT COUNT(*) as count FROM temp_import_transactions
+  `,
 };
 
 // Category Queries
@@ -283,7 +313,7 @@ export const ANALYTICS_QUERIES = {
       SUM(CASE WHEN c.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as expense
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    WHERE t.date >= date('now', '-? months')
+    WHERE t.date >= date('now', ? || ' months')
     GROUP BY strftime('%Y-%m', t.date)
     ORDER BY month DESC
   `,

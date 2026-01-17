@@ -38,6 +38,8 @@ import { useDatabaseContext } from '@/contexts/DatabaseContext';
 import { format, subDays, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import AddTransaction from './AddTransaction';
 import CSVImport from './CSVImport';
+import { ANALYTICS_QUERIES } from '@/lib/sqlQueries';
+import { databaseWorkerService } from '@/lib/databaseWorkerService';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -93,14 +95,11 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, subtitle
   </Card>
 );
 
-const Dashboard: React.FC = () => {  const {
+const Dashboard: React.FC = () => {  
+  const {
     transactions,
     categories,
     accounts,
-    //getTransactionsByDateRange,
-    //getSpendingByCategory,
-    //getIncomeByCategory,
-    //getMonthlyTrends,
     exportDatabase,
     refreshTransactions,
     isDatabaseLoaded,
@@ -178,28 +177,76 @@ const Dashboard: React.FC = () => {  const {
     };
   }, [transactions, dateRanges]);
 
-  // Chart data - TODO: These need to be implemented properly with async/await
-  const spendingData = useMemo(() => {
-    // Temporarily return empty data until chart functions are fixed
-    return [];
-  }, []);
+  // Chart data - Load from database using analytics queries
+  const [spendingData, setSpendingData] = useState<any[]>([]);
+  const [incomeData, setIncomeData] = useState<any[]>([]);
+  const [trendsData, setTrendsData] = useState<{ xAxis: string[], income: number[], expenses: number[] }>({
+    xAxis: [],
+    income: [],
+    expenses: [],
+  });
+  const [chartsLoading, setChartsLoading] = useState(false);
 
-  const incomeData = useMemo(() => {
-    // Temporarily return empty data until chart functions are fixed
-    return [];
-  }, []);
+  // Load chart data when date range or database changes
+  React.useEffect(() => {
+    if (!isDatabaseLoaded) return;
 
-  const trendsData = useMemo(() => {
-    // Temporarily return empty data until chart functions are fixed
-    return {
-      xAxis: [],
-      income: [],
-      expenses: [],
+    const loadChartData = async () => {
+      setChartsLoading(true);
+      try {
+        // Load spending by category
+        const spendingResults = await databaseWorkerService.query(
+          ANALYTICS_QUERIES.SPENDING_BY_CATEGORY,
+          [dateRanges.start, dateRanges.end]
+        );
+        const formattedSpending = spendingResults.map((row: any) => ({
+          id: row.category_id,
+          label: row.category_name,
+          value: Math.abs(row.total),
+          color: row.color,
+        }));
+        setSpendingData(formattedSpending);
+
+        // Load income by category
+        const incomeResults = await databaseWorkerService.query(
+          ANALYTICS_QUERIES.INCOME_BY_CATEGORY,
+          [dateRanges.start, dateRanges.end]
+        );
+        const formattedIncome = incomeResults.map((row: any) => ({
+          id: row.category_id,
+          label: row.category_name,
+          value: row.total,
+          color: row.color,
+        }));
+        setIncomeData(formattedIncome);
+
+        // Load monthly trends (last 6 months)
+        const trendsResults = await databaseWorkerService.query(
+          ANALYTICS_QUERIES.MONTHLY_TRENDS,
+          ['-6']
+        );
+        // Reverse to show oldest to newest
+        const reversedTrends = trendsResults.reverse();
+        setTrendsData({
+          xAxis: reversedTrends.map((row: any) => row.month),
+          income: reversedTrends.map((row: any) => row.income || 0),
+          expenses: reversedTrends.map((row: any) => row.expense || 0),
+        });
+      } catch (error) {
+        console.error('Failed to load chart data:', error);
+      } finally {
+        setChartsLoading(false);
+      }
     };
-  }, []);  const handleExportDatabase = async () => {
+
+    loadChartData();
+  }, [isDatabaseLoaded, dateRanges]);
+  
+  const handleExportDatabase = async () => {
     const dbData = await exportDatabase();
     if (dbData) {
-      const blob = new Blob([dbData], { type: 'application/octet-stream' });
+      // Create blob from Uint8Array - cast to any to work around TypeScript strictness
+      const blob = new Blob([dbData as any], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -227,7 +274,8 @@ const Dashboard: React.FC = () => {  const {
     }
   };
 
-  return (    <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
+  return (
+    <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
       {/* Header */}
       <Box 
         sx={{
@@ -363,7 +411,11 @@ const Dashboard: React.FC = () => {  const {
             <Typography variant="h6" gutterBottom>
               Spending by Category - {getTimeRangeLabel()}
             </Typography>
-            {spendingData.length > 0 ? (
+            {chartsLoading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" height={400}>
+                <Typography color="text.secondary">Loading chart data...</Typography>
+              </Box>
+            ) : spendingData.length > 0 ? (
               <Box height={400} display="flex" justifyContent="center">
                 <PieChart
                   series={[                    {
@@ -391,7 +443,11 @@ const Dashboard: React.FC = () => {  const {
             <Typography variant="h6" gutterBottom>
               Income by Source - {getTimeRangeLabel()}
             </Typography>
-            {incomeData.length > 0 ? (
+            {chartsLoading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" height={400}>
+                <Typography color="text.secondary">Loading chart data...</Typography>
+              </Box>
+            ) : incomeData.length > 0 ? (
               <Box height={400} display="flex" justifyContent="center">
                 <PieChart
                   series={[                    {
@@ -419,7 +475,11 @@ const Dashboard: React.FC = () => {  const {
             <Typography variant="h6" gutterBottom>
               Income vs Expenses Trend (Last 6 Months)
             </Typography>
-            {trendsData.xAxis.length > 0 ? (
+            {chartsLoading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" height={400}>
+                <Typography color="text.secondary">Loading chart data...</Typography>
+              </Box>
+            ) : trendsData.xAxis.length > 0 ? (
               <Box height={400}>
                 <LineChart
                   width={800}

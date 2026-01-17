@@ -1,10 +1,19 @@
-import { getLogBuffer, subscribeToLogs, clearLogBuffer, exportLogs, type LogEntry } from './logger';
+import { 
+  getLogBuffer, 
+  subscribeToLogs, 
+  clearLogBuffer, 
+  exportLogs, 
+  startConsoleCapture,
+  stopConsoleCapture,
+  isCurrentlyCapturing,
+  type LogEntry 
+} from './logger';
 
 // Re-export the LogEntry type for backward compatibility
 export type { LogEntry };
 
-// Simple console logger that provides access to structured logs
-// without monkey patching console methods
+// Console logger that provides access to structured logs
+// with console method interception
 class ConsoleLogger {
   private listeners: ((logs: LogEntry[]) => void)[] = [];
 
@@ -40,18 +49,19 @@ class ConsoleLogger {
     return exportLogs();
   }
 
-  // For backward compatibility - always return false since we don't monkey patch
+  // Check if console is currently being captured
   isCurrentlyCapturing(): boolean {
-    return false;
+    return isCurrentlyCapturing();
   }
 
-  // No-op methods for backward compatibility
+  // Start capturing console output
   startCapturing() {
-    // Do nothing - we don't monkey patch console anymore
+    startConsoleCapture();
   }
 
+  // Stop capturing console output and restore original console methods
   stopCapturing() {
-    // Do nothing - we don't monkey patch console anymore
+    stopConsoleCapture();
   }
 }
 

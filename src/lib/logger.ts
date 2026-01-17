@@ -1,105 +1,150 @@
-// Browser-compatible structured logger
+// Browser-compatible structured logger with console interception
+import StackTrace from 'stacktrace-js';
+
 export interface LogEntry {
   id: string;
   timestamp: string;
-  level: 'info' | 'warn' | 'error' | 'debug';
+  level: 'log' | 'info' | 'warn' | 'error' | 'debug';
   message: string;
-  meta?: any;
+  args: any[]; // Store references to original arguments (warn about mutations)
+  sourceFile?: string;
+  sourceLine?: number;
+  sourceColumn?: number;
   stack?: string;
 }
 
 // In-memory log storage for browser
 const logBuffer: LogEntry[] = [];
-const MAX_LOGS = 1000;
+const MAX_LOGS = 1000; // Maximum buffer size
 
 // Log listeners for real-time updates
 type LogListener = (logs: LogEntry[]) => void;
 const logListeners: LogListener[] = [];
 
-const addToBuffer = (level: LogEntry['level'], message: string, meta?: any, stack?: string) => {
+// Store original console methods
+const originalConsole = {
+  log: console.log,
+  info: console.info,
+  warn: console.warn,
+  error: console.error,
+  debug: console.debug,
+};
+
+let isCapturing = false;
+
+// Add entry to buffer with source location
+const addToBuffer = async (
+  level: LogEntry['level'],
+  args: any[]
+) => {
+  // Format message from first argument
+  const message = args.length > 0 ? String(args[0]) : '';
+  
+  // Generate unique ID
+  const id = Date.now() + Math.random().toString(36).substring(2);
+  
+  // Capture stack trace for source location
+  let sourceFile: string | undefined;
+  let sourceLine: number | undefined;
+  let sourceColumn: number | undefined;
+  let fullStack: string | undefined;
+
+  try {
+    const stackframes = await StackTrace.get();
+    // Skip first frame (this function) and second frame (the console wrapper)
+    // Third frame is the actual caller
+    if (stackframes.length > 2) {
+      const callerFrame = stackframes[2];
+      sourceFile = callerFrame.fileName;
+      sourceLine = callerFrame.lineNumber;
+      sourceColumn = callerFrame.columnNumber;
+    }
+    
+    // For errors, keep the full stack
+    if (level === 'error' && args[0] instanceof Error) {
+      fullStack = args[0].stack;
+    }
+  } catch (error) {
+    // Stack trace parsing failed, continue without source info
+    console.warn('Failed to parse stack trace:', error);
+  }
+
   const entry: LogEntry = {
-    id: Date.now() + Math.random().toString(36),
+    id,
     timestamp: new Date().toISOString(),
     level,
     message,
-    meta,
-    stack
+    args, // Store references only - objects may mutate!
+    sourceFile,
+    sourceLine,
+    sourceColumn,
+    stack: fullStack,
   };
-  
+
   logBuffer.push(entry);
-  
+
   // Keep only the last MAX_LOGS entries
   if (logBuffer.length > MAX_LOGS) {
     logBuffer.splice(0, logBuffer.length - MAX_LOGS);
   }
-  
+
   // Notify listeners
   logListeners.forEach(listener => listener([...logBuffer]));
 };
 
-// Format log message for console output
-const formatConsoleMessage = (level: string, message: string, meta?: any): string => {
-  const timestamp = new Date().toTimeString().slice(0, 8);
-  let formatted = `${timestamp} [${level.toUpperCase()}]: ${message}`;
+// Console interceptor functions
+export const startConsoleCapture = () => {
+  if (isCapturing) return;
   
-  if (meta && Object.keys(meta).length > 0) {
-    formatted += `\n${JSON.stringify(meta, null, 2)}`;
-  }
-  
-  return formatted;
+  isCapturing = true;
+
+  // Override console.log
+  console.log = function(...args: any[]) {
+    originalConsole.log.apply(console, args);
+    addToBuffer('log', args);
+  };
+
+  // Override console.info
+  console.info = function(...args: any[]) {
+    originalConsole.info.apply(console, args);
+    addToBuffer('info', args);
+  };
+
+  // Override console.warn
+  console.warn = function(...args: any[]) {
+    originalConsole.warn.apply(console, args);
+    addToBuffer('warn', args);
+  };
+
+  // Override console.error
+  console.error = function(...args: any[]) {
+    originalConsole.error.apply(console, args);
+    addToBuffer('error', args);
+  };
+
+  // Override console.debug
+  console.debug = function(...args: any[]) {
+    originalConsole.debug.apply(console, args);
+    addToBuffer('debug', args);
+  };
 };
 
-// Create a logger with a specific prefix
-const createLogger = (prefix: string) => ({
-  info: (message: string, meta?: any) => {
-    const fullMessage = `[${prefix}] ${message}`;
-    const formatted = formatConsoleMessage('info', fullMessage, meta);
-    
-    // Use original console methods to preserve source mapping
-    console.info(formatted);
-    addToBuffer('info', fullMessage, meta);
-  },
+export const stopConsoleCapture = () => {
+  if (!isCapturing) return;
   
-  error: (message: string, error?: Error | any, meta?: any) => {
-    const fullMessage = `[${prefix}] ${message}`;
-    const errorMeta = error instanceof Error ? {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      ...meta
-    } : { error, ...meta };
-    
-    const formatted = formatConsoleMessage('error', fullMessage, errorMeta);
-    
-    // Use original console methods to preserve source mapping
-    console.error(formatted);
-    addToBuffer('error', fullMessage, errorMeta, error instanceof Error ? error.stack : undefined);
-  },
-  
-  warn: (message: string, meta?: any) => {
-    const fullMessage = `[${prefix}] ${message}`;
-    const formatted = formatConsoleMessage('warn', fullMessage, meta);
-    
-    // Use original console methods to preserve source mapping
-    console.warn(formatted);
-    addToBuffer('warn', fullMessage, meta);
-  },
-  
-  debug: (message: string, meta?: any) => {
-    const fullMessage = `[${prefix}] ${message}`;
-    const formatted = formatConsoleMessage('debug', fullMessage, meta);
-    
-    // Use original console methods to preserve source mapping
-    console.debug(formatted);
-    addToBuffer('debug', fullMessage, meta);
-  }
-});
+  isCapturing = false;
 
-// Enhanced logger with database-specific methods
-export const dbLogger = createLogger('WaSQLiteDB');
+  // Restore original console methods
+  console.log = originalConsole.log;
+  console.info = originalConsole.info;
+  console.warn = originalConsole.warn;
+  console.error = originalConsole.error;
+  console.debug = originalConsole.debug;
+};
 
-// General app logger
-export const appLogger = createLogger('App');
+export const isCurrentlyCapturing = (): boolean => {
+  return isCapturing;
+};
 
 // Utility functions for log management
 export const getLogBuffer = (): LogEntry[] => [...logBuffer];
@@ -111,10 +156,23 @@ export const clearLogBuffer = () => {
 
 export const exportLogs = (): string => {
   return logBuffer.map(log => {
-    let output = `[${log.timestamp}] ${log.level.toUpperCase()}: ${log.message}`;
+    let output = `[${log.timestamp}] ${log.level.toUpperCase()}`;
     
-    if (log.meta && Object.keys(log.meta).length > 0) {
-      output += `\n${JSON.stringify(log.meta, null, 2)}`;
+    if (log.sourceFile) {
+      output += ` ${log.sourceFile}:${log.sourceLine}:${log.sourceColumn}`;
+    }
+    
+    output += `\n${log.message}`;
+    
+    if (log.args.length > 1) {
+      // Include additional arguments
+      output += `\nArguments: ${log.args.slice(1).map(arg => {
+        try {
+          return typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg);
+        } catch {
+          return '[Circular or non-serializable object]';
+        }
+      }).join(', ')}`;
     }
     
     if (log.stack) {
@@ -122,11 +180,14 @@ export const exportLogs = (): string => {
     }
     
     return output;
-  }).join('\n');
+  }).join('\n\n');
 };
 
 export const subscribeToLogs = (listener: LogListener): (() => void) => {
   logListeners.push(listener);
+  
+  // Immediately call with current buffer
+  listener([...logBuffer]);
   
   // Return unsubscribe function
   return () => {
@@ -139,14 +200,13 @@ export const subscribeToLogs = (listener: LogListener): (() => void) => {
 
 // For backward compatibility, export a default logger
 const logger = {
-  info: appLogger.info,
-  error: appLogger.error,
-  warn: appLogger.warn,
-  debug: appLogger.debug,
   getBuffer: getLogBuffer,
   clearBuffer: clearLogBuffer,
   export: exportLogs,
-  subscribe: subscribeToLogs
+  subscribe: subscribeToLogs,
+  startCapture: startConsoleCapture,
+  stopCapture: stopConsoleCapture,
+  isCapturing: isCurrentlyCapturing,
 };
 
 export default logger;

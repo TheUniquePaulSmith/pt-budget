@@ -247,6 +247,95 @@ export class DatabaseService {
     }
   }
 
+  async truncateImportTable(): Promise<void> {
+    try {
+      await databaseWorkerService.query(TRANSACTION_QUERIES.TRUNCATE_IMPORT_TABLE);
+    } catch (error) {
+      console.error("Failed to truncate import table:", error);
+      throw error;
+    }
+  }
+
+  async insertIntoTempTable(
+    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
+  ): Promise<void> {
+    try {
+      for (const transaction of transactions) {
+        await databaseWorkerService.query(TRANSACTION_QUERIES.INSERT_TEMP_TRANSACTION, [
+          transaction.date,
+          transaction.amount,
+          transaction.description,
+          transaction.account_id,
+          transaction.category_id || null,
+          transaction.company_id || null,
+          transaction.project_id || null,
+          transaction.trip_id || null,
+          transaction.type,
+          transaction.transaction_hash || null,
+        ]);
+      }
+    } catch (error) {
+      console.error("Failed to insert into temp table:", error);
+      throw error;
+    }
+  }
+
+  async checkDuplicateTransactions(): Promise<string[]> {
+    try {
+      // Query for existing hashes using EXISTS against temp table
+      const rows = await databaseWorkerService.query(TRANSACTION_QUERIES.CHECK_DUPLICATES_IN_TEMP);
+      return rows.map(row => row.transaction_hash);
+    } catch (error) {
+      console.error("Failed to check duplicate transactions:", error);
+      throw error;
+    }
+  }
+
+  async bulkInsertFromTempTable(): Promise<number> {
+    try {
+      // Insert all non-duplicate transactions from temp table
+      await databaseWorkerService.query(TRANSACTION_QUERIES.BULK_INSERT_FROM_TEMP);
+      
+      // Return count of inserted rows
+      const result = await databaseWorkerService.query(
+        `SELECT changes() as count`
+      );
+      return result[0]?.count || 0;
+    } catch (error) {
+      console.error("Failed to bulk insert from temp table:", error);
+      throw error;
+    }
+  }
+
+  async dropTempImportTable(): Promise<void> {
+    try {
+      // Clear the temp import table after import
+      await databaseWorkerService.query(TRANSACTION_QUERIES.TRUNCATE_IMPORT_TABLE);
+    } catch (error) {
+      console.error("Failed to clear temp import table:", error);
+      // Don't throw on cleanup failure
+    }
+  }
+
+  async addTransactionsBatch(
+    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
+  ): Promise<{ success: number; failed: number; errors: string[] }> {
+    const result = { success: 0, failed: 0, errors: [] as string[] };
+
+    for (const transaction of transactions) {
+      try {
+        await this.addTransaction(transaction);
+        result.success++;
+      } catch (error) {
+        result.failed++;
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        result.errors.push(errorMsg);
+      }
+    }
+
+    return result;
+  }
+
   async getTransactions(): Promise<Transaction[]> {
     try {
       const rows = await databaseWorkerService.query(

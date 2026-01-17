@@ -70,6 +70,15 @@ interface DatabaseContextType {
   ) => Promise<void>;
 
   getAllTransactionHashes: () => Promise<string[]>;
+  truncateImportTable: () => Promise<void>;
+  insertIntoTempTable: (
+    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
+  ) => Promise<void>;
+  checkDuplicateTransactions: () => Promise<string[]>;
+  bulkInsertFromTempTable: () => Promise<number>;
+  addTransactionsBatch: (
+    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
+  ) => Promise<{ success: number; failed: number; errors: string[] }>;
 
   // Category operations
   addCategory: (
@@ -469,6 +478,84 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       return await databaseService.getAllTransactionHashes();
     } catch (err) {
       console.error('Failed to get all transaction hashes:', err);
+      throw err;
+    }
+  };
+
+  const truncateImportTable = async (): Promise<void> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      await databaseService.truncateImportTable();
+    } catch (err) {
+      console.error('Failed to truncate import table:', err);
+      throw err;
+    }
+  };
+
+  const insertIntoTempTable = async (
+    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
+  ): Promise<void> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      await databaseService.insertIntoTempTable(transactions);
+    } catch (err) {
+      console.error('Failed to insert into temp table:', err);
+      throw err;
+    }
+  };
+
+  const checkDuplicateTransactions = async (): Promise<string[]> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      return await databaseService.checkDuplicateTransactions();
+    } catch (err) {
+      console.error('Failed to check duplicate transactions:', err);
+      throw err;
+    }
+  };
+
+  const bulkInsertFromTempTable = async (): Promise<number> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      const count = await databaseService.bulkInsertFromTempTable();
+      await refreshTransactions();
+      return count;
+    } catch (err) {
+      console.error('Failed to bulk insert from temp table:', err);
+      throw err;
+    }
+  };
+
+  const dropTempImportTable = async (): Promise<void> => {
+    // Remove this method completely - replaced by truncateImportTable
+    console.warn('dropTempImportTable is deprecated, use truncateImportTable instead');
+  };
+
+  const addTransactionsBatch = async (
+    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
+  ): Promise<{ success: number; failed: number; errors: string[] }> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      const result = await databaseService.addTransactionsBatch(transactions);
+      await refreshTransactions();
+      return result;
+    } catch (err) {
+      console.error('Failed to add transactions batch:', err);
       throw err;
     }
   };
@@ -1064,6 +1151,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     findAccountsByLastFour,
     executeCustomQuery,
     getAllTransactionHashes,
+    truncateImportTable,
+    insertIntoTempTable,
+    checkDuplicateTransactions,
+    bulkInsertFromTempTable,
+    addTransactionsBatch,
     updateTransactionLabels,
     getTrips,
     getTripById,
@@ -1071,12 +1163,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     updateTrip,
     deleteTrip,
     getTransactionsByTrip,
-    getTripCosts
+    getTripCosts,
   };
-
-  return (
+  return (  
     <DatabaseContext.Provider value={contextValue}>
-      {children}
+    {children}
     </DatabaseContext.Provider>
   );
 };

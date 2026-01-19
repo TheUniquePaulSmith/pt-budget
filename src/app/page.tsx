@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
 // Dynamically import the main app content to prevent SSR issues
-const AppContent = dynamic(() => import('../components/AppContent'), {
+const AppContent = dynamic(() => import('../components/common/Layout/AppContent'), {
   ssr: false,
   loading: () => (
     <Box 

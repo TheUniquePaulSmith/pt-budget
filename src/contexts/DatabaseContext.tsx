@@ -11,7 +11,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { Box, Typography, Button, CircularProgress, Alert, Paper } from '@mui/material';
 import { DatasetOutlined, CreateNewFolder, Upload } from '@mui/icons-material';
 import { DatabaseService } from '../lib/databaseService';
-import { TestBrowser } from '../components/TestBrowser';
+import { TestBrowser } from '../components/setup/TestBrowser';
 import type { WorkerStatus } from '../lib/databaseWorkerService';
 import type {
   Transaction,
@@ -84,7 +84,7 @@ interface DatabaseContextType {
   // Category operations
   addCategory: (
     category: Omit<Category, "id" | "created_at" | "updated_at">
-  ) => Promise<string>;
+  ) => Promise<number>;
 
   // Company operations
   addCompany: (name: string) => Promise<number>;
@@ -594,7 +594,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   // Category operations
-  const addCategory = async (category: Omit<Category, "id" | "created_at" | "updated_at">): Promise<string> => {
+  const addCategory = async (category: Omit<Category, "id" | "created_at" | "updated_at">): Promise<number> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }

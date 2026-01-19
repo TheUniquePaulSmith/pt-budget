@@ -32,17 +32,17 @@ import {
   AccountBalance as AccountIcon,
   FlightTakeoff as TripsIcon
 } from '@mui/icons-material';
-import Dashboard from './Dashboard';
-import ManageProjects from './ManageProjects';
-import ManageTrips from './ManageTrips';
-import ManageAccounts from './ManageAccounts';
-import TransactionReport from './TransactionReport';
-import SettingsPage from './SettingsPage';
-import ManageData from './ManageData';
-import DeveloperConsolePage from './DeveloperConsolePage';
-import SQLQueryPage from './SQLQueryPage';
-import DatabaseStatusBar from './DatabaseStatusBar';
-import { useDatabaseContext } from '../contexts/DatabaseContext';
+import Dashboard from '@/components/dashboard/Dashboard';
+import ManageProjects from '@/components/projects/ManageProjects';
+import ManageTrips from '@/components/trips/ManageTrips';
+import ManageAccounts from '@/components/accounts/ManageAccounts';
+import TransactionReport from '@/components/transactions/TransactionReport';
+import SettingsPage from '@/components/settings/SettingsPage';
+import ManageData from '@/components/data-management/ManageData';
+import DeveloperConsolePage from '@/components/common/Console/DeveloperConsolePage';
+import SQLQueryPage from '@/components/sql-query/SQLQueryPage';
+import DatabaseStatusBar from '@/components/common/StatusBar/DatabaseStatusBar';
+import { useDatabaseContext } from '@/contexts/DatabaseContext';
 //import { appLogger } from '../lib/logger';
 
 /**

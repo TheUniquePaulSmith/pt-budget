@@ -68,7 +68,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
         setIsTestingInProgress(false);
         // Delay callback slightly to ensure parent component is ready
         setTimeout(() => {
-          onTestComplete(savedResults.overallCompatible, savedResults);
+          onTestComplete(savedResults.overallCompatible ?? false, savedResults);
         }, 100);
         return;
       } catch (err) {

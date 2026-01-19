@@ -34,8 +34,8 @@ import {
   ExpandMore as ExpandMoreIcon,
   Home as HomeIcon,
 } from '@mui/icons-material';
-import { useDatabaseContext } from '../contexts/DatabaseContext';
-import { Project } from '../types/database';
+import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { Project } from '@/types/database';
 
 const PROJECT_CATEGORIES = [
   { value: 'plumbing', label: 'Plumbing' },

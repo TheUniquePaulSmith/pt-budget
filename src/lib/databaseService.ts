@@ -419,7 +419,7 @@ export class DatabaseService {
 
   async addCategory(
     category: Omit<Category, "id" | "created_at" | "updated_at">
-  ): Promise<string> {
+  ): Promise<number> {
     try {
       const result = await databaseWorkerService.query(
         CATEGORY_QUERIES.CREATE,

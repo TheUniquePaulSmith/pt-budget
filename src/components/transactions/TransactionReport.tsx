@@ -68,10 +68,10 @@ export default function TransactionReport() {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
-  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
-  const [companyFilter, setCompanyFilter] = useState<string[]>([]);
-  const [projectFilter, setProjectFilter] = useState<string[]>([]);
-  const [accountFilter, setAccountFilter] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<number[]>([]);
+  const [companyFilter, setCompanyFilter] = useState<number[]>([]);
+  const [projectFilter, setProjectFilter] = useState<number[]>([]);
+  const [accountFilter, setAccountFilter] = useState<number[]>([]);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [minAmount, setMinAmount] = useState<string>('');

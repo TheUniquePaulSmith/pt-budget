@@ -25,7 +25,7 @@ import {
   Palette,
   ArrowBack,
 } from '@mui/icons-material';
-import StorageQuota from './StorageQuota';
+import StorageQuota from '@/components/common/Storage/StorageQuota';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
 
 interface TabPanelProps {

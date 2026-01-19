@@ -20,7 +20,7 @@ import {
   ContentCopy,
   BugReport,
 } from '@mui/icons-material';
-import { consoleLogger, LogEntry } from '../lib/consoleLogger';
+import { consoleLogger, LogEntry } from '@/lib/consoleLogger';
 
 interface DeveloperConsoleProps {
   isOpen: boolean;

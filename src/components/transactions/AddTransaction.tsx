@@ -45,10 +45,10 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
     amount: '',
     date: new Date(),
     type: 'expense' as 'income' | 'expense',
-    category_id: null as string | null,
-    company_id: null as string | null,
-    project_id: null as string | null,
-    account_id: '' as string,
+    category_id: null as number | null,
+    company_id: null as number | null,
+    project_id: null as number | null,
+    account_id: 0,
     is_recurring: false,
   });
   const [loading, setLoading] = useState(false);
@@ -120,7 +120,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
       category_id: null,
       company_id: null,
       project_id: null,
-      account_id: '',
+      account_id: 0,
       is_recurring: false,
     });
     setCompanyInput('');

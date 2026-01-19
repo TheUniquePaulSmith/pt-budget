@@ -70,7 +70,7 @@ export default function ManageAccounts() {
     name: '',
     type: 'checking' as 'checking' | 'savings' | 'credit',
     last_four: '',
-    user_id: '',
+    user_id: 0,
   });
 
   const loadingRef = useRef(false);
@@ -148,7 +148,7 @@ export default function ManageAccounts() {
   };
 
   // Account Dialog Handlers
-  const handleOpenAccountDialog = (account?: Account, selectedUserId?: string) => {
+  const handleOpenAccountDialog = (account?: Account, selectedUserId?: number) => {
     if (account) {
       setEditingAccount(account);
       setAccountFormData({
@@ -163,7 +163,7 @@ export default function ManageAccounts() {
         name: '',
         type: 'checking',
         last_four: '',
-        user_id: selectedUserId || '',
+        user_id: selectedUserId || 0,
       });
     }
     setError(null);
@@ -177,7 +177,7 @@ export default function ManageAccounts() {
       name: '',
       type: 'checking',
       last_four: '',
-      user_id: '',
+      user_id: 0,
     });
     setError(null);
   };
@@ -259,11 +259,11 @@ export default function ManageAccounts() {
     }
   };
 
-  const getUserAccounts = (userId: string) => {
+  const getUserAccounts = (userId: number) => {
     return accounts.filter(account => account.user_id === userId);
   };
 
-  const getUserById = (userId: string) => {
+  const getUserById = (userId: number) => {
     return users.find(user => user.id === userId);
   };
 

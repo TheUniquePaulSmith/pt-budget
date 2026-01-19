@@ -73,12 +73,12 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
     type: 'expense' as 'income' | 'expense',
     color: '#FF6B6B',
   });
-  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editingCategory, setEditingCategory] = useState<number | null>(null);
   const [editCategoryData, setEditCategoryData] = useState<Category | null>(null);
   
   // Company management state
   const [newCompany, setNewCompany] = useState('');
-  const [editingCompany, setEditingCompany] = useState<string | null>(null);
+  const [editingCompany, setEditingCompany] = useState<number | null>(null);
   const [editCompanyData, setEditCompanyData] = useState<Company | null>(null);
   
   const [loading, setLoading] = useState(false);

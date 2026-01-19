@@ -46,8 +46,8 @@ export default function TransactionLabelDialog({
   } = useDatabaseContext();
   
   const [labelType, setLabelType] = useState<'none' | 'project' | 'trip'>('none');
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const [selectedTripId, setSelectedTripId] = useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,15 +57,15 @@ export default function TransactionLabelDialog({
       if (transaction.project_id) {
         setLabelType('project');
         setSelectedProjectId(transaction.project_id);
-        setSelectedTripId('');
+        setSelectedTripId(null);
       } else if (transaction.trip_id) {
         setLabelType('trip');
         setSelectedTripId(transaction.trip_id);
-        setSelectedProjectId('');
+        setSelectedProjectId(null);
       } else {
         setLabelType('none');
-        setSelectedProjectId('');
-        setSelectedTripId('');
+        setSelectedProjectId(null);
+        setSelectedTripId(null);
       }
     }
   }, [transaction, open]);
@@ -73,8 +73,8 @@ export default function TransactionLabelDialog({
   const handleLabelTypeChange = (event: SelectChangeEvent) => {
     const value = event.target.value as 'none' | 'project' | 'trip';
     setLabelType(value);
-    setSelectedProjectId('');
-    setSelectedTripId('');
+    setSelectedProjectId(null);
+    setSelectedTripId(null);
     setError(null);
   };
 
@@ -85,8 +85,8 @@ export default function TransactionLabelDialog({
     setError(null);
 
     try {
-      let projectId: string | null = null;
-      let tripId: string | null = null;
+      let projectId: number | null = null;
+      let tripId: number | null = null;
 
       if (labelType === 'project' && selectedProjectId) {
         projectId = selectedProjectId;
@@ -108,8 +108,8 @@ export default function TransactionLabelDialog({
   const handleClose = () => {
     setError(null);
     setLabelType('none');
-    setSelectedProjectId('');
-    setSelectedTripId('');
+    setSelectedProjectId(null);
+    setSelectedTripId(null);
     onClose();
   };
 
@@ -213,7 +213,7 @@ export default function TransactionLabelDialog({
             getOptionLabel={(option) => option.name}
             value={projects.find(p => p.id === selectedProjectId) || null}
             onChange={(_, newValue) => {
-              setSelectedProjectId(newValue?.id || '');
+              setSelectedProjectId(newValue?.id || null);
             }}
             renderInput={(params) => (
               <TextField
@@ -245,7 +245,7 @@ export default function TransactionLabelDialog({
             getOptionLabel={(option) => option.name}
             value={trips.find(t => t.id === selectedTripId) || null}
             onChange={(_, newValue) => {
-              setSelectedTripId(newValue?.id || '');
+              setSelectedTripId(newValue?.id || null);
             }}
             renderInput={(params) => (
               <TextField

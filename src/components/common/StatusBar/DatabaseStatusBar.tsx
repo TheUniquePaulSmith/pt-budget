@@ -12,7 +12,7 @@ import {
   Computer,
   Warning,
 } from '@mui/icons-material';
-import { databaseWorkerService, WorkerStatus } from '../lib/databaseWorkerService';
+import { databaseWorkerService, WorkerStatus } from '@/lib/databaseWorkerService';
 
 interface DatabaseStatusBarProps {
   status: WorkerStatus;

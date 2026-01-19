@@ -19,7 +19,7 @@ import {
   Download,
 } from '@mui/icons-material';
 import DeveloperConsole from './DeveloperConsole';
-import { consoleLogger } from '../lib/consoleLogger';
+import { consoleLogger } from '@/lib/consoleLogger';
 
 interface DeveloperConsolePageProps {
   onClose: () => void;

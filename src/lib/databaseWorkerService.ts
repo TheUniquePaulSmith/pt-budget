@@ -242,7 +242,7 @@ export class DatabaseWorkerService {
 
       try {
         this.port.postMessage(message);        
-        console.debug(`[DB Service] Sent message: ${type} with ID: ${id}`);
+        // console.debug(`[DB Service] Sent message: ${type} with ID: ${id}`);
       } catch (error) {
         clearTimeout(timeout);
         this.pendingMessages.delete(id);

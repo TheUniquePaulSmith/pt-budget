@@ -92,9 +92,19 @@ interface DatabaseContextType {
 
   // Account operations
   addAccount: (
-    account: Omit<Account, "id" | "created_at" | "updated_at">
+    account: Omit<Account, "id" | "created_at" | "updated_at" | "owner_user_id">,
+    ownerUserId: number
   ) => Promise<number>;
   deleteAccount: (id: number) => Promise<void>;
+  
+  // Account-User operations removed; ownership via owner_user_id
+
+  // Account Card operations
+  getAccountCards: (accountId: number) => Promise<any[]>;
+  addAccountCard: (card: { account_id: number; last_four: string; nickname?: string; user_id?: number }) => Promise<number>;
+  deleteAccountCard: (id: number) => Promise<void>;
+  updateAccountCard: (id: number, updates: { last_four?: string; nickname?: string; user_id?: number }) => Promise<void>;
+  findAccountsByLastFour: (lastFour: string) => Promise<Account[]>;
 
   // Budget operations
   addBudget: (
@@ -164,7 +174,6 @@ interface DatabaseContextType {
     uniqueIdentifier?: string
   ) => string;
   checkTransactionHashExists: (hash: string) => Promise<boolean>;
-  findAccountsByLastFour: (lastFour: string) => Account[];
   executeCustomQuery: (sql: string) => Promise<any[]>;
 }
 
@@ -641,13 +650,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   // Account operations
-  const addAccount = async (account: Omit<Account, "id" | "created_at" | "updated_at">): Promise<number> => {
+  const addAccount = async (account: Omit<Account, "id" | "created_at" | "updated_at" | "owner_user_id">, ownerUserId: number): Promise<number> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
 
     try {
-      const id = await databaseService.addAccount(account);
+      const id = await databaseService.addAccount(account, ownerUserId);
       await refreshAccounts();
       return id;
     } catch (err) {
@@ -666,6 +675,79 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       await refreshAccounts();
     } catch (err) {
       console.error('Failed to delete account:', err);
+      throw err;
+    }
+  };
+
+  // Account-User operations
+  // Account-User operations removed
+
+  // Account Card operations
+  const getAccountCards = async (accountId: number): Promise<any[]> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      return await databaseService.getAccountCards(accountId);
+    } catch (err) {
+      console.error('Failed to get account cards:', err);
+      throw err;
+    }
+  };
+
+  const addAccountCard = async (card: { account_id: number; last_four: string; nickname?: string; user_id?: number }): Promise<number> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      const id = await databaseService.addAccountCard(card);
+      await refreshAccounts();
+      return id;
+    } catch (err) {
+      console.error('Failed to add account card:', err);
+      throw err;
+    }
+  };
+
+  const deleteAccountCard = async (id: number) => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      await databaseService.deleteAccountCard(id);
+      await refreshAccounts();
+    } catch (err) {
+      console.error('Failed to delete account card:', err);
+      throw err;
+    }
+  };
+
+  const updateAccountCard = async (id: number, updates: { last_four?: string; nickname?: string; user_id?: number }) => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      await databaseService.updateAccountCard(id, updates);
+      await refreshAccounts();
+    } catch (err) {
+      console.error('Failed to update account card:', err);
+      throw err;
+    }
+  };
+
+  const findAccountsByLastFour = async (lastFour: string): Promise<Account[]> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      return await databaseService.findAccountsByLastFour(lastFour);
+    } catch (err) {
+      console.error('Failed to find accounts by last four:', err);
       throw err;
     }
   };
@@ -946,17 +1028,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const findAccountsByLastFour = (lastFour: string): Account[] => {
-    try {
-      // Find accounts with the matching last four digits directly
-      const matchingAccounts = accounts.filter(account => account.last_four === lastFour);
-      return matchingAccounts;
-    } catch (err) {
-      console.error('Failed to find accounts by last four:', err);
-      return [];
-    }
-  };
-
   // Custom SQL query execution
   const executeCustomQuery = async (sql: string): Promise<any[]> => {
     if (!databaseService) {
@@ -1166,6 +1237,12 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     findOrCreateCompany,
     addAccount,
     deleteAccount,
+    // Account-User ops removed
+    getAccountCards,
+    addAccountCard,
+    deleteAccountCard,
+    updateAccountCard,
+    findAccountsByLastFour,
     addBudget,
     addProject,
     updateProject,
@@ -1181,7 +1258,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     getAccountsByUserId,
     generateTransactionHash,
     checkTransactionHashExists,
-    findAccountsByLastFour,
     executeCustomQuery,
     getAllTransactionHashes,
     truncateImportTable,

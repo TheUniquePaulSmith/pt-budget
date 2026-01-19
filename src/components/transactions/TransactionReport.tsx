@@ -728,7 +728,7 @@ export default function TransactionReport() {
               <Autocomplete
                 multiple
                 options={accounts}
-                getOptionLabel={(option) => option.user_display_name ? `${option.user_display_name} - ${option.name}` : option.name}
+                getOptionLabel={(option) => option.owner_display_name ? `${option.owner_display_name} - ${option.name}` : option.name}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
                 value={accounts.filter((acc: Account) => accountFilter.includes(acc.id))}
                 onChange={(_, value) => setAccountFilter(value.map(v => v.id))}
@@ -736,7 +736,7 @@ export default function TransactionReport() {
                   const { key, ...otherProps } = props;
                   return (
                     <li key={option.id} {...otherProps}>
-                      {option.user_display_name ? `${option.user_display_name} - ${option.name}` : option.name}
+                      {option.owner_display_name ? `${option.owner_display_name} - ${option.name}` : option.name}
                     </li>
                   );
                 }}
@@ -749,7 +749,7 @@ export default function TransactionReport() {
                     return (
                       <Chip
                         key={key}
-                        label={option.user_display_name ? `${option.user_display_name} - ${option.name}` : option.name}
+                        label={option.owner_display_name ? `${option.owner_display_name} - ${option.name}` : option.name}
                         size="small"
                         {...chipProps}
                       />
@@ -896,8 +896,8 @@ export default function TransactionReport() {
                       <TableCell sx={{ minWidth: 120 }}>
                         {(() => {
                           const account = accounts.find(acc => acc.id === transaction.account_id);
-                          return account?.user_display_name 
-                            ? `${account.user_display_name} - ${transaction.account_name}` 
+                          return account?.owner_display_name 
+                            ? `${account.owner_display_name} - ${transaction.account_name}` 
                             : transaction.account_name;
                         })()}
                       </TableCell>

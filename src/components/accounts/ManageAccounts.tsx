@@ -34,9 +34,10 @@ import {
   AccountBalance as AccountIcon,
   Person as PersonIcon,
   ExpandMore as ExpandMoreIcon,
+  CreditCard as CreditCardIcon,
 } from '@mui/icons-material';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
-import { Account, User } from '@/types/database';
+import { Account, User, AccountCard } from '@/types/database';
 
 export default function ManageAccounts() {
   const { 
@@ -50,17 +51,23 @@ export default function ManageAccounts() {
     updateUser,
     deleteUser,
     refreshUsers,
-    getAccountsByUserId
+    getAccountCards,
+    addAccountCard,
+    deleteAccountCard,
   } = useDatabaseContext();
   
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [userDialogOpen, setUserDialogOpen] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [cardDialogOpen, setCardDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [selectedAccountForCardManagement, setSelectedAccountForCardManagement] = useState<Account | null>(null);
+  const [accountCards, setAccountCards] = useState<any[]>([]);
+  const [accountCardsByAccountId, setAccountCardsByAccountId] = useState<Record<number, AccountCard[]>>({});
+  const [expandedAccountIds, setExpandedAccountIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<{ type: 'user' | 'account'; item: User | Account } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'user' | 'account' | 'card'; item: User | Account | any } | null>(null);
   
   const [userFormData, setUserFormData] = useState({
     display_name: '',
@@ -68,9 +75,14 @@ export default function ManageAccounts() {
   
   const [accountFormData, setAccountFormData] = useState({
     name: '',
-    type: 'checking' as 'checking' | 'savings' | 'credit',
+    type: 'checking' as 'checking' | 'savings' | 'credit' | 'joint',
+    owner_user_id: null as number | null,
+  });
+
+  const [cardFormData, setCardFormData] = useState({
     last_four: '',
-    user_id: 0,
+    nickname: '',
+    user_id: null as number | null,
   });
 
   const loadingRef = useRef(false);
@@ -78,7 +90,6 @@ export default function ManageAccounts() {
   useEffect(() => {
     if (isDatabaseLoaded && !loadingRef.current) {
       loadingRef.current = true;
-      console.debug('Database loaded, refreshing accounts and users');
       const loadData = async () => {
         try {
           await refreshAccounts();
@@ -93,18 +104,33 @@ export default function ManageAccounts() {
     }
   }, [isDatabaseLoaded, refreshAccounts, refreshUsers]);
 
-  // User Dialog Handlers
+  // Preload all account cards to enable cardholder account detection
+  useEffect(() => {
+    if (isDatabaseLoaded && accounts.length > 0) {
+      const loadAllCards = async () => {
+        const cardsByAccount: Record<number, AccountCard[]> = {};
+        for (const account of accounts) {
+          try {
+            const cards = await getAccountCards(account.id);
+            cardsByAccount[account.id] = cards;
+          } catch (error) {
+            console.error(`Failed to load cards for account ${account.id}:`, error);
+            cardsByAccount[account.id] = [];
+          }
+        }
+        setAccountCardsByAccountId(cardsByAccount);
+      };
+      loadAllCards();
+    }
+  }, [isDatabaseLoaded, accounts, getAccountCards]);
+
   const handleOpenUserDialog = (user?: User) => {
     if (user) {
       setEditingUser(user);
-      setUserFormData({
-        display_name: user.display_name,
-      });
+      setUserFormData({ display_name: user.display_name });
     } else {
       setEditingUser(null);
-      setUserFormData({
-        display_name: '',
-      });
+      setUserFormData({ display_name: '' });
     }
     setError(null);
     setUserDialogOpen(true);
@@ -113,9 +139,7 @@ export default function ManageAccounts() {
   const handleCloseUserDialog = () => {
     setUserDialogOpen(false);
     setEditingUser(null);
-    setUserFormData({
-      display_name: '',
-    });
+    setUserFormData({ display_name: '' });
     setError(null);
   };
 
@@ -130,13 +154,9 @@ export default function ManageAccounts() {
       }
 
       if (editingUser) {
-        await updateUser(editingUser.id, {
-          display_name: userFormData.display_name,
-        });
+        await updateUser(editingUser.id, { display_name: userFormData.display_name });
       } else {
-        await addUser({
-          display_name: userFormData.display_name,
-        });
+        await addUser({ display_name: userFormData.display_name });
       }
 
       handleCloseUserDialog();
@@ -147,37 +167,22 @@ export default function ManageAccounts() {
     }
   };
 
-  // Account Dialog Handlers
-  const handleOpenAccountDialog = (account?: Account, selectedUserId?: number) => {
-    if (account) {
-      setEditingAccount(account);
-      setAccountFormData({
-        name: account.name,
-        type: account.type,
-        last_four: account.last_four,
-        user_id: account.user_id,
-      });
-    } else {
-      setEditingAccount(null);
-      setAccountFormData({
-        name: '',
-        type: 'checking',
-        last_four: '',
-        user_id: selectedUserId || 0,
-      });
-    }
+  const handleOpenAccountDialog = (selectedUserId?: number) => {
+    setAccountFormData({
+      name: '',
+      type: 'checking',
+      owner_user_id: selectedUserId ?? null,
+    });
     setError(null);
     setAccountDialogOpen(true);
   };
 
   const handleCloseAccountDialog = () => {
     setAccountDialogOpen(false);
-    setEditingAccount(null);
     setAccountFormData({
       name: '',
       type: 'checking',
-      last_four: '',
-      user_id: 0,
+      owner_user_id: null,
     });
     setError(null);
   };
@@ -188,40 +193,13 @@ export default function ManageAccounts() {
     setError(null);
 
     try {
-      if (!accountFormData.name.trim()) {
-        throw new Error('Account name is required');
-      }
-      if (!accountFormData.user_id) {
-        throw new Error('User is required');
-      }
-      if (!accountFormData.last_four.trim()) {
-        throw new Error('Last four digits are required');
-      }
-      if (accountFormData.last_four.length !== 4 || !/^\d{4}$/.test(accountFormData.last_four)) {
-        throw new Error('Last four digits must be exactly 4 numbers');
-      }
+      if (!accountFormData.name.trim()) throw new Error('Account name is required');
+      if (!accountFormData.owner_user_id) throw new Error('Owner is required');
 
-      // Check for duplicate last four digits
-      const isDuplicateLastFour = accounts.some(acc =>
-        acc.last_four === accountFormData.last_four &&
-        acc.id !== editingAccount?.id
-      );
-
-      if (isDuplicateLastFour) {
-        throw new Error('An account with these last four digits already exists');
-      }
-
-      if (editingAccount) {
-        // Account editing is not implemented yet
-        throw new Error('Account editing is not yet implemented');
-      } else {
-        await addAccount({
-          name: accountFormData.name,
-          type: accountFormData.type,
-          last_four: accountFormData.last_four,
-          user_id: accountFormData.user_id,
-        });
-      }
+      await addAccount({
+        name: accountFormData.name,
+        type: accountFormData.type,
+      }, accountFormData.owner_user_id);
 
       handleCloseAccountDialog();
     } catch (error) {
@@ -231,24 +209,100 @@ export default function ManageAccounts() {
     }
   };
 
-  // Delete Handlers
-  const handleDeleteClick = (type: 'user' | 'account', item: User | Account) => {
+  // Co-owner management removed
+
+  // Co-owner management dialog removed
+
+  // Co-owner management removed
+
+  // Co-owner management removed
+
+  const handleDeleteClick = (type: 'user' | 'account' | 'card', item: User | Account | any) => {
     setItemToDelete({ type, item });
-    setError(null);
     setDeleteDialogOpen(true);
+  };
+
+  const handleOpenCardDialog = async (account: Account) => {
+    setSelectedAccountForCardManagement(account);
+    setCardFormData({ last_four: '', nickname: '', user_id: null });
+    setLoading(true);
+    try {
+      const cards = await getAccountCards(account.id);
+      setAccountCards(cards);
+    } catch (err) {
+      setError('Failed to load account cards');
+    } finally {
+      setLoading(false);
+    }
+    setCardDialogOpen(true);
+  };
+
+  const handleCloseCardDialog = () => {
+    setCardDialogOpen(false);
+    setSelectedAccountForCardManagement(null);
+    setAccountCards([]);
+    setCardFormData({ last_four: '', nickname: '', user_id: null });
+  };
+
+  const handleAddCard = async () => {
+    if (!selectedAccountForCardManagement) return;
+    setLoading(true);
+    setError(null);
+    try {
+      if (!cardFormData.last_four.trim()) throw new Error('Last four digits are required');
+      if (cardFormData.last_four.length !== 4 || !/^\d{4}$/.test(cardFormData.last_four)) {
+        throw new Error('Last four digits must be exactly 4 numbers');
+      }
+
+      await addAccountCard({
+        account_id: selectedAccountForCardManagement.id,
+        last_four: cardFormData.last_four,
+        nickname: cardFormData.nickname || undefined,
+        user_id: cardFormData.user_id || undefined,
+      });
+
+      const cards = await getAccountCards(selectedAccountForCardManagement.id);
+      setAccountCards(cards);
+      setCardFormData({ last_four: '', nickname: '', user_id: null });
+      await refreshAccounts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add card');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCard = async (cardId: number) => {
+    setLoading(true);
+    try {
+      await deleteAccountCard(cardId);
+      if (selectedAccountForCardManagement) {
+        const cards = await getAccountCards(selectedAccountForCardManagement.id);
+        setAccountCards(cards);
+      }
+      await refreshAccounts();
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
+    } catch (err) {
+      setError('Failed to delete card');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteConfirm = async () => {
     if (!itemToDelete) return;
-
     setLoading(true);
     setError(null);
 
     try {
       if (itemToDelete.type === 'user') {
         await deleteUser(itemToDelete.item.id);
-      } else {
+      } else if (itemToDelete.type === 'account') {
         await deleteAccount(itemToDelete.item.id);
+      } else if (itemToDelete.type === 'card') {
+        await handleDeleteCard(itemToDelete.item.id);
+        return; // handleDeleteCard already closes dialog
       }
       setDeleteDialogOpen(false);
       setItemToDelete(null);
@@ -259,13 +313,29 @@ export default function ManageAccounts() {
     }
   };
 
-  const getUserAccounts = (userId: number) => {
-    return accounts.filter(account => account.user_id === userId);
+  const getUserOwnedAccounts = (userId: number) => {
+    return accounts.filter(account => account.owner_user_id === userId);
   };
 
-  const getUserById = (userId: number) => {
-    return users.find(user => user.id === userId);
+  const getUserCardholderAccounts = (userId: number) => {
+    return accounts.filter(account => account.owner_user_id !== userId && (accountCardsByAccountId[account.id]?.some(c => c.user_id === userId)));
   };
+
+  const toggleAccountExpanded = async (account: Account) => {
+    const newSet = new Set(expandedAccountIds);
+    if (newSet.has(account.id)) {
+      newSet.delete(account.id);
+    } else {
+      newSet.add(account.id);
+      if (!accountCardsByAccountId[account.id]) {
+        const cards = await getAccountCards(account.id);
+        setAccountCardsByAccountId(prev => ({ ...prev, [account.id]: cards }));
+      }
+    }
+    setExpandedAccountIds(newSet);
+  };
+
+  // Co-owner management helpers removed
 
   return (
     <Box sx={{ p: 3 }}>
@@ -274,39 +344,26 @@ export default function ManageAccounts() {
           Manage Users & Accounts
         </Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="outlined"
-            startIcon={<PersonIcon />}
-            onClick={() => handleOpenUserDialog()}
-            sx={{ minWidth: 120 }}
-          >
+          <Button variant="outlined" startIcon={<PersonIcon />} onClick={() => handleOpenUserDialog()}>
             Add User
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenAccountDialog()}
-            sx={{ minWidth: 150 }}
-          >
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenAccountDialog()}>
             Add Account
           </Button>
         </Box>
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
       <Card>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Users and Their Accounts
-          </Typography>
+          <Typography variant="h6" gutterBottom>Users and Their Accounts</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Each user can have multiple accounts. When importing CSV files, 
-            transactions will be matched to accounts based on their last 4 digits.
+            Each account has a single owner. Users may be cardholders on the owner's account.
           </Typography>
 
           {users.length === 0 ? (
@@ -316,88 +373,174 @@ export default function ManageAccounts() {
           ) : (
             <Box>
               {users.map((user) => {
-                const userAccounts = getUserAccounts(user.id);
+                const ownedAccounts = getUserOwnedAccounts(user.id);
+                const cardholderAccounts = getUserCardholderAccounts(user.id);
                 return (
                   <Accordion key={user.id} sx={{ mb: 1 }}>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                       <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                         <PersonIcon sx={{ mr: 2, color: 'primary.main' }} />
                         <Box sx={{ flexGrow: 1 }}>
-                          <Typography variant="subtitle1" fontWeight="medium">
-                            {user.display_name}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-                            <Chip 
-                              label={`${userAccounts.length} account${userAccounts.length !== 1 ? 's' : ''}`}
-                              size="small"
-                              variant="outlined"
-                            />
-                          </Box>
+                          <Typography variant="subtitle1" fontWeight="medium">{user.display_name}</Typography>
+                          <Chip label={`${ownedAccounts.length} owned • ${cardholderAccounts.length} cardholder`} size="small" variant="outlined" />
                         </Box>
                       </Box>
                     </AccordionSummary>
                     <AccordionDetails>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="subtitle2">
-                          Accounts
-                        </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                        <Typography variant="subtitle2">Owned Accounts</Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Button
-                            size="small"
-                            startIcon={<AddIcon />}
-                            onClick={() => handleOpenAccountDialog(undefined, user.id)}
-                          >
+                          <Button size="small" startIcon={<AddIcon />} onClick={() => handleOpenAccountDialog(user.id)}>
                             Add Account
                           </Button>
-                          <IconButton
-                            onClick={() => handleOpenUserDialog(user)}
-                            size="small"
-                          >
+                          <IconButton onClick={() => handleOpenUserDialog(user)} size="small">
                             <EditIcon />
                           </IconButton>
-                          <IconButton
-                            onClick={() => handleDeleteClick('user', user)}
-                            color="error"
-                            size="small"
-                          >
+                          <IconButton onClick={() => handleDeleteClick('user', user)} color="error" size="small">
                             <DeleteIcon />
                           </IconButton>
                         </Box>
                       </Box>
-                      
-                      {userAccounts.length === 0 ? (
+                      {ownedAccounts.length === 0 ? (
                         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                          No accounts configured. Add an account to link CSV imports to this user.
+                          No owned accounts.
                         </Typography>
                       ) : (
-                        <List dense>
-                          {userAccounts.map((account) => (
-                            <ListItem key={account.id} divider>
-                              <AccountIcon sx={{ mr: 2, color: 'text.secondary' }} />
-                              <ListItemText
-                                primary={`${account.name} (****${account.last_four})`}
-                                secondary={`${account.type.charAt(0).toUpperCase() + account.type.slice(1)} account`}
-                              />
-                              <ListItemSecondaryAction>
-                                <IconButton
-                                  edge="end"
-                                  onClick={() => handleOpenAccountDialog(account)}
-                                  size="small"
-                                >
-                                  <EditIcon />
-                                </IconButton>
-                                <IconButton
-                                  edge="end"
-                                  onClick={() => handleDeleteClick('account', account)}
-                                  size="small"
-                                  color="error"
-                                >
-                                  <DeleteIcon />
-                                </IconButton>
-                              </ListItemSecondaryAction>
-                            </ListItem>
+                        <Box>
+                          {ownedAccounts.map((account) => (
+                            <Box key={account.id}>
+                              <ListItem divider>
+                                <AccountIcon sx={{ mr: 2, color: 'text.secondary' }} />
+                                <ListItemText
+                                  primary={
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <Typography>{account.name}</Typography>
+                                    </Box>
+                                  }
+                                  secondary={
+                                    <>
+                                      <Typography variant="body2" component="span" display="block">
+                                        {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
+                                      </Typography>
+                                    </>
+                                  }
+                                  secondaryTypographyProps={{ component: 'div' }}
+                                />
+                                <ListItemSecondaryAction>
+                                  <IconButton onClick={() => toggleAccountExpanded(account)} size="small" title={expandedAccountIds.has(account.id) ? 'Hide Cards' : 'Show Cards'}>
+                                    <ExpandMoreIcon sx={{ transform: expandedAccountIds.has(account.id) ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                                  </IconButton>
+                                  <IconButton onClick={() => handleOpenCardDialog(account)} size="small" title="Manage Cards">
+                                    <CreditCardIcon />
+                                  </IconButton>
+                                  <IconButton onClick={() => handleDeleteClick('account', account)} size="small" color="error" title="Delete Account">
+                                    <DeleteIcon />
+                                  </IconButton>
+                                </ListItemSecondaryAction>
+                              </ListItem>
+                              {expandedAccountIds.has(account.id) && (
+                                <Box sx={{ bgcolor: 'action.hover', px: 3, py: 2, mb: 1 }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 'medium' }}>
+                                    Cards on this account:
+                                  </Typography>
+                                  {accountCardsByAccountId[account.id]?.length ? (
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                      {accountCardsByAccountId[account.id].map((card) => (
+                                        <Box key={card.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'background.paper', px: 2, py: 1, borderRadius: 1 }}>
+                                          <CreditCardIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                                          <Typography variant="body2">****{card.last_four}</Typography>
+                                          {card.nickname && (
+                                            <Typography variant="body2" color="text.secondary">({card.nickname})</Typography>
+                                          )}
+                                          {card.user_id && (
+                                            <Typography variant="body2" color="text.secondary">
+                                              • {users.find(u => u.id === card.user_id)?.display_name || 'Unknown User'}
+                                            </Typography>
+                                          )}
+                                        </Box>
+                                      ))}
+                                    </Box>
+                                  ) : (
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                      No cards added.
+                                    </Typography>
+                                  )}
+                                </Box>
+                              )}
+                            </Box>
                           ))}
-                        </List>
+                        </Box>
+                      )}
+
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3, mb: 1 }}>
+                        <Typography variant="subtitle2">Cardholder Accounts (Read-only)</Typography>
+                      </Box>
+                      {cardholderAccounts.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          Not a cardholder on any accounts.
+                        </Typography>
+                      ) : (
+                        <Box>
+                          {cardholderAccounts.map((account) => (
+                            <Box key={account.id}>
+                              <ListItem divider>
+                                <AccountIcon sx={{ mr: 2, color: 'text.secondary' }} />
+                                <ListItemText
+                                  primary={
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <Typography>{account.name}</Typography>
+                                    </Box>
+                                  }
+                                  secondary={
+                                    <>
+                                      <Typography variant="body2" component="span" display="block">
+                                        {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
+                                      </Typography>
+                                      {account.owner_display_name && (
+                                        <Typography variant="body2" component="span" color="text.secondary" display="block">
+                                          Owner: {account.owner_display_name}
+                                        </Typography>
+                                      )}
+                                    </>
+                                  }
+                                  secondaryTypographyProps={{ component: 'div' }}
+                                />
+                                <ListItemSecondaryAction>
+                                  <IconButton onClick={() => toggleAccountExpanded(account)} size="small" title={expandedAccountIds.has(account.id) ? 'Hide Cards' : 'Show Cards'}>
+                                    <ExpandMoreIcon sx={{ transform: expandedAccountIds.has(account.id) ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                                  </IconButton>
+                                </ListItemSecondaryAction>
+                              </ListItem>
+                              {expandedAccountIds.has(account.id) && (
+                                <Box sx={{ bgcolor: 'action.hover', px: 3, py: 2, mb: 1 }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 'medium' }}>
+                                    Your cards on this account:
+                                  </Typography>
+                                  {(() => {
+                                    const userCards = accountCardsByAccountId[account.id]?.filter(c => c.user_id === user.id) || [];
+                                    return userCards.length ? (
+                                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                        {userCards.map((card) => (
+                                          <Box key={card.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'background.paper', px: 2, py: 1, borderRadius: 1 }}>
+                                            <CreditCardIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                                            <Typography variant="body2">****{card.last_four}</Typography>
+                                            {card.nickname && (
+                                              <Typography variant="body2" color="text.secondary">({card.nickname})</Typography>
+                                            )}
+                                          </Box>
+                                        ))}
+                                      </Box>
+                                    ) : (
+                                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                        No cards assigned to you on this account.
+                                      </Typography>
+                                    );
+                                  })()}
+                                </Box>
+                              )}
+                            </Box>
+                          ))}
+                        </Box>
                       )}
                     </AccordionDetails>
                   </Accordion>
@@ -408,121 +551,176 @@ export default function ManageAccounts() {
         </CardContent>
       </Card>
 
-      {/* Add/Edit User Dialog */}
+      {/* User Dialog */}
       <Dialog open={userDialogOpen} onClose={handleCloseUserDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {editingUser ? 'Edit User' : 'Add New User'}
-        </DialogTitle>
+        <DialogTitle>{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
         <DialogContent>
-          <Box component="form" onSubmit={handleUserSubmit} sx={{ mt: 1 }}>
-            <TextField
-              autoFocus
-              margin="dense"
-              label="Display Name"
-              fullWidth
-              variant="outlined"
-              value={userFormData.display_name}
-              onChange={(e) => setUserFormData(prev => ({ ...prev, display_name: e.target.value }))}
-              required
-              helperText="Enter a friendly name for this user"
-            />
-          </Box>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Display Name"
+            fullWidth
+            value={userFormData.display_name}
+            onChange={(e) => setUserFormData({ display_name: e.target.value })}
+            required
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseUserDialog}>Cancel</Button>
-          <Button 
-            onClick={handleUserSubmit} 
-            variant="contained" 
-            disabled={loading}
-          >
+          <Button onClick={handleUserSubmit} variant="contained" disabled={loading}>
             {loading ? 'Saving...' : editingUser ? 'Update' : 'Add'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Add/Edit Account Dialog */}
+      {/* Account Dialog */}
       <Dialog open={accountDialogOpen} onClose={handleCloseAccountDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {editingAccount ? 'Edit Account' : 'Add New Account'}
-        </DialogTitle>
+        <DialogTitle>Add New Account</DialogTitle>
         <DialogContent>
-          <Box component="form" onSubmit={handleAccountSubmit} sx={{ mt: 1 }}>
-            <FormControl fullWidth margin="dense" variant="outlined">
-              <InputLabel>User</InputLabel>
-              <Select
-                value={accountFormData.user_id}
-                label="User"
-                onChange={(e) => setAccountFormData(prev => ({ ...prev, user_id: e.target.value }))}
-                required
-              >
-                {users.map((user) => (
-                  <MenuItem key={user.id} value={user.id}>
-                    {user.display_name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <TextField
-              margin="dense"
-              label="Account Name"
-              fullWidth
-              variant="outlined"
-              value={accountFormData.name}
-              onChange={(e) => setAccountFormData(prev => ({ ...prev, name: e.target.value }))}
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Owner</InputLabel>
+            <Select
+              value={accountFormData.owner_user_id ?? ''}
+              label="Owner"
+              onChange={(e) => setAccountFormData(prev => ({ ...prev, owner_user_id: e.target.value ? Number(e.target.value) : null }))}
               required
-              helperText="e.g., 'Primary Checking', 'Business Savings', etc."
-            />
-            
-            <FormControl fullWidth margin="dense" variant="outlined">
-              <InputLabel>Account Type</InputLabel>
-              <Select
-                value={accountFormData.type}
-                label="Account Type"
-                onChange={(e) => setAccountFormData(prev => ({ ...prev, type: e.target.value as 'checking' | 'savings' | 'credit' }))}
-              >
-                <MenuItem value="checking">Checking</MenuItem>
-                <MenuItem value="savings">Savings</MenuItem>
-                <MenuItem value="credit">Credit Card</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <TextField
-              margin="dense"
-              label="Last Four Digits"
-              fullWidth
-              variant="outlined"
-              value={accountFormData.last_four}
-              onChange={(e) => setAccountFormData(prev => ({ ...prev, last_four: e.target.value }))}
-              inputProps={{ maxLength: 4, pattern: '[0-9]{4}' }}
-              required
-              helperText="Enter the last 4 digits of the account number"
-            />
-          </Box>
+            >
+              <MenuItem value="" disabled>Select Owner</MenuItem>
+              {users.map((user) => (
+                <MenuItem key={user.id} value={user.id}>{user.display_name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            margin="dense"
+            label="Account Name"
+            fullWidth
+            value={accountFormData.name}
+            onChange={(e) => setAccountFormData(prev => ({ ...prev, name: e.target.value }))}
+            required
+          />
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Account Type</InputLabel>
+            <Select
+              value={accountFormData.type}
+              label="Account Type"
+              onChange={(e) => setAccountFormData(prev => ({ ...prev, type: e.target.value as any }))}
+            >
+              <MenuItem value="checking">Checking</MenuItem>
+              <MenuItem value="savings">Savings</MenuItem>
+              <MenuItem value="credit">Credit Card</MenuItem>
+              <MenuItem value="joint">Joint Account</MenuItem>
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseAccountDialog}>Cancel</Button>
-          <Button 
-            onClick={handleAccountSubmit} 
-            variant="contained" 
-            disabled={loading}
-          >
-            {loading ? 'Saving...' : editingAccount ? 'Update' : 'Add'}
+          <Button onClick={handleAccountSubmit} variant="contained" disabled={loading}>
+            {loading ? 'Saving...' : 'Add'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete {itemToDelete?.type === 'user' ? 'User' : 'Account'}</DialogTitle>
+      {/* Manage Users Dialog removed for single-owner model */}
+
+      {/* Card Management Dialog */}
+      <Dialog open={cardDialogOpen} onClose={handleCloseCardDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Manage Cards: {selectedAccountForCardManagement?.name}</DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete this {itemToDelete?.type}?
-          </Typography>
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          
+          <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>Current Cards:</Typography>
+          {accountCards.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mb: 2 }}>
+              No cards added yet.
+            </Typography>
+          ) : (
+            <List dense>
+              {accountCards.map((card) => (
+                <ListItem key={card.id} divider>
+                  <CreditCardIcon sx={{ mr: 2, color: 'primary.main' }} />
+                  <ListItemText 
+                    primary={`****${card.last_four}`}
+                    secondary={
+                      <>
+                        {card.nickname && <Typography variant="body2" component="span">{card.nickname}</Typography>}
+                        {card.user_id && (
+                          <Typography variant="body2" component="span" color="text.secondary">
+                            {card.nickname && ' • '}
+                            {users.find(u => u.id === card.user_id)?.display_name || 'Unknown User'}
+                          </Typography>
+                        )}
+                      </>
+                    }
+                  />
+                  <ListItemSecondaryAction>
+                    <IconButton onClick={() => handleDeleteClick('card', card)} size="small" color="error" disabled={loading}>
+                      <DeleteIcon />
+                    </IconButton>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              ))}
+            </List>
+          )}
+
+          <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>Add New Card:</Typography>
+          <TextField
+            margin="dense"
+            label="Last Four Digits"
+            fullWidth
+            value={cardFormData.last_four}
+            onChange={(e) => setCardFormData(prev => ({ ...prev, last_four: e.target.value }))}
+            inputProps={{ maxLength: 4, pattern: '[0-9]{4}' }}
+            required
+          />
+          <TextField
+            margin="dense"
+            label="Nickname (Optional)"
+            fullWidth
+            value={cardFormData.nickname}
+            onChange={(e) => setCardFormData(prev => ({ ...prev, nickname: e.target.value }))}
+            placeholder="e.g., My Card, Spouse Card"
+          />
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Cardholder (Optional)</InputLabel>
+            <Select
+              value={cardFormData.user_id || ''}
+              onChange={(e) => setCardFormData(prev => ({ ...prev, user_id: e.target.value ? Number(e.target.value) : null }))}
+            >
+              <MenuItem value="">None</MenuItem>
+              {users.map((user) => (
+                <MenuItem key={user.id} value={user.id}>
+                  {user.display_name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Button 
+            onClick={handleAddCard} 
+            variant="contained" 
+            disabled={loading || !cardFormData.last_four}
+            fullWidth
+            sx={{ mt: 2 }}
+          >
+            {loading ? 'Adding...' : 'Add Card'}
+          </Button>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCardDialog}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete {itemToDelete?.type === 'user' ? 'User' : itemToDelete?.type === 'card' ? 'Card' : 'Account'}</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete this {itemToDelete?.type}?</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             {itemToDelete?.type === 'user' 
-              ? 'This action cannot be undone. All accounts associated with this user will also be deleted.'
-              : 'This action cannot be undone.'
+              ? 'This will remove the user from all shared accounts.'
+              : itemToDelete?.type === 'card'
+              ? 'CSV imports matching this card number will no longer work.'
+              : 'All transactions associated with this account will remain.'
             }
           </Typography>
         </DialogContent>

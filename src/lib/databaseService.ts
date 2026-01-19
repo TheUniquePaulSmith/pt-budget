@@ -12,6 +12,7 @@ import {
   CATEGORY_QUERIES,
   COMPANY_QUERIES,
   ACCOUNT_QUERIES,
+  ACCOUNT_CARD_QUERIES,
   BUDGET_QUERIES,
   PROJECT_QUERIES,
   USER_QUERIES,
@@ -22,7 +23,8 @@ import {
   Transaction, 
   Category, 
   Company, 
-  Account, 
+  Account,
+  AccountCard,
   Budget, 
   Project, 
   User,
@@ -493,16 +495,17 @@ export class DatabaseService {
   }
 
   async addAccount(
-    account: Omit<Account, "id" | "created_at" | "updated_at">
+    account: Omit<Account, "id" | "created_at" | "updated_at" | "owner_user_id">,
+    ownerUserId: number
   ): Promise<number> {
     try {
       const result = await databaseWorkerService.query(ACCOUNT_QUERIES.CREATE, [
-        account.user_id,
         account.name,
         account.type,
-        account.last_four,
+        ownerUserId,
       ]);
-      return result[0].id;
+      const accountId = result[0].id;
+      return accountId;
     } catch (error) {
       console.error("Failed to add account:", error);
       throw error;
@@ -514,6 +517,73 @@ export class DatabaseService {
       await databaseWorkerService.query(ACCOUNT_QUERIES.DELETE, [id]);
     } catch (error) {
       console.error("Failed to delete account:", error);
+      throw error;
+    }
+  }
+
+  // Account-User relationship removed; ownership via owner_user_id
+
+  // Account Card operations
+  async getAccountCards(accountId: number): Promise<AccountCard[]> {
+    try {
+      const rows = await databaseWorkerService.query(
+        ACCOUNT_CARD_QUERIES.GET_BY_ACCOUNT_ID,
+        [accountId]
+      );
+      return rows.map(this.mapToAccountCard);
+    } catch (error) {
+      console.error("Failed to get account cards:", error);
+      throw error;
+    }
+  }
+
+  async addAccountCard(card: Omit<AccountCard, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
+    try {
+      const result = await databaseWorkerService.query(ACCOUNT_CARD_QUERIES.CREATE, [
+        card.account_id,
+        card.last_four,
+        card.nickname || null,
+        card.user_id || null,
+      ]);
+      return result[0].id;
+    } catch (error) {
+      console.error("Failed to add account card:", error);
+      throw error;
+    }
+  }
+
+  async deleteAccountCard(id: number): Promise<void> {
+    try {
+      await databaseWorkerService.query(ACCOUNT_CARD_QUERIES.DELETE, [id]);
+    } catch (error) {
+      console.error("Failed to delete account card:", error);
+      throw error;
+    }
+  }
+
+  async updateAccountCard(id: number, updates: Partial<Pick<AccountCard, 'last_four' | 'nickname' | 'user_id'>>): Promise<void> {
+    try {
+      await databaseWorkerService.query(ACCOUNT_CARD_QUERIES.UPDATE, [
+        updates.last_four,
+        updates.nickname,
+        updates.user_id,
+        id,
+      ]);
+    } catch (error) {
+      console.error("Failed to update account card:", error);
+      throw error;
+    }
+  }
+
+  async findAccountsByLastFour(lastFour: string): Promise<Account[]> {
+    try {
+      const rows = await databaseWorkerService.query(
+        ACCOUNT_CARD_QUERIES.FIND_ACCOUNT_BY_LAST_FOUR,
+        [lastFour]
+      );
+      return rows.map(this.mapToAccount);
+    } catch (error) {
+      console.error("Failed to find accounts by last four:", error);
       throw error;
     }
   }
@@ -947,13 +1017,23 @@ export class DatabaseService {
   private mapToAccount(row: any): Account {
     return {
       id: row.id,
-      user_id: row.user_id,
       name: row.name,
       type: row.type,
-      last_four: row.last_four,
+      owner_user_id: row.owner_user_id,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      user_display_name: row.user_display_name,
+      owner_display_name: row.owner_display_name,
+    };
+  }
+
+  private mapToAccountCard(row: any): AccountCard {
+    return {
+      id: row.id,
+      account_id: row.account_id,
+      last_four: row.last_four,
+      nickname: row.nickname,
+      user_id: row.user_id,
+      created_at: row.created_at,
     };
   }
 

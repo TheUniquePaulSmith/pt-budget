@@ -190,19 +190,67 @@ export const USER_QUERIES = {
 export const ACCOUNT_QUERIES = {
   GET_ALL: `
     SELECT 
-      a.*,
-      u.display_name as user_display_name
+      a.*, 
+      u.display_name as owner_display_name
     FROM accounts a
-    LEFT JOIN users u ON a.user_id = u.id
-    ORDER BY u.display_name, a.name
+    LEFT JOIN users u ON a.owner_user_id = u.id
+    ORDER BY a.name
   `,
-  CREATE: `INSERT INTO accounts (user_id, name, type, last_four) VALUES (?, ?, ?, ?) RETURNING id`,
-  GET_BY_ID: `SELECT * FROM accounts WHERE id = ?`,
-  GET_BY_USER_ID: `SELECT * FROM accounts WHERE user_id = ? ORDER BY name`,
-  UPDATE: `UPDATE accounts SET user_id = ?, name = ?, type = ?, last_four = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  CREATE: `INSERT INTO accounts (name, type, owner_user_id) VALUES (?, ?, ?) RETURNING id`,
+  GET_BY_ID: `
+    SELECT 
+      a.*, 
+      u.display_name as owner_display_name
+    FROM accounts a
+    LEFT JOIN users u ON a.owner_user_id = u.id
+    WHERE a.id = ?
+  `,
+  GET_BY_USER_ID: `
+    SELECT a.*, u.display_name as owner_display_name
+    FROM accounts a
+    LEFT JOIN users u ON a.owner_user_id = u.id
+    WHERE a.owner_user_id = ?
+    ORDER BY a.name
+  `,
+  UPDATE: `UPDATE accounts SET name = ?, type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
   DELETE: `DELETE FROM accounts WHERE id = ?`,
-  FIND_BY_LAST_FOUR: `SELECT * FROM accounts WHERE last_four = ?`,
 };
+
+// Account Card Queries
+export const ACCOUNT_CARD_QUERIES = {
+  GET_ALL: `SELECT * FROM account_cards ORDER BY account_id, created_at`,
+  GET_BY_ACCOUNT_ID: `
+    SELECT 
+      ac.*,
+      u.display_name as user_display_name
+    FROM account_cards ac
+    LEFT JOIN users u ON ac.user_id = u.id
+    WHERE ac.account_id = ?
+    ORDER BY ac.created_at
+  `,
+  GET_BY_LAST_FOUR: `
+    SELECT 
+      ac.*,
+      a.name as account_name,
+      a.type as account_type
+    FROM account_cards ac
+    JOIN accounts a ON ac.account_id = a.id
+    WHERE ac.last_four = ?
+  `,
+  CREATE: `INSERT INTO account_cards (account_id, last_four, nickname, user_id) VALUES (?, ?, ?, ?) RETURNING id`,
+  UPDATE: `UPDATE account_cards SET last_four = ?, nickname = ?, user_id = ? WHERE id = ?`,
+  DELETE: `DELETE FROM account_cards WHERE id = ?`,
+  FIND_ACCOUNT_BY_LAST_FOUR: `
+    SELECT DISTINCT
+      a.*, u.display_name as owner_display_name
+    FROM account_cards ac
+    JOIN accounts a ON ac.account_id = a.id
+    LEFT JOIN users u ON a.owner_user_id = u.id
+    WHERE ac.last_four = ?
+  `,
+};
+
+// Account-User junction removed; ownership is via accounts.owner_user_id
 
 // Budget Queries
 export const BUDGET_QUERIES = {

@@ -40,20 +40,18 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
   timeRangeLabel,
 }) => {
   
-   const getAccountType = (accountId: number): 'checking' | 'savings' | 'credit' | undefined => {
+   const getAccountType = (accountId: number): 'checking' | 'savings' | 'credit' | 'joint' | undefined => {
     const account = accounts.find(acc => acc.id === accountId);
     return account?.type;
   };
   
   const [tabValue, setTabValue] = useState(0);
 
-  // Helper function to get user display name from account_id
+  // Helper function to get owner display name from account_id
   const getUserDisplayName = (accountId: number): string => {
     const account = accounts.find(a => a.id === accountId);
-    if (!account) return 'Unknown User';
-    
-    const user = users.find(u => u.id === account.user_id);
-    return user?.display_name || 'Unknown User';
+    if (!account) return 'Unknown Owner';
+    return account.owner_display_name || 'Unknown Owner';
   };
 
   // Spending by Category

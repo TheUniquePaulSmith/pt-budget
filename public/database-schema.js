@@ -32,13 +32,25 @@ export const CREATE_TABLES = {
   ACCOUNTS: `
     CREATE TABLE IF NOT EXISTS accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
       name TEXT NOT NULL,
-      type TEXT CHECK(type IN ('checking', 'savings', 'credit')) NOT NULL,
-      last_four TEXT NOT NULL,
+      type TEXT CHECK(type IN ('checking', 'savings', 'credit', 'joint')) NOT NULL,
+      owner_user_id INTEGER NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      FOREIGN KEY (owner_user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+  `,
+  
+  ACCOUNT_CARDS: `
+    CREATE TABLE IF NOT EXISTS account_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      account_id INTEGER NOT NULL,
+      last_four TEXT NOT NULL UNIQUE,
+      nickname TEXT,
+      user_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
     )
   `,
   
@@ -158,10 +170,17 @@ export const DEFAULT_DATA = {
   `,
   
   ACCOUNTS: `
-    INSERT OR IGNORE INTO accounts (id, user_id, name, type, last_four) VALUES
-    (1, 1, 'Primary Checking', 'checking', '1234'),
-    (2, 1, 'Savings Account', 'savings', '5678'),
-    (3, 1, 'Credit Card', 'credit', '9012')
+    INSERT OR IGNORE INTO accounts (id, name, type, owner_user_id) VALUES
+    (1, 'Primary Checking', 'checking', 1),
+    (2, 'Savings Account', 'savings', 1),
+    (3, 'Credit Card', 'credit', 1)
+  `,
+  
+  ACCOUNT_CARDS: `
+    INSERT OR IGNORE INTO account_cards (id, account_id, last_four, nickname, user_id) VALUES
+    (1, 1, '1234', 'Main Debit Card', 1),
+    (2, 2, '5678', NULL, 1),
+    (3, 3, '9012', 'Primary Credit Card', 1)
   `,
   
   TRIPS: `

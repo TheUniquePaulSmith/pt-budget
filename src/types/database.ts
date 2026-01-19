@@ -50,15 +50,29 @@ export interface User {
 
 export interface Account {
   id: number;
-  user_id: number;
   name: string; // User-friendly name for the account
-  type: 'checking' | 'savings' | 'credit';
-  last_four: string; // Last 4 digits of account number
+  type: 'checking' | 'savings' | 'credit' | 'joint';
+  owner_user_id: number;
   created_at: string;
   updated_at: string;
   // Joined fields from SQL queries
-  user_display_name?: string;
+  owner_display_name?: string; // Owner's display name
+  cards?: AccountCard[]; // Array of cards associated with this account
 }
+
+export interface AccountCard {
+  id: number;
+  account_id: number;
+  last_four: string; // Last 4 digits of card number
+  nickname?: string | null; // Optional nickname for the card (e.g., "My Card", "Spouse Card")
+  user_id?: number | null; // Optional: which user has this specific card
+  created_at: string;
+  // Joined fields from SQL queries
+  user_display_name?: string;
+  account_name?: string;
+}
+
+// AccountUser removed; ownership is represented by Account.owner_user_id
 
 export interface Budget {
   id: number;

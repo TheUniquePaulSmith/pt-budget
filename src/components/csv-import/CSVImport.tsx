@@ -87,6 +87,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     deleteFromTempTable,
     checkDuplicateTransactions,
     bulkInsertFromTempTable,
+    findAccountsByLastFour,
   } = useDatabaseContext();
   
   const [file, setFile] = useState<File | null>(null);
@@ -119,7 +120,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   });
 
   // Function to analyze account column and find matching accounts
-  const analyzeAccountColumn = useCallback((data: any[], accountColumn: string) => {
+  const analyzeAccountColumn = useCallback(async (data: any[], accountColumn: string) => {
     // Get unique account values from CSV
     const uniqueAccountValues = [...new Set(data.map(row => String(row[accountColumn])))];
     
@@ -129,14 +130,14 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       type: acc.type
     })));
     
-    const matches: AccountMatch[] = uniqueAccountValues.map(csvValue => {
+    const matches: AccountMatch[] = await Promise.all(uniqueAccountValues.map(async csvValue => {
       // Extract last 4 digits from CSV value (e.g., "...1682" -> "1682")
       const lastFourMatch = csvValue.match(/(\d{4})$/);
       const lastFour = lastFourMatch ? lastFourMatch[1] : '';
       console.debug(`Analyzing account column: ${csvValue}, extracted last four: "${lastFour}" (type: ${typeof lastFour})`);
       
-      // Filter accounts directly here instead of using findAccountsByLastFour
-      const matchingAccounts = lastFour ? accounts.filter(account => account.last_four === lastFour) : [];
+      // Use findAccountsByLastFour to search account_cards table
+      const matchingAccounts = lastFour ? await findAccountsByLastFour(lastFour) : [];
       console.debug(`Found ${matchingAccounts.length} matching accounts for last four "${lastFour}":`, matchingAccounts);
       
       return {
@@ -145,10 +146,10 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         matchingAccounts,
         selectedAccountId: matchingAccounts.length === 1 ? matchingAccounts[0].id : null,
       };
-    });
+    }));
     
     setAccountMatches(matches);
-  }, [accounts]);
+  }, [accounts, findAccountsByLastFour]);
 
   // Clear invalid column mappings when CSV data changes
   useEffect(() => {
@@ -204,6 +205,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           }]);
         }
       } else {
+        // Call async function
         analyzeAccountColumn(csvData, mapping.accountColumn);
       }
     } else {
@@ -736,7 +738,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                     )}
                     {accounts.map(account => (
                       <MenuItem key={`account-${account.id}`} value={`DIRECT_ACCOUNT:${account.id}`}>
-                        {account.user_display_name ? `${account.user_display_name} - ` : ''}{account.name}
+                        {account.user_display_names ? `${account.user_display_names} - ` : ''}{account.name}
                       </MenuItem>
                     ))}
                   </Select>
@@ -823,7 +825,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                     {(() => {
                       const accountId = parseInt(mapping.accountColumn.replace('DIRECT_ACCOUNT:', ''));
                       const account = accounts.find(acc => acc.id === accountId);
-                      return account ? `${account.user_display_name ? account.user_display_name + ' - ' : ''}${account.name}` : 'Unknown Account';
+                      return account ? `${account.user_display_names ? account.user_display_names + ' - ' : ''}${account.name}` : 'Unknown Account';
                     })()}
                   </strong>
                 </Typography>
@@ -872,7 +874,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                         >
                           {match.matchingAccounts.map(account => (
                             <MenuItem key={account.id} value={account.id}>
-                              {account.user_display_name ? `${account.user_display_name} - ` : ''}{account.name} - {account.type}
+                              {account.user_display_names ? `${account.user_display_names} - ` : ''}{account.name} - {account.type}
                             </MenuItem>
                           ))}
                         </Select>

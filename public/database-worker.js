@@ -90,6 +90,8 @@ class DatabaseWorker {
           await this.sqlite3.exec(this.db, CREATE_TABLES.COMPANIES);
           await this.sqlite3.exec(this.db, CREATE_TABLES.USERS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNTS);
+          // ACCOUNT_USERS removed in favor of owner_user_id on accounts
+          await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNT_CARDS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTIONS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGETS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.PROJECTS);
@@ -100,6 +102,8 @@ class DatabaseWorker {
           await this.sqlite3.exec(this.db, DEFAULT_DATA.CATEGORIES);
           await this.sqlite3.exec(this.db, DEFAULT_DATA.USERS);
           await this.sqlite3.exec(this.db, DEFAULT_DATA.ACCOUNTS);
+          // ACCOUNT_USERS defaults removed
+          await this.sqlite3.exec(this.db, DEFAULT_DATA.ACCOUNT_CARDS);
 
         console.info("[DB Worker] Database tables created successfully");
       } catch (error) {

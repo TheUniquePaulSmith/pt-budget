@@ -33,6 +33,7 @@ React Components → DatabaseService → DatabaseWorkerService → SharedWorker
 4. Update [`src/lib/databaseWorkerService.ts`](src/lib/databaseWorkerService.ts) to send message to SharedWorker based off query type
 5. Update SharedWorker (`public/database-worker.js`) to handle new query type and return results
 6. Expose new method in [`DatabaseContext`](src/contexts/DatabaseContext.tsx
+7. Use feature based folder structure to add any new components needed
 
 ### Component Architecture
 - **Dialog Pattern**: Transaction forms use Material-UI dialogs (see [`src/components/AddTransaction.tsx`](src/components/AddTransaction.tsx))

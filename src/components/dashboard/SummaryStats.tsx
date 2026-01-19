@@ -31,7 +31,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
     }).format(amount);
   };
 
-  const getAccountType = (accountId: number): 'checking' | 'savings' | 'credit' | undefined => {
+  const getAccountType = (accountId: number): 'checking' | 'savings' | 'credit' | 'joint' | undefined => {
     const account = accounts.find(acc => acc.id === accountId);
     return account?.type;
   };

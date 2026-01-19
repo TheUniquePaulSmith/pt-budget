@@ -9,16 +9,18 @@ import {
   DateRange,
 } from '@mui/icons-material';
 import StatCard from '@/components/common/Charts/StatCard';
-import { Transaction } from '@/types/database';
+import { Transaction, Account } from '@/types/database';
 
 interface SummaryStatsProps {
   transactions: Transaction[];
+  accounts: Account[];
   dateRanges: { start: string; end: string };
   timeRangeLabel: string;
 }
 
 const SummaryStats: React.FC<SummaryStatsProps> = ({
   transactions,
+  accounts,
   dateRanges,
   timeRangeLabel,
 }) => {
@@ -27,6 +29,11 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
       style: 'currency',
       currency: 'USD',
     }).format(amount);
+  };
+
+  const getAccountType = (accountId: number): 'checking' | 'savings' | 'credit' | undefined => {
+    const account = accounts.find(acc => acc.id === accountId);
+    return account?.type;
   };
 
   const summaryStats = useMemo(() => {
@@ -38,8 +45,9 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
       return transactionDate >= startDate && transactionDate <= endDate;
     });
     
+    /* Don't count credit card payments as income */
     const totalIncome = periodTransactions
-      .filter(t => t.type === 'income')
+      .filter(t => t.type === 'income' && getAccountType(t.account_id) !== 'credit')
       .reduce((sum, t) => sum + t.amount, 0);
     
     const totalExpenses = periodTransactions

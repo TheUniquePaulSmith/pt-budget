@@ -118,6 +118,7 @@ const Dashboard: React.FC = () => {
       {/* Summary Stats */}
       <SummaryStats
         transactions={transactions}
+        accounts={accounts}
         dateRanges={dateRanges}
         timeRangeLabel={getTimeRangeLabel()}
       />

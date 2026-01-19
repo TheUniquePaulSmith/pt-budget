@@ -39,6 +39,12 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
   dateRanges,
   timeRangeLabel,
 }) => {
+  
+   const getAccountType = (accountId: number): 'checking' | 'savings' | 'credit' | undefined => {
+    const account = accounts.find(acc => acc.id === accountId);
+    return account?.type;
+  };
+  
   const [tabValue, setTabValue] = useState(0);
 
   // Helper function to get user display name from account_id
@@ -97,7 +103,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
     transactions
       .filter(t => {
         const tDate = new Date(t.date);
-        return t.type === 'income' && tDate >= startDate && tDate <= endDate;
+        return ((t.type === 'income' && getAccountType(t.account_id) !== 'credit') && tDate >= startDate && tDate <= endDate);
       })
       .forEach(t => {
         const userName = getUserDisplayName(t.account_id);
@@ -105,7 +111,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
         const categoryId = t.category_id ? Number(t.category_id) : null;
         const category = categoryId ? categories.find(c => Number(c.id) === categoryId) : null;
         const categoryName = category?.name || t.category_name || 'Not Defined';
-        const categoryColor = category?.color || '#9E9E9E';
+        const categoryColor = category?.color || 'green';
         
         const key = `${t.account_id}-${categoryId || 'undefined'}`;
         const label = `${userName} - ${accountName} - ${categoryName}`;
@@ -147,7 +153,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
       .forEach(t => {
         const monthKey = format(new Date(t.date), 'yyyy-MM');
         const existing = monthlyData.get(monthKey) || { income: 0, expenses: 0 };
-        if (t.type === 'income') {
+        if (t.type === 'income' && getAccountType(t.account_id) !== 'credit') {
           existing.income += t.amount;
         } else {
           existing.expenses += Math.abs(t.amount);
@@ -169,7 +175,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
     const startDate = new Date(dateRanges.start);
     const endDate = new Date(dateRanges.end);
     
-    const accountTotals = new Map<string, { accountName: string; income: number; expenses: number }>();
+    const accountTotals = new Map<number, { accountName: string; income: number; expenses: number }>();
     
     transactions
       .filter(t => {
@@ -177,9 +183,9 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
         return tDate >= startDate && tDate <= endDate;
       })
       .forEach(t => {
-        const accountId = String(t.account_id);
+        const accountId = t.account_id;
         const existing = accountTotals.get(accountId) || { 
-          accountName: t.account_name || 'Unknown Account', 
+          accountName: `${getUserDisplayName(t.account_id)} - ${t.account_name} ` || 'Unknown Account', 
           income: 0, 
           expenses: 0 
         };
@@ -276,13 +282,13 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
       <TabPanel value={tabValue} index={2}>
         <Box p={3}>
           <Typography variant="h6" gutterBottom>
-            Income vs Expenses Trend (Last 6 Months)
+            Income vs Expenses Trend
           </Typography>
           {trendsData.xAxis.length > 0 ? (
             <Box height={400}>
               <LineChart
-                width={800}
-                height={400}
+                //width={800}
+                //height={400}
                 series={[
                   {
                     data: trendsData.income,
@@ -299,7 +305,10 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
                   scaleType: 'point', 
                   data: trendsData.xAxis,
                 }]}
-                margin={{ top: 20, right: 20, bottom: 20, left: 60 }}
+                yAxis={[{
+                  width: 80
+                }]}
+                //margin={{ top: 20, right: 20, bottom: 20, left: 60 }}
               />
             </Box>
           ) : (
@@ -320,25 +329,29 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
           {accountData.accountNames.length > 0 ? (
             <Box height={400}>
               <BarChart
-                width={800}
-                height={400}
+                //width={800}
+                //height={400}
                 series={[
                   {
                     data: accountData.income,
                     label: 'Income',
                     color: '#4caf50',
-                    stack: 'total',
+                    //stack: 'total',
                   },
                   {
                     data: accountData.expenses,
                     label: 'Expenses',
                     color: '#f44336',
-                    stack: 'total',
+                    //stack: 'total',
                   },
                 ]}
                 xAxis={[{ 
                   scaleType: 'band', 
                   data: accountData.accountNames,
+                }]}
+                yAxis={[{
+                  width: 80,
+                  valueFormatter: (value: string) => `$${value.toLocaleString()}`,
                 }]}
                 margin={{ top: 20, right: 20, bottom: 60, left: 80 }}
               />

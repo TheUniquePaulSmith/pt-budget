@@ -728,9 +728,18 @@ export default function TransactionReport() {
               <Autocomplete
                 multiple
                 options={accounts}
-                getOptionLabel={(option) => option.name}
+                getOptionLabel={(option) => option.user_display_name ? `${option.user_display_name} - ${option.name}` : option.name}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
                 value={accounts.filter((acc: Account) => accountFilter.includes(acc.id))}
                 onChange={(_, value) => setAccountFilter(value.map(v => v.id))}
+                renderOption={(props, option) => {
+                  const { key, ...otherProps } = props;
+                  return (
+                    <li key={option.id} {...otherProps}>
+                      {option.user_display_name ? `${option.user_display_name} - ${option.name}` : option.name}
+                    </li>
+                  );
+                }}
                 renderInput={(params) => (
                   <TextField {...params} label="Accounts" />
                 )}
@@ -740,7 +749,7 @@ export default function TransactionReport() {
                     return (
                       <Chip
                         key={key}
-                        label={option.name}
+                        label={option.user_display_name ? `${option.user_display_name} - ${option.name}` : option.name}
                         size="small"
                         {...chipProps}
                       />
@@ -884,7 +893,14 @@ export default function TransactionReport() {
                       </TableCell>
                     )}
                     {visibleColumns.account && (
-                      <TableCell sx={{ minWidth: 120 }}>{transaction.account_name}</TableCell>
+                      <TableCell sx={{ minWidth: 120 }}>
+                        {(() => {
+                          const account = accounts.find(acc => acc.id === transaction.account_id);
+                          return account?.user_display_name 
+                            ? `${account.user_display_name} - ${transaction.account_name}` 
+                            : transaction.account_name;
+                        })()}
+                      </TableCell>
                     )}
                     {visibleColumns.actions && (
                       <TableCell align="center" sx={{ minWidth: 80 }}>

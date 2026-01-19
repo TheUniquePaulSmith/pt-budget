@@ -158,7 +158,8 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       let hasInvalidMappings = false;
 
       // Check each mapping and clear if invalid
-      if (mapping.accountColumn && !columnHeaders.includes(mapping.accountColumn)) {
+      // Skip validation for direct account selection (DIRECT_ACCOUNT:123)
+      if (mapping.accountColumn && !mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') && !columnHeaders.includes(mapping.accountColumn)) {
         updatedMapping.accountColumn = '';
         hasInvalidMappings = true;
       }
@@ -189,12 +190,27 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   // Analyze account column when it's selected and CSV data is available
   useEffect(() => {
     if (csvData.length > 0 && mapping.accountColumn) {
-      analyzeAccountColumn(csvData, mapping.accountColumn);
+      // Check if a direct account was selected
+      if (mapping.accountColumn.startsWith('DIRECT_ACCOUNT:')) {
+        const accountId = parseInt(mapping.accountColumn.replace('DIRECT_ACCOUNT:', ''));
+        const selectedAccount = accounts.find(acc => acc.id === accountId);
+        if (selectedAccount) {
+          // Create a single account match that maps everything to the selected account
+          setAccountMatches([{
+            csvAccountValue: 'ALL_TRANSACTIONS',
+            lastFourValue: '',
+            matchingAccounts: [selectedAccount],
+            selectedAccountId: accountId,
+          }]);
+        }
+      } else {
+        analyzeAccountColumn(csvData, mapping.accountColumn);
+      }
     } else {
       // Clear account matches if no account column is selected
       setAccountMatches([]);
     }
-  }, [csvData, mapping.accountColumn, analyzeAccountColumn]);
+  }, [csvData, mapping.accountColumn, analyzeAccountColumn, accounts]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -262,14 +278,32 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     lastFourValue: string;
     hash: string;
   }> => {
+    // Check if a direct account was selected
+    const isDirectAccount = columnMapping.accountColumn.startsWith('DIRECT_ACCOUNT:');
+    const directAccountMapping = isDirectAccount ? accountMappings[0] : null;
+
     return data.filter(row => {
+      if (isDirectAccount) {
+        return directAccountMapping?.selectedAccountId; // All rows are valid if direct account is selected
+      }
       const csvAccountValue = String(row[columnMapping.accountColumn]);
       const accountMapping = accountMappings.find(m => m.csvAccountValue === csvAccountValue);
       return accountMapping?.selectedAccountId; // Only include rows with mapped accounts
     }).map(row => {
-      const csvAccountValue = String(row[columnMapping.accountColumn]);
-      const accountMapping = accountMappings.find(m => m.csvAccountValue === csvAccountValue);
-      const lastFourValue = accountMapping?.lastFourValue || '';
+      let csvAccountValue: string;
+      let accountMapping: AccountMatch | undefined | null;
+      let lastFourValue: string;
+
+      if (isDirectAccount) {
+        csvAccountValue = 'ALL_TRANSACTIONS';
+        accountMapping = directAccountMapping;
+        lastFourValue = '';
+      } else {
+        csvAccountValue = String(row[columnMapping.accountColumn]);
+        accountMapping = accountMappings.find(m => m.csvAccountValue === csvAccountValue);
+        lastFourValue = accountMapping?.lastFourValue || '';
+      }
+
       // We know this exists because we filtered above
       if (!accountMapping?.selectedAccountId) {
         throw new Error(`No account mapping found for ${csvAccountValue}`);
@@ -398,10 +432,14 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       { field: 'descriptionColumn', name: 'Description', value: mapping.descriptionColumn },
     ];
 
-    for (const { name, value } of requiredMappings) {
+    for (const { name, value, field } of requiredMappings) {
       if (!value) {
         setError(`Please select a column for ${name}`);
         return;
+      }
+      // Skip validation for direct account selection
+      if (field === 'accountColumn' && value.startsWith('DIRECT_ACCOUNT:')) {
+        continue;
       }
       if (!columnHeaders.includes(value)) {
         setError(`Selected ${name} column "${value}" does not exist in the CSV`);
@@ -593,17 +631,19 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   
   // Calculate how many transactions can be imported
   const importableTransactions = csvData.length > 0 && mapping.accountColumn && accountMatches.length > 0 
-    ? csvData.filter(row => {
-        const csvAccountValue = String(row[mapping.accountColumn]);
-        const accountMapping = accountMatches.find(m => m.csvAccountValue === csvAccountValue);
-        return accountMapping?.selectedAccountId;
-      }).length
+    ? (mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') 
+        ? csvData.length // All transactions when direct account is selected
+        : csvData.filter(row => {
+            const csvAccountValue = String(row[mapping.accountColumn]);
+            const accountMapping = accountMatches.find(m => m.csvAccountValue === csvAccountValue);
+            return accountMapping?.selectedAccountId;
+          }).length)
     : 0;
     
   const skippedTransactions = csvData.length - importableTransactions;
     
   const canImport = csvData.length > 0 && 
-    mapping.accountColumn && columnOptions.includes(mapping.accountColumn) &&
+    mapping.accountColumn && (mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') || columnOptions.includes(mapping.accountColumn)) &&
     mapping.dateColumn && columnOptions.includes(mapping.dateColumn) &&
     mapping.amountColumn && columnOptions.includes(mapping.amountColumn) &&
     mapping.descriptionColumn && columnOptions.includes(mapping.descriptionColumn) &&
@@ -669,7 +709,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                   </Typography>
               
               {/* Show validation warning if invalid columns are selected */}
-              {(mapping.accountColumn && !columnOptions.includes(mapping.accountColumn)) ||
+              {(mapping.accountColumn && !mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') && !columnOptions.includes(mapping.accountColumn)) ||
                (mapping.dateColumn && !columnOptions.includes(mapping.dateColumn)) ||
                (mapping.amountColumn && !columnOptions.includes(mapping.amountColumn)) ||
                (mapping.descriptionColumn && !columnOptions.includes(mapping.descriptionColumn)) ? (
@@ -688,6 +728,16 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                   >
                     {columnOptions.map(col => (
                       <MenuItem key={col} value={col}>{col}</MenuItem>
+                    ))}
+                    {columnOptions.length > 0 && accounts.length > 0 && (
+                      <MenuItem disabled sx={{ opacity: 0.6, fontWeight: 'bold' }}>
+                        ─────── Or Select Account ───────
+                      </MenuItem>
+                    )}
+                    {accounts.map(account => (
+                      <MenuItem key={`account-${account.id}`} value={`DIRECT_ACCOUNT:${account.id}`}>
+                        {account.user_display_name ? `${account.user_display_name} - ` : ''}{account.name}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -758,14 +808,31 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             <Box>
               <Alert severity="info">
                 <Typography variant="body2">
-                  Select an &quot;Account Number Column&quot; above to map CSV account numbers to your accounts.
+                  Select an &quot;Account Number Column&quot; from your CSV, or choose an account directly if all transactions belong to one account.
+                </Typography>
+              </Alert>
+            </Box>
+          )}
+
+          {/* Direct Account Selection Confirmation */}
+          {csvData.length > 0 && mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') && (
+            <Box>
+              <Alert severity="success">
+                <Typography variant="body2">
+                  All transactions will be imported to: <strong>
+                    {(() => {
+                      const accountId = parseInt(mapping.accountColumn.replace('DIRECT_ACCOUNT:', ''));
+                      const account = accounts.find(acc => acc.id === accountId);
+                      return account ? `${account.user_display_name ? account.user_display_name + ' - ' : ''}${account.name}` : 'Unknown Account';
+                    })()}
+                  </strong>
                 </Typography>
               </Alert>
             </Box>
           )}
 
           {/* Account Mapping */}
-          {accountMatches.length > 0 && (
+          {accountMatches.length > 0 && !mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') && (
             <Accordion 
               expanded={expandedSections.accountMapping} 
               onChange={() => toggleSection('accountMapping')}

@@ -1,15 +1,15 @@
 // Database type definitions for the budget tracker app
 
 export interface Transaction {
-  id: string;
+  id: number;
   date: string;
   amount: number;
   description: string;
-  account_id: string;
-  category_id: string | null;
-  company_id: string | null;
-  project_id: string | null;
-  trip_id: string | null;
+  account_id: number;
+  category_id: number | null;
+  company_id: number | null;
+  project_id: number | null;
+  trip_id: number | null;
   type: 'income' | 'expense';
   transaction_hash?: string; // For duplicate detection
   created_at: string;
@@ -26,7 +26,7 @@ export interface Transaction {
 }
 
 export interface Category {
-  id: string;
+  id: number;
   name: string;
   type: 'income' | 'expense';
   color: string;
@@ -35,22 +35,22 @@ export interface Category {
 }
 
 export interface Company {
-  id: string;
+  id: number;
   name: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface User {
-  id: string;
+  id: number;
   display_name: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface Account {
-  id: string;
-  user_id: string;
+  id: number;
+  user_id: number;
   name: string; // User-friendly name for the account
   type: 'checking' | 'savings' | 'credit';
   last_four: string; // Last 4 digits of account number
@@ -61,8 +61,8 @@ export interface Account {
 }
 
 export interface Budget {
-  id: string;
-  category_id: string;
+  id: number;
+  category_id: number;
   amount: number;
   period: 'weekly' | 'monthly' | 'quarterly' | 'yearly';
   start_date: string;
@@ -72,7 +72,7 @@ export interface Budget {
 }
 
 export interface Project {
-  id: string;
+  id: number;
   name: string;
   company_name: string;
   contact_details: string;
@@ -88,7 +88,7 @@ export interface Project {
 }
 
 export interface Trip {
-  id: string;
+  id: number;
   name: string;
   destination?: string | null;
   purpose?: string | null;

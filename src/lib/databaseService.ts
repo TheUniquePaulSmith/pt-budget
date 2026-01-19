@@ -368,7 +368,7 @@ export class DatabaseService {
     }
   }
 
-  async getTransactionsByProject(projectId: string): Promise<Transaction[]> {
+  async getTransactionsByProject(projectId: number): Promise<Transaction[]> {
     try {
       const rows = await databaseWorkerService.query(
         TRANSACTION_QUERIES.GET_BY_PROJECT,
@@ -425,7 +425,7 @@ export class DatabaseService {
         CATEGORY_QUERIES.CREATE,
         [category.name, category.color || "#1976d2", category.type || "expense"]
       );
-      return result[0].id.toString();
+      return result[0].id;
     } catch (error) {
       console.error("Failed to add category:", error);
       throw error;
@@ -443,12 +443,12 @@ export class DatabaseService {
     }
   }
 
-  async addCompany(name: string): Promise<string> {
+  async addCompany(name: string): Promise<number> {
     try {
       const result = await databaseWorkerService.query(COMPANY_QUERIES.CREATE, [
         name,
       ]);
-      return result[0].id.toString();
+      return result[0].id;
     } catch (error) {
       console.error("Failed to add company:", error);
       throw error;
@@ -468,7 +468,7 @@ export class DatabaseService {
     }
   }
 
-  async findOrCreateCompany(name: string): Promise<string> {
+  async findOrCreateCompany(name: string): Promise<number> {
     try {
       const existing = await this.findCompanyByName(name);
       if (existing) {
@@ -494,7 +494,7 @@ export class DatabaseService {
 
   async addAccount(
     account: Omit<Account, "id" | "created_at" | "updated_at">
-  ): Promise<string> {
+  ): Promise<number> {
     try {
       const result = await databaseWorkerService.query(ACCOUNT_QUERIES.CREATE, [
         account.user_id,
@@ -502,14 +502,14 @@ export class DatabaseService {
         account.type,
         account.last_four,
       ]);
-      return result[0].id.toString();
+      return result[0].id;
     } catch (error) {
       console.error("Failed to add account:", error);
       throw error;
     }
   }
 
-  async deleteAccount(id: string): Promise<void> {
+  async deleteAccount(id: number): Promise<void> {
     try {
       await databaseWorkerService.query(ACCOUNT_QUERIES.DELETE, [id]);
     } catch (error) {
@@ -531,7 +531,7 @@ export class DatabaseService {
 
   async addBudget(
     budget: Omit<Budget, "id" | "created_at" | "updated_at">
-  ): Promise<string> {
+  ): Promise<number> {
     try {
       const result = await databaseWorkerService.query(BUDGET_QUERIES.CREATE, [
         budget.category_id,
@@ -540,7 +540,7 @@ export class DatabaseService {
         budget.start_date,
         budget.end_date || null,
       ]);
-      return result[0].id.toString();
+      return result[0].id;
     } catch (error) {
       console.error("Failed to add budget:", error);
       throw error;
@@ -560,7 +560,7 @@ export class DatabaseService {
 
   async addProject(
     project: Omit<Project, "id" | "created_at" | "updated_at">
-  ): Promise<string> {
+  ): Promise<number> {
     try {
       const result = await databaseWorkerService.query(PROJECT_QUERIES.CREATE, [
         project.name,
@@ -574,14 +574,14 @@ export class DatabaseService {
         project.actual_cost || 0,
         project.notes || null,
       ]);
-      return result[0].id.toString();
+      return result[0].id;
     } catch (error) {
       console.error("Failed to add project:", error);
       throw error;
     }
   }
 
-  async getProjectById(id: string): Promise<Project | null> {
+  async getProjectById(id: number): Promise<Project | null> {
     try {
       const rows = await databaseWorkerService.query(
         PROJECT_QUERIES.GET_BY_ID,
@@ -595,7 +595,7 @@ export class DatabaseService {
   }
 
   async updateProject(
-    id: string,
+    id: number,
     updates: Partial<Omit<Project, "id" | "created_at" | "updated_at">>
   ): Promise<void> {
     try {
@@ -623,7 +623,7 @@ export class DatabaseService {
     }
   }
 
-  async deleteProject(id: string): Promise<void> {
+  async deleteProject(id: number): Promise<void> {
     try {
       await databaseWorkerService.query(PROJECT_QUERIES.DELETE, [id]);
     } catch (error) {
@@ -633,7 +633,7 @@ export class DatabaseService {
   }
 
   async getProjectCosts(
-    projectId: string
+    projectId: number
   ): Promise<{
     estimated: number;
     actual: number;
@@ -668,7 +668,7 @@ export class DatabaseService {
 
   async addTrip(
     trip: Omit<Trip, "id" | "created_at" | "updated_at">
-  ): Promise<string> {
+  ): Promise<number> {
     const result = await this.getWorkerService().query(TRIP_QUERIES.CREATE, [
       trip.name,
       trip.destination || null,
@@ -681,16 +681,16 @@ export class DatabaseService {
       trip.actual_cost || null,
       trip.notes || null,
     ]);
-    return String(result[0].id);
+    return (result[0].id);
   }
 
-  async getTripById(id: string): Promise<Trip | null> {
+  async getTripById(id: number): Promise<Trip | null> {
     const result = await this.getWorkerService().query(TRIP_QUERIES.GET_BY_ID, [id]);
     return result.length > 0 ? this.mapToTrip(result[0]) : null;
   }
 
   async updateTrip(
-    id: string,
+    id: number,
     updates: Partial<Omit<Trip, "id" | "created_at" | "updated_at">>
   ): Promise<void> {
     const trip = await this.getTripById(id);
@@ -711,12 +711,12 @@ export class DatabaseService {
     ]);
   }
 
-  async deleteTrip(id: string): Promise<void> {
+  async deleteTrip(id: number): Promise<void> {
     await this.getWorkerService().query(TRIP_QUERIES.DELETE, [id]);
   }
 
   async getTripCosts(
-    tripId: string
+    tripId: number
   ): Promise<{
     estimated: number;
     actual: number;
@@ -730,7 +730,7 @@ export class DatabaseService {
     } : { estimated: 0, actual: 0, transactions_total: 0 };
   }
 
-  async getTransactionsByTrip(tripId: string): Promise<Transaction[]> {
+  async getTransactionsByTrip(tripId: number): Promise<Transaction[]> {
     const result = await this.getWorkerService().query(TRANSACTION_QUERIES.GET_BY_TRIP, [tripId]);
     return result.map((row: any) => this.mapToTransaction(row));
   }
@@ -746,7 +746,7 @@ export class DatabaseService {
     }
   }
 
-  async getUserById(id: string): Promise<User | null> {
+  async getUserById(id: number): Promise<User | null> {
     try {
       const rows = await databaseWorkerService.query(USER_QUERIES.GET_BY_ID, [
         id,
@@ -760,12 +760,12 @@ export class DatabaseService {
 
   async addUser(
     user: Omit<User, "id" | "created_at" | "updated_at">
-  ): Promise<string> {
+  ): Promise<number> {
     try {
       const result = await databaseWorkerService.query(USER_QUERIES.CREATE, [
         user.display_name,
       ]);
-      return result[0].id.toString();
+      return result[0].id;
     } catch (error) {
       console.error("Failed to add user:", error);
       throw error;
@@ -773,7 +773,7 @@ export class DatabaseService {
   }
 
   async updateUser(
-    id: string,
+    id: number,
     updates: Partial<Omit<User, "id" | "created_at" | "updated_at">>
   ): Promise<void> {
     try {
@@ -787,7 +787,7 @@ export class DatabaseService {
     }
   }
 
-  async deleteUser(id: string): Promise<void> {
+  async deleteUser(id: number): Promise<void> {
     try {
       await databaseWorkerService.query(USER_QUERIES.DELETE, [id]);
     } catch (error) {
@@ -796,7 +796,7 @@ export class DatabaseService {
     }
   }
 
-  async getAccountsByUserId(userId: string): Promise<Account[]> {
+  async getAccountsByUserId(userId: number): Promise<Account[]> {
     try {
       const rows = await databaseWorkerService.query(
         ACCOUNT_QUERIES.GET_BY_USER_ID,
@@ -899,14 +899,14 @@ export class DatabaseService {
   // Utility methods for mapping database rows to TypeScript objects
   private mapToTransaction(row: any): Transaction {
     return {
-      id: row.id.toString(),
+      id: row.id,
       date: row.date,
       amount: row.amount,
       description: row.description,
       account_id: row.account_id,
-      category_id: row.category_id?.toString() || null,
-      company_id: row.company_id?.toString() || null,
-      project_id: row.project_id?.toString() || null,
+      category_id: row.category_id || null,
+      company_id: row.company_id || null,
+      project_id: row.project_id || null,
       type: row.type,
       transaction_hash: row.transaction_hash || undefined,
       created_at: row.created_at,
@@ -920,13 +920,13 @@ export class DatabaseService {
       account_type: row.account_type || undefined,
       project_name: row.project_name || undefined,
       trip_name: row.trip_name || undefined,
-      trip_id: row.trip_id ? String(row.trip_id) : null,
+      trip_id: row.trip_id ? row.trip_id : null,
     };
   }
 
   private mapToCategory(row: any): Category {
     return {
-      id: row.id.toString(),
+      id: row.id,
       name: row.name,
       color: row.color,
       type: row.type,
@@ -937,7 +937,7 @@ export class DatabaseService {
 
   private mapToCompany(row: any): Company {
     return {
-      id: row.id.toString(),
+      id: row.id,
       name: row.name,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -946,8 +946,8 @@ export class DatabaseService {
 
   private mapToAccount(row: any): Account {
     return {
-      id: row.id.toString(),
-      user_id: row.user_id.toString(),
+      id: row.id,
+      user_id: row.user_id,
       name: row.name,
       type: row.type,
       last_four: row.last_four,
@@ -959,8 +959,8 @@ export class DatabaseService {
 
   private mapToBudget(row: any): Budget {
     return {
-      id: row.id.toString(),
-      category_id: row.category_id.toString(),
+      id: row.id,
+      category_id: row.category_id,
       amount: row.amount,
       period: row.period,
       start_date: row.start_date,
@@ -972,7 +972,7 @@ export class DatabaseService {
 
   private mapToProject(row: any): Project {
     return {
-      id: row.id.toString(),
+      id: row.id,
       name: row.name,
       company_name: row.company_name,
       contact_details: row.contact_details,
@@ -990,7 +990,7 @@ export class DatabaseService {
 
   private mapToUser(row: any): User {
     return {
-      id: row.id.toString(),
+      id: row.id,
       display_name: row.display_name,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -999,7 +999,7 @@ export class DatabaseService {
 
   private mapToTrip(row: any): Trip {
     return {
-      id: String(row.id),
+      id: row.id,
       name: row.name,
       destination: row.destination,
       purpose: row.purpose,
@@ -1055,7 +1055,7 @@ export class DatabaseService {
     return Math.abs(hash).toString(16);
   }
 
-  async updateTransactionLabels(id: string, projectId: string | null, tripId: string | null): Promise<void> {
+  async updateTransactionLabels(id: number, projectId: number | null, tripId: number | null): Promise<void> {
     await this.getWorkerService().query(TRANSACTION_QUERIES.UPDATE_PROJECT_TRIP, [
       projectId,
       tripId,

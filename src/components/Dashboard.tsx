@@ -105,6 +105,7 @@ const Dashboard: React.FC = () => {
     transactions,
     categories,
     accounts,
+    users,
     exportDatabase,
     refreshTransactions,
     isDatabaseLoaded,
@@ -119,6 +120,15 @@ const Dashboard: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const loadingRef = useRef(false);
+
+  // Helper function to get user display name from account_id
+  const getUserDisplayName = (accountId: number): string => {
+    const account = accounts.find(a => a.id === accountId);
+    if (!account) return 'Unknown User';
+    
+    const user = users.find(u => u.id === account.user_id);
+    return user?.display_name || 'Unknown User';
+  };
 
   // Refresh transactions when database is loaded
   React.useEffect(() => {
@@ -180,7 +190,7 @@ const Dashboard: React.FC = () => {
       .filter(t => t.type === 'expense')
       .reduce((sum, t) => sum + t.amount, 0);
     
-    const netIncome = totalIncome - totalExpenses;
+    const netIncome = totalIncome - (totalExpenses * -1);
     
     return {
       totalIncome,
@@ -302,7 +312,8 @@ const Dashboard: React.FC = () => {
     const startDate = new Date(dateRanges.start);
     const endDate = new Date(dateRanges.end);
     
-    const categoryTotals = new Map<number, { label: string; value: number; color: string }>();
+    // Create unique key: accountId-categoryId (or accountId-undefined for no category)
+    const incomeTotals = new Map<string, { label: string; value: number; color: string }>();
     
     transactions
       .filter(t => {
@@ -310,26 +321,34 @@ const Dashboard: React.FC = () => {
         return t.type === 'income' && tDate >= startDate && tDate <= endDate;
       })
       .forEach(t => {
-        if (!t.category_id) return;
-        const categoryId = Number(t.category_id);
-        const category = categories.find(c => Number(c.id) === categoryId);
-        const existing = categoryTotals.get(categoryId);
+        const userName = getUserDisplayName(t.account_id);
+        const accountName = t.account_name || 'Unknown Account';
+        const categoryId = t.category_id ? Number(t.category_id) : null;
+        const category = categoryId ? categories.find(c => Number(c.id) === categoryId) : null;
+        const categoryName = category?.name || t.category_name || 'Not Defined';
+        const categoryColor = category?.color || '#9E9E9E'; // Gray for undefined
+        
+        // Create unique key for user + account + category combination
+        const key = `${t.account_id}-${categoryId || 'undefined'}`;
+        const label = `${userName} - ${accountName} - ${categoryName}`;
+        
+        const existing = incomeTotals.get(key);
         if (existing) {
-          categoryTotals.set(categoryId, {
+          incomeTotals.set(key, {
             ...existing,
             value: existing.value + t.amount,
           });
         } else {
-          categoryTotals.set(categoryId, {
-            label: category?.name || t.category_name || 'Unknown',
+          incomeTotals.set(key, {
+            label: label,
             value: t.amount,
-            color: category?.color || '#999',
+            color: categoryColor,
           });
         }
       });
     
-    return Array.from(categoryTotals.entries()).map(([id, data]) => ({
-      id,
+    return Array.from(incomeTotals.entries()).map(([key, data], index) => ({
+      id: key,
       ...data,
     }));
   }, [transactions, dateRanges, categories]);
@@ -366,6 +385,48 @@ const Dashboard: React.FC = () => {
       xAxis: sortedMonths,
       income: sortedMonths.map(m => monthlyData.get(m)?.income || 0),
       expenses: sortedMonths.map(m => monthlyData.get(m)?.expenses || 0),
+    };
+  }, [transactions, dateRanges]);
+
+  // Account analysis data
+  const accountData = useMemo(() => {
+    const startDate = new Date(dateRanges.start);
+    const endDate = new Date(dateRanges.end);
+    
+    // Group transactions by account
+    const accountTotals = new Map<string, { accountName: string; income: number; expenses: number }>();
+    
+    transactions
+      .filter(t => {
+        const tDate = new Date(t.date);
+        return tDate >= startDate && tDate <= endDate;
+      })
+      .forEach(t => {
+        const accountId = String(t.account_id);
+        const existing = accountTotals.get(accountId) || { 
+          accountName: t.account_name || 'Unknown Account', 
+          income: 0, 
+          expenses: 0 
+        };
+        
+        if (t.type === 'income') {
+          existing.income += t.amount;
+        } else {
+          existing.expenses += Math.abs(t.amount);
+        }
+        
+        accountTotals.set(accountId, existing);
+      });
+    
+    // Convert to arrays for bar chart
+    const accountNames = Array.from(accountTotals.values()).map(a => a.accountName);
+    const incomeByAccount = Array.from(accountTotals.values()).map(a => a.income);
+    const expensesByAccount = Array.from(accountTotals.values()).map(a => a.expenses);
+    
+    return {
+      accountNames,
+      income: incomeByAccount,
+      expenses: expensesByAccount,
     };
   }, [transactions, dateRanges]);
 
@@ -526,7 +587,8 @@ const Dashboard: React.FC = () => {
             color={summaryStats.netIncome >= 0 ? 'success' : 'error'}
             subtitle={getTimeRangeLabel()}
           />
-        </Box>        <Box flex="1 1 300px">
+        </Box>        
+        <Box flex="1 1 300px">
           <StatCard
             title="Transactions"
             value={summaryStats.transactionCount.toString()}
@@ -544,6 +606,7 @@ const Dashboard: React.FC = () => {
             <Tab label="Spending Breakdown" />
             <Tab label="Income Sources" />
             <Tab label="Trends" />
+            <Tab label="Account Analysis" />
           </Tabs>
         </Box>
 
@@ -648,6 +711,47 @@ const Dashboard: React.FC = () => {
               <Box display="flex" justifyContent="center" alignItems="center" height={200}>
                 <Typography color="text.secondary">
                   No trend data available
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={3}>
+          <Box p={3}>
+            <Typography variant="h6" gutterBottom>
+              Income and Expenses by Account - {getTimeRangeLabel()}
+            </Typography>
+            {accountData.accountNames.length > 0 ? (
+              <Box height={400}>
+                <BarChart
+                  width={800}
+                  height={400}
+                  series={[
+                    {
+                      data: accountData.income,
+                      label: 'Income',
+                      color: '#4caf50',
+                      stack: 'total',
+                    },
+                    {
+                      data: accountData.expenses,
+                      label: 'Expenses',
+                      color: '#f44336',
+                      stack: 'total',
+                    },
+                  ]}
+                  xAxis={[{ 
+                    scaleType: 'band', 
+                    data: accountData.accountNames,
+                  }]}
+                  margin={{ top: 20, right: 20, bottom: 60, left: 80 }}
+                />
+              </Box>
+            ) : (
+              <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                <Typography color="text.secondary">
+                  No account data for this period
                 </Typography>
               </Box>
             )}

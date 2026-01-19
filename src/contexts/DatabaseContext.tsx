@@ -87,33 +87,33 @@ interface DatabaseContextType {
   ) => Promise<string>;
 
   // Company operations
-  addCompany: (name: string) => Promise<string>;
-  findOrCreateCompany: (name: string) => Promise<string>;
+  addCompany: (name: string) => Promise<number>;
+  findOrCreateCompany: (name: string) => Promise<number>;
 
   // Account operations
   addAccount: (
     account: Omit<Account, "id" | "created_at" | "updated_at">
-  ) => Promise<string>;
-  deleteAccount: (id: string) => Promise<void>;
+  ) => Promise<number>;
+  deleteAccount: (id: number) => Promise<void>;
 
   // Budget operations
   addBudget: (
     budget: Omit<Budget, "id" | "created_at" | "updated_at">
-  ) => Promise<string>;
+  ) => Promise<number>;
 
   // Project operations
   addProject: (
     project: Omit<Project, "id" | "created_at" | "updated_at">
-  ) => Promise<string>;
+  ) => Promise<number>;
   updateProject: (
-    id: string,
+    id: number,
     updates: Partial<Omit<Project, "id" | "created_at" | "updated_at">>
   ) => Promise<void>;
-  deleteProject: (id: string) => Promise<void>;
-  getProjectById: (id: string) => Promise<Project | null>;
-  getTransactionsByProject: (projectId: string) => Promise<Transaction[]>;
+  deleteProject: (id: number) => Promise<void>;
+  getProjectById: (id: number) => Promise<Project | null>;
+  getTransactionsByProject: (projectId: number) => Promise<Transaction[]>;
   getProjectCosts: (
-    projectId: string
+    projectId: number
   ) => Promise<{
     estimated: number;
     actual: number;
@@ -122,31 +122,31 @@ interface DatabaseContextType {
 
   // User operations
   getUsers: () => Promise<User[]>;
-  getUserById: (id: string) => Promise<User | null>;
+  getUserById: (id: number) => Promise<User | null>;
   addUser: (
     user: Omit<User, "id" | "created_at" | "updated_at">
-  ) => Promise<string>;
+  ) => Promise<number>;
   updateUser: (
-    id: string,
+    id: number,
     updates: Partial<Omit<User, "id" | "created_at" | "updated_at">>
   ) => Promise<void>;
-  deleteUser: (id: string) => Promise<void>;
-  getAccountsByUserId: (userId: string) => Promise<Account[]>;
+  deleteUser: (id: number) => Promise<void>;
+  getAccountsByUserId: (userId: number) => Promise<Account[]>;
 
   // Trip operations
   getTrips: () => Promise<Trip[]>;
-  getTripById: (id: string) => Promise<Trip | null>;
+  getTripById: (id: number) => Promise<Trip | null>;
   addTrip: (
     trip: Omit<Trip, "id" | "created_at" | "updated_at">
-  ) => Promise<string>;
+  ) => Promise<number>;
   updateTrip: (
-    id: string,
+    id: number,
     updates: Partial<Omit<Trip, "id" | "created_at" | "updated_at">>
   ) => Promise<void>;
-  deleteTrip: (id: string) => Promise<void>;
-  getTransactionsByTrip: (tripId: string) => Promise<Transaction[]>;
+  deleteTrip: (id: number) => Promise<void>;
+  getTransactionsByTrip: (tripId: number) => Promise<Transaction[]>;
   getTripCosts: (
-    tripId: string
+    tripId: number
   ) => Promise<{
     estimated: number;
     actual: number;
@@ -154,7 +154,7 @@ interface DatabaseContextType {
   }>;
 
   // Transaction labeling
-  updateTransactionLabels: (id: string, projectId: string | null, tripId: string | null) => Promise<void>;
+  updateTransactionLabels: (id: number, projectId: number | null, tripId: number | null) => Promise<void>;
 
   generateTransactionHash: (
     accountId: string,
@@ -610,7 +610,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   // Company operations
-  const addCompany = async (name: string): Promise<string> => {
+  const addCompany = async (name: string): Promise<number> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -625,7 +625,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const findOrCreateCompany = async (name: string): Promise<string> => {
+  const findOrCreateCompany = async (name: string): Promise<number> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -641,7 +641,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   // Account operations
-  const addAccount = async (account: Omit<Account, "id" | "created_at" | "updated_at">): Promise<string> => {
+  const addAccount = async (account: Omit<Account, "id" | "created_at" | "updated_at">): Promise<number> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -656,7 +656,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const deleteAccount = async (id: string) => {
+  const deleteAccount = async (id: number) => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -671,7 +671,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   // Budget operations
-  const addBudget = async (budget: Omit<Budget, "id" | "created_at" | "updated_at">): Promise<string> => {
+  const addBudget = async (budget: Omit<Budget, "id" | "created_at" | "updated_at">): Promise<number> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -687,7 +687,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   // Project operations
-  const addProject = async (project: Omit<Project, "id" | "created_at" | "updated_at">): Promise<string> => {
+  const addProject = async (project: Omit<Project, "id" | "created_at" | "updated_at">): Promise<number> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -702,7 +702,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const updateProject = async (id: string, updates: Partial<Omit<Project, "id" | "created_at" | "updated_at">>) => {
+  const updateProject = async (id: number, updates: Partial<Omit<Project, "id" | "created_at" | "updated_at">>) => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -716,7 +716,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const deleteProject = async (id: string) => {
+  const deleteProject = async (id: number) => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -730,7 +730,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const getProjectById = async (id: string): Promise<Project | null> => {
+  const getProjectById = async (id: number): Promise<Project | null> => {
     if (!databaseService) {
       return null;
     }
@@ -743,7 +743,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const getTransactionsByProject = async (projectId: string): Promise<Transaction[]> => {
+  const getTransactionsByProject = async (projectId: number): Promise<Transaction[]> => {
     if (!databaseService) {
       return [];
     }
@@ -756,7 +756,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const getProjectCosts = async (projectId: string): Promise<{ estimated: number; actual: number; transactions_total: number }> => {
+  const getProjectCosts = async (projectId: number): Promise<{ estimated: number; actual: number; transactions_total: number }> => {
     if (!databaseService) {
       return { estimated: 0, actual: 0, transactions_total: 0 };
     }
@@ -783,7 +783,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const getUserById = async (id: string): Promise<User | null> => {
+  const getUserById = async (id: number): Promise<User | null> => {
     if (!databaseService) {
       return null;
     }
@@ -796,7 +796,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const addUser = async (user: Omit<User, "id" | "created_at" | "updated_at">): Promise<string> => {
+  const addUser = async (user: Omit<User, "id" | "created_at" | "updated_at">): Promise<number> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -812,7 +812,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   const updateUser = async (
-    id: string,
+    id: number,
     updates: Partial<Omit<User, "id" | "created_at" | "updated_at">>
   ): Promise<void> => {
     if (!databaseService) {
@@ -828,7 +828,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const deleteUser = async (id: string): Promise<void> => {
+  const deleteUser = async (id: number): Promise<void> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -842,7 +842,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   };
 
-  const getAccountsByUserId = async (userId: string): Promise<Account[]> => {
+  const getAccountsByUserId = async (userId: number): Promise<Account[]> => {
     if (!databaseService) {
       return [];
     }
@@ -873,7 +873,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   // Transaction labeling
-  const updateTransactionLabels = async (id: string, projectId: string | null, tripId: string | null) => {
+  const updateTransactionLabels = async (id: number, projectId: number | null, tripId: number | null) => {
     if (!databaseService) throw new Error('Database service not initialized');
     await databaseService.updateTransactionLabels(id, projectId, tripId);
     await refreshTransactions();
@@ -885,12 +885,12 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     return await databaseService.getTrips();
   };
 
-  const getTripById = async (id: string): Promise<Trip | null> => {
+  const getTripById = async (id: number): Promise<Trip | null> => {
     if (!databaseService) throw new Error('Database service not initialized');
     return await databaseService.getTripById(id);
   };
 
-  const addTrip = async (trip: Omit<Trip, "id" | "created_at" | "updated_at">): Promise<string> => {
+  const addTrip = async (trip: Omit<Trip, "id" | "created_at" | "updated_at">): Promise<number> => {
     if (!databaseService) throw new Error('Database service not initialized');
     const id = await databaseService.addTrip(trip);
     await refreshTrips();
@@ -898,7 +898,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   };
 
   const updateTrip = async (
-    id: string,
+    id: number,
     updates: Partial<Omit<Trip, "id" | "created_at" | "updated_at">>
   ): Promise<void> => {
     if (!databaseService) throw new Error('Database service not initialized');
@@ -906,19 +906,19 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     await refreshTrips();
   };
 
-  const deleteTrip = async (id: string): Promise<void> => {
+  const deleteTrip = async (id: number): Promise<void> => {
     if (!databaseService) throw new Error('Database service not initialized');
     await databaseService.deleteTrip(id);
     await refreshTrips();
   };
 
-  const getTransactionsByTrip = async (tripId: string): Promise<Transaction[]> => {
+  const getTransactionsByTrip = async (tripId: number): Promise<Transaction[]> => {
     if (!databaseService) throw new Error('Database service not initialized');
     return await databaseService.getTransactionsByTrip(tripId);
   };
 
   const getTripCosts = async (
-    tripId: string
+    tripId: number
   ): Promise<{
     estimated: number;
     actual: number;

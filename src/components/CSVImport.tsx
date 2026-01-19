@@ -75,7 +75,7 @@ interface AccountMatch {
   csvAccountValue: string;
   lastFourValue: string;
   matchingAccounts: Account[];
-  selectedAccountId: string | null;
+  selectedAccountId: number | null;
 }
 
 export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) {
@@ -242,7 +242,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     }
   };
 
-  const updateAccountMapping = (csvValue: string, accountId: string) => {
+  const updateAccountMapping = (csvValue: string, accountId: number) => {
     setAccountMatches(prev => 
       prev.map(match => 
         match.csvAccountValue === csvValue 

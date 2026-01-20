@@ -1,0 +1,61 @@
+{
+  "table": "categories",
+  "data": [
+    {
+      "id": 1,
+      "name": "Groceries",
+      "color": "#4CAF50",
+      "type": "expense",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "name": "Dining",
+      "color": "#FF9800",
+      "type": "expense",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "name": "Transportation",
+      "color": "#2196F3",
+      "type": "expense",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": 4,
+      "name": "Entertainment",
+      "color": "#9C27B0",
+      "type": "expense",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": 5,
+      "name": "Utilities",
+      "color": "#FF5722",
+      "type": "expense",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": 6,
+      "name": "Salary",
+      "color": "#8BC34A",
+      "type": "income",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": 7,
+      "name": "Investment Income",
+      "color": "#00BCD4",
+      "type": "income",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}

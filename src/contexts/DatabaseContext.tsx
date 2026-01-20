@@ -12,6 +12,7 @@ import { Box, Typography, Button, CircularProgress, Alert, Paper } from '@mui/ma
 import { DatasetOutlined, CreateNewFolder, Upload } from '@mui/icons-material';
 import { DatabaseService } from '../lib/databaseService';
 import { TestBrowser } from '../components/setup/TestBrowser';
+import { SampleDataService } from '../lib/sampleDataService';
 import type { WorkerStatus } from '../lib/databaseWorkerService';
 import type {
   Transaction,
@@ -339,6 +340,19 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     try {
       if (isNew) {
         await databaseService.createNewDatabase();
+        
+        // Check if we should load sample data
+        if (SampleDataService.shouldLoadSampleData()) {
+          console.info('[DB Context] Loading sample data...');
+          try {
+            await SampleDataService.loadAllSampleData();
+            console.info('[DB Context] Sample data loaded successfully');
+          } catch (sampleError) {
+            console.error('[DB Context] Failed to load sample data:', sampleError);
+            // Don't fail the entire database creation if sample data fails
+            setError('Database created but sample data failed to load');
+          }
+        }
       } else {
         await databaseService.openExistingDatabase();
       }

@@ -11,21 +11,34 @@ import {
   Stack,
   Paper,
   Alert,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Chip,
 } from '@mui/material';
 import {
   ArrowBack,
   BugReport,
   Clear,
   Download,
+  ExpandMore,
+  TableChart,
 } from '@mui/icons-material';
 import DeveloperConsole from './DeveloperConsole';
 import { consoleLogger } from '@/lib/consoleLogger';
+import { SampleDataService } from '@/lib/sampleDataService';
 
 interface DeveloperConsolePageProps {
   onClose: () => void;
 }
 
 const DeveloperConsolePage: React.FC<DeveloperConsolePageProps> = ({ onClose }) => {
+  const [exportingTable, setExportingTable] = useState<string | null>(null);
+  
+  // Check for dev mode flag
+  const isDevMode = typeof window !== 'undefined' && 
+    new URLSearchParams(window.location.search).get('dev') === 'true';
+
   const handleClearLogs = () => {
     consoleLogger.clearLogs();
   };
@@ -41,6 +54,30 @@ const DeveloperConsolePage: React.FC<DeveloperConsolePageProps> = ({ onClose }) 
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportTableForSampleData = async (tableName: string) => {
+    setExportingTable(tableName);
+    try {
+      const jsonData = await SampleDataService.exportTableToJSON(tableName);
+      
+      // Download as JSON file
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${tableName}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      console.log(`[Developer Console] Exported ${tableName} to JSON for sample data`);
+    } catch (error) {
+      console.error(`[Developer Console] Failed to export ${tableName}:`, error);
+    } finally {
+      setExportingTable(null);
+    }
   };
 
   const testConsoleLogging = () => {
@@ -135,6 +172,51 @@ const DeveloperConsolePage: React.FC<DeveloperConsolePageProps> = ({ onClose }) 
             </Typography>
           </Stack>
         </Paper>
+
+        {/* Developer Tools - Only visible with ?dev=true */}
+        {isDevMode && (
+          <Paper sx={{ p: 3, mb: 3 }}>
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <TableChart />
+                  <Typography variant="h6">Sample Data Export</Typography>
+                  <Chip label="Developer Tool" size="small" color="primary" />
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Stack spacing={2}>
+                  <Alert severity="info">
+                    Export database tables to JSON format for creating sample data files. 
+                    Save exported files to <code>/public/sample-data/</code> directory.
+                    To load sample data, navigate to <code>?loadSampleData=true</code> when creating a new database.
+                  </Alert>
+                  
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Export tables in dependency order:
+                  </Typography>
+                  
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {['users', 'accounts', 'account_cards', 'categories', 'companies', 
+                      'projects', 'trips', 'transactions'].map(table => (
+                      <Button
+                        key={table}
+                        variant="outlined"
+                        size="small"
+                        startIcon={<Download />}
+                        onClick={() => handleExportTableForSampleData(table)}
+                        disabled={exportingTable === table}
+                        sx={{ mb: 1 }}
+                      >
+                        {exportingTable === table ? 'Exporting...' : `Export ${table}`}
+                      </Button>
+                    ))}
+                  </Stack>
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+          </Paper>
+        )}
 
         {/* Developer Console */}
         <Paper sx={{ minHeight: 600 }}>

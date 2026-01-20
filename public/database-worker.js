@@ -100,10 +100,9 @@ class DatabaseWorker {
 
           // Insert default data
           await this.sqlite3.exec(this.db, DEFAULT_DATA.CATEGORIES);
-          await this.sqlite3.exec(this.db, DEFAULT_DATA.USERS);
-          await this.sqlite3.exec(this.db, DEFAULT_DATA.ACCOUNTS);
-          // ACCOUNT_USERS defaults removed
-          await this.sqlite3.exec(this.db, DEFAULT_DATA.ACCOUNT_CARDS);
+          // await this.sqlite3.exec(this.db, DEFAULT_DATA.USERS);
+          // await this.sqlite3.exec(this.db, DEFAULT_DATA.ACCOUNTS);
+          // await this.sqlite3.exec(this.db, DEFAULT_DATA.ACCOUNT_CARDS);
 
         console.info("[DB Worker] Database tables created successfully");
       } catch (error) {

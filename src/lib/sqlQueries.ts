@@ -379,3 +379,19 @@ export const UTILITY_QUERIES = {
   VACUUM: `VACUUM`,
   ANALYZE: `ANALYZE`,
 };
+
+// Sample Data Loading Queries
+export const SAMPLE_DATA_QUERIES = {
+  // Insert with explicit ID using REPLACE to handle conflicts (SQLite allows this when AUTOINCREMENT is used)
+  INSERT_USER: `INSERT OR REPLACE INTO users (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+  INSERT_ACCOUNT: `INSERT OR REPLACE INTO accounts (id, name, type, owner_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+  INSERT_ACCOUNT_CARD: `INSERT OR REPLACE INTO account_cards (id, account_id, last_four, nickname, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+  INSERT_CATEGORY: `INSERT OR REPLACE INTO categories (id, name, color, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+  INSERT_COMPANY: `INSERT OR REPLACE INTO companies (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+  INSERT_TRANSACTION: `INSERT OR REPLACE INTO transactions (id, date, amount, description, account_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_PROJECT: `INSERT OR REPLACE INTO projects (id, name, description, budget, start_date, end_date, estimated_cost, actual_cost, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_TRIP: `INSERT OR REPLACE INTO trips (id, name, description, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  
+  // Reset auto-increment sequences after bulk insert
+  RESET_SEQUENCE: `UPDATE sqlite_sequence SET seq = ? WHERE name = ?`,
+};

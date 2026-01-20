@@ -360,7 +360,7 @@ export default function ManageAccounts() {
         <CardContent>
           <Typography variant="h6" gutterBottom>Users and Their Accounts</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Each account has a single owner. Users may be cardholders on the owner's account.
+            Each account has a single owner. Users may be cardholders on the owner&apos;s account.
           </Typography>
 
           {users.length === 0 ? (

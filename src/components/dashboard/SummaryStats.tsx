@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Box } from '@mui/material';
 import {
   TrendingUp,
@@ -31,10 +31,10 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
     }).format(amount);
   };
 
-  const getAccountType = (accountId: number): 'checking' | 'savings' | 'credit' | 'joint' | undefined => {
+  const getAccountType = useCallback((accountId: number): 'checking' | 'savings' | 'credit' | 'joint' | undefined => {
     const account = accounts.find(acc => acc.id === accountId);
     return account?.type;
-  };
+  }, [accounts]);
 
   const summaryStats = useMemo(() => {
     const startDate = new Date(dateRanges.start);
@@ -62,7 +62,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
       netIncome,
       transactionCount: periodTransactions.length,
     };
-  }, [transactions, dateRanges]);
+  }, [transactions, dateRanges, getAccountType]);
 
   return (
     <Box display="flex" flexWrap="wrap" gap={3} mb={4}>

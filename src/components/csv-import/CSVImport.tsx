@@ -26,7 +26,7 @@ import {
 import { CloudUpload, CheckCircle, Error as ErrorIcon, ExpandMore } from '@mui/icons-material';
 import Papa from 'papaparse';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
-import { Transaction, Account } from '@/types/database';
+import { Transaction, Account, AccountCard } from '@/types/database';
 import { DatabaseService } from '@/lib/databaseService';
 import InternalDuplicatesResolver from './InternalDuplicatesResolver';
 
@@ -175,7 +175,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       };
       loadAllCards();
     }
-  }, [open, accounts.length]);
+  }, [open, accounts, getAccountCards]);
 
   // Clear invalid column mappings when CSV data changes
   useEffect(() => {
@@ -238,7 +238,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       // Clear account matches if no account column is selected
       setAccountMatches([]);
     }
-  }, [csvData.length, mapping.accountColumn, accounts.length]);
+  }, [csvData, mapping.accountColumn, accounts, analyzeAccountColumn]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -899,7 +899,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                     {(() => {
                       const accountId = parseInt(mapping.accountColumn.replace('DIRECT_ACCOUNT:', ''));
                       const account = accounts.find(acc => acc.id === accountId);
-                      return account ? `${account.user_display_names ? account.user_display_names + ' - ' : ''}${account.name}` : 'Unknown Account';
+                      return account ? `${account.owner_display_name ? account.owner_display_name + ' - ' : ''}${account.name}` : 'Unknown Account';
                     })()}
                   </strong>
                 </Typography>

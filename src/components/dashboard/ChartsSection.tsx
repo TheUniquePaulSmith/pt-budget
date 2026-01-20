@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Box, Paper, Typography, Tabs, Tab } from '@mui/material';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
@@ -40,19 +40,19 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
   timeRangeLabel,
 }) => {
   
-   const getAccountType = (accountId: number): 'checking' | 'savings' | 'credit' | 'joint' | undefined => {
+   const getAccountType = useCallback((accountId: number): 'checking' | 'savings' | 'credit' | 'joint' | undefined => {
     const account = accounts.find(acc => acc.id === accountId);
     return account?.type;
-  };
+  }, [accounts]);
   
   const [tabValue, setTabValue] = useState(0);
 
   // Helper function to get owner display name from account_id
-  const getUserDisplayName = (accountId: number): string => {
+  const getUserDisplayName = useCallback((accountId: number): string => {
     const account = accounts.find(a => a.id === accountId);
     if (!account) return 'Unknown Owner';
     return account.owner_display_name || 'Unknown Owner';
-  };
+  }, [accounts]);
 
   // Spending by Category
   const spendingData = useMemo(() => {
@@ -133,7 +133,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
       id: key,
       ...data,
     }));
-  }, [transactions, dateRanges, categories, accounts, users]);
+  }, [transactions, dateRanges, categories, getAccountType, getUserDisplayName]);
 
   // Trends Data (Last 6 months from end date)
   const trendsData = useMemo(() => {
@@ -166,7 +166,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
       income: sortedMonths.map(m => monthlyData.get(m)?.income || 0),
       expenses: sortedMonths.map(m => monthlyData.get(m)?.expenses || 0),
     };
-  }, [transactions, dateRanges]);
+  }, [transactions, dateRanges, getAccountType]);
 
   // Account Analysis
   const accountData = useMemo(() => {
@@ -206,7 +206,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
       income: incomeByAccount,
       expenses: expensesByAccount,
     };
-  }, [transactions, dateRanges]);
+  }, [transactions, dateRanges, getUserDisplayName]);
 
   return (
     <Paper sx={{ width: '100%', mb: 4 }}>

@@ -217,7 +217,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   
   const hasCheckedDatabase = useRef(false);
 
-   const handleBrowserTestComplete = async (isCompatible: boolean, testResults: any) => {
+   const handleBrowserTestComplete = useCallback(async (isCompatible: boolean, testResults: any) => {
       
       if (!isCompatible) {
         return;
@@ -257,7 +257,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         setError(err instanceof Error ? err.message : 'Failed to initialize database');
         setInitializationState('error');
       }
-    };
+    }, []);
 
 // Initialize database service and check for existing database
   useEffect(() => {
@@ -291,7 +291,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     };
     
     initializeAndCheck();
-  }, []);
+  }, [handleBrowserTestComplete]);
 
   const loadAllData = async (service: DatabaseService) => {
     try {

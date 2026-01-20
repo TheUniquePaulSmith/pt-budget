@@ -12,6 +12,7 @@ export interface Transaction {
   trip_id: number | null;
   type: 'income' | 'expense';
   transaction_hash?: string; // For duplicate detection
+  hash_variation_seed?: number; // Variation seed for handling legitimate duplicates
   created_at: string;
   updated_at: string;
   // Joined fields from SQL queries

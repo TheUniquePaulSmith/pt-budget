@@ -122,7 +122,8 @@ export default function ManageAccounts() {
       };
       loadAllCards();
     }
-  }, [isDatabaseLoaded, accounts, getAccountCards]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDatabaseLoaded, accounts.length]);
 
   const handleOpenUserDialog = (user?: User) => {
     if (user) {
@@ -209,14 +210,6 @@ export default function ManageAccounts() {
     }
   };
 
-  // Co-owner management removed
-
-  // Co-owner management dialog removed
-
-  // Co-owner management removed
-
-  // Co-owner management removed
-
   const handleDeleteClick = (type: 'user' | 'account' | 'card', item: User | Account | any) => {
     setItemToDelete({ type, item });
     setDeleteDialogOpen(true);
@@ -242,6 +235,7 @@ export default function ManageAccounts() {
     setSelectedAccountForCardManagement(null);
     setAccountCards([]);
     setCardFormData({ last_four: '', nickname: '', user_id: null });
+    setError(null);
   };
 
   const handleAddCard = async () => {
@@ -263,6 +257,8 @@ export default function ManageAccounts() {
 
       const cards = await getAccountCards(selectedAccountForCardManagement.id);
       setAccountCards(cards);
+      // Update the accountCardsByAccountId state to reflect changes in UI
+      setAccountCardsByAccountId(prev => ({ ...prev, [selectedAccountForCardManagement.id]: cards }));
       setCardFormData({ last_four: '', nickname: '', user_id: null });
       await refreshAccounts();
     } catch (err) {
@@ -279,6 +275,8 @@ export default function ManageAccounts() {
       if (selectedAccountForCardManagement) {
         const cards = await getAccountCards(selectedAccountForCardManagement.id);
         setAccountCards(cards);
+        // Update the accountCardsByAccountId state to reflect changes in UI
+        setAccountCardsByAccountId(prev => ({ ...prev, [selectedAccountForCardManagement.id]: cards }));
       }
       await refreshAccounts();
       setDeleteDialogOpen(false);
@@ -335,7 +333,6 @@ export default function ManageAccounts() {
     setExpandedAccountIds(newSet);
   };
 
-  // Co-owner management helpers removed
 
   return (
     <Box sx={{ p: 3 }}>
@@ -376,59 +373,50 @@ export default function ManageAccounts() {
                 const ownedAccounts = getUserOwnedAccounts(user.id);
                 const cardholderAccounts = getUserCardholderAccounts(user.id);
                 return (
-                  <Accordion key={user.id} sx={{ mb: 1 }}>
+                  <Accordion key={user.id} sx={{ mb: 1, '&.Mui-expanded': { bgcolor: 'action.hover' } }}>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', pr: 2 }}>
                         <PersonIcon sx={{ mr: 2, color: 'primary.main' }} />
                         <Box sx={{ flexGrow: 1 }}>
                           <Typography variant="subtitle1" fontWeight="medium">{user.display_name}</Typography>
                           <Chip label={`${ownedAccounts.length} owned • ${cardholderAccounts.length} cardholder`} size="small" variant="outlined" />
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
+                          <IconButton component="div" onClick={() => handleOpenUserDialog(user)} size="small" title="Edit User">
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton component="div" onClick={() => handleDeleteClick('user', user)} color="error" size="small" title="Delete User">
+                            <DeleteIcon />
+                          </IconButton>
                         </Box>
                       </Box>
                     </AccordionSummary>
                     <AccordionDetails>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                         <Typography variant="subtitle2">Owned Accounts</Typography>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Button size="small" startIcon={<AddIcon />} onClick={() => handleOpenAccountDialog(user.id)}>
-                            Add Account
-                          </Button>
-                          <IconButton onClick={() => handleOpenUserDialog(user)} size="small">
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton onClick={() => handleDeleteClick('user', user)} color="error" size="small">
-                            <DeleteIcon />
-                          </IconButton>
-                        </Box>
+                        <Button size="small" startIcon={<AddIcon />} onClick={() => handleOpenAccountDialog(user.id)}>
+                          Add Account
+                        </Button>
                       </Box>
                       {ownedAccounts.length === 0 ? (
                         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                           No owned accounts.
                         </Typography>
                       ) : (
-                        <Box>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                           {ownedAccounts.map((account) => (
                             <Box key={account.id}>
-                              <ListItem divider>
-                                <AccountIcon sx={{ mr: 2, color: 'text.secondary' }} />
-                                <ListItemText
-                                  primary={
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Typography>{account.name}</Typography>
-                                    </Box>
-                                  }
-                                  secondary={
-                                    <>
-                                      <Typography variant="body2" component="span" display="block">
-                                        {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
-                                      </Typography>
-                                    </>
-                                  }
-                                  secondaryTypographyProps={{ component: 'div' }}
-                                />
-                                <ListItemSecondaryAction>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'background.paper', p: 2, borderRadius: 1, border: 1, borderColor: 'divider' }}>
+                                <AccountIcon sx={{ color: 'primary.main' }} />
+                                <Box sx={{ flexGrow: 1 }}>
+                                  <Typography variant="subtitle2" fontWeight="medium">{account.name}</Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
                                   <IconButton onClick={() => toggleAccountExpanded(account)} size="small" title={expandedAccountIds.has(account.id) ? 'Hide Cards' : 'Show Cards'}>
-                                    <ExpandMoreIcon sx={{ transform: expandedAccountIds.has(account.id) ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                                    <ExpandMoreIcon sx={{ transform: expandedAccountIds.has(account.id) ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
                                   </IconButton>
                                   <IconButton onClick={() => handleOpenCardDialog(account)} size="small" title="Manage Cards">
                                     <CreditCardIcon />
@@ -436,10 +424,10 @@ export default function ManageAccounts() {
                                   <IconButton onClick={() => handleDeleteClick('account', account)} size="small" color="error" title="Delete Account">
                                     <DeleteIcon />
                                   </IconButton>
-                                </ListItemSecondaryAction>
-                              </ListItem>
+                                </Box>
+                              </Box>
                               {expandedAccountIds.has(account.id) && (
-                                <Box sx={{ bgcolor: 'action.hover', px: 3, py: 2, mb: 1 }}>
+                                <Box sx={{ bgcolor: 'action.hover', px: 3, py: 2, mb: 1, borderRadius: 1, ml: 1, mr: 1 }}>
                                   <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 'medium' }}>
                                     Cards on this account:
                                   </Typography>
@@ -480,39 +468,24 @@ export default function ManageAccounts() {
                           Not a cardholder on any accounts.
                         </Typography>
                       ) : (
-                        <Box>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                           {cardholderAccounts.map((account) => (
                             <Box key={account.id}>
-                              <ListItem divider>
-                                <AccountIcon sx={{ mr: 2, color: 'text.secondary' }} />
-                                <ListItemText
-                                  primary={
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Typography>{account.name}</Typography>
-                                    </Box>
-                                  }
-                                  secondary={
-                                    <>
-                                      <Typography variant="body2" component="span" display="block">
-                                        {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
-                                      </Typography>
-                                      {account.owner_display_name && (
-                                        <Typography variant="body2" component="span" color="text.secondary" display="block">
-                                          Owner: {account.owner_display_name}
-                                        </Typography>
-                                      )}
-                                    </>
-                                  }
-                                  secondaryTypographyProps={{ component: 'div' }}
-                                />
-                                <ListItemSecondaryAction>
-                                  <IconButton onClick={() => toggleAccountExpanded(account)} size="small" title={expandedAccountIds.has(account.id) ? 'Hide Cards' : 'Show Cards'}>
-                                    <ExpandMoreIcon sx={{ transform: expandedAccountIds.has(account.id) ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-                                  </IconButton>
-                                </ListItemSecondaryAction>
-                              </ListItem>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'background.paper', p: 2, borderRadius: 1, border: 1, borderColor: 'divider' }}>
+                                <AccountIcon sx={{ color: 'text.secondary' }} />
+                                <Box sx={{ flexGrow: 1 }}>
+                                  <Typography variant="subtitle2" fontWeight="medium">{account.name}</Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
+                                    {account.owner_display_name && ` • Owner: ${account.owner_display_name}`}
+                                  </Typography>
+                                </Box>
+                                <IconButton onClick={() => toggleAccountExpanded(account)} size="small" title={expandedAccountIds.has(account.id) ? 'Hide Cards' : 'Show Cards'}>
+                                  <ExpandMoreIcon sx={{ transform: expandedAccountIds.has(account.id) ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                </IconButton>
+                              </Box>
                               {expandedAccountIds.has(account.id) && (
-                                <Box sx={{ bgcolor: 'action.hover', px: 3, py: 2, mb: 1 }}>
+                                <Box sx={{ bgcolor: 'action.hover', px: 3, py: 2, mb: 1, borderRadius: 1, ml: 1, mr: 1 }}>
                                   <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 'medium' }}>
                                     Your cards on this account:
                                   </Typography>

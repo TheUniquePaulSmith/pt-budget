@@ -1119,11 +1119,17 @@ export class DatabaseService {
     date: string,
     amount: number,
     description: string,
-    uniqueIdentifier?: string
+    uniqueIdentifier?: string,
+    variationSeed?: number
   ): string {
-    const hashInput = uniqueIdentifier
+    const baseHashInput = uniqueIdentifier
       ? `${accountId}-${date}-${amount}-${description}-${uniqueIdentifier}`
       : `${accountId}-${date}-${amount}-${description}`;
+    
+    // Append variation seed to hash input if provided and non-zero
+    const hashInput = variationSeed && variationSeed > 0
+      ? `${baseHashInput}-seed${variationSeed}`
+      : baseHashInput;
 
     let hash = 0;
     for (let i = 0; i < hashInput.length; i++) {
@@ -1141,5 +1147,17 @@ export class DatabaseService {
       tripId,
       id,
     ]);
+  }
+
+  async updateTempTransactionHashes(updates: Array<{ tempId: number; newHash: string; variationSeed: number }>): Promise<void> {
+    const workerService = this.getWorkerService();
+    
+    // Execute each update individually since SQLite doesn't support bulk updates easily
+    for (const update of updates) {
+      await workerService.query(
+        'UPDATE temp_import_transactions SET transaction_hash = ?, hash_variation_seed = ? WHERE id = ?',
+        [update.newHash, update.variationSeed, update.tempId]
+      );
+    }
   }
 }

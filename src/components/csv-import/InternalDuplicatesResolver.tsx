@@ -9,6 +9,7 @@ import {
   Button,
   Box,
   Typography,
+  Alert,
   Table,
   TableBody,
   TableCell,
@@ -118,6 +119,15 @@ export default function InternalDuplicatesResolver({
       </DialogTitle>
       <DialogContent>
         <Box>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              <strong>How duplicate resolution works:</strong> When you select multiple transactions from the same set, 
+              each will receive a unique variation seed. The first selected transaction keeps the original hash (seed 0), 
+              while subsequent selections get incrementing seeds (1, 2, etc.). This allows you to import legitimate duplicates 
+              while preventing re-imports of the same CSV file.
+            </Typography>
+          </Alert>
+          
           {duplicateGroups.map((group, groupIndex) => (
             <Box key={group.hash} sx={{ mb: 4 }}>
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
@@ -128,6 +138,7 @@ export default function InternalDuplicatesResolver({
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'action.hover' }}>
                       <TableCell width="80px" align="center">Include</TableCell>
+                      <TableCell width="100px" align="center">Variation</TableCell>
                       <TableCell>Date</TableCell>
                       <TableCell>Description</TableCell>
                       <TableCell>Account</TableCell>
@@ -138,6 +149,13 @@ export default function InternalDuplicatesResolver({
                   <TableBody>
                     {group.transactions.map((item, idx) => {
                       const isSelected = selectedIndices.has(item.index);
+                      // Calculate what variation seed this transaction would get
+                      const selectedBeforeThis = group.transactions
+                        .slice(0, idx + 1)
+                        .filter((t, i) => i <= idx && selectedIndices.has(t.index))
+                        .length - 1;
+                      const variationSeed = isSelected ? selectedBeforeThis : null;
+                      
                       return (
                         <TableRow 
                           key={item.index}
@@ -154,6 +172,20 @@ export default function InternalDuplicatesResolver({
                             >
                               {isSelected ? <CheckCircle /> : <Cancel />}
                             </IconButton>
+                          </TableCell>
+                          <TableCell align="center">
+                            {isSelected && variationSeed !== null ? (
+                              <Chip
+                                label={variationSeed === 0 ? 'Original' : `Seed ${variationSeed}`}
+                                size="small"
+                                color={variationSeed === 0 ? 'default' : 'primary'}
+                                variant="outlined"
+                              />
+                            ) : (
+                              <Typography variant="body2" color="text.disabled">
+                                -
+                              </Typography>
+                            )}
                           </TableCell>
                           <TableCell>
                             {format(parseISO(item.transaction.date), 'MMM dd, yyyy')}

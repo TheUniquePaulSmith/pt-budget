@@ -27,6 +27,7 @@ import { CloudUpload, CheckCircle, Error as ErrorIcon, ExpandMore } from '@mui/i
 import Papa from 'papaparse';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
 import { Transaction, Account } from '@/types/database';
+import { DatabaseService } from '@/lib/databaseService';
 import InternalDuplicatesResolver from './InternalDuplicatesResolver';
 
 interface CSVImportProps {
@@ -60,6 +61,8 @@ interface DuplicateGroup {
     transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>;
     csvAccountValue: string;
     tempId: number;
+    lastFourValue: string;
+    uniqueIdentifier?: string;
   }>;
 }
 
@@ -85,9 +88,11 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     truncateImportTable,
     insertIntoTempTable,
     deleteFromTempTable,
+    updateTempTransactionHashes,
     checkDuplicateTransactions,
     bulkInsertFromTempTable,
     findAccountsByLastFour,
+    getAccountCards,
   } = useDatabaseContext();
   
   const [file, setFile] = useState<File | null>(null);
@@ -101,6 +106,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     uniqueIdentifierColumn: '',
   });
   const [accountMatches, setAccountMatches] = useState<AccountMatch[]>([]);
+  const [accountCardsByAccountId, setAccountCardsByAccountId] = useState<Record<number, AccountCard[]>>({});
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -150,6 +156,26 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     
     setAccountMatches(matches);
   }, [accounts, findAccountsByLastFour]);
+
+  // Preload all account cards when dialog opens
+  useEffect(() => {
+    if (open && accounts.length > 0) {
+      const loadAllCards = async () => {
+        const cardsByAccount: Record<number, AccountCard[]> = {};
+        for (const account of accounts) {
+          try {
+            const cards = await getAccountCards(account.id);
+            cardsByAccount[account.id] = cards;
+          } catch (error) {
+            console.error(`Failed to load cards for account ${account.id}:`, error);
+            cardsByAccount[account.id] = [];
+          }
+        }
+        setAccountCardsByAccountId(cardsByAccount);
+      };
+      loadAllCards();
+    }
+  }, [open, accounts.length]);
 
   // Clear invalid column mappings when CSV data changes
   useEffect(() => {
@@ -212,7 +238,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       // Clear account matches if no account column is selected
       setAccountMatches([]);
     }
-  }, [csvData, mapping.accountColumn, analyzeAccountColumn, accounts]);
+  }, [csvData.length, mapping.accountColumn, accounts.length]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -279,6 +305,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     csvAccountValue: string;
     lastFourValue: string;
     hash: string;
+    uniqueIdentifier?: string;
   }> => {
     // Check if a direct account was selected
     const isDirectAccount = columnMapping.accountColumn.startsWith('DIRECT_ACCOUNT:');
@@ -364,6 +391,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         csvAccountValue,
         lastFourValue,
         hash,
+        uniqueIdentifier,
       };
     });
   };
@@ -378,10 +406,39 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   const handleResolveDuplicates = async (selectedIndices: Set<number>) => {
     if (!analysisResult || !analysisResult.duplicateGroups) return;
 
-    // Collect temp_ids of excluded transactions
+    // Separate selected and excluded transactions
     const tempIdsToDelete: number[] = [];
+    const hashUpdates: Array<{ tempId: number; newHash: string; variationSeed: number }> = [];
     
     analysisResult.duplicateGroups.forEach(group => {
+      // Get selected transactions from this group
+      const selectedInGroup = group.transactions.filter(item => selectedIndices.has(item.index));
+      
+      // Assign variation seeds to selected transactions
+      selectedInGroup.forEach((item, variationIndex) => {
+        const variationSeed = variationIndex; // 0, 1, 2, etc.
+        
+        // Regenerate hash with variation seed
+        const newHash = DatabaseService.generateTransactionHashFromFields(
+          item.csvAccountValue,
+          item.transaction.date,
+          item.transaction.amount,
+          item.transaction.description,
+          item.uniqueIdentifier,
+          variationSeed
+        );
+        
+        // Only update if variation seed > 0 (seed 0 keeps original hash)
+        if (variationSeed > 0) {
+          hashUpdates.push({
+            tempId: item.tempId,
+            newHash,
+            variationSeed,
+          });
+        }
+      });
+      
+      // Collect excluded transactions for deletion
       group.transactions.forEach(item => {
         if (!selectedIndices.has(item.index)) {
           tempIdsToDelete.push(item.tempId);
@@ -391,8 +448,14 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     
     setDuplicateResolverOpen(false);
     
-    // Delete excluded transactions from temp table
+    // Apply updates and deletions
     try {
+      // Update hashes for varied transactions
+      if (hashUpdates.length > 0) {
+        await updateTempTransactionHashes(hashUpdates);
+      }
+      
+      // Delete excluded transactions from temp table
       if (tempIdsToDelete.length > 0) {
         await deleteFromTempTable(tempIdsToDelete);
       }
@@ -479,6 +542,8 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         index: number;
         transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>;
         csvAccountValue: string;
+        lastFourValue: string;
+        uniqueIdentifier?: string;
       };
       const hashMap = new Map<string, Array<TransactionItem>>();
       
@@ -490,6 +555,8 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           index,
           transaction: mapped.transaction,
           csvAccountValue: mapped.csvAccountValue,
+          lastFourValue: mapped.lastFourValue,
+          uniqueIdentifier: mapped.uniqueIdentifier,
         });
       });
       
@@ -736,11 +803,18 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                         ─────── Or Select Account ───────
                       </MenuItem>
                     )}
-                    {accounts.map(account => (
-                      <MenuItem key={`account-${account.id}`} value={`DIRECT_ACCOUNT:${account.id}`}>
-                        {account.user_display_names ? `${account.user_display_names} - ` : ''}{account.name}
-                      </MenuItem>
-                    ))}
+                    {accounts.map(account => {
+                      const cards = accountCardsByAccountId[account.id] || [];
+                      const lastFour = cards.length > 0 ? cards[0].last_four : null;
+                      const displayName = account.owner_display_name 
+                        ? `${account.owner_display_name} - ${account.name}` 
+                        : account.name;
+                      return (
+                        <MenuItem key={`account-${account.id}`} value={`DIRECT_ACCOUNT:${account.id}`}>
+                          {displayName}{lastFour ? ` - ${lastFour}` : ''}
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
                 </FormControl>
 
@@ -872,11 +946,19 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                           label="Select Account"
                           onChange={(e) => updateAccountMapping(match.csvAccountValue, e.target.value)}
                         >
-                          {match.matchingAccounts.map(account => (
-                            <MenuItem key={account.id} value={account.id}>
-                              {account.user_display_names ? `${account.user_display_names} - ` : ''}{account.name} - {account.type}
-                            </MenuItem>
-                          ))}
+                          {match.matchingAccounts.map(account => {
+                            const username = account.owner_display_name || '';
+                            const accountInfo = `${account.name} (${account.type})`;
+                            const displayName = username 
+                              ? `${username} - ${accountInfo}` 
+                              : accountInfo;
+                            
+                            return (
+                              <MenuItem key={account.id} value={account.id}>
+                                {displayName}
+                              </MenuItem>
+                            );
+                          })}
                         </Select>
                       </FormControl>
                     )}

@@ -75,6 +75,7 @@ interface DatabaseContextType {
     transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
   ) => Promise<number[]>;
   deleteFromTempTable: (tempIds: number[]) => Promise<void>;
+  updateTempTransactionHashes: (updates: Array<{ tempId: number; newHash: string; variationSeed: number }>) => Promise<void>;
   checkDuplicateTransactions: () => Promise<string[]>;
   bulkInsertFromTempTable: () => Promise<number>;
   addTransactionsBatch: (
@@ -548,6 +549,19 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       await databaseService.deleteFromTempTable(tempIds);
     } catch (err) {
       console.error('Failed to delete from temp table:', err);
+      throw err;
+    }
+  };
+
+  const updateTempTransactionHashes = async (updates: Array<{ tempId: number; newHash: string; variationSeed: number }>): Promise<void> => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    try {
+      await databaseService.updateTempTransactionHashes(updates);
+    } catch (err) {
+      console.error('Failed to update temp transaction hashes:', err);
       throw err;
     }
   };
@@ -1263,6 +1277,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     truncateImportTable,
     insertIntoTempTable,
     deleteFromTempTable,
+    updateTempTransactionHashes,
     checkDuplicateTransactions,
     bulkInsertFromTempTable,
     addTransactionsBatch,

@@ -67,6 +67,7 @@ export const CREATE_TABLES = {
       trip_id INTEGER,
       type TEXT CHECK(type IN ('income', 'expense')) NOT NULL,
       transaction_hash TEXT UNIQUE,
+      hash_variation_seed INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (account_id) REFERENCES accounts (id),
@@ -139,7 +140,8 @@ export const CREATE_TABLES = {
       project_id INTEGER,
       trip_id INTEGER,
       type TEXT CHECK(type IN ('income', 'expense')) NOT NULL,
-      transaction_hash TEXT
+      transaction_hash TEXT,
+      hash_variation_seed INTEGER DEFAULT 0
     )
   `
 };

@@ -141,8 +141,8 @@ export const TRANSACTION_QUERIES = {
   `,
 
   BULK_INSERT_FROM_TEMP: `
-    INSERT INTO transactions (date, amount, description, account_id, category_id, company_id, project_id, trip_id, type, transaction_hash)
-    SELECT date, amount, description, account_id, category_id, company_id, project_id, trip_id, type, transaction_hash
+    INSERT INTO transactions (date, amount, description, account_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed)
+    SELECT date, amount, description, account_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed
     FROM temp_import_transactions
     WHERE NOT EXISTS (
       SELECT 1 FROM transactions t WHERE t.transaction_hash = temp_import_transactions.transaction_hash

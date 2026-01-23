@@ -27,6 +27,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta httpEquiv="origin-trial" content="AtEQYSKQCqI9urnL86o2cWOq6bCZp5g3Y2rvuqNBtznSnk6d67XqQ6Jh1dXQ9aZqO7XqXkQPaBryyZjS1U9XKQ0AAABfeyJvcmlnaW4iOiJodHRwczovL2Rldi5wdGJ1ZGdldC5vcmc6NDQzIiwiZmVhdHVyZSI6IlNoYXJlZFdvcmtlck9uQW5kcm9pZCIsImV4cGlyeSI6MTc3NDMxMDQwMH0=" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

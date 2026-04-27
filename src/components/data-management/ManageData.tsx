@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -34,7 +34,7 @@ import {
   Business,
   Category as CategoryIcon,
 } from '@mui/icons-material';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useManageDataSlice } from '@/contexts/useDatabaseSlices';
 import { Category, Company } from '@/types/database';
 
 interface ManageDataProps {
@@ -60,11 +60,9 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
   const { 
     categories, 
     companies, 
-    refreshCategories, 
-    refreshCompanies, 
     addCategory, 
     addCompany 
-  } = useDatabaseContext();
+  } = useManageDataSlice();
   const [tabValue, setTabValue] = useState(0);
   
   // Category management state
@@ -84,13 +82,6 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      refreshCategories();
-      refreshCompanies();
-    }
-  }, [open, refreshCategories, refreshCompanies]);
-
   const colorOptions = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
     '#F7DC6F', '#BB8FCE', '#85C1E9', '#58D68D', '#F8C471'
@@ -104,7 +95,6 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
       setLoading(true);
       await addCategory(newCategory);
       setNewCategory({ name: '', type: 'expense', color: '#FF6B6B' });
-      refreshCategories();
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add category');
@@ -124,8 +114,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
     try {
       setLoading(true);
       // Note: We would need to add an updateCategory method to the database
-      // For now, we'll just refresh the data
-      refreshCategories();
+      // For now, saving only exits edit mode because updateCategory is not implemented yet.
       setEditingCategory(null);
       setEditCategoryData(null);
       setError(null);
@@ -149,7 +138,6 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
       setLoading(true);
       await addCompany(newCompany.trim());
       setNewCompany('');
-      refreshCompanies();
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add company');
@@ -169,8 +157,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
     try {
       setLoading(true);
       // Note: We would need to add an updateCompany method to the database
-      // For now, we'll just refresh the data
-      refreshCompanies();
+      // For now, saving only exits edit mode because updateCompany is not implemented yet.
       setEditingCompany(null);
       setEditCompanyData(null);
       setError(null);

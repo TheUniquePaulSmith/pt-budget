@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -47,7 +47,7 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
 import TransactionLabelDialog from './TransactionLabelDialog';
 import { Transaction, Category, Company, Account } from '@/types/database';
 import { format, parseISO } from 'date-fns';
@@ -61,9 +61,7 @@ export default function TransactionReport() {
     companies,
     projects,
     accounts,
-    isDatabaseLoaded,
-    refreshTransactions,
-  } = useDatabaseContext();
+  } = useTransactionReportSlice();
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -84,8 +82,6 @@ export default function TransactionReport() {
   const [orderBy, setOrderBy] = useState<keyof Transaction>('date');
   const [order, setOrder] = useState<Order>('desc');
 
-  const loadingRef = useRef(false);
-  
   // Column visibility state
   const [showColumnControls, setShowColumnControls] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState({
@@ -165,24 +161,6 @@ export default function TransactionReport() {
       actions: true,
     });
   };
-
- useEffect(() => {
-  if (isDatabaseLoaded && !loadingRef.current) {  // 👈 Guard check
-    loadingRef.current = true;                     // 👈 Set guard
-    console.debug('Database loaded, refreshing transactions');
-    
-    const loadData = async () => {
-      try {
-        await refreshTransactions();
-      } catch (error) {
-        console.error('Error loading transaction data:', error);
-      } finally {
-        loadingRef.current = false;               // 👈 Reset guard
-      }
-    };
-    loadData();
-  }
-}, [isDatabaseLoaded, refreshTransactions]);
 
   // Enhanced transactions with related data
   const enhancedTransactions = useMemo(() => {

@@ -22,7 +22,7 @@ import {
   Label as LabelIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useTransactionLabelingSlice } from '@/contexts/useDatabaseSlices';
 import { Transaction, Project, Trip } from '@/types/database';
 
 interface TransactionLabelDialogProps {
@@ -42,8 +42,7 @@ export default function TransactionLabelDialog({
     projects, 
     trips,
     updateTransactionLabels,
-    refreshTransactions
-  } = useDatabaseContext();
+  } = useTransactionLabelingSlice();
   
   const [labelType, setLabelType] = useState<'none' | 'project' | 'trip'>('none');
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
@@ -95,7 +94,6 @@ export default function TransactionLabelDialog({
       }
 
       await updateTransactionLabels(transaction.id, projectId, tripId);
-      await refreshTransactions();
       onSuccess();
       onClose();
     } catch (err) {

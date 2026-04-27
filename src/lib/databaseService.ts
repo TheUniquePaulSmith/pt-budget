@@ -6,6 +6,7 @@
  */
 
 import { databaseWorkerService } from "./databaseWorkerService";
+import type { WorkerStatus } from './databaseWorkerService';
 //import { dbLogger } from './logger';
 import {
   TRANSACTION_QUERIES,
@@ -31,9 +32,28 @@ import {
   Trip
 } from '../types/database';
 
+export interface DatabaseWorkerTransport {
+  initialize(): Promise<unknown>;
+  openDatabase(filename?: string, isNew?: boolean): Promise<unknown>;
+  createTables(): Promise<unknown>;
+  query(sql: string, parameters?: any[]): Promise<any[]>;
+  exec(sql: string): Promise<void>;
+  exportDatabase(): Promise<Uint8Array>;
+  importDatabase(fileData: Uint8Array): Promise<{
+    isSuccessful: boolean;
+    sqlResponse?: { error?: string };
+  }>;
+  onStatusChange(callback: (status: WorkerStatus) => void): () => void;
+  destroy?(): void;
+}
+
 export class DatabaseService {
   private isInitialized = false;
   public dbExistsBeforeInit = false;
+
+  constructor(
+    private readonly workerService: DatabaseWorkerTransport = databaseWorkerService
+  ) {}
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
@@ -45,7 +65,7 @@ export class DatabaseService {
         this.dbExistsBeforeInit = true;
       }
 
-      await databaseWorkerService.initialize();
+      await this.workerService.initialize();
       this.isInitialized = true;
       console.info("[DB Service] Database service initialized successfully");
     } catch (error) {
@@ -67,10 +87,10 @@ export class DatabaseService {
 
     try {
       console.debug(`Opening database: ${filename}`);
-      await databaseWorkerService.openDatabase(filename, isNew);
+      await this.workerService.openDatabase(filename, isNew);
 
       if (isNew) {
-        await databaseWorkerService.createTables();
+        await this.workerService.createTables();
       }
 
       console.debug("Database opened successfully");
@@ -95,7 +115,7 @@ export class DatabaseService {
       const arrayBuffer = await file.arrayBuffer();
       const fileData = new Uint8Array(arrayBuffer);
 
-      const response = await databaseWorkerService.importDatabase(fileData);
+      const response = await this.workerService.importDatabase(fileData);
 
       if (!response.isSuccessful) {
         throw new Error(
@@ -113,7 +133,7 @@ export class DatabaseService {
   async exportDatabase(): Promise<Uint8Array> {
     try {
       console.info("Exporting database through worker...");
-      const data = await databaseWorkerService.exportDatabase();
+      const data = await this.workerService.exportDatabase();
       console.info("Database exported successfully");
       return data;
     } catch (error) {
@@ -193,7 +213,7 @@ export class DatabaseService {
   }
 
   getWorkerService() {
-    return databaseWorkerService;
+    return this.workerService;
   }
 
 
@@ -206,7 +226,7 @@ export class DatabaseService {
       const hash = this.generateTransactionHash(transaction);
 
       // Check for duplicate
-      const existingCount = await databaseWorkerService.query(
+      const existingCount = await this.workerService.query(
         TRANSACTION_QUERIES.CHECK_HASH_EXISTS,
         [hash]
       );
@@ -214,7 +234,7 @@ export class DatabaseService {
         throw new Error("Duplicate transaction detected");
       }
 
-      const result = await databaseWorkerService.query(
+      const result = await this.workerService.query(
         TRANSACTION_QUERIES.CREATE,
         [
           transaction.date,
@@ -239,7 +259,7 @@ export class DatabaseService {
 
   async getAllTransactionHashes(): Promise<string[]> {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         TRANSACTION_QUERIES.GET_ALL_HASHES
       );
       return rows.map(row => row.transaction_hash);
@@ -251,7 +271,7 @@ export class DatabaseService {
 
   async truncateImportTable(): Promise<void> {
     try {
-      await databaseWorkerService.query(TRANSACTION_QUERIES.TRUNCATE_IMPORT_TABLE);
+      await this.workerService.query(TRANSACTION_QUERIES.TRUNCATE_IMPORT_TABLE);
     } catch (error) {
       console.error("Failed to truncate import table:", error);
       throw error;
@@ -264,7 +284,7 @@ export class DatabaseService {
     try {
       const insertedIds: number[] = [];
       for (const transaction of transactions) {
-        const result = await databaseWorkerService.query(TRANSACTION_QUERIES.INSERT_TEMP_TRANSACTION, [
+        const result = await this.workerService.query(TRANSACTION_QUERIES.INSERT_TEMP_TRANSACTION, [
           transaction.date,
           transaction.amount,
           transaction.description,
@@ -277,7 +297,7 @@ export class DatabaseService {
           transaction.transaction_hash || null,
         ]);
         // SQLite returns the last inserted rowid
-        const lastId = await databaseWorkerService.query('SELECT last_insert_rowid() as id');
+        const lastId = await this.workerService.query('SELECT last_insert_rowid() as id');
         insertedIds.push(lastId[0].id);
       }
       return insertedIds;
@@ -290,7 +310,7 @@ export class DatabaseService {
   async checkDuplicateTransactions(): Promise<string[]> {
     try {
       // Query for existing hashes using EXISTS against temp table
-      const rows = await databaseWorkerService.query(TRANSACTION_QUERIES.CHECK_DUPLICATES_IN_TEMP);
+      const rows = await this.workerService.query(TRANSACTION_QUERIES.CHECK_DUPLICATES_IN_TEMP);
       return rows.map(row => row.transaction_hash);
     } catch (error) {
       console.error("Failed to check duplicate transactions:", error);
@@ -301,10 +321,10 @@ export class DatabaseService {
   async bulkInsertFromTempTable(): Promise<number> {
     try {
       // Insert all non-duplicate transactions from temp table
-      await databaseWorkerService.query(TRANSACTION_QUERIES.BULK_INSERT_FROM_TEMP);
+      await this.workerService.query(TRANSACTION_QUERIES.BULK_INSERT_FROM_TEMP);
       
       // Return count of inserted rows
-      const result = await databaseWorkerService.query(
+      const result = await this.workerService.query(
         `SELECT changes() as count`
       );
       return result[0]?.count || 0;
@@ -322,7 +342,7 @@ export class DatabaseService {
       const idsString = tempIds.join(',');
       const deleteQuery = TRANSACTION_QUERIES.DELETE_TEMP_TRANSACTIONS_BY_IDS.replace('__IDS__', idsString);
       
-      await databaseWorkerService.query(deleteQuery);
+      await this.workerService.query(deleteQuery);
     } catch (error) {
       console.error("Failed to delete from temp table:", error);
       throw error;
@@ -332,7 +352,7 @@ export class DatabaseService {
   async dropTempImportTable(): Promise<void> {
     try {
       // Clear the temp import table after import
-      await databaseWorkerService.query(TRANSACTION_QUERIES.TRUNCATE_IMPORT_TABLE);
+      await this.workerService.query(TRANSACTION_QUERIES.TRUNCATE_IMPORT_TABLE);
     } catch (error) {
       console.error("Failed to clear temp import table:", error);
       // Don't throw on cleanup failure
@@ -360,7 +380,7 @@ export class DatabaseService {
 
   async getTransactions(): Promise<Transaction[]> {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         TRANSACTION_QUERIES.GET_ALL
       );
       return rows.map(this.mapToTransaction);
@@ -372,7 +392,7 @@ export class DatabaseService {
 
   async getTransactionsByProject(projectId: number): Promise<Transaction[]> {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         TRANSACTION_QUERIES.GET_BY_PROJECT,
         [projectId]
       );
@@ -391,12 +411,12 @@ export class DatabaseService {
     try {
       let rows;
       if (type) {
-        rows = await databaseWorkerService.query(
+        rows = await this.workerService.query(
           TRANSACTION_QUERIES.GET_BY_DATE_RANGE_AND_TYPE,
           [startDate, endDate, type]
         );
       } else {
-        rows = await databaseWorkerService.query(
+        rows = await this.workerService.query(
           TRANSACTION_QUERIES.GET_BY_DATE_RANGE,
           [startDate, endDate]
         );
@@ -411,7 +431,7 @@ export class DatabaseService {
   // Category operations
   async getCategories(): Promise<Category[]> {
     try {
-      const rows = await databaseWorkerService.query(CATEGORY_QUERIES.GET_ALL);
+      const rows = await this.workerService.query(CATEGORY_QUERIES.GET_ALL);
       return rows.map(this.mapToCategory);
     } catch (error) {
       console.error("Failed to get categories:", error);
@@ -423,7 +443,7 @@ export class DatabaseService {
     category: Omit<Category, "id" | "created_at" | "updated_at">
   ): Promise<number> {
     try {
-      const result = await databaseWorkerService.query(
+      const result = await this.workerService.query(
         CATEGORY_QUERIES.CREATE,
         [category.name, category.color || "#1976d2", category.type || "expense"]
       );
@@ -437,7 +457,7 @@ export class DatabaseService {
   // Company operations
   async getCompanies(): Promise<Company[]> {
     try {
-      const rows = await databaseWorkerService.query(COMPANY_QUERIES.GET_ALL);
+      const rows = await this.workerService.query(COMPANY_QUERIES.GET_ALL);
       return rows.map(this.mapToCompany);
     } catch (error) {
       console.error("Failed to get companies:", error);
@@ -447,7 +467,7 @@ export class DatabaseService {
 
   async addCompany(name: string): Promise<number> {
     try {
-      const result = await databaseWorkerService.query(COMPANY_QUERIES.CREATE, [
+      const result = await this.workerService.query(COMPANY_QUERIES.CREATE, [
         name,
       ]);
       return result[0].id;
@@ -459,7 +479,7 @@ export class DatabaseService {
 
   async findCompanyByName(name: string): Promise<Company | null> {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         COMPANY_QUERIES.FIND_BY_NAME,
         [name]
       );
@@ -486,7 +506,7 @@ export class DatabaseService {
   // Account operations
   async getAccounts(): Promise<Account[]> {
     try {
-      const rows = await databaseWorkerService.query(ACCOUNT_QUERIES.GET_ALL);
+      const rows = await this.workerService.query(ACCOUNT_QUERIES.GET_ALL);
       return rows.map(this.mapToAccount);
     } catch (error) {
       console.error("Failed to get accounts:", error);
@@ -499,7 +519,7 @@ export class DatabaseService {
     ownerUserId: number
   ): Promise<number> {
     try {
-      const result = await databaseWorkerService.query(ACCOUNT_QUERIES.CREATE, [
+      const result = await this.workerService.query(ACCOUNT_QUERIES.CREATE, [
         account.name,
         account.type,
         ownerUserId,
@@ -514,7 +534,7 @@ export class DatabaseService {
 
   async deleteAccount(id: number): Promise<void> {
     try {
-      await databaseWorkerService.query(ACCOUNT_QUERIES.DELETE, [id]);
+      await this.workerService.query(ACCOUNT_QUERIES.DELETE, [id]);
     } catch (error) {
       console.error("Failed to delete account:", error);
       throw error;
@@ -526,7 +546,7 @@ export class DatabaseService {
   // Account Card operations
   async getAccountCards(accountId: number): Promise<AccountCard[]> {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         ACCOUNT_CARD_QUERIES.GET_BY_ACCOUNT_ID,
         [accountId]
       );
@@ -539,7 +559,7 @@ export class DatabaseService {
 
   async addAccountCard(card: Omit<AccountCard, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
     try {
-      const result = await databaseWorkerService.query(ACCOUNT_CARD_QUERIES.CREATE, [
+      const result = await this.workerService.query(ACCOUNT_CARD_QUERIES.CREATE, [
         card.account_id,
         card.last_four,
         card.nickname || null,
@@ -554,7 +574,7 @@ export class DatabaseService {
 
   async deleteAccountCard(id: number): Promise<void> {
     try {
-      await databaseWorkerService.query(ACCOUNT_CARD_QUERIES.DELETE, [id]);
+      await this.workerService.query(ACCOUNT_CARD_QUERIES.DELETE, [id]);
     } catch (error) {
       console.error("Failed to delete account card:", error);
       throw error;
@@ -563,7 +583,7 @@ export class DatabaseService {
 
   async updateAccountCard(id: number, updates: Partial<Pick<AccountCard, 'last_four' | 'nickname' | 'user_id'>>): Promise<void> {
     try {
-      await databaseWorkerService.query(ACCOUNT_CARD_QUERIES.UPDATE, [
+      await this.workerService.query(ACCOUNT_CARD_QUERIES.UPDATE, [
         updates.last_four,
         updates.nickname,
         updates.user_id,
@@ -577,7 +597,7 @@ export class DatabaseService {
 
   async findAccountsByLastFour(lastFour: string): Promise<Account[]> {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         ACCOUNT_CARD_QUERIES.FIND_ACCOUNT_BY_LAST_FOUR,
         [lastFour]
       );
@@ -591,7 +611,7 @@ export class DatabaseService {
   // Budget operations
   async getBudgets(): Promise<Budget[]> {
     try {
-      const rows = await databaseWorkerService.query(BUDGET_QUERIES.GET_ALL);
+      const rows = await this.workerService.query(BUDGET_QUERIES.GET_ALL);
       return rows.map(this.mapToBudget);
     } catch (error) {
       console.error("Failed to get budgets:", error);
@@ -603,7 +623,7 @@ export class DatabaseService {
     budget: Omit<Budget, "id" | "created_at" | "updated_at">
   ): Promise<number> {
     try {
-      const result = await databaseWorkerService.query(BUDGET_QUERIES.CREATE, [
+      const result = await this.workerService.query(BUDGET_QUERIES.CREATE, [
         budget.category_id,
         budget.amount,
         budget.period || "monthly",
@@ -620,7 +640,7 @@ export class DatabaseService {
   // Project operations
   async getProjects(): Promise<Project[]> {
     try {
-      const rows = await databaseWorkerService.query(PROJECT_QUERIES.GET_ALL);
+      const rows = await this.workerService.query(PROJECT_QUERIES.GET_ALL);
       return rows.map(this.mapToProject);
     } catch (error) {
       console.error("Failed to get projects:", error);
@@ -632,7 +652,7 @@ export class DatabaseService {
     project: Omit<Project, "id" | "created_at" | "updated_at">
   ): Promise<number> {
     try {
-      const result = await databaseWorkerService.query(PROJECT_QUERIES.CREATE, [
+      const result = await this.workerService.query(PROJECT_QUERIES.CREATE, [
         project.name,
         project.company_name,
         project.contact_details,
@@ -653,7 +673,7 @@ export class DatabaseService {
 
   async getProjectById(id: number): Promise<Project | null> {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         PROJECT_QUERIES.GET_BY_ID,
         [id]
       );
@@ -674,7 +694,7 @@ export class DatabaseService {
         throw new Error("Project not found");
       }
 
-      await databaseWorkerService.query(PROJECT_QUERIES.UPDATE, [
+      await this.workerService.query(PROJECT_QUERIES.UPDATE, [
         updates.name ?? existing.name,
         updates.company_name ?? existing.company_name,
         updates.contact_details ?? existing.contact_details,
@@ -695,7 +715,7 @@ export class DatabaseService {
 
   async deleteProject(id: number): Promise<void> {
     try {
-      await databaseWorkerService.query(PROJECT_QUERIES.DELETE, [id]);
+      await this.workerService.query(PROJECT_QUERIES.DELETE, [id]);
     } catch (error) {
       console.error("Failed to delete project:", error);
       throw error;
@@ -710,7 +730,7 @@ export class DatabaseService {
     transactions_total: number;
   }> {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         PROJECT_QUERIES.GET_COSTS,
         [projectId]
       );
@@ -732,14 +752,14 @@ export class DatabaseService {
 
   // Trip operations
   async getTrips(): Promise<Trip[]> {
-    const result = await this.getWorkerService().query(TRIP_QUERIES.GET_ALL);
+    const result = await this.workerService.query(TRIP_QUERIES.GET_ALL);
     return result.map((row: any) => this.mapToTrip(row));
   }
 
   async addTrip(
     trip: Omit<Trip, "id" | "created_at" | "updated_at">
   ): Promise<number> {
-    const result = await this.getWorkerService().query(TRIP_QUERIES.CREATE, [
+    const result = await this.workerService.query(TRIP_QUERIES.CREATE, [
       trip.name,
       trip.destination || null,
       trip.purpose || null,
@@ -755,7 +775,7 @@ export class DatabaseService {
   }
 
   async getTripById(id: number): Promise<Trip | null> {
-    const result = await this.getWorkerService().query(TRIP_QUERIES.GET_BY_ID, [id]);
+    const result = await this.workerService.query(TRIP_QUERIES.GET_BY_ID, [id]);
     return result.length > 0 ? this.mapToTrip(result[0]) : null;
   }
 
@@ -766,7 +786,7 @@ export class DatabaseService {
     const trip = await this.getTripById(id);
     if (!trip) throw new Error('Trip not found');
 
-    await this.getWorkerService().query(TRIP_QUERIES.UPDATE, [
+    await this.workerService.query(TRIP_QUERIES.UPDATE, [
       updates.name !== undefined ? updates.name : trip.name,
       updates.destination !== undefined ? updates.destination : trip.destination,
       updates.purpose !== undefined ? updates.purpose : trip.purpose,
@@ -782,7 +802,7 @@ export class DatabaseService {
   }
 
   async deleteTrip(id: number): Promise<void> {
-    await this.getWorkerService().query(TRIP_QUERIES.DELETE, [id]);
+    await this.workerService.query(TRIP_QUERIES.DELETE, [id]);
   }
 
   async getTripCosts(
@@ -792,7 +812,7 @@ export class DatabaseService {
     actual: number;
     transactions_total: number;
   }> {
-    const result = await this.getWorkerService().query(TRIP_QUERIES.GET_COSTS, [tripId]);
+    const result = await this.workerService.query(TRIP_QUERIES.GET_COSTS, [tripId]);
     return result.length > 0 ? {
       estimated: Number(result[0].estimated) || 0,
       actual: Number(result[0].actual) || 0,
@@ -801,14 +821,14 @@ export class DatabaseService {
   }
 
   async getTransactionsByTrip(tripId: number): Promise<Transaction[]> {
-    const result = await this.getWorkerService().query(TRANSACTION_QUERIES.GET_BY_TRIP, [tripId]);
+    const result = await this.workerService.query(TRANSACTION_QUERIES.GET_BY_TRIP, [tripId]);
     return result.map((row: any) => this.mapToTransaction(row));
   }
 
   // User operations
   async getUsers(): Promise<User[]> {
     try {
-      const rows = await databaseWorkerService.query(USER_QUERIES.GET_ALL);
+      const rows = await this.workerService.query(USER_QUERIES.GET_ALL);
       return rows.map(this.mapToUser);
     } catch (error) {
       console.error("Failed to get users:", error);
@@ -818,7 +838,7 @@ export class DatabaseService {
 
   async getUserById(id: number): Promise<User | null> {
     try {
-      const rows = await databaseWorkerService.query(USER_QUERIES.GET_BY_ID, [
+      const rows = await this.workerService.query(USER_QUERIES.GET_BY_ID, [
         id,
       ]);
       return rows.length > 0 ? this.mapToUser(rows[0]) : null;
@@ -832,7 +852,7 @@ export class DatabaseService {
     user: Omit<User, "id" | "created_at" | "updated_at">
   ): Promise<number> {
     try {
-      const result = await databaseWorkerService.query(USER_QUERIES.CREATE, [
+      const result = await this.workerService.query(USER_QUERIES.CREATE, [
         user.display_name,
       ]);
       return result[0].id;
@@ -847,7 +867,7 @@ export class DatabaseService {
     updates: Partial<Omit<User, "id" | "created_at" | "updated_at">>
   ): Promise<void> {
     try {
-      await databaseWorkerService.query(USER_QUERIES.UPDATE, [
+      await this.workerService.query(USER_QUERIES.UPDATE, [
         updates.display_name,
         id,
       ]);
@@ -859,7 +879,7 @@ export class DatabaseService {
 
   async deleteUser(id: number): Promise<void> {
     try {
-      await databaseWorkerService.query(USER_QUERIES.DELETE, [id]);
+      await this.workerService.query(USER_QUERIES.DELETE, [id]);
     } catch (error) {
       console.error("Failed to delete user:", error);
       throw error;
@@ -868,7 +888,7 @@ export class DatabaseService {
 
   async getAccountsByUserId(userId: number): Promise<Account[]> {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         ACCOUNT_QUERIES.GET_BY_USER_ID,
         [userId]
       );
@@ -892,7 +912,7 @@ export class DatabaseService {
     }[]
   > {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         ANALYTICS_QUERIES.SPENDING_BY_CATEGORY,
         [startDate, endDate]
       );
@@ -920,7 +940,7 @@ export class DatabaseService {
     }[]
   > {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         ANALYTICS_QUERIES.INCOME_BY_CATEGORY,
         [startDate, endDate]
       );
@@ -940,7 +960,7 @@ export class DatabaseService {
     months: number = 12
   ): Promise<{ month: string; income: number; expense: number }[]> {
     try {
-      const rows = await databaseWorkerService.query(
+      const rows = await this.workerService.query(
         ANALYTICS_QUERIES.MONTHLY_TRENDS,
         [months]
       );
@@ -955,11 +975,24 @@ export class DatabaseService {
     }
   }
 
+  async checkTransactionHashExists(hash: string): Promise<boolean> {
+    try {
+      const rows = await this.workerService.query(
+        TRANSACTION_QUERIES.CHECK_HASH_EXISTS,
+        [hash]
+      );
+      return Number(rows[0]?.count || 0) > 0;
+    } catch (error) {
+      console.error("Failed to check transaction hash:", error);
+      throw error;
+    }
+  }
+
   // Custom SQL query execution
   async executeCustomQuery(sql: string): Promise<any[]> {
     try {
       console.debug("Executing custom query:", sql);
-      return await databaseWorkerService.query(sql);
+      return await this.workerService.query(sql);
     } catch (error) {
       console.error("Failed to execute custom query:", error);
       throw error;
@@ -1142,7 +1175,7 @@ export class DatabaseService {
   }
 
   async updateTransactionLabels(id: number, projectId: number | null, tripId: number | null): Promise<void> {
-    await this.getWorkerService().query(TRANSACTION_QUERIES.UPDATE_PROJECT_TRIP, [
+    await this.workerService.query(TRANSACTION_QUERIES.UPDATE_PROJECT_TRIP, [
       projectId,
       tripId,
       id,
@@ -1150,11 +1183,9 @@ export class DatabaseService {
   }
 
   async updateTempTransactionHashes(updates: Array<{ tempId: number; newHash: string; variationSeed: number }>): Promise<void> {
-    const workerService = this.getWorkerService();
-    
     // Execute each update individually since SQLite doesn't support bulk updates easily
     for (const update of updates) {
-      await workerService.query(
+      await this.workerService.query(
         'UPDATE temp_import_transactions SET transaction_hash = ?, hash_variation_seed = ? WHERE id = ?',
         [update.newHash, update.variationSeed, update.tempId]
       );

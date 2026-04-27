@@ -21,7 +21,7 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useTransactionComposerSlice } from '@/contexts/useDatabaseSlices';
 import { Transaction, Category, Company, Account, Project } from '@/types/database';
 
 interface AddTransactionProps {
@@ -35,12 +35,12 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
     addTransaction, 
     addCategory, 
     addCompany, 
-    addAccount,
     categories,
     companies,
     accounts,
     projects
-  } = useDatabaseContext();  const [formData, setFormData] = useState({
+  } = useTransactionComposerSlice();
+  const [formData, setFormData] = useState({
     description: '',
     amount: '',
     date: new Date(),
@@ -48,7 +48,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
     category_id: null as number | null,
     company_id: null as number | null,
     project_id: null as number | null,
-    account_id: 0,
+    account_id: '' as number | '',
     is_recurring: false,
   });
   const [loading, setLoading] = useState(false);
@@ -98,7 +98,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
         category_id: categoryId || null,
         company_id: companyId || null,
         project_id: formData.project_id || null,
-        account_id: formData.account_id,
+        account_id: Number(formData.account_id),
         trip_id: null, // Trip association handled separately
       };
 
@@ -120,7 +120,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
       category_id: null,
       company_id: null,
       project_id: null,
-      account_id: 0,
+      account_id: '',
       is_recurring: false,
     });
     setCompanyInput('');
@@ -263,9 +263,18 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
                 <Select
                   value={formData.account_id}
                   label="Account"
-                  onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData({
+                      ...formData,
+                      account_id: value === '' ? '' : Number(value),
+                    });
+                  }}
                   required
                 >
+                  <MenuItem value="">
+                    <em>Select an account</em>
+                  </MenuItem>
                   {accounts.map((account) => (
                     <MenuItem key={account.id} value={account.id}>
                       {account.name} ({account.type})

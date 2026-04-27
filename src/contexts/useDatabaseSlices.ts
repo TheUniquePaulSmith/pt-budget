@@ -1,0 +1,174 @@
+'use client';
+
+import {
+  useDatabaseAccounts,
+  useDatabaseCategories,
+  useDatabaseCollections,
+  useDatabaseCompanies,
+  useDatabaseDiagnostics,
+  useDatabaseLifecycle,
+  useDatabaseProjects,
+  useDatabaseStatus,
+  useDatabaseTransactions,
+  useDatabaseTrips,
+  useDatabaseUsers,
+} from './DatabaseContext';
+
+export function useAppShellSlice() {
+  const status = useDatabaseStatus();
+
+  return {
+    isDatabaseLoaded: status.isDatabaseLoaded,
+    workerStatus: status.workerStatus,
+  };
+}
+
+export function useSqlQuerySlice() {
+  const diagnostics = useDatabaseDiagnostics();
+  const status = useDatabaseStatus();
+
+  return {
+    executeCustomQuery: diagnostics.executeCustomQuery,
+    isDatabaseLoaded: status.isDatabaseLoaded,
+  };
+}
+
+export function useProjectsSlice() {
+  const collections = useDatabaseCollections();
+  const projects = useDatabaseProjects();
+
+  return {
+    projects: collections.projects,
+    transactions: collections.transactions,
+    addProject: projects.addProject,
+    updateProject: projects.updateProject,
+    deleteProject: projects.deleteProject,
+  };
+}
+
+export function useTripsSlice() {
+  const collections = useDatabaseCollections();
+  const trips = useDatabaseTrips();
+
+  return {
+    trips: collections.trips,
+    addTrip: trips.addTrip,
+    updateTrip: trips.updateTrip,
+    deleteTrip: trips.deleteTrip,
+  };
+}
+
+export function useTransactionComposerSlice() {
+  const transactions = useDatabaseTransactions();
+  const categories = useDatabaseCategories();
+  const companies = useDatabaseCompanies();
+  const collections = useDatabaseCollections();
+
+  return {
+    addTransaction: transactions.addTransaction,
+    addCategory: categories.addCategory,
+    addCompany: companies.addCompany,
+    categories: collections.categories,
+    companies: collections.companies,
+    accounts: collections.accounts,
+    projects: collections.projects,
+  };
+}
+
+export function useTransactionReportSlice() {
+  const collections = useDatabaseCollections();
+
+  return {
+    transactions: collections.transactions,
+    categories: collections.categories,
+    companies: collections.companies,
+    projects: collections.projects,
+    accounts: collections.accounts,
+  };
+}
+
+export function useTransactionLabelingSlice() {
+  const collections = useDatabaseCollections();
+  const transactions = useDatabaseTransactions();
+
+  return {
+    projects: collections.projects,
+    trips: collections.trips,
+    updateTransactionLabels: transactions.updateTransactionLabels,
+  };
+}
+
+export function useCsvImportSlice() {
+  const collections = useDatabaseCollections();
+  const transactions = useDatabaseTransactions();
+  const accounts = useDatabaseAccounts();
+
+  return {
+    accounts: collections.accounts,
+    generateTransactionHash: transactions.generateTransactionHash,
+    truncateImportTable: transactions.truncateImportTable,
+    insertIntoTempTable: transactions.insertIntoTempTable,
+    deleteFromTempTable: transactions.deleteFromTempTable,
+    updateTempTransactionHashes: transactions.updateTempTransactionHashes,
+    checkDuplicateTransactions: transactions.checkDuplicateTransactions,
+    bulkInsertFromTempTable: transactions.bulkInsertFromTempTable,
+    findAccountsByLastFour: accounts.findAccountsByLastFour,
+    getAccountCards: accounts.getAccountCards,
+  };
+}
+
+export function useDashboardSlice() {
+  const collections = useDatabaseCollections();
+  const lifecycle = useDatabaseLifecycle();
+
+  return {
+    transactions: collections.transactions,
+    categories: collections.categories,
+    accounts: collections.accounts,
+    users: collections.users,
+    exportDatabase: lifecycle.exportDatabase,
+  };
+}
+
+export function useAccountManagementSlice() {
+  const collections = useDatabaseCollections();
+  const accounts = useDatabaseAccounts();
+  const users = useDatabaseUsers();
+
+  return {
+    accounts: collections.accounts,
+    users: collections.users,
+    addAccount: accounts.addAccount,
+    deleteAccount: accounts.deleteAccount,
+    addUser: users.addUser,
+    updateUser: users.updateUser,
+    deleteUser: users.deleteUser,
+    getAccountCards: accounts.getAccountCards,
+    addAccountCard: accounts.addAccountCard,
+    deleteAccountCard: accounts.deleteAccountCard,
+  };
+}
+
+export function useManageDataSlice() {
+  const collections = useDatabaseCollections();
+  const categories = useDatabaseCategories();
+  const companies = useDatabaseCompanies();
+
+  return {
+    categories: collections.categories,
+    companies: collections.companies,
+    addCategory: categories.addCategory,
+    addCompany: companies.addCompany,
+  };
+}
+
+export function useSettingsSlice() {
+  const lifecycle = useDatabaseLifecycle();
+  const status = useDatabaseStatus();
+
+  return {
+    exportDatabase: lifecycle.exportDatabase,
+    isDatabaseLoaded: status.isDatabaseLoaded,
+    error: status.error,
+  };
+}

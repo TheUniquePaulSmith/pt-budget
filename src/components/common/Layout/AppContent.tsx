@@ -42,7 +42,7 @@ import ManageData from '@/components/data-management/ManageData';
 import DeveloperConsolePage from '@/components/common/Console/DeveloperConsolePage';
 import SQLQueryPage from '@/components/sql-query/SQLQueryPage';
 import DatabaseStatusBar from '@/components/common/StatusBar/DatabaseStatusBar';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useAppShellSlice } from '@/contexts/useDatabaseSlices';
 //import { appLogger } from '../lib/logger';
 
 /**
@@ -50,7 +50,7 @@ import { useDatabaseContext } from '@/contexts/DatabaseContext';
  * This is separated from the page.tsx to prevent SSR issues
  */
 export default function AppContent() {
-  const { isDatabaseLoaded, workerStatus } = useDatabaseContext();
+  const { isDatabaseLoaded, workerStatus } = useAppShellSlice();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showSettings, setShowSettings] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -78,8 +78,7 @@ export default function AppContent() {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
-  // The database initialization is now handled by SimplifiedDatabaseContext
-  // We only render the main app when database is loaded
+  // The provider owns initialization screens, so AppContent only renders once data is ready.
   if (!isDatabaseLoaded) {
     return null; // The context will show initialization UI
   }

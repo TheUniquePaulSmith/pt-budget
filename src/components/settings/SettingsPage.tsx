@@ -26,7 +26,7 @@ import {
   ArrowBack,
 } from '@mui/icons-material';
 import StorageQuota from '@/components/common/Storage/StorageQuota';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useSettingsSlice } from '@/contexts/useDatabaseSlices';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -55,7 +55,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     exportDatabase,
     isDatabaseLoaded,
     error,
-  } = useDatabaseContext();
+  } = useSettingsSlice();
 
   const handleExportData = async () => {
     const dbData = await exportDatabase();

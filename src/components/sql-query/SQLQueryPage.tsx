@@ -39,7 +39,7 @@ import {
   ContentCopy,
   History,
 } from '@mui/icons-material';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useSqlQuerySlice } from '@/contexts/useDatabaseSlices';
 
 interface QueryResult {
   columns: string[];
@@ -58,7 +58,7 @@ interface QueryHistory {
 }
 
 export default function SQLQueryPage() {
-  const { executeCustomQuery, isDatabaseLoaded } = useDatabaseContext();
+  const { executeCustomQuery, isDatabaseLoaded } = useSqlQuerySlice();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -278,6 +278,9 @@ ORDER BY m.name, p.cid;`
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Enter your SQL query here..."
           variant="outlined"
+          inputProps={{
+            'data-testid': 'sql-query-input',
+          }}
           sx={{ 
             mb: 2,
             '& .MuiInputBase-input': {
@@ -451,7 +454,7 @@ ORDER BY m.name, p.cid;`
 
       {/* Results */}
       {result && (
-        <Paper sx={{ mb: 3 }}>
+        <Paper sx={{ mb: 3 }} data-testid="sql-query-results">
           <Box sx={{ p: { xs: 2, sm: 3 }, borderBottom: 1, borderColor: 'divider' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
               <Typography variant="h6">Query Results</Typography>

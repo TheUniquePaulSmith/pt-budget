@@ -31,7 +31,7 @@ import {
   SkipNext,
 } from "@mui/icons-material";
 
-interface TestResults {
+export interface TestResults {
   sharedWorkerSupport: boolean | null;
   wasmSupport: boolean | null;
   sqliteSupport: boolean | null;
@@ -40,7 +40,10 @@ interface TestResults {
 }
 
 interface TestBrowserProps {
-  onTestComplete: (isCompatible: boolean, results: TestResults) => void;
+  onTestComplete: (
+    isCompatible: boolean,
+    results: TestResults
+  ) => void | Promise<void>;
 }
 
 export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {

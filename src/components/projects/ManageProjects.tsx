@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -34,8 +34,8 @@ import {
   ExpandMore as ExpandMoreIcon,
   Home as HomeIcon,
 } from '@mui/icons-material';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
-import { Project } from '@/types/database';
+import { useProjectsSlice } from '@/contexts/useDatabaseSlices';
+import { Project, Transaction } from '@/types/database';
 
 const PROJECT_CATEGORIES = [
   { value: 'plumbing', label: 'Plumbing' },
@@ -85,43 +85,51 @@ const INITIAL_FORM_DATA: ProjectFormData = {
 export default function ManageProjects() {
   const {
     projects,
+    transactions,
     addProject,
     updateProject,
     deleteProject,
-    refreshProjects,
-    getTransactionsByProject,
-    getProjectCosts,
-  } = useDatabaseContext();
+  } = useProjectsSlice();
 
   const [open, setOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [formData, setFormData] = useState<ProjectFormData>(INITIAL_FORM_DATA);
-  const [projectTransactions, setProjectTransactions] = useState<{ [key: string]: any[] }>({});
-  const [projectCosts, setProjectCosts] = useState<{ [key: string]: any }>({});
 
-  useEffect(() => {
-    refreshProjects();
-  }, [refreshProjects]);
+  const { projectTransactions, projectCosts } = useMemo(() => {
+    const transactionsByProject: Record<number, Transaction[]> = {};
+    const costsByProject: Record<
+      number,
+      { estimated: number; actual: number; transactions_total: number }
+    > = {};
 
-  useEffect(() => {
-    // Load transactions and costs for all projects
-    const loadProjectData = async () => {
-      const transactionsData: { [key: string]: any[] } = {};
-      const costsData: { [key: string]: any } = {};
+    projects.forEach((project) => {
+      transactionsByProject[project.id] = [];
+      costsByProject[project.id] = {
+        estimated: project.estimated_cost || 0,
+        actual: project.actual_cost || 0,
+        transactions_total: 0,
+      };
+    });
 
-      for (const project of projects) {
-        transactionsData[project.id] = await getTransactionsByProject(project.id);
-        costsData[project.id] = await getProjectCosts(project.id);
+    transactions.forEach((transaction) => {
+      if (!transaction.project_id || !transactionsByProject[transaction.project_id]) {
+        return;
       }
 
-      setProjectTransactions(transactionsData);
-      setProjectCosts(costsData);
-    };
+      transactionsByProject[transaction.project_id].push(transaction);
 
-    if (projects.length > 0) {
-      loadProjectData();
-    }
-  }, [projects, getTransactionsByProject, getProjectCosts]);
+      if (transaction.type === 'expense') {
+        costsByProject[transaction.project_id].transactions_total += Math.abs(
+          transaction.amount
+        );
+      }
+    });
+
+    return {
+      projectTransactions: transactionsByProject,
+      projectCosts: costsByProject,
+    };
+  }, [projects, transactions]);
 
   const handleOpen = (project?: Project) => {
     if (project) {

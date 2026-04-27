@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Box } from '@mui/material';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useDashboardSlice } from '@/contexts/useDatabaseSlices';
 import { format, subDays, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import AddTransaction from '@/components/transactions/AddTransaction';
 import CSVImport from '@/components/csv-import/CSVImport';
@@ -18,9 +18,7 @@ const Dashboard: React.FC = () => {
     accounts,
     users,
     exportDatabase,
-    refreshTransactions,
-    isDatabaseLoaded,
-  } = useDatabaseContext();
+  } = useDashboardSlice();
   
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year' | 'custom'>('month');  
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);  
@@ -28,16 +26,6 @@ const Dashboard: React.FC = () => {
   const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
-  const loadingRef = useRef(false);
-
-  // Refresh transactions when database is loaded
-  React.useEffect(() => {
-    if (isDatabaseLoaded && !loadingRef.current) {
-      loadingRef.current = true;
-      console.debug('Database loaded, refreshing transactions');
-      refreshTransactions();
-    }
-  }, [isDatabaseLoaded, refreshTransactions]);
 
   // Calculate date ranges
   const dateRanges = useMemo(() => {
@@ -145,7 +133,6 @@ const Dashboard: React.FC = () => {
         open={addTransactionOpen}
         onClose={() => setAddTransactionOpen(false)}
         onSuccess={() => {
-          refreshTransactions();
           setAddTransactionOpen(false);
         }}
       />
@@ -155,7 +142,6 @@ const Dashboard: React.FC = () => {
         open={csvImportOpen}
         onClose={() => setCsvImportOpen(false)}
         onSuccess={() => {
-          refreshTransactions();
           setCsvImportOpen(false);
         }}
       />

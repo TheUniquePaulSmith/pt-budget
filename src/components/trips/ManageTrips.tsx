@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -27,19 +27,16 @@ import {
   Delete as DeleteIcon,
   FlightTakeoff as TripIcon,
 } from '@mui/icons-material';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useTripsSlice } from '@/contexts/useDatabaseSlices';
 import { Trip } from '@/types/database';
 
 export default function ManageTrips() {
   const { 
     trips, 
-    isDatabaseLoaded,
     addTrip, 
     updateTrip,
     deleteTrip, 
-    refreshTrips,
-    getTripCosts
-  } = useDatabaseContext();
+  } = useTripsSlice();
   
   const [tripDialogOpen, setTripDialogOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
@@ -59,24 +56,6 @@ export default function ManageTrips() {
     estimated_cost: '',
     notes: '',
   });
-
-  const loadingRef = useRef(false);
-
-  useEffect(() => {
-    if (isDatabaseLoaded && !loadingRef.current) {
-      loadingRef.current = true;
-      const loadData = async () => {
-        try {
-          await refreshTrips();
-        } catch (error) {
-          console.error('Error loading trips:', error);
-        } finally {
-          loadingRef.current = false;
-        }
-      };
-      loadData();
-    }
-  }, [isDatabaseLoaded, refreshTrips]);
 
   const handleOpenTripDialog = (trip?: Trip) => {
     if (trip) {

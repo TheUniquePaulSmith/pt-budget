@@ -173,10 +173,12 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     isLoading,
     error,
     workerStatus,
+    sampleDataImportProgress,
     setError,
     handleBrowserTestComplete,
     createOrOpenDatabase,
     loadDatabaseFromFile,
+    cancelSampleDataImport,
   } = useDatabaseInitialization({ loadAllData });
 
   const exportDatabase = useCallback(async (): Promise<Uint8Array | null> => {
@@ -275,9 +277,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         initializationState={initializationState}
         isLoading={isLoading}
         error={error}
+        sampleDataImportProgress={sampleDataImportProgress}
         onBrowserTestComplete={handleBrowserTestComplete}
         onCreateOrOpenDatabase={createOrOpenDatabase}
         onLoadDatabaseFromFile={loadDatabaseFromFile}
+        onCancelSampleDataImport={cancelSampleDataImport}
       />
     );
   }

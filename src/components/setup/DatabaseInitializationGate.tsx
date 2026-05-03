@@ -3,21 +3,32 @@
 import { useCallback } from 'react';
 
 import { DatasetOutlined, CreateNewFolder, Upload } from '@mui/icons-material';
-import { Alert, Box, Button, CircularProgress, Paper, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  LinearProgress,
+  Paper,
+  Typography,
+} from '@mui/material';
 
 import { TestBrowser, type TestResults } from './TestBrowser';
 import type { InitializationState } from '../../contexts/useDatabaseInitialization';
+import type { SampleDataImportProgress } from '../../lib/sampleDataService';
 
 interface DatabaseInitializationGateProps {
   initializationState: InitializationState;
   isLoading: boolean;
   error: string | null;
+  sampleDataImportProgress: SampleDataImportProgress | null;
   onBrowserTestComplete: (
     isCompatible: boolean,
     results: TestResults
   ) => Promise<void>;
   onCreateOrOpenDatabase: (isNew: boolean) => Promise<void>;
   onLoadDatabaseFromFile: (file: File) => Promise<void>;
+  onCancelSampleDataImport: () => void;
 }
 
 const centeredBoxSx = {
@@ -32,9 +43,11 @@ export function DatabaseInitializationGate({
   initializationState,
   isLoading,
   error,
+  sampleDataImportProgress,
   onBrowserTestComplete,
   onCreateOrOpenDatabase,
   onLoadDatabaseFromFile,
+  onCancelSampleDataImport,
 }: DatabaseInitializationGateProps) {
   const handleCreateNew = useCallback(async () => {
     try {
@@ -64,6 +77,18 @@ export function DatabaseInitializationGate({
 
     input.click();
   }, [onLoadDatabaseFromFile]);
+
+  const sampleDataProgressValue =
+    sampleDataImportProgress?.expectedRows && sampleDataImportProgress.expectedRows > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (sampleDataImportProgress.importedRows /
+              sampleDataImportProgress.expectedRows) *
+              100
+          )
+        )
+      : null;
 
   if (initializationState === 'initialized') {
     return null;
@@ -136,7 +161,51 @@ export function DatabaseInitializationGate({
 
           {isLoading && (
             <Box sx={{ mt: 3 }}>
-              <CircularProgress size={24} />
+              {sampleDataImportProgress ? (
+                <Box sx={{ textAlign: 'left' }}>
+                  <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                    Importing sample data
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                    {sampleDataImportProgress.message}
+                  </Typography>
+                  <LinearProgress
+                    variant={
+                      sampleDataProgressValue !== null ? 'determinate' : 'indeterminate'
+                    }
+                    value={sampleDataProgressValue ?? 0}
+                    sx={{ mb: 1 }}
+                  />
+                  <Typography variant="caption" display="block" color="text.secondary">
+                    Files completed: {sampleDataImportProgress.completedFiles} /{' '}
+                    {sampleDataImportProgress.totalFiles}
+                  </Typography>
+                  {sampleDataImportProgress.currentFile && (
+                    <Typography variant="caption" display="block" color="text.secondary">
+                      Current file: {sampleDataImportProgress.currentFile}
+                    </Typography>
+                  )}
+                  {sampleDataImportProgress.currentTable && (
+                    <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 2 }}>
+                      {sampleDataImportProgress.currentTable}: {sampleDataImportProgress.importedRows.toLocaleString()}
+                      {sampleDataImportProgress.expectedRows !== null
+                        ? ` / ${sampleDataImportProgress.expectedRows.toLocaleString()}`
+                        : ''}{' '}
+                      rows
+                    </Typography>
+                  )}
+                  <Button
+                    variant="text"
+                    color="inherit"
+                    onClick={onCancelSampleDataImport}
+                    disabled={!sampleDataImportProgress.isCancelable}
+                  >
+                    Cancel Sample Data Import
+                  </Button>
+                </Box>
+              ) : (
+                <CircularProgress size={24} />
+              )}
             </Box>
           )}
         </Paper>

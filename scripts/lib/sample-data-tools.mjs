@@ -1,3 +1,4 @@
+import { createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -26,11 +27,12 @@ const COLOR_PALETTE = [
 ];
 const BASE_TIMESTAMP = '2024-01-01T00:00:00.000Z';
 const BASE_DATE = '2024-01-01';
-const FIVE_YEAR_SAMPLE_START = {
-  year: 2021,
-  month: 4,
-};
-const FIVE_YEAR_SAMPLE_MONTH_COUNT = 60;
+const DEFAULT_TRANSACTION_REFERENCE_DATE = '2026-04-30';
+const DEFAULT_TRANSACTION_MONTHS_BACK = 60;
+const DEFAULT_TRANSACTION_TARGET_COUNT = 585;
+export const MAX_IN_MEMORY_TRANSACTION_COUNT = 250000;
+export const MAX_TRANSACTION_ROWS_PER_FILE = 1000000;
+const TRANSACTION_CHUNK_FILE_PATTERN = /^transactions\.part-\d+\.json$/;
 const FAMILY_ACCOUNT_IDS = {
   HOUSEHOLD_CHECKING: 1,
   RAINY_DAY_SAVINGS: 2,
@@ -160,6 +162,50 @@ export const SAMPLE_DATA_GENERATION_MODES = {
   FULL_SCHEMA: 'full-schema',
   RUNTIME_COMPATIBLE: 'runtime-compatible',
 };
+export const DEFAULT_TRANSACTION_GENERATION = Object.freeze({
+  referenceDate: DEFAULT_TRANSACTION_REFERENCE_DATE,
+  monthsBack: DEFAULT_TRANSACTION_MONTHS_BACK,
+  targetTransactionCount: DEFAULT_TRANSACTION_TARGET_COUNT,
+});
+
+export function estimateDefaultTransactionCount(monthsBack) {
+  return Math.max(
+    1,
+    Math.round(
+      (DEFAULT_TRANSACTION_TARGET_COUNT / DEFAULT_TRANSACTION_MONTHS_BACK) *
+        monthsBack
+    )
+  );
+}
+
+export function resolveTransactionGenerationOptions(options = {}) {
+  const referenceDate = normalizeReferenceDate(
+    options.referenceDate ?? DEFAULT_TRANSACTION_GENERATION.referenceDate
+  );
+  const monthsBack = parsePositiveInteger(
+    options.monthsBack ?? DEFAULT_TRANSACTION_GENERATION.monthsBack,
+    'monthsBack'
+  );
+  const targetTransactionCount = parsePositiveInteger(
+    options.targetTransactionCount ??
+      options.amount ??
+      DEFAULT_TRANSACTION_GENERATION.targetTransactionCount,
+    'targetTransactionCount'
+  );
+  const startDate = subtractUtcMonths(referenceDate, monthsBack);
+  const seed = normalizeSeed(
+    options.seed ??
+      `${formatDate(referenceDate)}:${monthsBack}:${targetTransactionCount}`
+  );
+
+  return {
+    referenceDate,
+    startDate,
+    monthsBack,
+    targetTransactionCount,
+    seed,
+  };
+}
 
 export async function readSchemaSource(repoRoot) {
   const schemaPath = path.join(repoRoot, DEFAULT_SCHEMA_FILE);
@@ -353,9 +399,13 @@ export function buildFixtureEnvelopes(
   const tableNames =
     options.tableNames ?? getGenerationTableNames(runtimeCompatibility, mode);
   const schemaIndex = indexTablesByName(schemaTables);
+  const transactionGeneration = resolveTransactionGenerationOptions(
+    options.transactionGeneration
+  );
   const context = {
     activeTables: new Set(tableNames),
     idsByTable: new Map(),
+    transactionGeneration,
   };
 
   return tableNames.map((tableName) => {
@@ -363,6 +413,29 @@ export function buildFixtureEnvelopes(
 
     if (!schemaTable) {
       throw new Error(`Cannot generate data for unknown schema table: ${tableName}`);
+    }
+
+    if (tableName === 'transactions') {
+      const transactionEnvelope = buildTransactionFixtureEnvelope(
+        mode,
+        context.transactionGeneration
+      );
+      const rows = transactionEnvelope.data.map((baseRow, rowIndex) =>
+        normalizeRowForTable(schemaTable, baseRow, rowIndex, context)
+      );
+
+      context.idsByTable.set(
+        tableName,
+        rows
+          .map((row) => row.id)
+          .filter((value) => typeof value === 'number')
+      );
+
+      return {
+        table: tableName,
+        data: rows,
+        meta: transactionEnvelope.meta,
+      };
     }
 
     const baseRows = getBaseRowsForTable(tableName, context);
@@ -408,6 +481,202 @@ export async function writeFixtureEnvelopes(
   );
 }
 
+export async function writeTransactionFixtureEnvelope(
+  repoRoot,
+  options = {}
+) {
+  const mode =
+    options.mode ?? SAMPLE_DATA_GENERATION_MODES.RUNTIME_COMPATIBLE;
+  const outputDir = options.outputDir ?? DEFAULT_SAMPLE_DATA_DIR;
+  const absoluteOutputDir = path.join(repoRoot, outputDir);
+  const absoluteOutputPath = path.join(absoluteOutputDir, 'transactions.json');
+  const maxRowsPerFile = parsePositiveInteger(
+    options.maxRowsPerFile ?? MAX_TRANSACTION_ROWS_PER_FILE,
+    'maxRowsPerFile'
+  );
+  const generationOptions = resolveTransactionGenerationOptions(
+    options.transactionGeneration
+  );
+  const plan = buildTransactionGenerationPlan(generationOptions);
+  const meta = buildTransactionFixtureMeta(mode, plan);
+
+  await fs.mkdir(absoluteOutputDir, { recursive: true });
+  await removeExistingTransactionChunkFiles(absoluteOutputDir);
+
+  if (plan.actualTransactionCount > maxRowsPerFile) {
+    const dataFiles = await writeTransactionChunkFiles(
+      absoluteOutputDir,
+      plan,
+      maxRowsPerFile
+    );
+    const manifest = {
+      table: 'transactions',
+      format: 'chunked',
+      meta,
+      dataFiles,
+    };
+
+    await fs.writeFile(
+      absoluteOutputPath,
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      'utf8'
+    );
+
+    return {
+      filePath: path.join(outputDir, 'transactions.json'),
+      additionalFilePaths: dataFiles.map((dataFile) =>
+        path.join(outputDir, dataFile.file)
+      ),
+      meta,
+      isChunked: true,
+      maxRowsPerFile,
+    };
+  }
+
+  const stream = createWriteStream(absoluteOutputPath, { encoding: 'utf8' });
+
+  try {
+    await writeToStream(stream, '{' + '\n');
+    await writeToStream(stream, '  "table": "transactions",\n');
+    await writeToStream(
+      stream,
+      `  "meta": ${indentMultilineJson(JSON.stringify(meta, null, 2), 2)},\n`
+    );
+    await writeToStream(stream, '  "data": [\n');
+
+    let isFirstRow = true;
+    for (const row of iterateTransactionRows(plan)) {
+      await writeToStream(
+        stream,
+        `${isFirstRow ? '' : ',\n'}    ${JSON.stringify(row)}`
+      );
+      isFirstRow = false;
+    }
+
+    if (!isFirstRow) {
+      await writeToStream(stream, '\n');
+    }
+
+    await writeToStream(stream, '  ]\n');
+    await writeToStream(stream, '}\n');
+    stream.end();
+
+    await waitForWritableStream(stream);
+
+    return {
+      filePath: path.join(outputDir, 'transactions.json'),
+      additionalFilePaths: [],
+      meta,
+      isChunked: false,
+      maxRowsPerFile,
+    };
+  } catch (error) {
+    stream.destroy();
+    throw error;
+  }
+}
+
+export function estimateTransactionFixtureOutput(options = {}) {
+  const mode =
+    options.mode ?? SAMPLE_DATA_GENERATION_MODES.RUNTIME_COMPATIBLE;
+  const maxRowsPerFile = parsePositiveInteger(
+    options.maxRowsPerFile ?? MAX_TRANSACTION_ROWS_PER_FILE,
+    'maxRowsPerFile'
+  );
+  const sampleRowCount = parsePositiveInteger(
+    options.sampleRowCount ?? 128,
+    'sampleRowCount'
+  );
+  const generationOptions = resolveTransactionGenerationOptions(
+    options.transactionGeneration
+  );
+  const plan = buildTransactionGenerationPlan(generationOptions);
+  const meta = buildTransactionFixtureMeta(mode, plan);
+  const usesStreaming =
+    plan.actualTransactionCount > MAX_IN_MEMORY_TRANSACTION_COUNT;
+  const isChunked = plan.actualTransactionCount > maxRowsPerFile;
+  const outputMode = isChunked
+    ? 'chunked'
+    : usesStreaming
+      ? 'streamed-single-file'
+      : 'single-file';
+  const averageRowBytes = estimateAverageTransactionRowBytes(
+    plan,
+    sampleRowCount
+  );
+
+  if (!isChunked) {
+    return {
+      meta,
+      outputMode,
+      usesStreaming,
+      isChunked,
+      maxRowsPerFile,
+      chunkCount: 0,
+      totalFileCount: 1,
+      averageRowBytes,
+      estimatedManifestBytes: 0,
+      estimatedDataBytes: estimateTransactionEnvelopeBytes({
+        rowCount: plan.actualTransactionCount,
+        averageRowBytes,
+        meta,
+        includeMeta: true,
+      }),
+      estimatedTotalBytes: estimateTransactionEnvelopeBytes({
+        rowCount: plan.actualTransactionCount,
+        averageRowBytes,
+        meta,
+        includeMeta: true,
+      }),
+      estimatedImportBatchCount: Math.ceil(plan.actualTransactionCount / 1000),
+    };
+  }
+
+  const chunkRowCounts = buildChunkRowCounts(
+    plan.actualTransactionCount,
+    maxRowsPerFile
+  );
+  const dataFiles = chunkRowCounts.map((rowCount, index) => ({
+    file: createTransactionChunkFileName(index + 1),
+    rowCount,
+  }));
+  const manifest = {
+    table: 'transactions',
+    format: 'chunked',
+    meta,
+    dataFiles,
+  };
+  const estimatedManifestBytes = Buffer.byteLength(
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    'utf8'
+  );
+  const estimatedDataBytes = chunkRowCounts.reduce(
+    (sum, rowCount) =>
+      sum +
+      estimateTransactionEnvelopeBytes({
+        rowCount,
+        averageRowBytes,
+        includeMeta: false,
+      }),
+    0
+  );
+
+  return {
+    meta,
+    outputMode,
+    usesStreaming,
+    isChunked,
+    maxRowsPerFile,
+    chunkCount: chunkRowCounts.length,
+    totalFileCount: chunkRowCounts.length + 1,
+    averageRowBytes,
+    estimatedManifestBytes,
+    estimatedDataBytes,
+    estimatedTotalBytes: estimatedManifestBytes + estimatedDataBytes,
+    estimatedImportBatchCount: Math.ceil(plan.actualTransactionCount / 1000),
+  };
+}
+
 export async function readFixtureEnvelopes(
   repoRoot,
   tableNames = MANAGED_SAMPLE_TABLES,
@@ -421,11 +690,17 @@ export async function readFixtureEnvelopes(
 
     try {
       const content = await fs.readFile(filePath, 'utf8');
+      const envelope = JSON.parse(content);
+
+      if (isChunkedTransactionFixtureEnvelope(envelope)) {
+        await assertTransactionChunkFilesExist(absoluteOutputDir, envelope);
+      }
+
       results.push({
         tableName,
         filePath,
         status: 'present',
-        envelope: JSON.parse(content),
+        envelope,
       });
     } catch (error) {
       if (error && typeof error === 'object' && error.code === 'ENOENT') {
@@ -532,6 +807,12 @@ export function validateFixtureEnvelopes(
       });
     }
 
+    if (isChunkedTransactionFixtureEnvelope(envelope)) {
+      validateChunkedTransactionManifest(tableName, envelope, issues, warnings);
+      allFixtureIds.set(tableName, new Set());
+      continue;
+    }
+
     if (!Array.isArray(envelope.data)) {
       issues.push({
         code: 'invalid-data-array',
@@ -563,6 +844,10 @@ export function validateFixtureEnvelopes(
     const schemaTable = schemaIndex.get(tableName);
 
     if (!schemaTable) {
+      continue;
+    }
+
+    if (!Array.isArray(fixtureFile.envelope.data)) {
       continue;
     }
 
@@ -872,16 +1157,103 @@ function getBaseRowsForTable(tableName, context) {
           notes: 'Historic district hotel plus aquarium and food tour',
         },
       ];
-    case 'transactions':
-      return buildTransactionRows();
     default:
       return Array.from({ length: 2 }, (_, index) => ({ id: index + 1 }));
   }
 }
 
-function buildTransactionRows() {
-  const rows = [];
-  let nextId = 1;
+function buildTransactionFixtureEnvelope(mode, transactionGenerationOptions) {
+  const plan = buildTransactionGenerationPlan(transactionGenerationOptions);
+
+  if (plan.actualTransactionCount > MAX_IN_MEMORY_TRANSACTION_COUNT) {
+    throw new Error(
+      `Requested ${plan.actualTransactionCount.toLocaleString()} transactions exceeds the in-memory fixture limit of ${MAX_IN_MEMORY_TRANSACTION_COUNT.toLocaleString()}. Use writeTransactionFixtureEnvelope() for large transaction sets.`
+    );
+  }
+
+  return {
+    table: 'transactions',
+    data: Array.from(iterateTransactionRows(plan)),
+    meta: buildTransactionFixtureMeta(mode, plan),
+  };
+}
+
+function buildTransactionGenerationPlan(transactionGenerationOptions) {
+  const config = resolveTransactionGenerationOptions(transactionGenerationOptions);
+  const monthlyBuckets = buildMonthlyTransactionBuckets(config);
+  const baselineTransactionCount = monthlyBuckets.reduce(
+    (sum, bucket) => sum + bucket.entries.length,
+    0
+  );
+  const totalCapacity = monthlyBuckets.reduce(
+    (sum, bucket) => sum + bucket.maxTransactionCount,
+    0
+  );
+  const actualTransactionCount = Math.max(
+    0,
+    Math.min(config.targetTransactionCount, totalCapacity)
+  );
+  const monthlyTargetCounts =
+    actualTransactionCount === baselineTransactionCount
+      ? monthlyBuckets.map((bucket) => bucket.entries.length)
+      : allocateBoundedCounts(
+          actualTransactionCount,
+          monthlyBuckets.map((bucket) => ({
+            weight: Math.max(bucket.entries.length, 1),
+            max: bucket.maxTransactionCount,
+            min:
+              actualTransactionCount >= monthlyBuckets.length &&
+              bucket.maxTransactionCount > 0
+                ? 1
+                : 0,
+          }))
+        );
+
+  return {
+    config,
+    baselineTransactionCount,
+    totalCapacity,
+    requestedTransactionCount: config.targetTransactionCount,
+    actualTransactionCount,
+    monthlyPlans: monthlyBuckets
+      .map((bucket, index) =>
+        buildTransactionMonthPlan(bucket, monthlyTargetCounts[index])
+      )
+      .filter(Boolean),
+  };
+}
+
+function buildMonthlyTransactionBuckets(config) {
+  const entries = buildBaselineTransactionEntries(config);
+  const buckets = [];
+  let currentBucket = null;
+
+  for (const entry of entries) {
+    if (!currentBucket || currentBucket.monthKey !== entry.monthKey) {
+      currentBucket = {
+        monthKey: entry.monthKey,
+        monthDate: entry.monthDate,
+        entries: [],
+        maxTransactionCount: 0,
+      };
+      buckets.push(currentBucket);
+    }
+
+    currentBucket.entries.push(entry);
+    currentBucket.maxTransactionCount += Math.abs(entry.amountCents);
+  }
+
+  return buckets;
+}
+
+function buildBaselineTransactionEntries(config) {
+  const entries = [];
+  const startMonth = firstDayOfMonth(config.startDate);
+  const endMonth = firstDayOfMonth(config.referenceDate);
+  const monthCount = diffCalendarMonths(startMonth, endMonth) + 1;
+  const startYear = startMonth.getUTCFullYear();
+  const rangeStart = formatDate(config.startDate);
+  const rangeEnd = formatDate(config.referenceDate);
 
   const pushTransaction = ({
     monthDate,
@@ -896,40 +1268,41 @@ function buildTransactionRows() {
     minute,
   }) => {
     const date = buildMonthDateString(monthDate, day);
-    const createdAt = buildTimestamp(date, hour, minute);
-    const normalizedAmount = roundCurrency(amount);
 
-    rows.push({
-      id: nextId,
+    if (date < rangeStart || date > rangeEnd) {
+      return;
+    }
+
+    entries.push({
+      monthKey: formatMonthKey(monthDate),
+      monthDate,
       date,
-      amount: normalizedAmount,
+      day: Number(date.slice(-2)),
+      amountCents: toCents(amount),
       description,
-      account_id: accountId,
-      category_id: categoryId,
-      company_id: companyId,
-      project_id: null,
-      trip_id: null,
+      accountId,
+      categoryId,
+      companyId,
       type,
-      transaction_hash: buildTransactionHash(accountId, date, normalizedAmount, description),
-      hash_variation_seed: 0,
-      created_at: createdAt,
-      updated_at: createdAt,
+      hour,
+      minute,
     });
-
-    nextId += 1;
   };
 
-  for (let monthOffset = 0; monthOffset < FIVE_YEAR_SAMPLE_MONTH_COUNT; monthOffset += 1) {
+  for (let monthOffset = 0; monthOffset < monthCount; monthOffset += 1) {
     const monthDate = new Date(
       Date.UTC(
-        FIVE_YEAR_SAMPLE_START.year,
-        FIVE_YEAR_SAMPLE_START.month + monthOffset,
+        startMonth.getUTCFullYear(),
+        startMonth.getUTCMonth() + monthOffset,
         1
       )
     );
-    const yearOffset = monthDate.getUTCFullYear() - FIVE_YEAR_SAMPLE_START.year;
+    const yearOffset = monthDate.getUTCFullYear() - startYear;
     const monthNumber = monthDate.getUTCMonth();
-    const travelDestination = FAMILY_TRAVEL_DESTINATIONS[yearOffset % FAMILY_TRAVEL_DESTINATIONS.length];
+    const travelDestination =
+      FAMILY_TRAVEL_DESTINATIONS[
+        yearOffset % FAMILY_TRAVEL_DESTINATIONS.length
+      ];
     const flexExpense = FLEX_EXPENSE_BUILDERS[monthOffset % FLEX_EXPENSE_BUILDERS.length];
 
     pushTransaction({
@@ -971,7 +1344,11 @@ function buildTransactionRows() {
     pushTransaction({
       monthDate,
       day: 6,
-      amount: -(628 + yearOffset * 22 + seasonalGroceriesAdjustment(monthNumber) + (monthOffset % 2) * 34),
+      amount:
+        -(628 +
+          yearOffset * 22 +
+          seasonalGroceriesAdjustment(monthNumber) +
+          (monthOffset % 2) * 34),
       description:
         monthOffset % 2 === 0
           ? 'Weekly groceries and household staples'
@@ -1009,7 +1386,11 @@ function buildTransactionRows() {
     pushTransaction({
       monthDate,
       day: 11,
-      amount: -(186 + yearOffset * 8 + transportationAdjustment(monthNumber) + (monthOffset % 3) * 7),
+      amount:
+        -(186 +
+          yearOffset * 8 +
+          transportationAdjustment(monthNumber) +
+          (monthOffset % 3) * 7),
       description:
         monthNumber >= 8 && monthNumber <= 10
           ? 'Fuel, parking, and school commute costs'
@@ -1083,7 +1464,11 @@ function buildTransactionRows() {
       pushTransaction({
         monthDate,
         day: 27,
-        amount: 435 + yearOffset * 28 + (monthOffset % 4) * 42 + (monthNumber === 11 ? 95 : 0),
+        amount:
+          435 +
+          yearOffset * 28 +
+          (monthOffset % 4) * 42 +
+          (monthNumber === 11 ? 95 : 0),
         description: buildSideIncomeDescription(monthNumber),
         accountId: FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS,
         categoryId: FAMILY_CATEGORY_IDS.SIDE_INCOME,
@@ -1188,7 +1573,376 @@ function buildTransactionRows() {
     }
   }
 
-  return rows;
+  return entries;
+}
+
+function buildTransactionMonthPlan(bucket, targetCount) {
+  if (!bucket || targetCount <= 0) {
+    return null;
+  }
+
+  if (targetCount >= bucket.entries.length) {
+    const splitPieceCounts = allocateBoundedCounts(
+      targetCount,
+      bucket.entries.map((candidate) => ({
+        weight: Math.max(Math.abs(candidate.amountCents), 1),
+        min: 1,
+        max: Math.max(Math.abs(candidate.amountCents), 1),
+      }))
+    );
+
+    return {
+      monthKey: bucket.monthKey,
+      monthDate: bucket.monthDate,
+      mode: 'split',
+      items: bucket.entries.map((entry, index) => ({
+        entry,
+        pieceCount: splitPieceCounts[index],
+      })),
+    };
+  }
+
+  const incomeEntries = bucket.entries.filter((entry) => entry.type === 'income');
+  const expenseEntries = bucket.entries.filter((entry) => entry.type === 'expense');
+  const signCounts = allocateSignCounts(
+    targetCount,
+    incomeEntries,
+    expenseEntries
+  );
+
+  return {
+    monthKey: bucket.monthKey,
+    monthDate: bucket.monthDate,
+    mode: 'merge',
+    groups: [
+      ...partitionEntriesIntoGroups(incomeEntries, signCounts.income),
+      ...partitionEntriesIntoGroups(expenseEntries, signCounts.expense),
+    ].sort((left, right) => left[0].date.localeCompare(right[0].date)),
+  };
+}
+
+function allocateSignCounts(targetCount, incomeEntries, expenseEntries) {
+  if (targetCount <= 0) {
+    return { income: 0, expense: 0 };
+  }
+
+  if (incomeEntries.length === 0) {
+    return { income: 0, expense: Math.min(targetCount, expenseEntries.length) };
+  }
+
+  if (expenseEntries.length === 0) {
+    return { income: Math.min(targetCount, incomeEntries.length), expense: 0 };
+  }
+
+  if (targetCount === 1) {
+    const incomeTotal = incomeEntries.reduce(
+      (sum, entry) => sum + Math.abs(entry.amountCents),
+      0
+    );
+    const expenseTotal = expenseEntries.reduce(
+      (sum, entry) => sum + Math.abs(entry.amountCents),
+      0
+    );
+
+    return incomeTotal >= expenseTotal
+      ? { income: 1, expense: 0 }
+      : { income: 0, expense: 1 };
+  }
+
+  const [incomeCount, expenseCount] = allocateBoundedCounts(targetCount, [
+    {
+      weight: incomeEntries.reduce(
+        (sum, entry) => sum + Math.abs(entry.amountCents),
+        0
+      ),
+      min: 1,
+      max: incomeEntries.length,
+    },
+    {
+      weight: expenseEntries.reduce(
+        (sum, entry) => sum + Math.abs(entry.amountCents),
+        0
+      ),
+      min: 1,
+      max: expenseEntries.length,
+    },
+  ]);
+
+  return {
+    income: incomeCount,
+    expense: expenseCount,
+  };
+}
+
+function partitionEntriesIntoGroups(entries, groupCount) {
+  if (groupCount <= 0 || entries.length === 0) {
+    return [];
+  }
+
+  if (groupCount >= entries.length) {
+    return entries.map((entry) => [entry]);
+  }
+
+  const groups = [];
+
+  for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
+    const startIndex = Math.floor((groupIndex * entries.length) / groupCount);
+    const endIndex = Math.floor(
+      ((groupIndex + 1) * entries.length) / groupCount
+    );
+    groups.push(entries.slice(startIndex, endIndex));
+  }
+
+  return groups.filter((group) => group.length > 0);
+}
+
+function* iterateTransactionRows(plan) {
+  let nextId = 1;
+
+  for (const monthPlan of plan.monthlyPlans) {
+    if (monthPlan.mode === 'merge') {
+      for (let groupIndex = 0; groupIndex < monthPlan.groups.length; groupIndex += 1) {
+        const group = monthPlan.groups[groupIndex];
+
+        yield buildMergedTransactionRow(group, nextId, groupIndex + 1);
+        nextId += 1;
+      }
+
+      continue;
+    }
+
+    for (const item of monthPlan.items) {
+      for (let pieceIndex = 0; pieceIndex < item.pieceCount; pieceIndex += 1) {
+        yield buildSplitTransactionRow(
+          item.entry,
+          getSplitAmountAtIndex(
+            item.entry.amountCents,
+            item.pieceCount,
+            pieceIndex
+          ),
+          nextId,
+          pieceIndex,
+          item.pieceCount,
+          plan.config
+        );
+        nextId += 1;
+      }
+    }
+  }
+}
+
+function buildMergedTransactionRow(group, id, variationSeed) {
+  const dominantEntry = group.reduce((currentBest, candidate) =>
+    !currentBest || Math.abs(candidate.amountCents) > Math.abs(currentBest.amountCents)
+      ? candidate
+      : currentBest
+  , null);
+  const amountCents = group.reduce((sum, entry) => sum + entry.amountCents, 0);
+  const date = dominantEntry.date;
+  const amount = fromCents(amountCents);
+  const description =
+    group.length === 1
+      ? dominantEntry.description
+      : dominantEntry.type === 'income'
+        ? 'Combined household income activity'
+        : 'Combined household expense activity';
+  const createdAt = buildTimestamp(date, dominantEntry.hour, dominantEntry.minute);
+
+  return {
+    id,
+    date,
+    amount,
+    description,
+    account_id: dominantEntry.accountId,
+    category_id: dominantEntry.categoryId,
+    company_id: dominantEntry.companyId,
+    project_id: null,
+    trip_id: null,
+    type: dominantEntry.type,
+    transaction_hash: buildTransactionHash(
+      dominantEntry.accountId,
+      date,
+      amount,
+      description,
+      variationSeed
+    ),
+    hash_variation_seed: variationSeed,
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+}
+
+function buildSplitTransactionRow(
+  entry,
+  amountCents,
+  id,
+  pieceIndex,
+  pieceCount,
+  config
+) {
+  const date = buildSplitTransactionDate(entry, pieceIndex, pieceCount, config);
+  const minute = (entry.minute + pieceIndex) % 60;
+  const amount = fromCents(amountCents);
+  const createdAt = buildTimestamp(date, entry.hour, minute);
+  const variationSeed = pieceCount === 1 ? 0 : pieceIndex + 1;
+
+  return {
+    id,
+    date,
+    amount,
+    description: entry.description,
+    account_id: entry.accountId,
+    category_id: entry.categoryId,
+    company_id: entry.companyId,
+    project_id: null,
+    trip_id: null,
+    type: entry.type,
+    transaction_hash: buildTransactionHash(
+      entry.accountId,
+      date,
+      amount,
+      entry.description,
+      variationSeed
+    ),
+    hash_variation_seed: variationSeed,
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+}
+
+function getSplitAmountAtIndex(amountCents, pieceCount, pieceIndex) {
+  const absoluteCents = Math.abs(amountCents);
+  const clampedPieceCount = Math.max(1, Math.min(pieceCount, absoluteCents));
+  const baseAmount = Math.floor(absoluteCents / clampedPieceCount);
+  const remainder = absoluteCents % clampedPieceCount;
+  const sign = amountCents < 0 ? -1 : 1;
+
+  if (pieceIndex < 0 || pieceIndex >= clampedPieceCount) {
+    throw new RangeError(
+      `Split amount piece index ${pieceIndex} is outside the generated range of ${clampedPieceCount}.`
+    );
+  }
+
+  return sign * (baseAmount + (pieceIndex < remainder ? 1 : 0));
+}
+
+function buildSplitTransactionDate(entry, pieceIndex, pieceCount, config) {
+  if (pieceCount <= 1) {
+    return entry.date;
+  }
+
+  const monthStartDay =
+    isSameMonth(entry.monthDate, config.startDate) ? config.startDate.getUTCDate() : 1;
+  const monthEndDay =
+    isSameMonth(entry.monthDate, config.referenceDate)
+      ? config.referenceDate.getUTCDate()
+      : getDaysInMonth(entry.monthDate);
+  const preferredStart = Math.max(monthStartDay, entry.day - 2);
+  const preferredEnd = Math.min(monthEndDay, entry.day + 2);
+  const cycleLength = Math.max(preferredEnd - preferredStart + 1, 1);
+  const day = preferredStart + (pieceIndex % cycleLength);
+
+  return buildMonthDateString(entry.monthDate, day);
+}
+
+function buildTransactionFixtureMeta(mode, plan) {
+  return {
+    generationMode: mode,
+    referenceDate: formatDate(plan.config.referenceDate),
+    startDate: formatDate(plan.config.startDate),
+    endDate: formatDate(plan.config.referenceDate),
+    monthsBack: plan.config.monthsBack,
+    requestedTransactionCount: plan.requestedTransactionCount,
+    actualTransactionCount: plan.actualTransactionCount,
+    baselineTransactionCount: plan.baselineTransactionCount,
+    totalTransactionCapacity: plan.totalCapacity,
+    seed: plan.config.seed,
+  };
+}
+
+function allocateBoundedCounts(total, buckets) {
+  const counts = new Array(buckets.length).fill(0);
+
+  if (total <= 0 || buckets.length === 0) {
+    return counts;
+  }
+
+  let remaining = total;
+  const useMins = total >= buckets.reduce(
+    (sum, bucket) => sum + (bucket.max > 0 ? bucket.min ?? 0 : 0),
+    0
+  );
+
+  if (useMins) {
+    for (let index = 0; index < buckets.length; index += 1) {
+      const minCount = Math.min(buckets[index].min ?? 0, buckets[index].max);
+      counts[index] = minCount;
+      remaining -= minCount;
+    }
+  }
+
+  while (remaining > 0) {
+    const candidates = buckets
+      .map((bucket, index) => ({
+        index,
+        weight: Math.max(bucket.weight ?? 1, 1),
+        capacity: bucket.max - counts[index],
+      }))
+      .filter((candidate) => candidate.capacity > 0);
+
+    if (candidates.length === 0) {
+      break;
+    }
+
+    const weightSum = candidates.reduce(
+      (sum, candidate) => sum + candidate.weight,
+      0
+    );
+    let assignedThisRound = 0;
+    const fractions = [];
+
+    for (const candidate of candidates) {
+      const rawShare = (remaining * candidate.weight) / weightSum;
+      const wholeShare = Math.min(candidate.capacity, Math.floor(rawShare));
+
+      if (wholeShare > 0) {
+        counts[candidate.index] += wholeShare;
+        assignedThisRound += wholeShare;
+      }
+
+      fractions.push({
+        index: candidate.index,
+        fraction: rawShare - Math.floor(rawShare),
+      });
+    }
+
+    remaining -= assignedThisRound;
+
+    if (remaining <= 0) {
+      break;
+    }
+
+    const fallbackOrder = fractions
+      .sort((left, right) => right.fraction - left.fraction)
+      .map((candidate) => candidate.index);
+
+    if (assignedThisRound === 0) {
+      for (const index of fallbackOrder) {
+        if (remaining <= 0) {
+          break;
+        }
+
+        if (counts[index] >= buckets[index].max) {
+          continue;
+        }
+
+        counts[index] += 1;
+        remaining -= 1;
+      }
+    }
+  }
+
+  return counts;
 }
 
 function buildMonthDateString(monthDate, day) {
@@ -1203,8 +1957,372 @@ function buildTimestamp(dateString, hour, minute) {
   return `${dateString}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`;
 }
 
-function buildTransactionHash(accountId, date, amount, description) {
-  return `${accountId}-${date}-${amount}-${description}`;
+function buildTransactionHash(accountId, date, amount, description, variationSeed = 0) {
+  return variationSeed > 0
+    ? `${accountId}-${date}-${amount}-${description}-${variationSeed}`
+    : `${accountId}-${date}-${amount}-${description}`;
+}
+
+function normalizeReferenceDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Invalid referenceDate: ${String(value)}`);
+  }
+
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  );
+}
+
+function parsePositiveInteger(value, label) {
+  const parsedValue = Number.parseInt(String(value), 10);
+
+  if (!Number.isFinite(parsedValue) || parsedValue < 1) {
+    throw new Error(`${label} must be a positive integer.`);
+  }
+
+  return parsedValue;
+}
+
+function normalizeSeed(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.abs(Math.trunc(value)) || 1;
+  }
+
+  const text = String(value);
+  let hash = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+  }
+
+  return hash || 1;
+}
+
+function subtractUtcMonths(date, months) {
+  const targetYear = date.getUTCFullYear();
+  const targetMonth = date.getUTCMonth() - months;
+  const targetDay = date.getUTCDate();
+  const targetMonthStart = new Date(Date.UTC(targetYear, targetMonth, 1));
+  const daysInTargetMonth = getDaysInMonth(targetMonthStart);
+
+  return new Date(
+    Date.UTC(
+      targetMonthStart.getUTCFullYear(),
+      targetMonthStart.getUTCMonth(),
+      Math.min(targetDay, daysInTargetMonth)
+    )
+  );
+}
+
+function firstDayOfMonth(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function diffCalendarMonths(startDate, endDate) {
+  return (
+    (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12 +
+    (endDate.getUTCMonth() - startDate.getUTCMonth())
+  );
+}
+
+function formatDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatMonthKey(date) {
+  return date.toISOString().slice(0, 7);
+}
+
+function getDaysInMonth(monthDate) {
+  return new Date(
+    Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0)
+  ).getUTCDate();
+}
+
+function isSameMonth(leftDate, rightDate) {
+  return (
+    leftDate.getUTCFullYear() === rightDate.getUTCFullYear() &&
+    leftDate.getUTCMonth() === rightDate.getUTCMonth()
+  );
+}
+
+function toCents(value) {
+  return Math.round(roundCurrency(value) * 100);
+}
+
+function fromCents(value) {
+  return roundCurrency(value / 100);
+}
+
+function indentMultilineJson(json, spaces) {
+  const indent = ' '.repeat(spaces);
+  return json.replace(/\n/g, `\n${indent}`);
+}
+
+function estimateAverageTransactionRowBytes(plan, sampleRowCount) {
+  if (plan.actualTransactionCount <= 0) {
+    return 2;
+  }
+
+  let totalBytes = 0;
+  let count = 0;
+
+  for (const row of iterateTransactionRows(plan)) {
+    totalBytes += Buffer.byteLength(JSON.stringify(row), 'utf8');
+    count += 1;
+
+    if (count >= sampleRowCount) {
+      break;
+    }
+  }
+
+  return count > 0 ? totalBytes / count : 2;
+}
+
+function estimateTransactionEnvelopeBytes({
+  rowCount,
+  averageRowBytes,
+  meta,
+  includeMeta,
+}) {
+  let totalBytes = Buffer.byteLength('{\n', 'utf8');
+  totalBytes += Buffer.byteLength('  "table": "transactions",\n', 'utf8');
+
+  if (includeMeta) {
+    totalBytes += Buffer.byteLength(
+      `  "meta": ${indentMultilineJson(JSON.stringify(meta, null, 2), 2)},\n`,
+      'utf8'
+    );
+  }
+
+  totalBytes += Buffer.byteLength('  "data": [\n', 'utf8');
+
+  if (rowCount > 0) {
+    totalBytes += 4 + Math.round(averageRowBytes);
+    totalBytes += (rowCount - 1) * (6 + Math.round(averageRowBytes));
+    totalBytes += Buffer.byteLength('\n', 'utf8');
+  }
+
+  totalBytes += Buffer.byteLength('  ]\n', 'utf8');
+  totalBytes += Buffer.byteLength('}\n', 'utf8');
+
+  return totalBytes;
+}
+
+function buildChunkRowCounts(totalRowCount, maxRowsPerFile) {
+  if (totalRowCount <= 0) {
+    return [];
+  }
+
+  const chunkRowCounts = [];
+  let remainingRows = totalRowCount;
+
+  while (remainingRows > 0) {
+    const rowCount = Math.min(remainingRows, maxRowsPerFile);
+    chunkRowCounts.push(rowCount);
+    remainingRows -= rowCount;
+  }
+
+  return chunkRowCounts;
+}
+
+function isChunkedTransactionFixtureEnvelope(envelope) {
+  return (
+    envelope?.table === 'transactions' &&
+    Array.isArray(envelope?.dataFiles) &&
+    envelope.dataFiles.length > 0
+  );
+}
+
+async function assertTransactionChunkFilesExist(absoluteOutputDir, envelope) {
+  for (const dataFile of envelope.dataFiles) {
+    if (!dataFile || typeof dataFile.file !== 'string' || dataFile.file.length === 0) {
+      throw new Error('Chunked transaction manifest contains an invalid file entry.');
+    }
+
+    await fs.access(path.join(absoluteOutputDir, dataFile.file));
+  }
+}
+
+function validateChunkedTransactionManifest(tableName, envelope, issues, warnings) {
+  const invalidChunk = envelope.dataFiles.find(
+    (dataFile) =>
+      !dataFile ||
+      typeof dataFile.file !== 'string' ||
+      dataFile.file.length === 0 ||
+      (dataFile.rowCount !== undefined &&
+        (!Number.isInteger(dataFile.rowCount) || dataFile.rowCount < 0))
+  );
+
+  if (invalidChunk) {
+    issues.push({
+      code: 'invalid-chunk-manifest',
+      tableName,
+      message: 'Chunked transaction manifest contains an invalid chunk entry.',
+    });
+    return;
+  }
+
+  const totalChunkRows = envelope.dataFiles.reduce(
+    (sum, dataFile) => sum + (dataFile.rowCount ?? 0),
+    0
+  );
+
+  if (
+    envelope.meta?.actualTransactionCount !== undefined &&
+    totalChunkRows > 0 &&
+    totalChunkRows !== envelope.meta.actualTransactionCount
+  ) {
+    issues.push({
+      code: 'chunk-count-mismatch',
+      tableName,
+      message: `Chunk manifest row counts sum to ${totalChunkRows.toLocaleString()} but meta.actualTransactionCount is ${envelope.meta.actualTransactionCount.toLocaleString()}.`,
+    });
+  }
+
+  warnings.push({
+    code: 'chunked-transaction-validation-skipped',
+    tableName,
+    message:
+      'Transaction fixture is chunked; row-level schema and foreign-key validation is skipped to avoid loading the entire dataset into memory.',
+  });
+}
+
+async function removeExistingTransactionChunkFiles(absoluteOutputDir) {
+  let entries = [];
+
+  try {
+    entries = await fs.readdir(absoluteOutputDir, { withFileTypes: true });
+  } catch (error) {
+    if (!error || typeof error !== 'object' || error.code !== 'ENOENT') {
+      throw error;
+    }
+
+    return;
+  }
+
+  await Promise.all(
+    entries
+      .filter(
+        (entry) => entry.isFile() && TRANSACTION_CHUNK_FILE_PATTERN.test(entry.name)
+      )
+      .map((entry) => fs.rm(path.join(absoluteOutputDir, entry.name), { force: true }))
+  );
+}
+
+async function writeTransactionChunkFiles(
+  absoluteOutputDir,
+  plan,
+  maxRowsPerFile
+) {
+  const dataFiles = [];
+  let writer = null;
+
+  for (const row of iterateTransactionRows(plan)) {
+    if (!writer || writer.rowCount >= maxRowsPerFile) {
+      if (writer) {
+        dataFiles.push(await closeTransactionChunkWriter(writer));
+      }
+
+      writer = await openTransactionChunkWriter(
+        absoluteOutputDir,
+        dataFiles.length + 1
+      );
+    }
+
+    await writeTransactionChunkRow(writer, row);
+  }
+
+  if (writer) {
+    dataFiles.push(await closeTransactionChunkWriter(writer));
+  }
+
+  return dataFiles;
+}
+
+async function openTransactionChunkWriter(absoluteOutputDir, chunkIndex) {
+  const fileName = createTransactionChunkFileName(chunkIndex);
+  const stream = createWriteStream(path.join(absoluteOutputDir, fileName), {
+    encoding: 'utf8',
+  });
+
+  await writeToStream(stream, '{\n');
+  await writeToStream(stream, '  "table": "transactions",\n');
+  await writeToStream(stream, '  "data": [\n');
+
+  return {
+    fileName,
+    stream,
+    rowCount: 0,
+    isFirstRow: true,
+  };
+}
+
+async function writeTransactionChunkRow(writer, row) {
+  await writeToStream(
+    writer.stream,
+    `${writer.isFirstRow ? '' : ',\n'}    ${JSON.stringify(row)}`
+  );
+  writer.isFirstRow = false;
+  writer.rowCount += 1;
+}
+
+async function closeTransactionChunkWriter(writer) {
+  if (!writer.isFirstRow) {
+    await writeToStream(writer.stream, '\n');
+  }
+
+  await writeToStream(writer.stream, '  ]\n');
+  await writeToStream(writer.stream, '}\n');
+  writer.stream.end();
+
+  await waitForWritableStream(writer.stream);
+
+  return {
+    file: writer.fileName,
+    rowCount: writer.rowCount,
+  };
+}
+
+function createTransactionChunkFileName(chunkIndex) {
+  return `transactions.part-${String(chunkIndex).padStart(6, '0')}.json`;
+}
+
+function waitForWritableStream(stream) {
+  return new Promise((resolve, reject) => {
+    stream.on('finish', resolve);
+    stream.on('error', reject);
+  });
+}
+
+function waitForStreamDrain(stream) {
+  return new Promise((resolve, reject) => {
+    const handleDrain = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const cleanup = () => {
+      stream.off('drain', handleDrain);
+      stream.off('error', handleError);
+    };
+
+    stream.once('drain', handleDrain);
+    stream.once('error', handleError);
+  });
+}
+
+async function writeToStream(stream, chunk) {
+  if (stream.write(chunk)) {
+    return;
+  }
+
+  await waitForStreamDrain(stream);
 }
 
 function seasonalGroceriesAdjustment(monthNumber) {

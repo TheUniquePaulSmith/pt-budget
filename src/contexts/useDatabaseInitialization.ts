@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TestResults } from '../components/setup/TestBrowser';
 import { DatabaseService } from '../lib/databaseService';
 import type { WorkerStatus } from '../lib/databaseWorkerService';
-import { SampleDataService } from '../lib/sampleDataService';
+import { SampleDataService } from '@/lib/sampleDataService';
+import type { SampleDataImportProgress } from '@/lib/sampleDataService';
 
 export type InitializationState =
   | 'checking'
@@ -24,6 +25,7 @@ interface UseDatabaseInitializationResult {
   isLoading: boolean;
   error: string | null;
   workerStatus: WorkerStatus | null;
+  sampleDataImportProgress: SampleDataImportProgress | null;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   handleBrowserTestComplete: (
     isCompatible: boolean,
@@ -31,17 +33,24 @@ interface UseDatabaseInitializationResult {
   ) => Promise<void>;
   createOrOpenDatabase: (isNew: boolean) => Promise<void>;
   loadDatabaseFromFile: (file: File) => Promise<void>;
+  cancelSampleDataImport: () => void;
 }
 
 declare global {
   interface Window {
     __budgetTrackerTestApi?: {
       disconnectWorker: () => void;
+      cancelSampleDataImport?: () => void;
     };
   }
 }
 
 const BROWSER_TEST_STORAGE_KEY = 'budgetApp_browserTestPassed';
+const SAMPLE_DATA_IMPORT_FILE_COUNT = 8;
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
 
 export function useDatabaseInitialization({
   loadAllData,
@@ -53,7 +62,14 @@ export function useDatabaseInitialization({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [workerStatus, setWorkerStatus] = useState<WorkerStatus | null>(null);
+  const [sampleDataImportProgress, setSampleDataImportProgress] =
+    useState<SampleDataImportProgress | null>(null);
   const hasCheckedDatabase = useRef(false);
+  const sampleDataImportAbortControllerRef = useRef<AbortController | null>(null);
+
+  const cancelSampleDataImport = useCallback(() => {
+    sampleDataImportAbortControllerRef.current?.abort();
+  }, []);
 
   const handleBrowserTestComplete = useCallback(
     async (isCompatible: boolean, _testResults: TestResults) => {
@@ -149,12 +165,13 @@ export function useDatabaseInitialization({
           lastHeartbeat: currentStatus?.lastHeartbeat || 0,
         }));
       },
+      cancelSampleDataImport,
     };
 
     return () => {
       delete window.__budgetTrackerTestApi;
     };
-  }, [databaseService]);
+  }, [cancelSampleDataImport, databaseService]);
 
   const createOrOpenDatabase = useCallback(
     async (isNew: boolean) => {
@@ -171,15 +188,57 @@ export function useDatabaseInitialization({
 
           if (SampleDataService.shouldLoadSampleData()) {
             console.info('[DB Context] Loading sample data...');
+            const abortController = new AbortController();
+            sampleDataImportAbortControllerRef.current = abortController;
+            setSampleDataImportProgress({
+              stage: 'starting',
+              currentFile: null,
+              currentTable: null,
+              completedFiles: 0,
+              totalFiles: SAMPLE_DATA_IMPORT_FILE_COUNT,
+              importedRows: 0,
+              expectedRows: null,
+              isCancelable: true,
+              message: 'Preparing sample data import...',
+            });
+
             try {
-              await SampleDataService.loadAllSampleData();
+              await SampleDataService.loadAllSampleData({
+                signal: abortController.signal,
+                onProgress: setSampleDataImportProgress,
+              });
               console.info('[DB Context] Sample data loaded successfully');
             } catch (sampleError) {
-              console.error(
-                '[DB Context] Failed to load sample data:',
-                sampleError
-              );
-              setError('Database created but sample data failed to load');
+              if (isAbortError(sampleError)) {
+                console.info(
+                  '[DB Context] Sample data import cancelled, recreating an empty database...'
+                );
+                setSampleDataImportProgress((currentProgress: SampleDataImportProgress | null) => ({
+                  stage: 'cancelled',
+                  currentFile: currentProgress?.currentFile ?? null,
+                  currentTable: currentProgress?.currentTable ?? null,
+                  completedFiles: currentProgress?.completedFiles ?? 0,
+                  totalFiles:
+                    currentProgress?.totalFiles ?? SAMPLE_DATA_IMPORT_FILE_COUNT,
+                  importedRows: currentProgress?.importedRows ?? 0,
+                  expectedRows: currentProgress?.expectedRows ?? null,
+                  isCancelable: false,
+                  message:
+                    'Cancelling sample data import and resetting the database...',
+                }));
+                await databaseService.clearAndRecreateDatabase();
+                console.info(
+                  '[DB Context] Sample data import cancelled; continuing with an empty database'
+                );
+              } else {
+                console.error(
+                  '[DB Context] Failed to load sample data:',
+                  sampleError
+                );
+                setError('Database created but sample data failed to load');
+              }
+            } finally {
+              sampleDataImportAbortControllerRef.current = null;
             }
           }
         } else {
@@ -193,6 +252,8 @@ export function useDatabaseInitialization({
         setError(err instanceof Error ? err.message : 'Failed to open database');
         throw err;
       } finally {
+        sampleDataImportAbortControllerRef.current = null;
+        setSampleDataImportProgress(null);
         setIsLoading(false);
       }
     },
@@ -231,10 +292,12 @@ export function useDatabaseInitialization({
     isLoading,
     error,
     workerStatus,
+    sampleDataImportProgress,
     setError,
     handleBrowserTestComplete,
     createOrOpenDatabase,
     loadDatabaseFromFile,
+    cancelSampleDataImport,
   };
 }
 

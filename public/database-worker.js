@@ -212,46 +212,15 @@ class DatabaseWorker {
     return await this.enqueueQuery(async () => {
       try {
         const results = [];
-        
+
         // Prepare the statement if parameters are provided
         if (parameters.length > 0) {
-          for await (const stmt of this.sqlite3.statements(this.db, sql)) {
-            // Bind parameters
-            for (let i = 0; i < parameters.length; i++) {
-              const param = parameters[i];
-              if (param === null || param === undefined) {
-                this.sqlite3.bind_null(stmt, i + 1);
-              } else if (typeof param === 'number') {
-                if (Number.isInteger(param)) {
-                  this.sqlite3.bind_int(stmt, i + 1, param);
-                } else {
-                  this.sqlite3.bind_double(stmt, i + 1, param);
-                }
-              } else if (typeof param === 'string') {
-                this.sqlite3.bind_text(stmt, i + 1, param);
-              } else {
-                this.sqlite3.bind_text(stmt, i + 1, String(param));
-              }
-            }
-            
-            // Execute and collect results
-            const columnNames = [];
-            while (await this.sqlite3.step(stmt) === (this.sqlite3Constants.SQLITE_ROW || this.sqlite3Constants.SQLITE_DONE)) {
-              if (columnNames.length === 0) {
-                const columnCount = this.sqlite3.column_count(stmt);
-                for (let i = 0; i < columnCount; i++) {
-                  columnNames.push(this.sqlite3.column_name(stmt, i));
-                }
-              }
-              
-              const row = {};
-              columnNames.forEach((column, index) => {
-                const value = this.sqlite3.column(stmt, index);
-                row[column] = value;
-              });
-              results.push(row);
-            }
-          }
+          const preparedResults = await this.executePreparedStatement(
+            sql,
+            parameters,
+            true
+          );
+          results.push(...preparedResults);
         } else {
           // Use exec for simple queries without parameters
           await this.sqlite3.exec(this.db, sql, (row, columns) => {
@@ -288,6 +257,142 @@ class DatabaseWorker {
         };
       }
     });
+  }
+
+  async executeBatchQuery(sql, parameterSets = [], options = {}) {
+    if (!this.isConnected || !this.db) {
+      return {
+        type: 'batch_query_error',
+        isSuccessful: false,
+        dbStatus: 'disconnected',
+        version: this.dbVersion,
+        sqlResponse: { error: 'Database not connected' }
+      };
+    }
+
+    return await this.enqueueQuery(async () => {
+      const useTransaction = options.useTransaction !== false;
+
+      try {
+        if (!Array.isArray(parameterSets) || parameterSets.length === 0) {
+          return {
+            type: 'batch_query_success',
+            isSuccessful: true,
+            dbStatus: 'connected',
+            version: this.dbVersion,
+            sqlResponse: { rowCount: 0, sql }
+          };
+        }
+
+        if (useTransaction) {
+          await this.sqlite3.exec(this.db, 'BEGIN IMMEDIATE');
+        }
+
+        try {
+          for (const parameters of parameterSets) {
+            await this.executePreparedStatement(sql, parameters, false);
+          }
+
+          if (useTransaction) {
+            await this.sqlite3.exec(this.db, 'COMMIT');
+          }
+        } catch (error) {
+          if (useTransaction) {
+            try {
+              await this.sqlite3.exec(this.db, 'ROLLBACK');
+            } catch (rollbackError) {
+              console.error('[DB Worker] Failed to roll back batch query:', rollbackError);
+            }
+          }
+
+          throw error;
+        }
+
+        return {
+          type: 'batch_query_success',
+          isSuccessful: true,
+          dbStatus: 'connected',
+          version: this.dbVersion,
+          sqlResponse: { rowCount: parameterSets.length, sql }
+        };
+      } catch (error) {
+        console.error('[DB Worker] Batch query execution failed:', error);
+        console.error('[DB Worker] Failed SQL:', sql);
+
+        return {
+          type: 'batch_query_error',
+          isSuccessful: false,
+          dbStatus: 'connected',
+          version: this.dbVersion,
+          sqlResponse: {
+            error: error.message,
+            sql,
+            rowCount: 0,
+          }
+        };
+      }
+    });
+  }
+
+  bindParameters(stmt, parameters = []) {
+    for (let index = 0; index < parameters.length; index += 1) {
+      const param = parameters[index];
+      if (param === null || param === undefined) {
+        this.sqlite3.bind_null(stmt, index + 1);
+      } else if (typeof param === 'number') {
+        if (Number.isInteger(param)) {
+          this.sqlite3.bind_int(stmt, index + 1, param);
+        } else {
+          this.sqlite3.bind_double(stmt, index + 1, param);
+        }
+      } else if (typeof param === 'string') {
+        this.sqlite3.bind_text(stmt, index + 1, param);
+      } else {
+        this.sqlite3.bind_text(stmt, index + 1, String(param));
+      }
+    }
+  }
+
+  async executePreparedStatement(sql, parameters = [], collectResults = false) {
+    const results = [];
+
+    for await (const stmt of this.sqlite3.statements(this.db, sql)) {
+      this.bindParameters(stmt, parameters);
+
+      const columnNames = [];
+
+      while (true) {
+        const stepResult = await this.sqlite3.step(stmt);
+
+        if (stepResult === this.sqlite3Constants.SQLITE_ROW) {
+          if (!collectResults) {
+            continue;
+          }
+
+          if (columnNames.length === 0) {
+            const columnCount = this.sqlite3.column_count(stmt);
+            for (let index = 0; index < columnCount; index += 1) {
+              columnNames.push(this.sqlite3.column_name(stmt, index));
+            }
+          }
+
+          const row = {};
+          columnNames.forEach((column, index) => {
+            row[column] = this.sqlite3.column(stmt, index);
+          });
+          results.push(row);
+          continue;
+        }
+
+        if (stepResult === this.sqlite3Constants.SQLITE_DONE) {
+          break;
+        }
+
+        throw new Error(`SQLite step failed with code ${stepResult}`);
+      }
+    }
+
+    return results;
   }
 
   async executeCommand(sql) {
@@ -493,6 +598,14 @@ class DatabaseWorker {
         case 'query':
           response = await this.executeQuery(payload.sql, payload.parameters);
           console.debug(`[DB Worker] Response for query: `, response);
+          break;
+
+        case 'batch_query':
+          response = await this.executeBatchQuery(
+            payload.sql,
+            payload.parameterSets,
+            payload.options
+          );
           break;
           
         case 'exec':

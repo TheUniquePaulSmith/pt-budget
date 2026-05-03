@@ -18,6 +18,8 @@ Generate the default runtime-compatible fixture set:
 
 ```bash
 npm run sample-data:generate
+npm run sample-data:generate -- --months 60 --amount 6000
+npm run sample-data:generate -- --months 120 --amount 100000000 --dry-run
 ```
 
 Generate the broader schema-only fixture set, including tables that are currently out of sync with the runtime sample-data queries:
@@ -27,6 +29,23 @@ npm run sample-data:generate -- --full-schema
 ```
 
 The validation command writes a JSON report to `dist/sample-data/schema-validation-report.json`.
+
+By default, the generator now prompts for two inputs:
+
+1. How many months back from today the generated data should cover.
+2. Roughly how many transactions should be produced over that full period.
+
+For non-interactive or repeatable runs, pass the values directly:
+
+```bash
+npm run sample-data:generate -- --months 60 --amount 6000
+```
+
+Add `--dry-run` to print the planned date window, output mode, chunk count, approximate disk usage, and estimated runtime import work without modifying any fixture files.
+
+The requested transaction count is approximate. The generator preserves the modeled monthly income and expense ranges and changes transaction granularity to land near the requested total. Very large requests can be clipped if the chosen date window does not have enough non-zero cent precision to split the modeled budgets further.
+
+When a generated transaction set exceeds the single-file threshold, the generator writes `transactions.json` as a manifest and emits `transactions.part-*.json` chunk files alongside it. The runtime sample-data loader reads that manifest automatically.
 
 ## Source Of Truth
 
@@ -102,7 +121,7 @@ The sample data loader preserves primary key IDs, so you can create relationship
 ### Option 0: Generate From The Live Schema
 
 1. Run `npm run sample-data:validate` to see what is missing or out of sync.
-2. Run `npm run sample-data:generate` to refresh the runtime-compatible fixture set.
+2. Run `npm run sample-data:generate` to refresh the runtime-compatible fixture set, or pass `--months` and `--amount` to make the run repeatable without prompts.
 3. If you intentionally need schema-only fixtures for currently incompatible tables, run `npm run sample-data:generate -- --full-schema`.
 
 You can export existing database tables to create sample data files:

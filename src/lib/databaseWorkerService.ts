@@ -16,6 +16,10 @@ export interface DatabaseResponse {
   sqlResponse: any;
 }
 
+export interface BatchQueryOptions {
+  useTransaction?: boolean;
+}
+
 export interface WorkerStatus {
   isWorkerAlive: boolean;
   isConnected: boolean;
@@ -204,6 +208,7 @@ export class DatabaseWorkerService {
   // Operation-specific timeout configurations
   private readonly OPERATION_TIMEOUTS = {
     query: 10000,        // 10s for queries
+    batch_query: 120000, // 2m for batched inserts/imports
     exec: 5000,          // 5s for commands
     ping: 5000,          // 5s for heartbeat
     initialize: 30000,   // 30s for initialization
@@ -267,6 +272,20 @@ export class DatabaseWorkerService {
   public async query(sql: string, parameters: any[] = []): Promise<any[]> {
     const response = await this.sendMessage('query', { sql, parameters });
     return response.sqlResponse?.results || [];
+  }
+
+  public async batchQuery(
+    sql: string,
+    parameterSets: any[][] = [],
+    options: BatchQueryOptions = {}
+  ): Promise<number> {
+    const response = await this.sendMessage('batch_query', {
+      sql,
+      parameterSets,
+      options,
+    });
+
+    return response.sqlResponse?.rowCount || 0;
   }
 
   public async exec(sql: string): Promise<void> {

@@ -36,6 +36,7 @@ export interface TestResults {
   wasmSupport: boolean | null;
   sqliteSupport: boolean | null;
   vfsSupport: boolean | null;
+  databaseOperationsSupport: boolean | null;
   overallCompatible: boolean | null;
 }
 
@@ -44,6 +45,21 @@ interface TestBrowserProps {
     isCompatible: boolean,
     results: TestResults
   ) => void | Promise<void>;
+}
+
+const STORAGE_KEY = "budgetApp_browserTestPassed";
+
+function hasSuccessfulTestResults(
+  results: Partial<TestResults> | null | undefined
+): results is Required<TestResults> {
+  return (
+    results?.sharedWorkerSupport === true &&
+    results.wasmSupport === true &&
+    results.sqliteSupport === true &&
+    results.vfsSupport === true &&
+    results.databaseOperationsSupport === true &&
+    results.overallCompatible === true
+  );
 }
 
 export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
@@ -60,20 +76,25 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
     hasStartedTest.current = true;
 
     // Check if test has been run successfully before
-    const STORAGE_KEY = "budgetApp_browserTestPassed";
     const previousTestResults = localStorage.getItem(STORAGE_KEY);
 
     if (previousTestResults) {
       try {
-        const savedResults: TestResults = JSON.parse(previousTestResults);
-        console.log("[TestBrowser] Using cached test results from previous session");
-        setTestResults(savedResults);
-        setIsTestingInProgress(false);
-        // Delay callback slightly to ensure parent component is ready
-        setTimeout(() => {
-          onTestComplete(savedResults.overallCompatible ?? false, savedResults);
-        }, 100);
-        return;
+        const savedResults = JSON.parse(previousTestResults) as Partial<TestResults>;
+
+        if (hasSuccessfulTestResults(savedResults)) {
+          console.log("[TestBrowser] Using cached test results from previous session");
+          setTestResults(savedResults);
+          setIsTestingInProgress(false);
+          // Delay callback slightly to ensure parent component is ready
+          setTimeout(() => {
+            onTestComplete(true, savedResults);
+          }, 100);
+          return;
+        }
+
+        console.warn("[TestBrowser] Discarding stale cached test results");
+        localStorage.removeItem(STORAGE_KEY);
       } catch (err) {
         console.warn("[TestBrowser] Failed to parse cached test results, running test again", err);
         localStorage.removeItem(STORAGE_KEY);
@@ -88,6 +109,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
           wasmSupport: null,
           sqliteSupport: null,
           vfsSupport: null,
+          databaseOperationsSupport: null,
           overallCompatible: null,
         };
         // First check if WASM is supported
@@ -139,8 +161,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
             setIsTestingInProgress(false);
             
             // Save successful test results to localStorage
-            if (results.overallCompatible) {
-              const STORAGE_KEY = "budgetApp_browserTestPassed";
+            if (hasSuccessfulTestResults(results)) {
               try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(results));
                 console.log("[TestBrowser] Saved test results to localStorage for future sessions");
@@ -151,7 +172,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
             
             // Add a 2-second delay to let users see the test results
             setTimeout(() => {
-              onTestComplete(results.overallCompatible, results);
+              onTestComplete(results.overallCompatible ?? false, results);
             }, 5000);
           } else if (type === "error") {
             console.error("[TestBrowser] Worker error:", workerError);
@@ -163,6 +184,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
               wasmSupport: false,
               sqliteSupport: false,
               vfsSupport: false,
+              databaseOperationsSupport: false,
               overallCompatible: false,
             };
             onTestComplete(false, failedResults);
@@ -188,6 +210,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
             wasmSupport: false,
             sqliteSupport: false,
             vfsSupport: false,
+            databaseOperationsSupport: false,
             overallCompatible: false,
           };
           onTestComplete(false, failedResults);
@@ -206,6 +229,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
           wasmSupport: false,
           sqliteSupport: false,
           vfsSupport: false,
+          databaseOperationsSupport: false,
           overallCompatible: false,
         };
         onTestComplete(false, failedResults);
@@ -265,6 +289,12 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
       description: "IndexedDB VFS backend works correctly",
       icon: <Storage />,
     },
+    {
+      key: "databaseOperationsSupport",
+      label: "Database Operations",
+      description: "Opens a test database and runs a query",
+      icon: <BugReport />,
+    },
   ];
 
   return (
@@ -285,7 +315,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
           {testItems.map((item) => {
             const testValue = testResults?.[item.key as keyof TestResults];
             const inProgress = isTestingInProgress && testValue === null;
-            const hasResults = testResults !== null && testValue !== null;
+            const hasResults = testResults !== null && testValue !== null && testValue !== undefined;
 
             return (
               <ListItem key={item.key} sx={{ px: 0 }}>

@@ -11,22 +11,27 @@ import {
   Divider,
   Switch,
   FormControlLabel,
+  FormControl,
+  FormLabel,
+  Radio,
+  RadioGroup,
   Button,
   Alert,
   IconButton,
   AppBar,
   Toolbar,
+  Chip,
 } from '@mui/material';
 import {
   Storage,
   Backup,
-  Security,
   Notifications,
   Palette,
   ArrowBack,
 } from '@mui/icons-material';
 import StorageQuota from '@/components/common/Storage/StorageQuota';
 import { useSettingsSlice } from '@/contexts/useDatabaseSlices';
+import { ThemePresetId, useThemePreferences } from '@/theme/theme';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -49,13 +54,16 @@ interface SettingsPageProps {
 const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const [tabValue, setTabValue] = useState(0);
   const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
 
   const {
     exportDatabase,
     isDatabaseLoaded,
-    error,
   } = useSettingsSlice();
+  const {
+    availableThemes,
+    selectedThemeId,
+    setSelectedThemeId,
+  } = useThemePreferences();
 
   const handleExportData = async () => {
     const dbData = await exportDatabase();
@@ -77,8 +85,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
       {/* Header */}
       <AppBar position="sticky" color="default" elevation={1}>
         <Toolbar>
-          <IconButton 
-            edge="start" 
+          <IconButton
+            edge="start"
             onClick={onClose}
             sx={{ mr: 2 }}
           >
@@ -88,11 +96,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
             Settings
           </Typography>
         </Toolbar>
-      </AppBar>      <Box sx={{ maxWidth: 1200, mx: 'auto', p: { xs: 1, sm: 3 } }}>
+      </AppBar>
+
+      <Box sx={{ maxWidth: 1200, mx: 'auto', p: { xs: 1, sm: 3 } }}>
         <Paper sx={{ width: '100%' }}>
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs 
-              value={tabValue} 
+            <Tabs
+              value={tabValue}
               onChange={(_, newValue) => setTabValue(newValue)}
               variant="scrollable"
               scrollButtons="auto"
@@ -101,8 +111,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                 '& .MuiTab-root': {
                   minWidth: { xs: 80, sm: 120 },
                   fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                  padding: { xs: '6px 8px', sm: '12px 16px' }
-                }
+                  padding: { xs: '6px 8px', sm: '12px 16px' },
+                },
               }}
             >
               <Tab icon={<Storage />} label="Storage" />
@@ -214,20 +224,92 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Theme
+                  Theme Presets
                 </Typography>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={darkMode}
-                      onChange={(e) => setDarkMode(e.target.checked)}
-                    />
-                  }
-                  label="Dark mode"
-                />
-                <Typography variant="body2" color="text.secondary">
-                  Toggle between light and dark themes (coming soon)
-                </Typography>
+
+                <FormControl fullWidth>
+                  <FormLabel id="theme-preset-label">Built-in Styles</FormLabel>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mt: 1, mb: 2 }}
+                  >
+                    Choose how the app looks. Your selection is saved locally in this browser.
+                  </Typography>
+
+                  <RadioGroup
+                    aria-labelledby="theme-preset-label"
+                    name="theme-preset"
+                    value={selectedThemeId}
+                    onChange={(event) =>
+                      setSelectedThemeId(event.target.value as ThemePresetId)
+                    }
+                  >
+                    <Stack spacing={2}>
+                      {availableThemes.map((themePreset) => {
+                        const isSelected = themePreset.id === selectedThemeId;
+                        const modeLabel =
+                          themePreset.paletteMode === 'system'
+                            ? 'Uses device theme'
+                            : themePreset.paletteMode === 'dark'
+                            ? 'Dark surfaces'
+                            : 'Light surfaces';
+                        const densityLabel =
+                          themePreset.density === 'compact'
+                            ? 'Compact density'
+                            : 'Comfortable density';
+
+                        return (
+                          <Paper
+                            key={themePreset.id}
+                            variant="outlined"
+                            sx={{
+                              borderColor: isSelected ? 'primary.main' : 'divider',
+                              bgcolor: isSelected
+                                ? 'action.selected'
+                                : 'background.paper',
+                              transition: 'border-color 120ms ease, background-color 120ms ease',
+                            }}
+                          >
+                            <FormControlLabel
+                              value={themePreset.id}
+                              control={<Radio />}
+                              sx={{
+                                alignItems: 'flex-start',
+                                m: 0,
+                                width: '100%',
+                                px: 2,
+                                py: 1.5,
+                                '& .MuiFormControlLabel-label': {
+                                  width: '100%',
+                                },
+                              }}
+                              label={
+                                <Box>
+                                  <Stack
+                                    direction={{ xs: 'column', sm: 'row' }}
+                                    spacing={1}
+                                    alignItems={{ xs: 'flex-start', sm: 'center' }}
+                                    sx={{ mb: 0.75 }}
+                                  >
+                                    <Typography variant="subtitle1">
+                                      {themePreset.label}
+                                    </Typography>
+                                    <Chip size="small" label={modeLabel} />
+                                    <Chip size="small" label={densityLabel} />
+                                  </Stack>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {themePreset.description}
+                                  </Typography>
+                                </Box>
+                              }
+                            />
+                          </Paper>
+                        );
+                      })}
+                    </Stack>
+                  </RadioGroup>
+                </FormControl>
               </Box>
             </Stack>
           </TabPanel>

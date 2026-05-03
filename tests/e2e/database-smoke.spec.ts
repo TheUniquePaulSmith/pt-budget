@@ -8,6 +8,8 @@ const browserCompatibilityResults = {
   overallCompatible: true,
 };
 
+const DEFAULT_SAMPLE_DATA_EXPENSE_ACCOUNT_NAME = 'Household Checking';
+
 async function seedBrowserCompatibility(page: Page) {
   await page.addInitScript((results) => {
     window.localStorage.setItem(
@@ -165,7 +167,12 @@ test('creates a transaction through the dashboard dialog and persists it', async
   await bootstrapDatabase(page);
 
   const description = `Playwright Expense ${Date.now()}`;
-  await addTransactionFromDashboard(page, description, '123.45', 'Primary Checking');
+  await addTransactionFromDashboard(
+    page,
+    description,
+    '123.45',
+    DEFAULT_SAMPLE_DATA_EXPENSE_ACCOUNT_NAME
+  );
 
   const insertedCount = Number(
     await runQueryAndReadFirstCell(
@@ -191,7 +198,12 @@ test('updates a transaction label from the report and can clear it again', async
   const description = `Label Expense ${Date.now()}`;
 
   await createProject(page, projectName);
-  await addTransactionFromDashboard(page, description, '42.75', 'Primary Checking');
+  await addTransactionFromDashboard(
+    page,
+    description,
+    '42.75',
+    DEFAULT_SAMPLE_DATA_EXPENSE_ACCOUNT_NAME
+  );
 
   await page.getByRole('button', { name: 'Transactions' }).click();
   await page.getByRole('textbox', { name: 'Search' }).fill(description);
@@ -234,7 +246,13 @@ test('creates a project-linked transaction and shows the project label in the re
   const description = `Project Expense ${Date.now()}`;
 
   await createProject(page, projectName);
-  await addTransactionFromDashboard(page, description, '88.10', 'Primary Checking', projectName);
+  await addTransactionFromDashboard(
+    page,
+    description,
+    '88.10',
+    DEFAULT_SAMPLE_DATA_EXPENSE_ACCOUNT_NAME,
+    projectName
+  );
 
   await page.getByRole('button', { name: 'Transactions' }).click();
   await page.getByRole('textbox', { name: 'Search' }).fill(description);

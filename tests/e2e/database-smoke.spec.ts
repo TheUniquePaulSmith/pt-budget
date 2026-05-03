@@ -8,13 +8,17 @@ const browserCompatibilityResults = {
   overallCompatible: true,
 };
 
-async function bootstrapDatabase(page: Page) {
+async function seedBrowserCompatibility(page: Page) {
   await page.addInitScript((results) => {
     window.localStorage.setItem(
       'budgetApp_browserTestPassed',
       JSON.stringify(results)
     );
   }, browserCompatibilityResults);
+}
+
+async function bootstrapDatabase(page: Page) {
+  await seedBrowserCompatibility(page);
 
   await page.goto('/?loadSampleData=true');
 
@@ -178,6 +182,49 @@ test('creates a transaction through the dashboard dialog and persists it', async
     )
   );
   expect(insertedAmount).toBeCloseTo(-123.45, 2);
+});
+
+test('updates a transaction label from the report and can clear it again', async ({ page }) => {
+  await bootstrapDatabase(page);
+
+  const projectName = `Playwright Label Project ${Date.now()}`;
+  const description = `Label Expense ${Date.now()}`;
+
+  await createProject(page, projectName);
+  await addTransactionFromDashboard(page, description, '42.75', 'Primary Checking');
+
+  await page.getByRole('button', { name: 'Transactions' }).click();
+  await page.getByRole('textbox', { name: 'Search' }).fill(description);
+
+  let transactionRow = page.locator('tr').filter({
+    has: page.getByText(description),
+  }).first();
+  await transactionRow.getByTitle('Label Transaction').click();
+
+  let labelDialog = page.getByRole('dialog', { name: 'Label Transaction' });
+  await labelDialog.locator('[role="combobox"]').first().click();
+  await page.getByRole('option', { name: 'Project' }).click();
+  await labelDialog.getByLabel('Select Project').click();
+  await page.getByRole('option', { name: new RegExp(projectName, 'i') }).click();
+  await labelDialog.getByRole('button', { name: 'Update Label' }).click();
+
+  await expect(labelDialog).not.toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(`Project: ${projectName}`)).toBeVisible({
+    timeout: 120_000,
+  });
+
+  transactionRow = page.locator('tr').filter({
+    has: page.getByText(description),
+  }).first();
+  await transactionRow.getByTitle('Label Transaction').click();
+
+  labelDialog = page.getByRole('dialog', { name: 'Label Transaction' });
+  await labelDialog.locator('[role="combobox"]').first().click();
+  await page.getByRole('option', { name: 'No Label' }).click();
+  await labelDialog.getByRole('button', { name: 'Update Label' }).click();
+
+  await expect(labelDialog).not.toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(`Project: ${projectName}`)).toHaveCount(0);
 });
 
 test('creates a project-linked transaction and shows the project label in the report', async ({ page }) => {

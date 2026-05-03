@@ -4,6 +4,14 @@
 
 This developer feature enables automatic loading of sample data from a local folder structure when initializing a new database. It's designed for development, testing, and demonstrations, allowing quick database setup with realistic data.
 
+The repo also provides schema-aware generation and validation commands so fixture files can be refreshed when the database schema changes.
+
+```bash
+npm run sample-data:validate
+npm run sample-data:generate
+npm run sample-data:generate -- --full-schema
+```
+
 ## How It Works
 
 ### Query Parameter Detection
@@ -23,9 +31,11 @@ public/
     categories.json
     companies.json
     transactions.json
-    projects.json
-    trips.json
+    projects.json        # full-schema generation only when runtime queries are compatible
+    trips.json           # full-schema generation only when runtime queries are compatible
 ```
+
+Default generation writes the runtime-compatible subset: `users`, `accounts`, `account_cards`, `categories`, `companies`, and `transactions`.
 
 ### Loading Order
 Files are loaded in dependency order to maintain foreign key relationships:
@@ -49,7 +59,14 @@ Click "Create New Database" button
 ### Step 3: Automatic Loading
 Sample data automatically loads with preserved primary keys
 
+Before relying on the runtime load path after schema changes, run `npm run sample-data:validate` and review `dist/sample-data/schema-validation-report.json` for drift.
+
 ## Creating Sample Data Files
+
+### Option 0: Generate from the Live Schema
+1. Run `npm run sample-data:validate`
+2. Run `npm run sample-data:generate`
+3. Use `npm run sample-data:generate -- --full-schema` only when you explicitly want schema-only fixtures for currently runtime-incompatible tables
 
 ### Option 1: Export from Existing Database
 1. Open the **Developer Console** (Settings → Developer Console)
@@ -179,6 +196,8 @@ Create JSON files following this format:
 ```
 DatabaseContext → SampleDataService → DatabaseWorkerService → SharedWorker
 ```
+
+Schema-aware generation and validation use `public/database-schema.js` as the source of truth and compare runtime compatibility against `src/lib/sqlQueries.ts`.
 
 ### Key Files
 - [`src/lib/sampleDataService.ts`](../src/lib/sampleDataService.ts) - Sample data loading logic

@@ -3,59 +3,123 @@
   "data": [
     {
       "id": 1,
-      "name": "Groceries",
-      "color": "#4CAF50",
+      "name": "Housing",
+      "color": "#8D6E63",
       "type": "expense",
       "created_at": "2024-01-01T00:00:00.000Z",
       "updated_at": "2024-01-01T00:00:00.000Z"
     },
     {
       "id": 2,
-      "name": "Dining",
-      "color": "#FF9800",
+      "name": "Groceries",
+      "color": "#43A047",
       "type": "expense",
-      "created_at": "2024-01-01T00:00:00.000Z",
-      "updated_at": "2024-01-01T00:00:00.000Z"
+      "created_at": "2024-01-02T00:00:00.000Z",
+      "updated_at": "2024-01-02T00:00:00.000Z"
     },
     {
       "id": 3,
-      "name": "Transportation",
-      "color": "#2196F3",
+      "name": "Utilities",
+      "color": "#FB8C00",
       "type": "expense",
-      "created_at": "2024-01-01T00:00:00.000Z",
-      "updated_at": "2024-01-01T00:00:00.000Z"
+      "created_at": "2024-01-03T00:00:00.000Z",
+      "updated_at": "2024-01-03T00:00:00.000Z"
     },
     {
       "id": 4,
-      "name": "Entertainment",
-      "color": "#9C27B0",
+      "name": "Transportation",
+      "color": "#1E88E5",
       "type": "expense",
-      "created_at": "2024-01-01T00:00:00.000Z",
-      "updated_at": "2024-01-01T00:00:00.000Z"
+      "created_at": "2024-01-04T00:00:00.000Z",
+      "updated_at": "2024-01-04T00:00:00.000Z"
     },
     {
       "id": 5,
-      "name": "Utilities",
-      "color": "#FF5722",
+      "name": "Healthcare",
+      "color": "#E53935",
       "type": "expense",
-      "created_at": "2024-01-01T00:00:00.000Z",
-      "updated_at": "2024-01-01T00:00:00.000Z"
+      "created_at": "2024-01-05T00:00:00.000Z",
+      "updated_at": "2024-01-05T00:00:00.000Z"
     },
     {
       "id": 6,
-      "name": "Salary",
-      "color": "#8BC34A",
-      "type": "income",
-      "created_at": "2024-01-01T00:00:00.000Z",
-      "updated_at": "2024-01-01T00:00:00.000Z"
+      "name": "Childcare & School",
+      "color": "#5E35B1",
+      "type": "expense",
+      "created_at": "2024-01-06T00:00:00.000Z",
+      "updated_at": "2024-01-06T00:00:00.000Z"
     },
     {
       "id": 7,
-      "name": "Investment Income",
-      "color": "#00BCD4",
+      "name": "Dining Out",
+      "color": "#F4511E",
+      "type": "expense",
+      "created_at": "2024-01-07T00:00:00.000Z",
+      "updated_at": "2024-01-07T00:00:00.000Z"
+    },
+    {
+      "id": 8,
+      "name": "Shopping",
+      "color": "#6D4C41",
+      "type": "expense",
+      "created_at": "2024-01-08T00:00:00.000Z",
+      "updated_at": "2024-01-08T00:00:00.000Z"
+    },
+    {
+      "id": 9,
+      "name": "Entertainment",
+      "color": "#8E24AA",
+      "type": "expense",
+      "created_at": "2024-01-09T00:00:00.000Z",
+      "updated_at": "2024-01-09T00:00:00.000Z"
+    },
+    {
+      "id": 10,
+      "name": "Insurance",
+      "color": "#546E7A",
+      "type": "expense",
+      "created_at": "2024-01-10T00:00:00.000Z",
+      "updated_at": "2024-01-10T00:00:00.000Z"
+    },
+    {
+      "id": 11,
+      "name": "Travel",
+      "color": "#00ACC1",
+      "type": "expense",
+      "created_at": "2024-01-11T00:00:00.000Z",
+      "updated_at": "2024-01-11T00:00:00.000Z"
+    },
+    {
+      "id": 12,
+      "name": "Home Improvement",
+      "color": "#7CB342",
+      "type": "expense",
+      "created_at": "2024-01-12T00:00:00.000Z",
+      "updated_at": "2024-01-12T00:00:00.000Z"
+    },
+    {
+      "id": 13,
+      "name": "Salary",
+      "color": "#2E7D32",
       "type": "income",
-      "created_at": "2024-01-01T00:00:00.000Z",
-      "updated_at": "2024-01-01T00:00:00.000Z"
+      "created_at": "2024-01-13T00:00:00.000Z",
+      "updated_at": "2024-01-13T00:00:00.000Z"
+    },
+    {
+      "id": 14,
+      "name": "Side Income",
+      "color": "#C0CA33",
+      "type": "income",
+      "created_at": "2024-01-14T00:00:00.000Z",
+      "updated_at": "2024-01-14T00:00:00.000Z"
+    },
+    {
+      "id": 15,
+      "name": "Tax Refund",
+      "color": "#FDD835",
+      "type": "income",
+      "created_at": "2024-01-15T00:00:00.000Z",
+      "updated_at": "2024-01-15T00:00:00.000Z"
     }
   ]
 }

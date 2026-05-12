@@ -20,16 +20,21 @@ import {
   TRIP_QUERIES,
   ANALYTICS_QUERIES
 } from './sqlQueries';
-import { 
-  Transaction, 
-  Category, 
-  Company, 
+import {
+  Transaction,
+  Category,
+  Company,
   Account,
   AccountCard,
-  Budget, 
-  Project, 
+  Budget,
+  Project,
   User,
-  Trip
+  Trip,
+  TransactionQueryParams,
+  TransactionsPaginatedResult,
+  DashboardSummary,
+  ChartData,
+  ProjectCosts,
 } from '../types/database';
 
 export interface DatabaseWorkerTransport {
@@ -386,6 +391,311 @@ export class DatabaseService {
       return rows.map(this.mapToTransaction);
     } catch (error) {
       console.error("Failed to get transactions:", error);
+      throw error;
+    }
+  }
+
+  async getRecentTransactions(limit: number): Promise<Transaction[]> {
+    try {
+      const rows = await this.workerService.query(
+        TRANSACTION_QUERIES.GET_RECENT,
+        [limit]
+      );
+      return rows.map(this.mapToTransaction);
+    } catch (error) {
+      console.error("Failed to get recent transactions:", error);
+      throw error;
+    }
+  }
+
+  private readonly ALLOWED_SORT_COLUMNS: Record<string, string> = {
+    date: 't.date',
+    amount: 't.amount',
+    description: 't.description',
+    category_name: 'c.name',
+    company_name: 'comp.name',
+    account_name: 'a.name',
+  };
+
+  private buildTransactionWhereClause(params: TransactionQueryParams): { where: string; params: any[] } {
+    const conditions: string[] = [];
+    const queryParams: any[] = [];
+
+    if (params.search) {
+      conditions.push('(t.description LIKE ? OR c.name LIKE ? OR comp.name LIKE ?)');
+      const pattern = `%${params.search}%`;
+      queryParams.push(pattern, pattern, pattern);
+    }
+    if (params.type) {
+      conditions.push('t.type = ?');
+      queryParams.push(params.type);
+    }
+    if (params.categoryIds && params.categoryIds.length > 0) {
+      conditions.push(`t.category_id IN (${params.categoryIds.map(() => '?').join(',')})`);
+      queryParams.push(...params.categoryIds);
+    }
+    if (params.companyIds && params.companyIds.length > 0) {
+      conditions.push(`t.company_id IN (${params.companyIds.map(() => '?').join(',')})`);
+      queryParams.push(...params.companyIds);
+    }
+    if (params.projectIds && params.projectIds.length > 0) {
+      conditions.push(`t.project_id IN (${params.projectIds.map(() => '?').join(',')})`);
+      queryParams.push(...params.projectIds);
+    }
+    if (params.accountIds && params.accountIds.length > 0) {
+      conditions.push(`t.account_id IN (${params.accountIds.map(() => '?').join(',')})`);
+      queryParams.push(...params.accountIds);
+    }
+    if (params.startDate) {
+      conditions.push('t.date >= ?');
+      queryParams.push(params.startDate);
+    }
+    if (params.endDate) {
+      conditions.push('t.date <= ?');
+      queryParams.push(params.endDate);
+    }
+    if (params.minAmount !== undefined) {
+      conditions.push('ABS(t.amount) >= ?');
+      queryParams.push(params.minAmount);
+    }
+    if (params.maxAmount !== undefined) {
+      conditions.push('ABS(t.amount) <= ?');
+      queryParams.push(params.maxAmount);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    return { where, params: queryParams };
+  }
+
+  private readonly TRANSACTION_JOINS = `
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN companies comp ON t.company_id = comp.id
+    LEFT JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN projects p ON t.project_id = p.id
+    LEFT JOIN trips tr ON t.trip_id = tr.id
+  `;
+
+  private readonly TRANSACTION_SELECT = `
+    t.*,
+    c.name as category_name,
+    c.color as category_color,
+    c.type as category_type,
+    comp.name as company_name,
+    a.name as account_name,
+    a.type as account_type,
+    p.name as project_name,
+    tr.name as trip_name
+  `;
+
+  async getTransactionsPaginated(params: TransactionQueryParams): Promise<TransactionsPaginatedResult> {
+    try {
+      const { where, params: filterParams } = this.buildTransactionWhereClause(params);
+
+      const aggregateSql = `
+        SELECT
+          COUNT(*) as total,
+          SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END) as total_income,
+          SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as total_expenses
+        FROM transactions t
+        ${this.TRANSACTION_JOINS}
+        ${where}
+      `;
+      const aggregateResult = await this.workerService.query(aggregateSql, filterParams);
+      const total = Number(aggregateResult[0]?.total || 0);
+      const totalIncome = Number(aggregateResult[0]?.total_income || 0);
+      const totalExpenses = Number(aggregateResult[0]?.total_expenses || 0);
+
+      const sortCol = this.ALLOWED_SORT_COLUMNS[params.sortBy] ?? 't.date';
+      const sortDir = params.sortOrder === 'asc' ? 'ASC' : 'DESC';
+      const offset = params.page * params.pageSize;
+
+      const dataSql = `
+        SELECT ${this.TRANSACTION_SELECT}
+        FROM transactions t
+        ${this.TRANSACTION_JOINS}
+        ${where}
+        ORDER BY ${sortCol} ${sortDir}, t.id ${sortDir}
+        LIMIT ? OFFSET ?
+      `;
+      const rows = await this.workerService.query(dataSql, [...filterParams, params.pageSize, offset]);
+
+      return { data: rows.map(this.mapToTransaction), total, totalIncome, totalExpenses };
+    } catch (error) {
+      console.error("Failed to get paginated transactions:", error);
+      throw error;
+    }
+  }
+
+  async getTransactionsForExport(params: Omit<TransactionQueryParams, 'page' | 'pageSize'>): Promise<Transaction[]> {
+    const MAX_EXPORT = 100000;
+    try {
+      const { where, params: filterParams } = this.buildTransactionWhereClause({ ...params, page: 0, pageSize: MAX_EXPORT });
+      const sortCol = this.ALLOWED_SORT_COLUMNS[params.sortBy] ?? 't.date';
+      const sortDir = params.sortOrder === 'asc' ? 'ASC' : 'DESC';
+
+      const sql = `
+        SELECT ${this.TRANSACTION_SELECT}
+        FROM transactions t
+        ${this.TRANSACTION_JOINS}
+        ${where}
+        ORDER BY ${sortCol} ${sortDir}, t.id ${sortDir}
+        LIMIT ${MAX_EXPORT}
+      `;
+      const rows = await this.workerService.query(sql, filterParams);
+      return rows.map(this.mapToTransaction);
+    } catch (error) {
+      console.error("Failed to get transactions for export:", error);
+      throw error;
+    }
+  }
+
+  async getDashboardSummary(startDate: string, endDate: string): Promise<DashboardSummary> {
+    try {
+      const rows = await this.workerService.query(
+        ANALYTICS_QUERIES.DASHBOARD_SUMMARY,
+        [startDate, endDate]
+      );
+      const row = rows[0] || {};
+      const totalIncome = Number(row.total_income || 0);
+      const totalExpenses = Number(row.total_expenses || 0);
+      return {
+        totalIncome,
+        totalExpenses,
+        netIncome: totalIncome - totalExpenses,
+        transactionCount: Number(row.transaction_count || 0),
+      };
+    } catch (error) {
+      console.error("Failed to get dashboard summary:", error);
+      throw error;
+    }
+  }
+
+  async getChartData(startDate: string, endDate: string): Promise<ChartData> {
+    try {
+      const trendStart = new Date(endDate);
+      trendStart.setMonth(trendStart.getMonth() - 6);
+      const trendStartStr = trendStart.toISOString().split('T')[0];
+
+      const [spendingRows, incomeRows, trendRows, accountRows] = await Promise.all([
+        this.workerService.query(ANALYTICS_QUERIES.SPENDING_BY_CATEGORY, [startDate, endDate]),
+        this.workerService.query(ANALYTICS_QUERIES.INCOME_BY_SOURCE, [startDate, endDate]),
+        this.workerService.query(ANALYTICS_QUERIES.TRENDS_BY_DATE_RANGE, [trendStartStr, endDate]),
+        this.workerService.query(ANALYTICS_QUERIES.ACCOUNT_ANALYSIS, [startDate, endDate]),
+      ]);
+
+      const spendingByCategory = spendingRows.map((r: any) => ({
+        id: r.category_id,
+        label: r.category_name,
+        value: Number(r.total),
+        color: r.color || '#999',
+      }));
+
+      const incomeBySource = incomeRows.map((r: any) => {
+        const label = `${r.user_display_name || 'Unknown'} - ${r.account_name} - ${r.category_name || 'Not Defined'}`;
+        return {
+          id: `${r.account_id}-${r.category_id || 'undefined'}`,
+          label,
+          value: Number(r.total),
+          color: r.category_color || '#4caf50',
+        };
+      });
+
+      const trends = {
+        months: trendRows.map((r: any) => r.month),
+        income: trendRows.map((r: any) => Number(r.income || 0)),
+        expenses: trendRows.map((r: any) => Number(r.expense || 0)),
+      };
+
+      const accountAnalysis = {
+        accountNames: accountRows.map((r: any) =>
+          `${r.user_display_name ? r.user_display_name + ' - ' : ''}${r.account_name}`
+        ),
+        income: accountRows.map((r: any) => Number(r.income || 0)),
+        expenses: accountRows.map((r: any) => Number(r.expenses || 0)),
+      };
+
+      return { spendingByCategory, incomeBySource, trends, accountAnalysis };
+    } catch (error) {
+      console.error("Failed to get chart data:", error);
+      throw error;
+    }
+  }
+
+  async getAllProjectCosts(): Promise<ProjectCosts[]> {
+    try {
+      const rows = await this.workerService.query(PROJECT_QUERIES.GET_ALL_COSTS);
+      return rows.map((r: any) => ({
+        project_id: r.project_id,
+        estimated: Number(r.estimated || 0),
+        actual: Number(r.actual || 0),
+        transactions_total: Number(r.transactions_total || 0),
+      }));
+    } catch (error) {
+      console.error("Failed to get all project costs:", error);
+      throw error;
+    }
+  }
+
+  async getTransactionsByProjectPaginated(
+    projectId: number,
+    page: number,
+    pageSize: number
+  ): Promise<{ data: Transaction[]; total: number }> {
+    try {
+      const countRows = await this.workerService.query(
+        TRANSACTION_QUERIES.GET_COUNT_BY_PROJECT,
+        [projectId]
+      );
+      const total = Number(countRows[0]?.total || 0);
+
+      const sql = `
+        SELECT ${this.TRANSACTION_SELECT}
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN companies comp ON t.company_id = comp.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        LEFT JOIN projects p ON t.project_id = p.id
+        LEFT JOIN trips tr ON t.trip_id = tr.id
+        WHERE t.project_id = ?
+        ORDER BY t.date DESC, t.id DESC
+        LIMIT ? OFFSET ?
+      `;
+      const rows = await this.workerService.query(sql, [projectId, pageSize, page * pageSize]);
+      return { data: rows.map(this.mapToTransaction), total };
+    } catch (error) {
+      console.error("Failed to get transactions by project paginated:", error);
+      throw error;
+    }
+  }
+
+  async getTransactionsByTripPaginated(
+    tripId: number,
+    page: number,
+    pageSize: number
+  ): Promise<{ data: Transaction[]; total: number }> {
+    try {
+      const countRows = await this.workerService.query(
+        TRANSACTION_QUERIES.GET_COUNT_BY_TRIP,
+        [tripId]
+      );
+      const total = Number(countRows[0]?.total || 0);
+
+      const sql = `
+        SELECT ${this.TRANSACTION_SELECT}
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN companies comp ON t.company_id = comp.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        LEFT JOIN projects p ON t.project_id = p.id
+        LEFT JOIN trips tr ON t.trip_id = tr.id
+        WHERE t.trip_id = ?
+        ORDER BY t.date DESC, t.id DESC
+        LIMIT ? OFFSET ?
+      `;
+      const rows = await this.workerService.query(sql, [tripId, pageSize, page * pageSize]);
+      return { data: rows.map(this.mapToTransaction), total };
+    } catch (error) {
+      console.error("Failed to get transactions by trip paginated:", error);
       throw error;
     }
   }

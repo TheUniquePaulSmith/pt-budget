@@ -20,6 +20,14 @@ function createServiceMock() {
     checkDuplicateTransactions: vi.fn().mockResolvedValue(['duplicate-hash']),
     bulkInsertFromTempTable: vi.fn().mockResolvedValue(3),
     updateTransactionLabels: vi.fn().mockResolvedValue(undefined),
+    getRecentTransactions: vi.fn().mockResolvedValue([]),
+    getDashboardSummary: vi.fn().mockResolvedValue({ totalIncome: 0, totalExpenses: 0, netIncome: 0, transactionCount: 0 }),
+    getChartData: vi.fn().mockResolvedValue({ spendingByCategory: [], incomeBySource: [], trends: { months: [], income: [], expenses: [] }, accountAnalysis: { accountNames: [], income: [], expenses: [] } }),
+    getTransactionsPaginated: vi.fn().mockResolvedValue({ data: [], total: 0, totalIncome: 0, totalExpenses: 0 }),
+    getTransactionsForExport: vi.fn().mockResolvedValue([]),
+    getAllProjectCosts: vi.fn().mockResolvedValue([]),
+    getTransactionsByProjectPaginated: vi.fn().mockResolvedValue({ data: [], total: 0 }),
+    getTransactionsByTripPaginated: vi.fn().mockResolvedValue({ data: [], total: 0 }),
   };
 }
 
@@ -31,6 +39,7 @@ describe('useDatabaseTransactionSlice', () => {
       date: '2026-01-02',
       amount: -45.5,
       description: 'Lunch',
+      type: 'expense',
       category_id: null,
       company_id: null,
       project_id: null,
@@ -59,6 +68,7 @@ describe('useDatabaseTransactionSlice', () => {
       date: '2026-01-15',
       amount: -99,
       description: 'Groceries',
+      type: 'expense',
       category_id: 4,
       company_id: 7,
       project_id: null,

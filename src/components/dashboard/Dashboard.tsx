@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Box } from '@mui/material';
 import { useDashboardSlice } from '@/contexts/useDatabaseSlices';
 import { format, subDays, subMonths, startOfMonth, endOfMonth } from 'date-fns';
@@ -10,24 +10,30 @@ import DateRangeSelector from './DateRangeSelector';
 import SummaryStats from './SummaryStats';
 import ChartsSection from './ChartsSection';
 import RecentTransactions from './RecentTransactions';
+import type { Transaction, DashboardSummary, ChartData } from '@/types/database';
 
-const Dashboard: React.FC = () => {  
+const Dashboard: React.FC = () => {
   const {
-    transactions,
-    categories,
+    transactionVersion,
     accounts,
     users,
     exportDatabase,
+    getRecentTransactions,
+    getDashboardSummary,
+    getChartData,
   } = useDashboardSlice();
-  
-  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year' | 'custom'>('month');  
-  const [addTransactionOpen, setAddTransactionOpen] = useState(false);  
-  const [csvImportOpen, setCsvImportOpen] = useState(false);  
+
+  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year' | 'custom'>('month');
+  const [addTransactionOpen, setAddTransactionOpen] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
 
-  // Calculate date ranges
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
+  const [chartData, setChartData] = useState<ChartData | null>(null);
+
   const dateRanges = useMemo(() => {
     const now = new Date();
     switch (timeRange) {
@@ -58,6 +64,28 @@ const Dashboard: React.FC = () => {
         };
     }
   }, [timeRange, customStartDate, customEndDate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchData = async () => {
+      try {
+        const [recent, summary, charts] = await Promise.all([
+          getRecentTransactions(recentTransactionsLimit),
+          getDashboardSummary(dateRanges.start, dateRanges.end),
+          getChartData(dateRanges.start, dateRanges.end),
+        ]);
+        if (!cancelled) {
+          setRecentTransactions(recent);
+          setDashboardSummary(summary);
+          setChartData(charts);
+        }
+      } catch (err) {
+        console.error('Failed to load dashboard data:', err);
+      }
+    };
+    fetchData();
+    return () => { cancelled = true; };
+  }, [transactionVersion, dateRanges, recentTransactionsLimit, getRecentTransactions, getDashboardSummary, getChartData]);
 
   const handleExportDatabase = async () => {
     const dbData = await exportDatabase();
@@ -91,7 +119,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
-      {/* Header & Time Range Selector */}
       <DateRangeSelector
         timeRange={timeRange}
         onTimeRangeChange={setTimeRange}
@@ -103,47 +130,34 @@ const Dashboard: React.FC = () => {
         onCsvImport={() => setCsvImportOpen(true)}
       />
 
-      {/* Summary Stats */}
       <SummaryStats
-        transactions={transactions}
-        accounts={accounts}
-        dateRanges={dateRanges}
+        summary={dashboardSummary}
         timeRangeLabel={getTimeRangeLabel()}
       />
 
-      {/* Charts Section */}
       <ChartsSection
-        transactions={transactions}
-        categories={categories}
+        chartData={chartData}
         accounts={accounts}
         users={users}
-        dateRanges={dateRanges}
         timeRangeLabel={getTimeRangeLabel()}
       />
 
-      {/* Recent Transactions */}
       <RecentTransactions
-        transactions={transactions}
+        transactions={recentTransactions}
         limit={recentTransactionsLimit}
         onLimitChange={setRecentTransactionsLimit}
       />
 
-      {/* Add Transaction Modal */}
       <AddTransaction
         open={addTransactionOpen}
         onClose={() => setAddTransactionOpen(false)}
-        onSuccess={() => {
-          setAddTransactionOpen(false);
-        }}
+        onSuccess={() => setAddTransactionOpen(false)}
       />
 
-      {/* CSV Import Modal */}
       <CSVImport
         open={csvImportOpen}
         onClose={() => setCsvImportOpen(false)}
-        onSuccess={() => {
-          setCsvImportOpen(false);
-        }}
+        onSuccess={() => setCsvImportOpen(false)}
       />
     </Box>
   );

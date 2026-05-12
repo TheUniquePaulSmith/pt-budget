@@ -71,7 +71,7 @@ function mockDatabaseHooks() {
       },
     },
     collections: {
-      transactions: [{ id: 1, description: 'Rent' }],
+      transactionVersion: 0,
       categories: [{ id: 2, name: 'Housing' }],
       companies: [{ id: 3, name: 'Landlord LLC' }],
       accounts: [{ id: 4, name: 'Checking' }],
@@ -95,6 +95,14 @@ function mockDatabaseHooks() {
       bulkInsertFromTempTable: vi.fn(),
       updateTransactionLabels: vi.fn(),
       generateTransactionHash: vi.fn(),
+      getRecentTransactions: vi.fn(),
+      getDashboardSummary: vi.fn(),
+      getChartData: vi.fn(),
+      getTransactionsPaginated: vi.fn(),
+      getTransactionsForExport: vi.fn(),
+      getAllProjectCosts: vi.fn(),
+      getTransactionsByProjectPaginated: vi.fn(),
+      getTransactionsByTripPaginated: vi.fn(),
     },
     categories: {
       addCategory,
@@ -179,11 +187,14 @@ describe('useDatabaseSlices', () => {
 
     const { result } = renderHook(() => useDashboardSlice());
 
-    expect(result.current.transactions).toBe(slices.collections.transactions);
+    expect(result.current.transactionVersion).toBe(slices.collections.transactionVersion);
     expect(result.current.categories).toBe(slices.collections.categories);
     expect(result.current.accounts).toBe(slices.collections.accounts);
     expect(result.current.users).toBe(slices.collections.users);
     expect(result.current.exportDatabase).toBe(slices.lifecycle.exportDatabase);
+    expect(result.current.getRecentTransactions).toBe(slices.transactions.getRecentTransactions);
+    expect(result.current.getDashboardSummary).toBe(slices.transactions.getDashboardSummary);
+    expect(result.current.getChartData).toBe(slices.transactions.getChartData);
   });
 
   it('maps transaction composer actions from grouped transaction and catalog slices', () => {

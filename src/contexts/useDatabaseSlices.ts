@@ -36,10 +36,13 @@ export function useSqlQuerySlice() {
 export function useProjectsSlice() {
   const collections = useDatabaseCollections();
   const projects = useDatabaseProjects();
+  const transactions = useDatabaseTransactions();
 
   return {
     projects: collections.projects,
-    transactions: collections.transactions,
+    transactionVersion: collections.transactionVersion,
+    getTransactionsByProjectPaginated: transactions.getTransactionsByProjectPaginated,
+    getAllProjectCosts: transactions.getAllProjectCosts,
     addProject: projects.addProject,
     updateProject: projects.updateProject,
     deleteProject: projects.deleteProject,
@@ -77,13 +80,16 @@ export function useTransactionComposerSlice() {
 
 export function useTransactionReportSlice() {
   const collections = useDatabaseCollections();
+  const transactions = useDatabaseTransactions();
 
   return {
-    transactions: collections.transactions,
+    transactionVersion: collections.transactionVersion,
     categories: collections.categories,
     companies: collections.companies,
     projects: collections.projects,
     accounts: collections.accounts,
+    getTransactionsPaginated: transactions.getTransactionsPaginated,
+    getTransactionsForExport: transactions.getTransactionsForExport,
   };
 }
 
@@ -120,13 +126,17 @@ export function useCsvImportSlice() {
 export function useDashboardSlice() {
   const collections = useDatabaseCollections();
   const lifecycle = useDatabaseLifecycle();
+  const transactions = useDatabaseTransactions();
 
   return {
-    transactions: collections.transactions,
+    transactionVersion: collections.transactionVersion,
     categories: collections.categories,
     accounts: collections.accounts,
     users: collections.users,
     exportDatabase: lifecycle.exportDatabase,
+    getRecentTransactions: transactions.getRecentTransactions,
+    getDashboardSummary: transactions.getDashboardSummary,
+    getChartData: transactions.getChartData,
   };
 }
 

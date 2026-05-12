@@ -7,9 +7,6 @@ import { useDatabaseCollectionsState } from './useDatabaseCollectionsState';
 
 function createServiceMock() {
   return {
-    getTransactions: vi
-      .fn()
-      .mockResolvedValue([{ id: 1, description: 'Rent' }]),
     getCategories: vi.fn().mockResolvedValue([{ id: 2, name: 'Housing' }]),
     getCompanies: vi.fn().mockResolvedValue([{ id: 3, name: 'Landlord LLC' }]),
     getAccounts: vi.fn().mockResolvedValue([{ id: 4, name: 'Checking' }]),
@@ -34,7 +31,7 @@ describe('useDatabaseCollectionsState', () => {
     });
 
     expect(result.current.collections).toEqual({
-      transactions: [{ id: 1, description: 'Rent' }],
+      transactionVersion: 0,
       categories: [{ id: 2, name: 'Housing' }],
       companies: [{ id: 3, name: 'Landlord LLC' }],
       accounts: [{ id: 4, name: 'Checking' }],
@@ -44,11 +41,8 @@ describe('useDatabaseCollectionsState', () => {
     });
   });
 
-  it('refreshes an individual collection from the active database service', async () => {
+  it('increments transactionVersion when refreshTransactions is called', async () => {
     const service = createServiceMock();
-    service.getTransactions
-      .mockResolvedValueOnce([{ id: 1, description: 'Rent' }])
-      .mockResolvedValueOnce([{ id: 8, description: 'Updated transaction' }]);
 
     const { result } = renderHook(() =>
       useDatabaseCollectionsState({
@@ -60,14 +54,13 @@ describe('useDatabaseCollectionsState', () => {
       await result.current.loadAllData(service);
     });
 
+    const versionBefore = result.current.collections.transactionVersion;
+
     await act(async () => {
       await result.current.refreshTransactions();
     });
 
-    expect(service.getTransactions).toHaveBeenCalledTimes(2);
-    expect(result.current.collections.transactions).toEqual([
-      { id: 8, description: 'Updated transaction' },
-    ]);
+    expect(result.current.collections.transactionVersion).toBe(versionBefore + 1);
   });
 
   it('no-ops refresh calls when no database service is available', async () => {

@@ -8,13 +8,12 @@ import type {
   Category,
   Company,
   Project,
-  Transaction,
   Trip,
   User,
 } from '../types/database';
 
 export interface DatabaseCollectionsSlice {
-  transactions: Transaction[];
+  transactionVersion: number;
   categories: Category[];
   companies: Company[];
   accounts: Account[];
@@ -25,7 +24,6 @@ export interface DatabaseCollectionsSlice {
 
 type CollectionDataService = Pick<
   DatabaseService,
-  | 'getTransactions'
   | 'getCategories'
   | 'getCompanies'
   | 'getAccounts'
@@ -53,7 +51,7 @@ interface UseDatabaseCollectionsStateResult {
 export function useDatabaseCollectionsState({
   getDatabaseService,
 }: UseDatabaseCollectionsStateOptions): UseDatabaseCollectionsStateResult {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactionVersion, setTransactionVersion] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -64,7 +62,6 @@ export function useDatabaseCollectionsState({
   const loadAllData = useCallback(async (service: CollectionDataService) => {
     try {
       const [
-        transactionsData,
         categoriesData,
         companiesData,
         accountsData,
@@ -72,7 +69,6 @@ export function useDatabaseCollectionsState({
         usersData,
         tripsData,
       ] = await Promise.all([
-        service.getTransactions(),
         service.getCategories(),
         service.getCompanies(),
         service.getAccounts(),
@@ -81,7 +77,6 @@ export function useDatabaseCollectionsState({
         service.getTrips(),
       ]);
 
-      setTransactions(transactionsData);
       setCategories(categoriesData);
       setCompanies(companiesData);
       setAccounts(accountsData);
@@ -94,25 +89,14 @@ export function useDatabaseCollectionsState({
     }
   }, []);
 
+  // Incrementing transactionVersion signals components to re-fetch transaction data from the DB.
   const refreshTransactions = useCallback(async () => {
-    const databaseService = getDatabaseService();
-    if (!databaseService) {
-      return;
-    }
-
-    try {
-      const data = await databaseService.getTransactions();
-      setTransactions(data);
-    } catch (err) {
-      console.error('Failed to refresh transactions:', err);
-    }
-  }, [getDatabaseService]);
+    setTransactionVersion(v => v + 1);
+  }, []);
 
   const refreshCategories = useCallback(async () => {
     const databaseService = getDatabaseService();
-    if (!databaseService) {
-      return;
-    }
+    if (!databaseService) return;
 
     try {
       const data = await databaseService.getCategories();
@@ -124,9 +108,7 @@ export function useDatabaseCollectionsState({
 
   const refreshCompanies = useCallback(async () => {
     const databaseService = getDatabaseService();
-    if (!databaseService) {
-      return;
-    }
+    if (!databaseService) return;
 
     try {
       const data = await databaseService.getCompanies();
@@ -138,9 +120,7 @@ export function useDatabaseCollectionsState({
 
   const refreshAccounts = useCallback(async () => {
     const databaseService = getDatabaseService();
-    if (!databaseService) {
-      return;
-    }
+    if (!databaseService) return;
 
     try {
       const data = await databaseService.getAccounts();
@@ -152,9 +132,7 @@ export function useDatabaseCollectionsState({
 
   const refreshProjects = useCallback(async () => {
     const databaseService = getDatabaseService();
-    if (!databaseService) {
-      return;
-    }
+    if (!databaseService) return;
 
     try {
       const data = await databaseService.getProjects();
@@ -166,9 +144,7 @@ export function useDatabaseCollectionsState({
 
   const refreshUsers = useCallback(async () => {
     const databaseService = getDatabaseService();
-    if (!databaseService) {
-      return;
-    }
+    if (!databaseService) return;
 
     try {
       const data = await databaseService.getUsers();
@@ -180,9 +156,7 @@ export function useDatabaseCollectionsState({
 
   const refreshTrips = useCallback(async () => {
     const databaseService = getDatabaseService();
-    if (!databaseService) {
-      return;
-    }
+    if (!databaseService) return;
 
     try {
       const data = await databaseService.getTrips();
@@ -194,7 +168,7 @@ export function useDatabaseCollectionsState({
 
   const collections = useMemo(
     () => ({
-      transactions,
+      transactionVersion,
       categories,
       companies,
       accounts,
@@ -202,7 +176,7 @@ export function useDatabaseCollectionsState({
       users,
       trips,
     }),
-    [transactions, categories, companies, accounts, projects, users, trips]
+    [transactionVersion, categories, companies, accounts, projects, users, trips]
   );
 
   return {

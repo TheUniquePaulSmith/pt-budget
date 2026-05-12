@@ -117,3 +117,74 @@ export interface Trip {
   created_at: string;
   updated_at: string;
 }
+
+export interface TransactionQueryParams {
+  page: number;
+  pageSize: number;
+  sortBy: string;
+  sortOrder: 'asc' | 'desc';
+  search?: string;
+  type?: 'income' | 'expense';
+  categoryIds?: number[];
+  companyIds?: number[];
+  projectIds?: number[];
+  accountIds?: number[];
+  startDate?: string;
+  endDate?: string;
+  minAmount?: number;
+  maxAmount?: number;
+}
+
+export interface TransactionsPaginatedResult {
+  data: Transaction[];
+  total: number;
+  totalIncome: number;
+  totalExpenses: number;
+}
+
+export interface DashboardSummary {
+  totalIncome: number;
+  totalExpenses: number;
+  netIncome: number;
+  transactionCount: number;
+}
+
+export interface ChartCategoryData {
+  id: number | string;
+  label: string;
+  value: number;
+  color: string;
+}
+
+export interface ChartTrendsData {
+  months: string[];
+  income: number[];
+  expenses: number[];
+}
+
+export interface ChartAccountData {
+  accountNames: string[];
+  income: number[];
+  expenses: number[];
+}
+
+export interface ChartData {
+  spendingByCategory: ChartCategoryData[];
+  incomeBySource: ChartCategoryData[];
+  trends: ChartTrendsData;
+  accountAnalysis: ChartAccountData;
+}
+
+export interface ProjectCosts {
+  project_id: number;
+  estimated: number;
+  actual: number;
+  transactions_total: number;
+}
+
+export interface TripCosts {
+  trip_id: number;
+  estimated: number;
+  actual: number;
+  transactions_total: number;
+}

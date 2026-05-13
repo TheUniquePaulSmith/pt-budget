@@ -2,7 +2,7 @@
 
 This directory contains sample data files that can be automatically loaded into the database for development and testing purposes.
 
-The default runtime-compatible fixture set models a suburban family household from May 2021 through April 2026, with 585 transactions spanning housing, groceries, utilities, transportation, childcare and school, healthcare, insurance, travel, home improvement, salary, side income, and tax refunds.
+The default runtime-compatible fixture set models a suburban family household and can range from a few hundred to a very large number of generated transactions depending on the last sample-data generation run. Check `transactions.json` metadata for the current transaction count.
 
 The repo now includes schema-aware commands to validate and regenerate these files from the live database schema in `public/database-schema.js`.
 
@@ -59,9 +59,11 @@ By default, generation only writes tables that are currently compatible with bot
 
 To load sample data when creating a new database:
 
-1. Navigate to the app with the query parameter: `http://localhost:3000?loadSampleData=true`
+1. Navigate to the app with the query parameter: `http://localhost:3000?loadSampleData`
 2. Click "Create New Database"
 3. Sample data will automatically be loaded
+
+If the current transactions fixture is very large and you only need a smaller subset for testing, append `&sampleDataTransactionLimit=1000` to import just the first 1,000 transaction rows.
 
 ## File Format
 
@@ -135,7 +137,7 @@ You can export existing database tables to create sample data files:
 
 - Missing files are silently skipped (no error)
 - Invalid JSON or missing foreign keys will cause errors
-- Sample data only loads when `?loadSampleData=true` is in the URL
+- Sample data only loads when `?loadSampleData` is in the URL
 - Sample data loads after database initialization, before data refresh
 - `npm run sample-data:validate` will warn when schema tables are unmanaged or when runtime sample-data queries have drifted from the schema
-- Full-schema generation can create files for tables that the current runtime sample-data queries cannot yet import; use the validation report before relying on `?loadSampleData=true`
+- Full-schema generation can create files for tables that the current runtime sample-data queries cannot yet import; use the validation report before relying on `?loadSampleData`

@@ -189,7 +189,7 @@ const DeveloperConsolePage: React.FC<DeveloperConsolePageProps> = ({ onClose }) 
                   <Alert severity="info">
                     Export database tables to JSON format for creating sample data files. 
                     Save exported files to <code>/public/sample-data/</code> directory.
-                    To load sample data, navigate to <code>?loadSampleData=true</code> when creating a new database.
+                    To load sample data, navigate to <code>?loadSampleData</code> when creating a new database.
                   </Alert>
                   
                   <Typography variant="body2" color="text.secondary" gutterBottom>

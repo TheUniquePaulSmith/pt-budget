@@ -67,10 +67,22 @@ describe('SampleDataService', () => {
     batchQueryMock.mockReset();
     queryMock.mockReset();
     vi.restoreAllMocks();
+    window.history.replaceState({}, '', '/');
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('enables sample data loading when the query flag is present', () => {
+    window.history.replaceState({}, '', '/?loadSampleData');
+    expect(SampleDataService.shouldLoadSampleData()).toBe(true);
+
+    window.history.replaceState({}, '', '/?loadSampleData=true');
+    expect(SampleDataService.shouldLoadSampleData()).toBe(true);
+
+    window.history.replaceState({}, '', '/');
+    expect(SampleDataService.shouldLoadSampleData()).toBe(false);
   });
 
   it('streams transaction fixtures and batches inserts without calling response.json', async () => {
@@ -173,6 +185,93 @@ describe('SampleDataService', () => {
       { useTransaction: true }
     );
     expect(queryMock).toHaveBeenCalledWith(SAMPLE_DATA_QUERIES.RESET_SEQUENCE, [2, 'transactions']);
+  });
+
+  it('limits imported transactions when a transaction cap is present in the URL', async () => {
+    const transactionRows = [
+      {
+        id: 1,
+        date: '2026-04-01',
+        amount: 100,
+        description: 'Limited payroll deposit',
+        account_id: 1,
+        category_id: 13,
+        company_id: 1,
+        project_id: null,
+        trip_id: null,
+        type: 'income',
+        transaction_hash: '1-2026-04-01-100-Limited payroll deposit',
+        hash_variation_seed: 0,
+        created_at: '2026-04-01T08:15:00.000Z',
+        updated_at: '2026-04-01T08:15:00.000Z',
+      },
+      {
+        id: 2,
+        date: '2026-04-02',
+        amount: -50,
+        description: 'Limited grocery run',
+        account_id: 4,
+        category_id: 2,
+        company_id: 4,
+        project_id: null,
+        trip_id: null,
+        type: 'expense',
+        transaction_hash: '4-2026-04-02--50-Limited grocery run',
+        hash_variation_seed: 0,
+        created_at: '2026-04-02T17:45:00.000Z',
+        updated_at: '2026-04-02T17:45:00.000Z',
+      },
+    ];
+
+    window.history.replaceState({}, '', '/?sampleDataTransactionLimit=1');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string) => {
+        if (input.endsWith('/sample-data/transactions.json')) {
+          return Promise.resolve(
+            createStreamResponse(
+              JSON.stringify({
+                table: 'transactions',
+                meta: { actualTransactionCount: transactionRows.length },
+                data: transactionRows,
+              })
+            )
+          );
+        }
+
+        return Promise.resolve(createMissingResponse());
+      })
+    );
+
+    batchQueryMock.mockResolvedValue(1);
+    queryMock.mockResolvedValue([]);
+
+    await SampleDataService.loadAllSampleData();
+
+    expect(batchQueryMock).toHaveBeenCalledWith(
+      SAMPLE_DATA_QUERIES.INSERT_TRANSACTION,
+      [
+        [
+          1,
+          '2026-04-01',
+          100,
+          'Limited payroll deposit',
+          1,
+          13,
+          1,
+          null,
+          null,
+          'income',
+          '1-2026-04-01-100-Limited payroll deposit',
+          0,
+          '2026-04-01T08:15:00.000Z',
+          '2026-04-01T08:15:00.000Z',
+        ],
+      ],
+      { useTransaction: true }
+    );
+    expect(queryMock).toHaveBeenCalledWith(SAMPLE_DATA_QUERIES.RESET_SEQUENCE, [1, 'transactions']);
   });
 
   it('falls back to response.json when a readable stream is unavailable', async () => {

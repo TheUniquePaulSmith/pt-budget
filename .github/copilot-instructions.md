@@ -105,7 +105,7 @@ When adding a new database-backed operation:
 
 - CSV import uses [`src/lib/csvImportService.ts`](../src/lib/csvImportService.ts) and the `src/components/csv-import/` UI.
 - Sample data support exists through [`src/lib/sampleDataService.ts`](../src/lib/sampleDataService.ts) and `public/sample-data/`.
-- The current sample data bootstrap path is triggered by `?loadSampleData=true` during new database creation.
+- The current sample data bootstrap path is triggered by `?loadSampleData` during new database creation.
 - Storage/export and diagnostics are part of the normal product workflow; check dashboard, settings, and developer console surfaces before inventing new debug-only paths.
 
 ## Development Setup

@@ -41,6 +41,7 @@ export interface SampleDataImportProgress {
 export interface LoadSampleDataOptions {
   signal?: AbortSignal;
   onProgress?: (progress: SampleDataImportProgress) => void;
+  transactionRowLimit?: number | null;
 }
 
 interface SampleDataFile {
@@ -95,6 +96,8 @@ export class SampleDataService {
 
     const totalFiles = this.SAMPLE_DATA_FILES.length;
     let completedFiles = 0;
+    const transactionRowLimit =
+      options.transactionRowLimit ?? this.getTransactionRowLimit();
 
     this.throwIfAborted(options.signal);
     this.reportProgress(options, {
@@ -123,6 +126,7 @@ export class SampleDataService {
         });
         await this.loadSampleDataFile(filename, {
           ...options,
+          transactionRowLimit,
           completedFiles,
           totalFiles,
           currentFile: filename,
@@ -204,9 +208,18 @@ export class SampleDataService {
     meta?: SampleDataMeta
   ): Promise<void> {
     const importDefinition = this.getImportDefinition(tableName);
+    const limitedRows = this.applyTransactionRowLimit(
+      tableName,
+      rows,
+      context.transactionRowLimit
+    );
     const pendingRows: any[] = [];
-    const expectedRowCount =
-      meta?.actualTransactionCount ?? (Array.isArray(rows) ? rows.length : null);
+    const expectedRowCount = this.getExpectedRowCount(
+      tableName,
+      rows,
+      meta,
+      context.transactionRowLimit
+    );
     let totalRows = 0;
     let maxId = 0;
     let nextProgressLog = importDefinition.progressLogInterval;
@@ -230,7 +243,7 @@ export class SampleDataService {
         : `[Sample Data] Loading records into ${tableName}`
     );
 
-    for await (const row of rows) {
+    for await (const row of limitedRows) {
       this.throwIfAborted(context.signal);
       pendingRows.push(row);
 
@@ -305,6 +318,27 @@ export class SampleDataService {
     return error instanceof Error && error.name === 'AbortError';
   }
 
+  private static getTransactionRowLimit(): number | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    const limitValue = new URLSearchParams(window.location.search).get(
+      'sampleDataTransactionLimit'
+    );
+
+    if (!limitValue) {
+      return null;
+    }
+
+    const parsedLimit = Number.parseInt(limitValue, 10);
+    if (!Number.isFinite(parsedLimit) || parsedLimit <= 0) {
+      return null;
+    }
+
+    return parsedLimit;
+  }
+
   /**
    * Check if sample data should be loaded based on URL query parameter
    */
@@ -312,7 +346,7 @@ export class SampleDataService {
     if (typeof window === 'undefined') return false;
 
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('loadSampleData') === 'true';
+    return urlParams.has('loadSampleData');
   }
 
   /**
@@ -328,6 +362,52 @@ export class SampleDataService {
     };
 
     return JSON.stringify(sampleData, null, 2);
+  }
+
+  private static applyTransactionRowLimit(
+    tableName: string,
+    rows: AsyncIterable<any> | Iterable<any>,
+    transactionRowLimit?: number | null
+  ): AsyncIterable<any> | Iterable<any> {
+    if (tableName !== 'transactions' || !transactionRowLimit) {
+      return rows;
+    }
+
+    return this.takeRows(rows, transactionRowLimit);
+  }
+
+  private static getExpectedRowCount(
+    tableName: string,
+    rows: AsyncIterable<any> | Iterable<any>,
+    meta?: SampleDataMeta,
+    transactionRowLimit?: number | null
+  ): number | null {
+    const knownRowCount =
+      meta?.actualTransactionCount ?? (Array.isArray(rows) ? rows.length : null);
+
+    if (tableName !== 'transactions' || !transactionRowLimit) {
+      return knownRowCount;
+    }
+
+    return knownRowCount === null
+      ? transactionRowLimit
+      : Math.min(knownRowCount, transactionRowLimit);
+  }
+
+  private static async *takeRows(
+    rows: AsyncIterable<any> | Iterable<any>,
+    limit: number
+  ): AsyncGenerator<any> {
+    let yieldedRows = 0;
+
+    for await (const row of rows) {
+      if (yieldedRows >= limit) {
+        return;
+      }
+
+      yieldedRows += 1;
+      yield row;
+    }
   }
 
   private static async insertTableBatch(

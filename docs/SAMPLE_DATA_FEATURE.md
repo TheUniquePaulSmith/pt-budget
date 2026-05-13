@@ -17,7 +17,7 @@ npm run sample-data:generate -- --full-schema
 ## How It Works
 
 ### Query Parameter Detection
-- Access the app with `?loadSampleData=true` query parameter
+- Access the app with the `?loadSampleData` query parameter
 - When creating a new database, the system automatically loads sample data
 - Sample data is loaded **after** database initialization but **before** the data refresh
 
@@ -53,7 +53,7 @@ Files are loaded in dependency order to maintain foreign key relationships:
 ## Usage
 
 ### Step 1: Access with Query Parameter
-Navigate to: `http://localhost:3000?loadSampleData=true`
+Navigate to: `http://localhost:3000?loadSampleData`
 
 ### Step 2: Create New Database
 Click "Create New Database" button
@@ -226,7 +226,7 @@ UPDATE sqlite_sequence SET seq = ? WHERE name = ?
 ```
 
 ### Loading Process
-1. Check URL for `?loadSampleData=true` parameter
+1. Check URL for `?loadSampleData` parameter
 2. After database creation, iterate through sample data files
 3. For each file:
    - Fetch JSON from `/sample-data/[filename]`
@@ -292,7 +292,7 @@ UPDATE sqlite_sequence SET seq = ? WHERE name = ?
 **Problem**: Created new database but no sample data appears
 
 **Solutions**:
-1. Verify URL contains `?loadSampleData=true`
+1. Verify URL contains `?loadSampleData`
 2. Check browser console for errors
 3. Verify JSON files exist in `/public/sample-data/`
 4. Check JSON syntax is valid
@@ -387,7 +387,7 @@ Create sample data with:
 Loads all sample data files from `/public/sample-data/` in dependency order.
 
 #### `shouldLoadSampleData(): boolean`
-Returns true if URL contains `?loadSampleData=true` parameter.
+Returns true if the URL contains the `loadSampleData` parameter.
 
 #### `exportTableToJSON(tableName: string): Promise<string>`
 Exports a database table to JSON format for sample data creation.

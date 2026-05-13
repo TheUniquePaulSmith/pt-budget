@@ -9,6 +9,7 @@ const browserCompatibilityResults = {
 };
 
 const DEFAULT_SAMPLE_DATA_EXPENSE_ACCOUNT_NAME = 'Household Checking';
+const SMOKE_SAMPLE_DATA_TRANSACTION_LIMIT = 1000;
 
 async function seedBrowserCompatibility(page: Page) {
   await page.addInitScript((results) => {
@@ -22,7 +23,9 @@ async function seedBrowserCompatibility(page: Page) {
 async function bootstrapDatabase(page: Page) {
   await seedBrowserCompatibility(page);
 
-  await page.goto('/?loadSampleData=true');
+  await page.goto(
+    `/?loadSampleData&sampleDataTransactionLimit=${SMOKE_SAMPLE_DATA_TRANSACTION_LIMIT}`
+  );
 
   const createDatabaseButton = page.getByRole('button', {
     name: 'Create New Database',

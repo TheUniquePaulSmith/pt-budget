@@ -180,6 +180,7 @@ function createWorkerTransportStub(
     initialize: vi.fn(),
     openDatabase: vi.fn(),
     createTables: vi.fn(),
+    ensureIndexes: vi.fn(),
     query: vi.fn(),
     exec: vi.fn(),
     exportDatabase: vi.fn(),
@@ -308,15 +309,15 @@ describe('DatabaseService lifecycle helpers', () => {
     expect(worker.initialize).toHaveBeenCalledTimes(1);
   });
 
-  it('creates tables only when opening a new database', async () => {
+  it('delegates new database opening to the worker without a second createTables call', async () => {
     const worker = createWorkerTransportStub();
     const service = new DatabaseService(worker);
     vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
 
     await service.openDatabase('/custom-budget.db', true);
 
-    expect(worker.openDatabase).toHaveBeenCalledWith('/custom-budget.db', true);
-    expect(worker.createTables).toHaveBeenCalledTimes(1);
+    expect(worker.openDatabase).toHaveBeenCalledWith('/custom-budget.db', true, {});
+    expect(worker.createTables).not.toHaveBeenCalled();
   });
 
   it('skips table creation when opening an existing database', async () => {
@@ -326,8 +327,29 @@ describe('DatabaseService lifecycle helpers', () => {
 
     await service.openDatabase('/custom-budget.db', false);
 
-    expect(worker.openDatabase).toHaveBeenCalledWith('/custom-budget.db', false);
+    expect(worker.openDatabase).toHaveBeenCalledWith('/custom-budget.db', false, {});
     expect(worker.createTables).not.toHaveBeenCalled();
+  });
+
+  it('can defer index creation when opening a new database for bulk sample imports', async () => {
+    const worker = createWorkerTransportStub();
+    const service = new DatabaseService(worker);
+    vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
+
+    await service.createNewDatabase({ deferIndexes: true });
+
+    expect(worker.openDatabase).toHaveBeenCalledWith('/budget-app.db', true, {
+      deferIndexes: true,
+    });
+  });
+
+  it('delegates ensureIndexes to the worker transport', async () => {
+    const worker = createWorkerTransportStub();
+    const service = new DatabaseService(worker);
+
+    await service.ensureIndexes();
+
+    expect(worker.ensureIndexes).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -339,7 +361,7 @@ describe('DatabaseService lifecycle helpers', () => {
     {
       name: 'createNewDatabase',
       call: (service: DatabaseService) => service.createNewDatabase(),
-      expectedArgs: [undefined, true],
+      expectedArgs: [undefined, true, {}],
     },
     {
       name: 'clearAndRecreateDatabase',

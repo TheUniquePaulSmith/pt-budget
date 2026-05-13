@@ -23,6 +23,7 @@ type MockService = {
   initialize: ReturnType<typeof vi.fn>;
   openExistingDatabase: ReturnType<typeof vi.fn>;
   createNewDatabase: ReturnType<typeof vi.fn>;
+  ensureIndexes: ReturnType<typeof vi.fn>;
   clearAndRecreateDatabase: ReturnType<typeof vi.fn>;
   loadDatabaseFromFile: ReturnType<typeof vi.fn>;
   getWorkerService: ReturnType<typeof vi.fn>;
@@ -49,6 +50,7 @@ function createServiceMock(overrides: Partial<MockService> = {}): MockService {
     initialize: vi.fn().mockResolvedValue(undefined),
     openExistingDatabase: vi.fn().mockResolvedValue(undefined),
     createNewDatabase: vi.fn().mockResolvedValue(undefined),
+    ensureIndexes: vi.fn().mockResolvedValue(undefined),
     clearAndRecreateDatabase: vi.fn().mockResolvedValue(undefined),
     loadDatabaseFromFile: vi.fn().mockResolvedValue(undefined),
     getWorkerService: vi.fn(() => workerService),
@@ -147,7 +149,10 @@ describe('useDatabaseInitialization', () => {
       await result.current.createOrOpenDatabase(true);
     });
 
-    expect(service.createNewDatabase).toHaveBeenCalledTimes(1);
+    expect(service.createNewDatabase).toHaveBeenCalledWith({
+      deferIndexes: true,
+    });
+    expect(service.ensureIndexes).toHaveBeenCalledTimes(1);
     expect(mockedShouldLoadSampleData).toHaveBeenCalledTimes(1);
     expect(mockedLoadAllSampleData).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -227,8 +232,11 @@ describe('useDatabaseInitialization', () => {
       await createPromise;
     });
 
-    expect(service.createNewDatabase).toHaveBeenCalledTimes(1);
+    expect(service.createNewDatabase).toHaveBeenCalledWith({
+      deferIndexes: true,
+    });
     expect(service.clearAndRecreateDatabase).toHaveBeenCalledTimes(1);
+    expect(service.ensureIndexes).toHaveBeenCalledTimes(1);
     expect(loadAllData).toHaveBeenLastCalledWith(service);
     expect(result.current.initializationState).toBe('initialized');
     expect(result.current.sampleDataImportProgress).toBeNull();

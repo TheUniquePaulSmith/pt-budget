@@ -50,7 +50,7 @@ interface DatabaseLifecycleSlice {
 }
 
 interface DatabaseDiagnosticsSlice {
-  executeCustomQuery: (sql: string) => Promise<any[]>;
+  executeCustomQuery: (sql: string, timeoutMs?: number) => Promise<any[]>;
 }
 
 interface DatabaseContextType {
@@ -218,7 +218,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   });
 
   // Custom SQL query execution
-  const executeCustomQuery = useCallback(async (sql: string): Promise<any[]> => {
+  const executeCustomQuery = useCallback(async (sql: string, timeoutMs?: number): Promise<any[]> => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
@@ -226,17 +226,20 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     try {
       // Sanitize the query to prevent dangerous operations
       const trimmedSql = sql.trim().toLowerCase();
-      
+
       // Block potentially dangerous operations
-      const dangerousKeywords = ['drop', 'delete', 'update', 'insert', 'alter', 'create', 'truncate'];
-      const isDangerous = dangerousKeywords.some(keyword => 
+      const dangerousKeywords = ['drop', 'delete', 'update', 'insert', 'alter', 'truncate'];
+      const isDangerous = dangerousKeywords.some(keyword =>
         trimmedSql.includes(keyword + ' ') || trimmedSql.startsWith(keyword)
       );
-      
+
       if (isDangerous) {
         throw new Error('Only SELECT queries are allowed for security reasons');
       }
 
+      if (timeoutMs !== undefined) {
+        return await databaseService.executeCustomQueryWithTimeout(sql, timeoutMs);
+      }
       return await databaseService.executeCustomQuery(sql);
     } catch (err) {
       console.error('Failed to execute custom query:', err);

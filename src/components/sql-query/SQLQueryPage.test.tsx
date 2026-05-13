@@ -83,7 +83,7 @@ describe('SQLQueryPage', () => {
     await user.click(screen.getByRole('button', { name: 'Execute Query' }));
 
     await waitFor(() => {
-      expect(executeCustomQuery).toHaveBeenCalledWith(query);
+      expect(executeCustomQuery).toHaveBeenCalledWith(query, 10000);
     });
 
     expect(await screen.findByText('Query Results')).toBeInTheDocument();
@@ -91,5 +91,40 @@ describe('SQLQueryPage', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText(/Query History \(1\)/)).toBeInTheDocument();
     expect(screen.getByText('Success')).toBeInTheDocument();
+  });
+
+  it('allows direct range edits that stay aligned with rows per page', async () => {
+    const rows = Array.from({ length: 260 }, (_, index) => ({ value: `row-${index + 1}` }));
+    const executeCustomQuery = vi.fn().mockResolvedValue(rows);
+    mockedUseSqlQuerySlice.mockReturnValue({
+      executeCustomQuery,
+      isDatabaseLoaded: true,
+    } as never);
+
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId('sql-query-input'), 'SELECT value FROM transactions;');
+    await user.click(screen.getByRole('button', { name: 'Execute Query' }));
+
+    expect(await screen.findByText('row-1')).toBeInTheDocument();
+    expect(screen.getByTestId('sql-query-range-start')).toHaveValue('1');
+    expect(screen.getByTestId('sql-query-range-end')).toHaveValue('25');
+
+    await user.click(screen.getByRole('combobox', { name: /rows per page/i }));
+    await user.click(await screen.findByRole('option', { name: '100' }));
+
+    const endInput = screen.getByTestId('sql-query-range-end');
+    await user.clear(endInput);
+    await user.type(endInput, '260');
+    await user.tab();
+
+    await waitFor(() => {
+      expect(screen.getByText('row-201')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('sql-query-range-start')).toHaveValue('201');
+    expect(screen.getByTestId('sql-query-range-end')).toHaveValue('260');
+    expect(screen.queryByText('row-1')).not.toBeInTheDocument();
   });
 });

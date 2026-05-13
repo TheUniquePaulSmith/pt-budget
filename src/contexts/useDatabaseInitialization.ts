@@ -184,9 +184,12 @@ export function useDatabaseInitialization({
 
       try {
         if (isNew) {
-          await databaseService.createNewDatabase();
+          const shouldLoadSampleData = SampleDataService.shouldLoadSampleData();
+          await databaseService.createNewDatabase({
+            deferIndexes: shouldLoadSampleData,
+          });
 
-          if (SampleDataService.shouldLoadSampleData()) {
+          if (shouldLoadSampleData) {
             console.info('[DB Context] Loading sample data...');
             const abortController = new AbortController();
             sampleDataImportAbortControllerRef.current = abortController;
@@ -240,6 +243,9 @@ export function useDatabaseInitialization({
             } finally {
               sampleDataImportAbortControllerRef.current = null;
             }
+
+            console.info('[DB Context] Ensuring indexes after sample data import...');
+            await databaseService.ensureIndexes();
           }
         } else {
           await databaseService.openExistingDatabase();

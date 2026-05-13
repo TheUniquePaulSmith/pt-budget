@@ -6,7 +6,7 @@
  */
 
 import { databaseWorkerService } from "./databaseWorkerService";
-import type { WorkerStatus } from './databaseWorkerService';
+import type { OpenDatabaseOptions, WorkerStatus } from './databaseWorkerService';
 //import { dbLogger } from './logger';
 import {
   TRANSACTION_QUERIES,
@@ -39,8 +39,9 @@ import {
 
 export interface DatabaseWorkerTransport {
   initialize(): Promise<unknown>;
-  openDatabase(filename?: string, isNew?: boolean): Promise<unknown>;
-  createTables(): Promise<unknown>;
+  openDatabase(filename?: string, isNew?: boolean, options?: OpenDatabaseOptions): Promise<unknown>;
+  createTables(options?: { ensureIndexes?: boolean }): Promise<unknown>;
+  ensureIndexes(): Promise<unknown>;
   query(sql: string, parameters?: any[]): Promise<any[]>;
   exec(sql: string): Promise<void>;
   exportDatabase(): Promise<Uint8Array>;
@@ -84,7 +85,8 @@ export class DatabaseService {
 
   async openDatabase(
     filename: string = "/budget-app.db",
-    isNew: boolean = false
+    isNew: boolean = false,
+    options: OpenDatabaseOptions = {}
   ): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
@@ -92,11 +94,7 @@ export class DatabaseService {
 
     try {
       console.debug(`Opening database: ${filename}`);
-      await this.workerService.openDatabase(filename, isNew);
-
-      if (isNew) {
-        await this.workerService.createTables();
-      }
+      await this.workerService.openDatabase(filename, isNew, options);
 
       console.debug("Database opened successfully");
     } catch (error) {
@@ -109,8 +107,8 @@ export class DatabaseService {
     await this.openDatabase(undefined, false);
   }
 
-  async createNewDatabase(): Promise<void> {
-    await this.openDatabase(undefined, true);
+  async createNewDatabase(options: OpenDatabaseOptions = {}): Promise<void> {
+    await this.openDatabase(undefined, true, options);
   }
 
   async loadDatabaseFromFile(file: File): Promise<void> {
@@ -143,6 +141,16 @@ export class DatabaseService {
       return data;
     } catch (error) {
       console.error("Failed to export database:", error);
+      throw error;
+    }
+  }
+
+  async ensureIndexes(): Promise<void> {
+    try {
+      await this.workerService.ensureIndexes();
+      console.info('Database indexes ensured successfully');
+    } catch (error) {
+      console.error('Failed to ensure database indexes:', error);
       throw error;
     }
   }
@@ -1303,6 +1311,16 @@ export class DatabaseService {
     try {
       console.debug("Executing custom query:", sql);
       return await this.workerService.query(sql);
+    } catch (error) {
+      console.error("Failed to execute custom query:", error);
+      throw error;
+    }
+  }
+
+  async executeCustomQueryWithTimeout(sql: string, timeoutMs: number): Promise<any[]> {
+    try {
+      console.debug("Executing custom query with timeout:", sql, timeoutMs);
+      return await this.workerService.queryWithTimeout(sql, [], timeoutMs);
     } catch (error) {
       console.error("Failed to execute custom query:", error);
       throw error;

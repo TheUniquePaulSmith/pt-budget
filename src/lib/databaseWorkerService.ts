@@ -20,6 +20,14 @@ export interface BatchQueryOptions {
   useTransaction?: boolean;
 }
 
+export interface OpenDatabaseOptions {
+  deferIndexes?: boolean;
+}
+
+export interface CreateTablesOptions {
+  ensureIndexes?: boolean;
+}
+
 export interface WorkerStatus {
   isWorkerAlive: boolean;
   isConnected: boolean;
@@ -32,7 +40,7 @@ export class DatabaseWorkerService {
   private worker: SharedWorker | null = null;
   private port: MessagePort | null = null;
   private messageId = 0;
-  private pendingMessages = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timeout: NodeJS.Timeout }>();
+  private pendingMessages = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timeout: NodeJS.Timeout | null }>();
   private statusCallbacks = new Set<(status: WorkerStatus) => void>();
   private heartbeatTimeout: NodeJS.Timeout | null = null;
   private status: WorkerStatus = {
@@ -47,6 +55,10 @@ export class DatabaseWorkerService {
     this.initializeWorker();
   }
 
+  private isDebugMode(): boolean {
+    return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
+  }
+
   private initializeWorker() {
     // Skip initialization on server-side
     if (typeof window === 'undefined') {
@@ -58,14 +70,18 @@ export class DatabaseWorkerService {
       //Define the worker & port
       this.worker = new SharedWorker('/database-worker.js', { name: 'wa-SQLite' });
       this.port = this.worker.port;
-      
+
       //Add event listeners for messages and errors
       this.port.addEventListener('message', this.handleMessage.bind(this));
       this.port.addEventListener('messageerror', this.handleError.bind(this));
-      
+
       //Start the worker
       this.port.start();
-      
+
+      if (this.isDebugMode()) {
+        this.port.postMessage({ id: 'debug_config', type: 'set_debug', payload: { debug: true } });
+      }
+
       // Start monitoring heartbeat
       this.startHeartbeatMonitoring();
 
@@ -131,7 +147,9 @@ export class DatabaseWorkerService {
 
     //Handle pending message responses
     if (response.id) {
-      console.debug(`[DB Service] Received message: ${response.type} with ID: ${response.id}`, response);
+      if (this.isDebugMode()) {
+        console.debug(`[DB Service] Received message: ${response.type} with ID: ${response.id}`, response);
+      }
       const pending = this.pendingMessages.get(response.id);
       if (pending) {
         clearTimeout(pending.timeout);
@@ -213,6 +231,7 @@ export class DatabaseWorkerService {
     ping: 5000,          // 5s for heartbeat
     initialize: 30000,   // 30s for initialization
     open_database: 30000, // 30s for opening database
+    ensure_indexes: 600000, // 10m for building indexes on large datasets
     export_database: 60000, // 1min for exports
     import_database: 120000, // 2min for CSV imports
     default: 30000       // 30s default for other operations
@@ -237,8 +256,11 @@ export class DatabaseWorkerService {
       // Use custom timeout if provided, otherwise use operation-specific timeout
       const timeoutMs = customTimeoutMs ?? this.getTimeoutForOperation(type);
 
-      const timeout = setTimeout(() => {
+      const timeout = timeoutMs === Number.MAX_VALUE ? null : setTimeout(() => {
         console.warn(`[DB Service] Message timeout after ${timeoutMs}ms: ${type} with ID: ${id}`);
+        if (this.isDebugMode()) {
+          console.debug(`[DB Service] Timed out SQL:`, payload?.sql ?? payload);
+        }
         this.pendingMessages.delete(id);
         reject(new Error(`Database operation timed out after ${timeoutMs}ms: ${type}`));
       }, timeoutMs);
@@ -246,10 +268,10 @@ export class DatabaseWorkerService {
       this.pendingMessages.set(id, { resolve, reject, timeout });
 
       try {
-        this.port.postMessage(message);        
+        this.port.postMessage(message);
         // console.debug(`[DB Service] Sent message: ${type} with ID: ${id}`);
       } catch (error) {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         this.pendingMessages.delete(id);
         reject(error);
       }
@@ -261,16 +283,29 @@ export class DatabaseWorkerService {
     return this.sendMessage('initialize');
   }
 
-  public async openDatabase(filename?: string, isNew?: boolean): Promise<DatabaseResponse> {
-    return this.sendMessage('open_database', { filename, isNew });
+  public async openDatabase(
+    filename?: string,
+    isNew?: boolean,
+    options: OpenDatabaseOptions = {}
+  ): Promise<DatabaseResponse> {
+    return this.sendMessage('open_database', { filename, isNew, options });
   }
 
-  public async createTables(): Promise<DatabaseResponse> {
-    return this.sendMessage('create_tables');
+  public async createTables(options: CreateTablesOptions = {}): Promise<DatabaseResponse> {
+    return this.sendMessage('create_tables', { options });
+  }
+
+  public async ensureIndexes(): Promise<DatabaseResponse> {
+    return this.sendMessage('ensure_indexes');
   }
 
   public async query(sql: string, parameters: any[] = []): Promise<any[]> {
     const response = await this.sendMessage('query', { sql, parameters });
+    return response.sqlResponse?.results || [];
+  }
+
+  public async queryWithTimeout(sql: string, parameters: any[] = [], timeoutMs: number): Promise<any[]> {
+    const response = await this.sendMessage('query', { sql, parameters }, timeoutMs);
     return response.sqlResponse?.results || [];
   }
 

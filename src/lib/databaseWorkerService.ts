@@ -1,6 +1,8 @@
 // Database Worker Message Channel Service
 // Handles communication between main thread and database worker
 
+import type { DatabaseVfsSnapshot } from './databaseArchive';
+
 export interface DatabaseMessage {
   id: string;
   type: string;
@@ -232,8 +234,8 @@ export class DatabaseWorkerService {
     initialize: 30000,   // 30s for initialization
     open_database: 30000, // 30s for opening database
     ensure_indexes: 600000, // 10m for building indexes on large datasets
-    export_database: 60000, // 1min for exports
-    import_database: 120000, // 2min for CSV imports
+    export_database_snapshot: 60000, // 1min for exports
+    import_database_snapshot: 120000, // 2min for archive imports
     default: 30000       // 30s default for other operations
   };
 
@@ -331,16 +333,18 @@ export class DatabaseWorkerService {
     return this.sendMessage('ping', null, 5000);
   }
 
-  public async exportDatabase(): Promise<Uint8Array> {
-    const response = await this.sendMessage('export_database');
-    if (response.isSuccessful && response.sqlResponse?.data) {
-      return response.sqlResponse.data;
+  public async exportDatabaseSnapshot(): Promise<DatabaseVfsSnapshot> {
+    const response = await this.sendMessage('export_database_snapshot');
+    if (response.isSuccessful && response.sqlResponse?.snapshot) {
+      return response.sqlResponse.snapshot;
     }
     throw new Error(response.sqlResponse?.error || 'Failed to export database');
   }
 
-  public async importDatabase(fileData: Uint8Array): Promise<DatabaseResponse> {
-    return this.sendMessage('import_database', { fileData });
+  public async importDatabaseSnapshot(
+    snapshot: DatabaseVfsSnapshot
+  ): Promise<DatabaseResponse> {
+    return this.sendMessage('import_database_snapshot', { snapshot });
   }
 
   // Cleanup

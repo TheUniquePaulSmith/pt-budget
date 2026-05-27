@@ -60,7 +60,7 @@ export function DatabaseInitializationGate({
   const handleLoadFromFile = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.db,.sqlite,.sqlite3';
+    input.accept = '.zip';
 
     input.onchange = async (event) => {
       const file = (event.target as HTMLInputElement).files?.[0];

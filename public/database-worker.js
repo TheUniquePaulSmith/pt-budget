@@ -11,12 +11,14 @@ class DatabaseWorker {
     this.sqlite3Constants = null;
     this.db = 0;
     this.vfs = null;
+    this.vfsIdbName = 'ptbudgetapp';
     this.isInitialized = false;
     this.isConnected = false;
     this.ports = new Set();
     this.heartbeatInterval = null;
     this.dbVersion = '1.0.0';
     this.debugMode = false;
+    this.currentFilename = '/budget-app.db';
 
     // Query processing queue and lock
     this.queryQueue = [];
@@ -53,7 +55,7 @@ class DatabaseWorker {
       this.sqlite3 = Factory(wasmModule);
 
       console.log('[DB Worker] Creating IDB VFS...');
-      this.vfs = await IDBBatchAtomicVFS.create('ptbudgetapp', wasmModule);
+      this.vfs = await IDBBatchAtomicVFS.create(this.vfsIdbName, wasmModule);
 
       console.log('[DB Worker] Registering IDB VFS...');
       this.sqlite3.vfs_register(this.vfs, true);
@@ -171,6 +173,7 @@ class DatabaseWorker {
     try {
       const { deferIndexes = false } = options;
       console.log(`[DB Worker] Opening database: ${filename}`);
+      this.currentFilename = filename;
       
       this.db = await this.sqlite3.open_v2(
         filename,
@@ -458,21 +461,22 @@ class DatabaseWorker {
     }
 
     try {
-      console.log('[DB Worker] Exporting database...');
-      
-      // Use SQLite serialize function to export the database
-      const serialized = this.sqlite3.serialize(this.db, 'main');
-      
-      console.log('[DB Worker] Database exported successfully');
+      console.log('[DB Worker] Exporting database snapshot...');
+
+      await this.closeDatabaseConnection();
+      const snapshot = await this.readVfsSnapshot();
+      await this.reopenCurrentDatabase();
+
+      console.log('[DB Worker] Database snapshot exported successfully');
       return {
-        type: 'database_exported',
+        type: 'database_snapshot_exported',
         isSuccessful: true,
         dbStatus: 'connected',
         version: this.dbVersion,
-        sqlResponse: { data: serialized }
+        sqlResponse: { snapshot }
       };
     } catch (error) {
-      console.error('[DB Worker] Failed to export database:', error);
+      console.error('[DB Worker] Failed to export database snapshot:', error);
       return {
         type: 'export_error',
         isSuccessful: false,
@@ -483,52 +487,28 @@ class DatabaseWorker {
     }
   }
 
-  async importDatabaseFromFile(fileData) {
+  async importDatabaseSnapshot(snapshot) {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
     try {
-      console.log('[DB Worker] Importing database from file...');
-      
-      // Close existing database if open
-      if (this.db) {
-        this.sqlite3.close(this.db);
-        this.db = 0;
-        this.isConnected = false;
-      }
+      console.log('[DB Worker] Importing database snapshot...');
 
-      // Open a new database
-      this.db = await this.sqlite3.open_v2(
-        '/imported-budget-app.db',
-        this.sqlite3.SQLITE_OPEN_CREATE | this.sqlite3.SQLITE_OPEN_READWRITE | this.sqlite3.SQLITE_OPEN_FULLMUTEX,
-        this.vfs.name
-      );
-      
-      if (!this.db) {
-        throw new Error('Failed to open database for import');
-      }
+      await this.closeDatabaseConnection();
+      await this.writeVfsSnapshot(snapshot);
+      await this.reopenCurrentDatabase();
 
-      // Deserialize the data into the database
-      this.sqlite3.deserialize(this.db, 'main', fileData);
-
-      // Configure database
-      await this.sqlite3.exec(this.db, 'PRAGMA locking_mode=NORMAL');
-      await this.sqlite3.exec(this.db, 'PRAGMA synchronous=NORMAL');
-      await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=ON');
-
-      this.isConnected = true;
-
-      console.log('[DB Worker] Database imported successfully');
+      console.log('[DB Worker] Database snapshot imported successfully');
       return {
-        type: 'database_imported',
+        type: 'database_snapshot_imported',
         isSuccessful: true,
         dbStatus: 'connected',
         version: this.dbVersion,
         sqlResponse: { message: 'Database imported successfully' }
       };
     } catch (error) {
-      console.error('[DB Worker] Failed to import database:', error);
+      console.error('[DB Worker] Failed to import database snapshot:', error);
       this.isConnected = false;
       return {
         type: 'import_error',
@@ -537,6 +517,131 @@ class DatabaseWorker {
         version: this.dbVersion,
         sqlResponse: { error: error.message }
       };
+    }
+  }
+
+  async closeDatabaseConnection() {
+    if (!this.db) {
+      this.isConnected = false;
+      return;
+    }
+
+    await this.sqlite3.close(this.db);
+    this.db = 0;
+    this.isConnected = false;
+  }
+
+  async reopenCurrentDatabase() {
+    const response = await this.openDatabase(this.currentFilename, false);
+    if (!response?.isSuccessful) {
+      throw new Error(
+        response?.sqlResponse?.error ||
+          'Failed to reopen database after snapshot operation'
+      );
+    }
+  }
+
+  async openVfsDatabase() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.vfsIdbName, 6);
+
+      request.onerror = () => {
+        reject(request.error || new Error('Failed to open VFS IndexedDB'));
+      };
+      request.onsuccess = () => {
+        resolve(request.result);
+      };
+    });
+  }
+
+  async readAllFromStore(store) {
+    return new Promise((resolve, reject) => {
+      const request = store.getAll();
+
+      request.onerror = () => {
+        reject(request.error || new Error('Failed to read object store'));
+      };
+      request.onsuccess = () => {
+        resolve(request.result || []);
+      };
+    });
+  }
+
+  async waitForTransaction(transaction) {
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => {
+        reject(transaction.error || new Error('IndexedDB transaction failed'));
+      };
+      transaction.onabort = () => {
+        reject(transaction.error || new Error('IndexedDB transaction aborted'));
+      };
+    });
+  }
+
+  async readVfsSnapshot() {
+    const idb = await this.openVfsDatabase();
+
+    try {
+      const transaction = idb.transaction(['metadata', 'blocks'], 'readonly');
+      const metadataStore = transaction.objectStore('metadata');
+      const blocksStore = transaction.objectStore('blocks');
+      const [metadata, blocks] = await Promise.all([
+        this.readAllFromStore(metadataStore),
+        this.readAllFromStore(blocksStore),
+      ]);
+      await this.waitForTransaction(transaction);
+
+      return {
+        format: 'wa-sqlite-idb-batch-atomic-v1',
+        idbName: this.vfsIdbName,
+        exportedAt: new Date().toISOString(),
+        metadata,
+        blocks: blocks.map((block) => ({
+          ...block,
+          data:
+            block.data instanceof Uint8Array
+              ? block.data
+              : new Uint8Array(block.data),
+        })),
+      };
+    } finally {
+      idb.close();
+    }
+  }
+
+  async writeVfsSnapshot(snapshot) {
+    if (!snapshot || snapshot.format !== 'wa-sqlite-idb-batch-atomic-v1') {
+      throw new Error('Snapshot payload is invalid');
+    }
+
+    const idb = await this.openVfsDatabase();
+
+    try {
+      const transaction = idb.transaction(['metadata', 'blocks'], 'readwrite');
+      const metadataStore = transaction.objectStore('metadata');
+      const blocksStore = transaction.objectStore('blocks');
+
+      metadataStore.clear();
+      blocksStore.clear();
+
+      for (const metadata of snapshot.metadata || []) {
+        metadataStore.put(metadata);
+      }
+
+      for (const block of snapshot.blocks || []) {
+        blocksStore.put({
+          ...block,
+          data:
+            block.data instanceof Uint8Array
+              ? block.data
+              : new Uint8Array(block.data),
+        });
+      }
+
+      await this.waitForTransaction(transaction);
+    } finally {
+      idb.close();
     }
   }
 
@@ -661,12 +766,12 @@ class DatabaseWorker {
           };
           break;
           
-        case 'export_database':
+        case 'export_database_snapshot':
           response = await this.exportDatabase();
           break;
-          
-        case 'import_database':
-          response = await this.importDatabaseFromFile(payload.fileData);
+
+        case 'import_database_snapshot':
+          response = await this.importDatabaseSnapshot(payload.snapshot);
           break;
 
         case 'set_debug':

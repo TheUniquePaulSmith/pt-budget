@@ -29,6 +29,7 @@
     "@types/uuid": "^10.0.0",
     "buffer": "^6.0.3",
     "date-fns": "^4.1.0",
+    "jszip": "^3.10.1",
     "next": "15.3.4",
     "next-auth": "^4.24.11",
     "papaparse": "^5.5.3",

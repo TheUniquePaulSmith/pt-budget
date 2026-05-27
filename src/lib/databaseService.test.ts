@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { databaseWorkerService } from './databaseWorkerService';
 import { DatabaseService, type DatabaseWorkerTransport } from './databaseService';
+import { parseDatabaseArchive } from './databaseArchive';
 import {
   ACCOUNT_CARD_QUERIES,
   ACCOUNT_QUERIES,
@@ -183,8 +184,8 @@ function createWorkerTransportStub(
     ensureIndexes: vi.fn(),
     query: vi.fn(),
     exec: vi.fn(),
-    exportDatabase: vi.fn(),
-    importDatabase: vi.fn(),
+    exportDatabaseSnapshot: vi.fn(),
+    importDatabaseSnapshot: vi.fn(),
     onStatusChange: vi.fn(() => () => undefined),
     ...overrides,
   } as DatabaseWorkerTransport;
@@ -384,31 +385,66 @@ describe('DatabaseService lifecycle helpers', () => {
 });
 
 describe('DatabaseService file operations', () => {
-  it('passes imported file bytes through to the worker', async () => {
-    const importDatabase = vi.fn().mockResolvedValue({ isSuccessful: true });
-    const service = new DatabaseService(
-      createWorkerTransportStub({ importDatabase })
+  async function createArchiveBuffer(data: number[] = [1, 2, 3, 4]) {
+    const archiveService = new DatabaseService(
+      createWorkerTransportStub({
+        query: vi
+          .fn()
+          .mockResolvedValueOnce([{ name: 'accounts' }])
+          .mockResolvedValueOnce([{ count: 2 }]),
+        exportDatabaseSnapshot: vi.fn().mockResolvedValue({
+          format: 'wa-sqlite-idb-batch-atomic-v1',
+          idbName: 'ptbudgetapp',
+          exportedAt: '2026-05-27T12:00:00.000Z',
+          metadata: [{ name: '/budget-app.db', fileSize: data.length, version: 1 }],
+          blocks: [
+            {
+              path: '/budget-app.db',
+              offset: 0,
+              version: 1,
+              data: Uint8Array.from(data),
+            },
+          ],
+        }),
+      })
     );
-    const fileBuffer = Uint8Array.from([1, 2, 3, 4]);
+
+    return archiveService.exportDatabase();
+  }
+
+  it('passes imported archive snapshots through to the worker', async () => {
+    const importDatabaseSnapshot = vi.fn().mockResolvedValue({
+      isSuccessful: true,
+    });
+    const service = new DatabaseService(
+      createWorkerTransportStub({ importDatabaseSnapshot })
+    );
+    const fileBuffer = await createArchiveBuffer();
     const file = {
       arrayBuffer: vi.fn().mockResolvedValue(fileBuffer.buffer),
     } as unknown as File;
 
     await service.loadDatabaseFromFile(file);
 
-    expect(importDatabase).toHaveBeenCalledWith(fileBuffer);
+    expect(importDatabaseSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        format: 'wa-sqlite-idb-batch-atomic-v1',
+        idbName: 'ptbudgetapp',
+      })
+    );
   });
 
   it('throws the worker import error when loading a file fails', async () => {
-    const importDatabase = vi.fn().mockResolvedValue({
+    const importDatabaseSnapshot = vi.fn().mockResolvedValue({
       isSuccessful: false,
       sqlResponse: { error: 'Import payload is invalid' },
     });
     const service = new DatabaseService(
-      createWorkerTransportStub({ importDatabase })
+      createWorkerTransportStub({ importDatabaseSnapshot })
     );
+    const archiveBuffer = await createArchiveBuffer([9, 9]);
     const file = {
-      arrayBuffer: vi.fn().mockResolvedValue(Uint8Array.from([9, 9]).buffer),
+      arrayBuffer: vi.fn().mockResolvedValue(archiveBuffer.buffer),
     } as unknown as File;
 
     await expect(service.loadDatabaseFromFile(file)).rejects.toThrow(
@@ -416,13 +452,40 @@ describe('DatabaseService file operations', () => {
     );
   });
 
-  it('returns the exported bytes from the worker', async () => {
-    const exportedBytes = Uint8Array.from([8, 6, 7, 5, 3, 0, 9]);
+  it('returns a zipped archive containing the snapshot and dbstatus', async () => {
     const service = new DatabaseService(
-      createWorkerTransportStub({ exportDatabase: vi.fn().mockResolvedValue(exportedBytes) })
+      createWorkerTransportStub({
+        query: vi
+          .fn()
+          .mockResolvedValueOnce([{ name: 'accounts' }, { name: 'transactions' }])
+          .mockResolvedValueOnce([{ count: 2 }])
+          .mockResolvedValueOnce([{ count: 7 }]),
+        exportDatabaseSnapshot: vi.fn().mockResolvedValue({
+          format: 'wa-sqlite-idb-batch-atomic-v1',
+          idbName: 'ptbudgetapp',
+          exportedAt: '2026-05-27T12:00:00.000Z',
+          metadata: [{ name: '/budget-app.db', fileSize: 12, version: 2 }],
+          blocks: [
+            {
+              path: '/budget-app.db',
+              offset: 0,
+              version: 2,
+              data: Uint8Array.from([8, 6, 7, 5, 3, 0, 9]),
+            },
+          ],
+        }),
+      })
     );
 
-    await expect(service.exportDatabase()).resolves.toEqual(exportedBytes);
+    const archive = await service.exportDatabase();
+    const parsed = await parseDatabaseArchive(archive);
+
+    expect(archive).toBeInstanceOf(Uint8Array);
+    expect(parsed.status.tableStats).toEqual({
+      accounts: 2,
+      transactions: 7,
+    });
+    expect(parsed.status.lastWriteTimestamp).toBeTruthy();
   });
 });
 

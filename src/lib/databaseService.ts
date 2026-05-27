@@ -9,6 +9,12 @@ import { databaseWorkerService } from "./databaseWorkerService";
 import type { OpenDatabaseOptions, WorkerStatus } from './databaseWorkerService';
 //import { dbLogger } from './logger';
 import {
+  buildDatabaseStatusFile,
+  createDatabaseArchive,
+  parseDatabaseArchive,
+  type DatabaseVfsSnapshot,
+} from './databaseArchive';
+import {
   TRANSACTION_QUERIES,
   CATEGORY_QUERIES,
   COMPANY_QUERIES,
@@ -43,9 +49,10 @@ export interface DatabaseWorkerTransport {
   createTables(options?: { ensureIndexes?: boolean }): Promise<unknown>;
   ensureIndexes(): Promise<unknown>;
   query(sql: string, parameters?: any[]): Promise<any[]>;
+  queryWithTimeout(sql: string, parameters?: any[], timeoutMs?: number): Promise<any[]>;
   exec(sql: string): Promise<void>;
-  exportDatabase(): Promise<Uint8Array>;
-  importDatabase(fileData: Uint8Array): Promise<{
+  exportDatabaseSnapshot(): Promise<DatabaseVfsSnapshot>;
+  importDatabaseSnapshot(snapshot: DatabaseVfsSnapshot): Promise<{
     isSuccessful: boolean;
     sqlResponse?: { error?: string };
   }>;
@@ -117,8 +124,9 @@ export class DatabaseService {
 
       const arrayBuffer = await file.arrayBuffer();
       const fileData = new Uint8Array(arrayBuffer);
+      const { snapshot } = await parseDatabaseArchive(fileData);
 
-      const response = await this.workerService.importDatabase(fileData);
+      const response = await this.workerService.importDatabaseSnapshot(snapshot);
 
       if (!response.isSuccessful) {
         throw new Error(
@@ -136,7 +144,18 @@ export class DatabaseService {
   async exportDatabase(): Promise<Uint8Array> {
     try {
       console.info("Exporting database through worker...");
-      const data = await this.workerService.exportDatabase();
+      const tableStats = await this.getTableStats();
+      const snapshot = await this.workerService.exportDatabaseSnapshot();
+      const exportedAt = new Date().toISOString();
+      const data = await createDatabaseArchive({
+        snapshot,
+        status: buildDatabaseStatusFile({
+          exportedAt,
+          lastWriteTimestamp: exportedAt,
+          tableStats,
+          snapshot,
+        }),
+      });
       console.info("Database exported successfully");
       return data;
     } catch (error) {
@@ -319,6 +338,25 @@ export class DatabaseService {
       throw error;
     }
   }
+
+    private async getTableStats(): Promise<Record<string, number>> {
+      const tableRows = await this.workerService.query(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+      );
+      const tableStats: Record<string, number> = {};
+
+      for (const row of tableRows) {
+        const tableName = String(row.name);
+        const escapedTableName = tableName.replace(/"/g, '""');
+        const countRows = await this.workerService.query(
+          `SELECT COUNT(*) AS count FROM "${escapedTableName}"`
+        );
+
+        tableStats[tableName] = Number(countRows[0]?.count ?? 0);
+      }
+
+      return tableStats;
+    }
 
   async checkDuplicateTransactions(): Promise<string[]> {
     try {

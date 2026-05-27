@@ -68,11 +68,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const handleExportData = async () => {
     const dbData = await exportDatabase();
     if (dbData) {
-      const blob = new Blob([dbData], { type: 'application/octet-stream' });
+      const blob = new Blob([dbData], { type: 'application/zip' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `budget-tracker-${new Date().toISOString().split('T')[0]}.db`;
+      a.download = `budget-tracker-${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -198,7 +198,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     Export Database
                   </Button>
                   <Typography variant="body2" color="text.secondary">
-                    Downloads a complete backup of your database file (.db format)
+                    Downloads a complete backup archive containing the VFS snapshot and dbstatus.json
                   </Typography>
                 </Stack>
               </Box>

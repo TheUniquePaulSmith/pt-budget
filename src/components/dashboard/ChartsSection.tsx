@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Box, Paper, Typography, Tabs, Tab } from '@mui/material';
+import { Box, Paper, Typography, Tabs, Tab, Chip, Stack, Divider } from '@mui/material';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { BarChart } from '@mui/x-charts/BarChart';
@@ -35,6 +35,32 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
   const incomeData = chartData?.incomeBySource ?? [];
   const trendsData = chartData?.trends ?? { months: [], income: [], expenses: [] };
   const accountData = chartData?.accountAnalysis ?? { accountNames: [], income: [], expenses: [] };
+  const totalSpending = spendingData.reduce((sum, category) => sum + category.value, 0);
+
+  const netCashFlow = trendsData.income.map((income, idx) => income - (trendsData.expenses[idx] ?? 0));
+  const spendingPressure = trendsData.income.map((income, idx) => {
+    const expense = trendsData.expenses[idx] ?? 0;
+    return income > 0 ? Number(((expense / income) * 100).toFixed(1)) : 0;
+  });
+
+  const topSpendingCategories = spendingData.slice(0, 5).map((category) => {
+    const percent = totalSpending > 0 ? (category.value / totalSpending) * 100 : 0;
+    return {
+      ...category,
+      percent,
+    };
+  });
+
+  const avgMonthlyIncome = trendsData.income.length > 0
+    ? trendsData.income.reduce((sum, value) => sum + value, 0) / trendsData.income.length
+    : 0;
+  const avgMonthlyExpenses = trendsData.expenses.length > 0
+    ? trendsData.expenses.reduce((sum, value) => sum + value, 0) / trendsData.expenses.length
+    : 0;
+  const avgMonthlyNet = avgMonthlyIncome - avgMonthlyExpenses;
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 
   return (
     <Paper sx={{ width: '100%', mb: 4 }}>
@@ -53,16 +79,36 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
             Spending by Category - {timeRangeLabel}
           </Typography>
           {spendingData.length > 0 ? (
-            <Box height={400} display="flex" justifyContent="center">
-              <PieChart
-                series={[{
-                  data: spendingData,
-                  highlightScope: { fade: 'global', highlight: 'item' },
-                  faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
-                }]}
-                width={600}
-                height={400}
-              />
+            <Box>
+              <Box height={380} display="flex" justifyContent="center">
+                <PieChart
+                  series={[{
+                    data: spendingData,
+                    highlightScope: { fade: 'global', highlight: 'item' },
+                    faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
+                  }]}
+                  width={600}
+                  height={380}
+                />
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                Top Expense Categories
+              </Typography>
+              <Stack direction="row" flexWrap="wrap" gap={1}>
+                {topSpendingCategories.map((category) => (
+                  <Chip
+                    key={String(category.id)}
+                    label={`${category.label}: ${formatCurrency(category.value)} (${category.percent.toFixed(1)}%)`}
+                    sx={{
+                      borderLeft: `4px solid ${category.color}`,
+                      backgroundColor: 'background.default',
+                    }}
+                  />
+                ))}
+              </Stack>
             </Box>
           ) : (
             <Box display="flex" justifyContent="center" alignItems="center" height={200}>
@@ -101,15 +147,46 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
         <Box p={3}>
           <Typography variant="h6" gutterBottom>Income vs Expenses Trend</Typography>
           {trendsData.months.length > 0 ? (
-            <Box height={400}>
-              <LineChart
-                series={[
-                  { data: trendsData.income, label: 'Income', color: '#4caf50' },
-                  { data: trendsData.expenses, label: 'Expenses', color: '#f44336' },
-                ]}
-                xAxis={[{ scaleType: 'point', data: trendsData.months }]}
-                yAxis={[{ width: 80 }]}
-              />
+            <Box>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} mb={2}>
+                <Chip label={`Avg monthly income: ${formatCurrency(avgMonthlyIncome)}`} color="success" variant="outlined" />
+                <Chip label={`Avg monthly expenses: ${formatCurrency(avgMonthlyExpenses)}`} color="error" variant="outlined" />
+                <Chip label={`Avg monthly net: ${formatCurrency(avgMonthlyNet)}`} color={avgMonthlyNet >= 0 ? 'success' : 'warning'} variant="filled" />
+              </Stack>
+
+              <Box height={320}>
+                <LineChart
+                  series={[
+                    { data: trendsData.income, label: 'Income', color: '#4caf50' },
+                    { data: trendsData.expenses, label: 'Expenses', color: '#f44336' },
+                  ]}
+                  xAxis={[{ scaleType: 'point', data: trendsData.months }]}
+                  yAxis={[{ width: 80 }]}
+                />
+              </Box>
+
+              <Box height={280} mt={3}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Net Cash Flow by Month
+                </Typography>
+                <BarChart
+                  series={[{ data: netCashFlow, label: 'Net Cash Flow', color: '#1976d2' }]}
+                  xAxis={[{ scaleType: 'band', data: trendsData.months }]}
+                  yAxis={[{ width: 80 }]}
+                  margin={{ top: 20, right: 20, bottom: 50, left: 80 }}
+                />
+              </Box>
+
+              <Box height={260} mt={3}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Spending Pressure (Expense/Income)
+                </Typography>
+                <LineChart
+                  series={[{ data: spendingPressure, label: 'Expense Ratio %', color: '#ef6c00' }]}
+                  xAxis={[{ scaleType: 'point', data: trendsData.months }]}
+                  yAxis={[{ width: 80, valueFormatter: (value: number) => `${value}%` }]}
+                />
+              </Box>
             </Box>
           ) : (
             <Box display="flex" justifyContent="center" alignItems="center" height={200}>

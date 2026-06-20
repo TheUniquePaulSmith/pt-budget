@@ -25,13 +25,17 @@ import {
 import {
   Storage,
   Backup,
+  CloudSync,
   Notifications,
   Palette,
   ArrowBack,
+  Save,
+  SwapHoriz,
 } from '@mui/icons-material';
 import StorageQuota from '@/components/common/Storage/StorageQuota';
 import { useSettingsSlice } from '@/contexts/useDatabaseSlices';
 import { ThemePresetId, useThemePreferences } from '@/theme/theme';
+import type { CloudProvider } from '@/lib/databaseSourceStorage';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -57,7 +61,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
   const {
     exportDatabase,
+    connectCloudSource,
+    migrateDatabaseToCloud,
+    saveDatabaseToCurrentCloud,
+    switchToLocalSource,
     isDatabaseLoaded,
+    databaseSource,
+    databaseSourceState,
   } = useSettingsSlice();
   const {
     availableThemes,
@@ -79,6 +89,25 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
       URL.revokeObjectURL(url);
     }
   };
+
+  const handleConnectCloudSource = async (provider: CloudProvider) => {
+    try {
+      await connectCloudSource(provider);
+    } catch {
+      // Error is surfaced through the provider state.
+    }
+  };
+
+  const handleMigrateToCloud = async (provider: CloudProvider) => {
+    try {
+      await migrateDatabaseToCloud(provider);
+    } catch {
+      // Error is surfaced through the provider state.
+    }
+  };
+
+  const linkedGoogleFile = databaseSourceState.linkedFiles.gdrive ?? null;
+  const linkedOneDriveFile = databaseSourceState.linkedFiles.onedrive ?? null;
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -116,6 +145,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
               }}
             >
               <Tab icon={<Storage />} label="Storage" />
+              <Tab icon={<CloudSync />} label="Database Source" />
               <Tab icon={<Backup />} label="Data & Backup" />
               <Tab icon={<Palette />} label="Display" />
               <Tab icon={<Notifications />} label="Notifications" />
@@ -175,6 +205,146 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>
+                  Database Source
+                </Typography>
+                <Typography variant="body2" color="text.secondary" paragraph>
+                  Choose whether the working copy is local, Google Drive, or OneDrive.
+                  Cloud sources keep using the browser database as the working copy and let you sync that copy manually.
+                </Typography>
+              </Box>
+
+              <Divider />
+
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Current Source
+                </Typography>
+                <Stack spacing={1.5}>
+                  <Typography variant="body2">
+                    <strong>Active source:</strong> {databaseSource}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Last local write:</strong>{' '}
+                    {databaseSourceState.lastLocalWriteTimestamp ?? 'Not recorded yet'}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Last cloud file timestamp:</strong>{' '}
+                    {databaseSourceState.lastCloudFileTimestamp ?? 'Not recorded yet'}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Last cloud sync:</strong>{' '}
+                    {databaseSourceState.lastCloudSyncTimestamp ?? 'Not synced yet'}
+                  </Typography>
+                </Stack>
+              </Box>
+
+              {(databaseSourceState.lastSyncError || linkedGoogleFile || linkedOneDriveFile) && (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="h6" gutterBottom>
+                      Linked Cloud Files
+                    </Typography>
+                    <Stack spacing={1.5}>
+                      <Typography variant="body2">
+                        <strong>Google Drive:</strong>{' '}
+                        {linkedGoogleFile
+                          ? `${linkedGoogleFile.fileName}${linkedGoogleFile.modifiedAt ? ` (${linkedGoogleFile.modifiedAt})` : ''}`
+                          : 'No file linked'}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>OneDrive:</strong>{' '}
+                        {linkedOneDriveFile
+                          ? `${linkedOneDriveFile.fileName}${linkedOneDriveFile.modifiedAt ? ` (${linkedOneDriveFile.modifiedAt})` : ''}`
+                          : 'No file linked'}
+                      </Typography>
+                    </Stack>
+                  </Box>
+                </>
+              )}
+
+              {databaseSourceState.lastSyncError && (
+                <Alert severity="warning">{databaseSourceState.lastSyncError}</Alert>
+              )}
+
+              <Divider />
+
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Source Actions
+                </Typography>
+                <Stack spacing={2} direction={{ xs: 'column', md: 'row' }} flexWrap="wrap">
+                  <Button
+                    variant="contained"
+                    startIcon={<CloudSync />}
+                    onClick={() => {
+                      void handleConnectCloudSource('gdrive');
+                    }}
+                  >
+                    Open from Google Drive
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<CloudSync />}
+                    onClick={() => {
+                      void handleConnectCloudSource('onedrive');
+                    }}
+                  >
+                    Open from OneDrive
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<SwapHoriz />}
+                    onClick={() => {
+                      void handleMigrateToCloud('gdrive');
+                    }}
+                    disabled={!isDatabaseLoaded}
+                  >
+                    Convert Local to Google Drive
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<SwapHoriz />}
+                    onClick={() => {
+                      void handleMigrateToCloud('onedrive');
+                    }}
+                    disabled={!isDatabaseLoaded}
+                  >
+                    Convert Local to OneDrive
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<Save />}
+                    onClick={() => {
+                      void saveDatabaseToCurrentCloud();
+                    }}
+                    disabled={!isDatabaseLoaded || databaseSource === 'local'}
+                  >
+                    Save Current Cloud Copy
+                  </Button>
+                  <Button
+                    variant="text"
+                    onClick={switchToLocalSource}
+                    disabled={databaseSource === 'local'}
+                  >
+                    Switch Back to Local
+                  </Button>
+                </Stack>
+              </Box>
+
+              <Divider />
+
+              <Alert severity="info">
+                Configure client-side cloud auth with NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+                NEXT_PUBLIC_MICROSOFT_CLIENT_ID, and optionally NEXT_PUBLIC_MICROSOFT_TENANT_ID.
+              </Alert>
+            </Stack>
+          </TabPanel>
+
+          <TabPanel value={tabValue} index={2}>
+            <Stack spacing={3}>
+              <Box>
+                <Typography variant="h5" gutterBottom>
                   Data & Backup
                 </Typography>
                 <Typography variant="body2" color="text.secondary" paragraph>
@@ -209,7 +379,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           </TabPanel>
 
           {/* Display Tab */}
-          <TabPanel value={tabValue} index={2}>
+          <TabPanel value={tabValue} index={3}>
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>
@@ -315,7 +485,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           </TabPanel>
 
           {/* Notifications Tab */}
-          <TabPanel value={tabValue} index={3}>
+          <TabPanel value={tabValue} index={4}>
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>

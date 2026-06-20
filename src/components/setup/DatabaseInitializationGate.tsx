@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 
-import { DatasetOutlined, CreateNewFolder, Upload } from '@mui/icons-material';
+import { DatasetOutlined, CloudSync, CreateNewFolder, Upload } from '@mui/icons-material';
 import {
   Alert,
   Box,
@@ -16,8 +16,10 @@ import {
 import { TestBrowser, type TestResults } from './TestBrowser';
 import type { InitializationState } from '../../contexts/useDatabaseInitialization';
 import type { SampleDataImportProgress } from '../../lib/sampleDataService';
+import type { DatabaseSource } from '@/lib/databaseSourceStorage';
 
 interface DatabaseInitializationGateProps {
+  databaseSource: DatabaseSource;
   initializationState: InitializationState;
   isLoading: boolean;
   error: string | null;
@@ -28,6 +30,8 @@ interface DatabaseInitializationGateProps {
   ) => Promise<void>;
   onCreateOrOpenDatabase: (isNew: boolean) => Promise<void>;
   onLoadDatabaseFromFile: (file: File) => Promise<void>;
+  onConnectCloudSource: () => Promise<void>;
+  onSwitchToLocalSource: () => void;
   onCancelSampleDataImport: () => void;
 }
 
@@ -40,6 +44,7 @@ const centeredBoxSx = {
 } as const;
 
 export function DatabaseInitializationGate({
+  databaseSource,
   initializationState,
   isLoading,
   error,
@@ -47,6 +52,8 @@ export function DatabaseInitializationGate({
   onBrowserTestComplete,
   onCreateOrOpenDatabase,
   onLoadDatabaseFromFile,
+  onConnectCloudSource,
+  onSwitchToLocalSource,
   onCancelSampleDataImport,
 }: DatabaseInitializationGateProps) {
   const handleCreateNew = useCallback(async () => {
@@ -206,6 +213,60 @@ export function DatabaseInitializationGate({
               ) : (
                 <CircularProgress size={24} />
               )}
+            </Box>
+          )}
+        </Paper>
+      </Box>
+    );
+  }
+
+  if (initializationState === 'needs-cloud-auth') {
+    const providerLabel =
+      databaseSource === 'gdrive' ? 'Google Drive' : 'OneDrive';
+
+    return (
+      <Box sx={centeredBoxSx}>
+        <Paper sx={{ p: 4, maxWidth: 560, textAlign: 'center' }}>
+          <CloudSync sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
+          <Typography variant="h4" gutterBottom>
+            Connect {providerLabel}
+          </Typography>
+          <Typography variant="body1" sx={{ mb: 4 }}>
+            This browser is configured to use {providerLabel} as the database source.
+            Authenticate and choose a backup archive to continue.
+          </Typography>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Button
+              variant="contained"
+              startIcon={<CloudSync />}
+              onClick={() => {
+                void onConnectCloudSource();
+              }}
+              disabled={isLoading}
+              size="large"
+            >
+              Connect {providerLabel}
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={onSwitchToLocalSource}
+              disabled={isLoading}
+              size="large"
+            >
+              Use Local Database Instead
+            </Button>
+          </Box>
+
+          {isLoading && (
+            <Box sx={{ mt: 3 }}>
+              <CircularProgress size={24} />
             </Box>
           )}
         </Paper>

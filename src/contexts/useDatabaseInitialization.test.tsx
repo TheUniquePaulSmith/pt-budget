@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DatabaseService } from '../lib/databaseService';
+import { openDatabaseFromCloud, saveDatabaseToCloud } from '@/lib/cloudSyncService';
 import { SampleDataService } from '@/lib/sampleDataService';
 import { useDatabaseInitialization } from './useDatabaseInitialization';
 
@@ -16,6 +17,19 @@ vi.mock('@/lib/sampleDataService', () => ({
     shouldLoadSampleData: vi.fn(),
     loadAllSampleData: vi.fn(),
   },
+}));
+
+vi.mock('@/lib/cloudSyncService', () => ({
+  openDatabaseFromCloud: vi.fn(),
+  saveDatabaseToCloud: vi.fn(),
+  switchDatabaseSource: vi.fn(() => ({
+    source: 'local',
+    linkedFiles: {},
+    lastLocalWriteTimestamp: null,
+    lastCloudSyncTimestamp: null,
+    lastCloudFileTimestamp: null,
+    lastSyncError: null,
+  })),
 }));
 
 type MockService = {
@@ -34,6 +48,8 @@ const mockedShouldLoadSampleData = vi.mocked(
   SampleDataService.shouldLoadSampleData
 );
 const mockedLoadAllSampleData = vi.mocked(SampleDataService.loadAllSampleData);
+const mockedOpenDatabaseFromCloud = vi.mocked(openDatabaseFromCloud);
+const mockedSaveDatabaseToCloud = vi.mocked(saveDatabaseToCloud);
 
 const compatibleBrowserResults = {
   overallCompatible: true,
@@ -67,9 +83,12 @@ function createAbortError(message = 'cancelled') {
 describe('useDatabaseInitialization', () => {
   beforeEach(() => {
     localStorage.clear();
+    document.cookie = 'budgetTrackerDatabaseSource=local; path=/';
     mockedDatabaseService.mockReset();
     mockedShouldLoadSampleData.mockReset();
     mockedLoadAllSampleData.mockReset();
+    mockedOpenDatabaseFromCloud.mockReset();
+    mockedSaveDatabaseToCloud.mockReset();
   });
 
   afterEach(() => {
@@ -279,5 +298,55 @@ describe('useDatabaseInitialization', () => {
     expect(service.loadDatabaseFromFile).toHaveBeenCalledWith(file);
     expect(loadAllData).toHaveBeenLastCalledWith(service);
     expect(result.current.initializationState).toBe('initialized');
+  });
+
+  it('requests cloud authentication when the cookie source is cloud and no working copy exists', async () => {
+    document.cookie = 'budgetTrackerDatabaseSource=gdrive; path=/';
+    const service = createServiceMock({ dbExistsBeforeInit: false });
+    mockedDatabaseService.mockImplementation(
+      () => service as unknown as DatabaseService
+    );
+    mockedOpenDatabaseFromCloud.mockResolvedValue({
+      action: 'needs-user-action',
+      linkedFile: null,
+      userActionReason: 'authentication',
+      state: {
+        source: 'gdrive',
+        linkedFiles: {},
+        lastLocalWriteTimestamp: null,
+        lastCloudSyncTimestamp: null,
+        lastCloudFileTimestamp: null,
+        lastSyncError: 'Cloud authentication is required',
+      },
+    });
+    const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useDatabaseInitialization({ loadAllData })
+    );
+
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('testing-browser');
+    });
+
+    await act(async () => {
+      await result.current.handleBrowserTestComplete(
+        true,
+        compatibleBrowserResults
+      );
+    });
+
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('needs-cloud-auth');
+    });
+
+    expect(mockedOpenDatabaseFromCloud).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'gdrive',
+        interactive: false,
+        allowFilePrompt: false,
+      })
+    );
+    expect(result.current.error).toBe('Cloud authentication is required');
   });
 });

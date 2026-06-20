@@ -80,7 +80,20 @@ describe('SettingsPage theme presets', () => {
     installMatchMediaMock(true);
     mockedUseSettingsSlice.mockReturnValue({
       exportDatabase: vi.fn().mockResolvedValue(null),
+      connectCloudSource: vi.fn().mockResolvedValue(undefined),
+      migrateDatabaseToCloud: vi.fn().mockResolvedValue(undefined),
+      saveDatabaseToCurrentCloud: vi.fn().mockResolvedValue(undefined),
+      switchToLocalSource: vi.fn(),
       isDatabaseLoaded: true,
+      databaseSource: 'local',
+      databaseSourceState: {
+        source: 'local',
+        linkedFiles: {},
+        lastLocalWriteTimestamp: null,
+        lastCloudSyncTimestamp: null,
+        lastCloudFileTimestamp: null,
+        lastSyncError: null,
+      },
       error: null,
     });
   });

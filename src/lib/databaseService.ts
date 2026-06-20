@@ -60,6 +60,11 @@ export interface DatabaseWorkerTransport {
   destroy?(): void;
 }
 
+export interface DatabaseStatusSummary {
+  lastWriteTimestamp: string | null;
+  tableStats: Record<string, number>;
+}
+
 export class DatabaseService {
   private isInitialized = false;
   public dbExistsBeforeInit = false;
@@ -144,15 +149,16 @@ export class DatabaseService {
   async exportDatabase(): Promise<Uint8Array> {
     try {
       console.info("Exporting database through worker...");
-      const tableStats = await this.getTableStats();
+      const databaseStatus = await this.getDatabaseStatus();
       const snapshot = await this.workerService.exportDatabaseSnapshot();
       const exportedAt = new Date().toISOString();
       const data = await createDatabaseArchive({
         snapshot,
         status: buildDatabaseStatusFile({
           exportedAt,
-          lastWriteTimestamp: exportedAt,
-          tableStats,
+          lastWriteTimestamp:
+            databaseStatus.lastWriteTimestamp ?? exportedAt,
+          tableStats: databaseStatus.tableStats,
           snapshot,
         }),
       });
@@ -162,6 +168,65 @@ export class DatabaseService {
       console.error("Failed to export database:", error);
       throw error;
     }
+  }
+
+  async importDatabaseArchiveData(archiveBytes: Uint8Array): Promise<void> {
+    const { snapshot } = await parseDatabaseArchive(archiveBytes);
+    const response = await this.workerService.importDatabaseSnapshot(snapshot);
+
+    if (!response.isSuccessful) {
+      throw new Error(
+        response.sqlResponse?.error || 'Failed to import database archive'
+      );
+    }
+  }
+
+  async getDatabaseStatus(): Promise<DatabaseStatusSummary> {
+    const tableStats = await this.getTableStats();
+    const tableNames = Object.keys(tableStats);
+    let lastWriteTimestamp: string | null = null;
+
+    for (const tableName of tableNames) {
+      const tableInfo = await this.workerService.query(
+        `PRAGMA table_info("${tableName.replace(/"/g, '""')}")`
+      );
+      if (!Array.isArray(tableInfo)) {
+        continue;
+      }
+
+      const columnNames = new Set(
+        tableInfo.map((column) => String(column.name))
+      );
+      const timestampColumns = ['updated_at', 'created_at'].filter((column) =>
+        columnNames.has(column)
+      );
+
+      if (timestampColumns.length === 0) {
+        continue;
+      }
+
+      const timestampExpressions = timestampColumns.map(
+        (column) => `MAX(${column}) AS ${column}`
+      );
+      const [timestampRow] = await this.workerService.query(
+        `SELECT ${timestampExpressions.join(', ')} FROM "${tableName.replace(/"/g, '""')}"`
+      );
+
+      for (const column of timestampColumns) {
+        const timestampValue = timestampRow?.[column];
+        if (
+          typeof timestampValue === 'string' &&
+          (!lastWriteTimestamp || timestampValue > lastWriteTimestamp)
+        ) {
+          lastWriteTimestamp = timestampValue;
+        }
+      }
+    }
+
+    return {
+      lastWriteTimestamp,
+      tableStats,
+    };
   }
 
   async ensureIndexes(): Promise<void> {

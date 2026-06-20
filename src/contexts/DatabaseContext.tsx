@@ -12,6 +12,11 @@ import React, { createContext, useCallback, useContext, useMemo } from 'react';
 
 import { DatabaseInitializationGate } from '../components/setup/DatabaseInitializationGate';
 import type { WorkerStatus } from '../lib/databaseWorkerService';
+import type {
+  CloudProvider,
+  DatabaseSource,
+  PersistedDatabaseSourceState,
+} from '../lib/databaseSourceStorage';
 import {
   useDatabaseAccountManagementSlices,
   type DatabaseAccountSlice,
@@ -41,12 +46,18 @@ interface DatabaseStatusSlice {
   isLoading: boolean;
   error: string | null;
   workerStatus: WorkerStatus | null;
+  databaseSource: DatabaseSource;
+  databaseSourceState: PersistedDatabaseSourceState;
 }
 
 interface DatabaseLifecycleSlice {
   createOrOpenDatabase: (isNew: boolean) => Promise<void>;
   loadDatabaseFromFile: (file: File) => Promise<void>;
   exportDatabase: () => Promise<Uint8Array | null>;
+  connectCloudSource: (provider?: CloudProvider) => Promise<void>;
+  migrateDatabaseToCloud: (provider: CloudProvider) => Promise<void>;
+  saveDatabaseToCurrentCloud: () => Promise<void>;
+  switchToLocalSource: () => void;
 }
 
 interface DatabaseDiagnosticsSlice {
@@ -169,6 +180,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
 
   const {
     databaseService,
+    databaseSource,
+    databaseSourceState,
     initializationState,
     isLoading,
     error,
@@ -178,6 +191,10 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     handleBrowserTestComplete,
     createOrOpenDatabase,
     loadDatabaseFromFile,
+    connectCloudSource,
+    migrateDatabaseToCloud,
+    saveDatabaseToCurrentCloud,
+    switchToLocalSource,
     cancelSampleDataImport,
   } = useDatabaseInitialization({ loadAllData });
 
@@ -254,8 +271,17 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       isLoading,
       error,
       workerStatus,
+      databaseSource,
+      databaseSourceState,
     }),
-    [initializationState, isLoading, error, workerStatus]
+    [
+      initializationState,
+      isLoading,
+      error,
+      workerStatus,
+      databaseSource,
+      databaseSourceState,
+    ]
   );
 
   const lifecycleValue = useMemo(
@@ -263,8 +289,20 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       createOrOpenDatabase,
       loadDatabaseFromFile,
       exportDatabase,
+      connectCloudSource,
+      migrateDatabaseToCloud,
+      saveDatabaseToCurrentCloud,
+      switchToLocalSource,
     }),
-    [createOrOpenDatabase, loadDatabaseFromFile, exportDatabase]
+    [
+      createOrOpenDatabase,
+      loadDatabaseFromFile,
+      exportDatabase,
+      connectCloudSource,
+      migrateDatabaseToCloud,
+      saveDatabaseToCurrentCloud,
+      switchToLocalSource,
+    ]
   );
 
   const diagnosticsValue = useMemo(
@@ -277,6 +315,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   if (initializationState !== 'initialized') {
     return (
       <DatabaseInitializationGate
+        databaseSource={databaseSource}
         initializationState={initializationState}
         isLoading={isLoading}
         error={error}
@@ -284,6 +323,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         onBrowserTestComplete={handleBrowserTestComplete}
         onCreateOrOpenDatabase={createOrOpenDatabase}
         onLoadDatabaseFromFile={loadDatabaseFromFile}
+        onConnectCloudSource={() => connectCloudSource()}
+        onSwitchToLocalSource={switchToLocalSource}
         onCancelSampleDataImport={cancelSampleDataImport}
       />
     );

@@ -178,7 +178,13 @@ export function useSettingsSlice() {
 
   return {
     exportDatabase: lifecycle.exportDatabase,
+    connectCloudSource: lifecycle.connectCloudSource,
+    migrateDatabaseToCloud: lifecycle.migrateDatabaseToCloud,
+    saveDatabaseToCurrentCloud: lifecycle.saveDatabaseToCurrentCloud,
+    switchToLocalSource: lifecycle.switchToLocalSource,
     isDatabaseLoaded: status.isDatabaseLoaded,
+    databaseSource: status.databaseSource,
+    databaseSourceState: status.databaseSourceState,
     error: status.error,
   };
 }

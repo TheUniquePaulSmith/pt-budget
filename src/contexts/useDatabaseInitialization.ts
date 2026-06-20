@@ -5,6 +5,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TestResults } from '../components/setup/TestBrowser';
 import { DatabaseService } from '../lib/databaseService';
 import type { WorkerStatus } from '../lib/databaseWorkerService';
+import {
+  openDatabaseFromCloud,
+  saveDatabaseToCloud,
+  switchDatabaseSource as persistDatabaseSourceSelection,
+} from '@/lib/cloudSyncService';
+import type {
+  CloudProvider,
+  DatabaseSource,
+  PersistedDatabaseSourceState,
+} from '@/lib/databaseSourceStorage';
+import { loadPersistedDatabaseSourceState } from '@/lib/databaseSourceStorage';
 import { SampleDataService } from '@/lib/sampleDataService';
 import type { SampleDataImportProgress } from '@/lib/sampleDataService';
 
@@ -12,6 +23,7 @@ export type InitializationState =
   | 'checking'
   | 'testing-browser'
   | 'needs-setup'
+  | 'needs-cloud-auth'
   | 'initialized'
   | 'error';
 
@@ -21,6 +33,8 @@ interface UseDatabaseInitializationOptions {
 
 interface UseDatabaseInitializationResult {
   databaseService: DatabaseService | null;
+  databaseSource: DatabaseSource;
+  databaseSourceState: PersistedDatabaseSourceState;
   initializationState: InitializationState;
   isLoading: boolean;
   error: string | null;
@@ -33,6 +47,10 @@ interface UseDatabaseInitializationResult {
   ) => Promise<void>;
   createOrOpenDatabase: (isNew: boolean) => Promise<void>;
   loadDatabaseFromFile: (file: File) => Promise<void>;
+  connectCloudSource: (provider?: CloudProvider) => Promise<void>;
+  migrateDatabaseToCloud: (provider: CloudProvider) => Promise<void>;
+  saveDatabaseToCurrentCloud: () => Promise<void>;
+  switchToLocalSource: () => void;
   cancelSampleDataImport: () => void;
 }
 
@@ -57,6 +75,9 @@ export function useDatabaseInitialization({
 }: UseDatabaseInitializationOptions): UseDatabaseInitializationResult {
   const [databaseService, setDatabaseService] =
     useState<DatabaseService | null>(null);
+  const [databaseSourceState, setDatabaseSourceState] = useState<PersistedDatabaseSourceState>(() =>
+    loadPersistedDatabaseSourceState()
+  );
   const [initializationState, setInitializationState] =
     useState<InitializationState>('checking');
   const [isLoading, setIsLoading] = useState(false);
@@ -78,6 +99,7 @@ export function useDatabaseInitialization({
       }
 
       try {
+        const persistedSourceState = loadPersistedDatabaseSourceState();
         const service = new DatabaseService();
 
         console.debug('[DB Context] Calling initialize to worker service...');
@@ -88,8 +110,42 @@ export function useDatabaseInitialization({
         workerService.onStatusChange(setWorkerStatus);
 
         setDatabaseService(service);
+        setDatabaseSourceState(persistedSourceState);
 
-        if (service.dbExistsBeforeInit) {
+        if (persistedSourceState.source !== 'local') {
+          if (service.dbExistsBeforeInit) {
+            console.info('[DB Context] Found existing local working copy, opening...');
+            await service.openExistingDatabase();
+          }
+
+          const cloudResult = await openDatabaseFromCloud({
+            databaseService: service,
+            provider: persistedSourceState.source,
+            interactive: false,
+            allowFilePrompt: false,
+          });
+
+          setDatabaseSourceState(cloudResult.state);
+
+          if (cloudResult.action === 'needs-user-action') {
+            if (service.dbExistsBeforeInit) {
+              await loadAllData(service);
+              setInitializationState('initialized');
+            } else {
+              setInitializationState('needs-cloud-auth');
+            }
+
+            if (cloudResult.state.lastSyncError) {
+              setError(cloudResult.state.lastSyncError);
+            }
+
+            hasCheckedDatabase.current = true;
+            return;
+          }
+
+          await loadAllData(service);
+          setInitializationState('initialized');
+        } else if (service.dbExistsBeforeInit) {
           console.info('[DB Context] Found existing database, opening...');
           await service.openExistingDatabase();
           await loadAllData(service);
@@ -292,8 +348,138 @@ export function useDatabaseInitialization({
     [databaseService, loadAllData]
   );
 
+  const connectCloudSource = useCallback(
+    async (provider?: CloudProvider) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      const targetProvider =
+        provider ??
+        (databaseSourceState.source === 'local'
+          ? null
+          : databaseSourceState.source);
+
+      if (!targetProvider) {
+        throw new Error('Select a cloud provider to continue');
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const cloudResult = await openDatabaseFromCloud({
+          databaseService,
+          provider: targetProvider,
+          interactive: true,
+          allowFilePrompt: true,
+          preferStoredFile: false,
+        });
+
+        setDatabaseSourceState(cloudResult.state);
+
+        if (cloudResult.action === 'needs-user-action') {
+          throw new Error(
+            cloudResult.state.lastSyncError ||
+              'Cloud authentication is required to continue'
+          );
+        }
+
+        await loadAllData(databaseService);
+        setInitializationState('initialized');
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Failed to connect cloud database';
+        setError(message);
+        if (initializationState !== 'initialized') {
+          setInitializationState('needs-cloud-auth');
+        }
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [databaseService, databaseSourceState.source, initializationState, loadAllData]
+  );
+
+  const migrateDatabaseToCloud = useCallback(
+    async (provider: CloudProvider) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const cloudResult = await saveDatabaseToCloud({
+          databaseService,
+          provider,
+          interactive: true,
+          createNewFile: true,
+        });
+        setDatabaseSourceState(cloudResult.state);
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Failed to migrate database to cloud storage';
+        setError(message);
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [databaseService]
+  );
+
+  const saveDatabaseToCurrentCloud = useCallback(async () => {
+    if (!databaseService) {
+      throw new Error('Database service not initialized');
+    }
+
+    if (databaseSourceState.source === 'local') {
+      throw new Error('The current database source is local');
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const cloudResult = await saveDatabaseToCloud({
+        databaseService,
+        provider: databaseSourceState.source,
+        interactive: true,
+      });
+      setDatabaseSourceState(cloudResult.state);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Failed to save database to cloud storage';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [databaseService, databaseSourceState.source]);
+
+  const switchToLocalSource = useCallback(() => {
+    const nextState = persistDatabaseSourceSelection('local');
+    setDatabaseSourceState(nextState);
+    setError(null);
+
+    if (initializationState !== 'initialized') {
+      setInitializationState('needs-setup');
+    }
+  }, [initializationState]);
+
   return {
     databaseService,
+    databaseSource: databaseSourceState.source,
+    databaseSourceState,
     initializationState,
     isLoading,
     error,
@@ -303,6 +489,10 @@ export function useDatabaseInitialization({
     handleBrowserTestComplete,
     createOrOpenDatabase,
     loadDatabaseFromFile,
+    connectCloudSource,
+    migrateDatabaseToCloud,
+    saveDatabaseToCurrentCloud,
+    switchToLocalSource,
     cancelSampleDataImport,
   };
 }

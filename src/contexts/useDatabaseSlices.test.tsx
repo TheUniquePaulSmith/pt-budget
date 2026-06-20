@@ -62,6 +62,15 @@ function mockDatabaseHooks() {
       isDatabaseLoaded: true,
       isLoading: false,
       error: 'database warning',
+      databaseSource: 'local',
+      databaseSourceState: {
+        source: 'local',
+        linkedFiles: {},
+        lastLocalWriteTimestamp: null,
+        lastCloudSyncTimestamp: null,
+        lastCloudFileTimestamp: null,
+        lastSyncError: null,
+      },
       workerStatus: {
         isWorkerAlive: true,
         isConnected: true,
@@ -83,6 +92,10 @@ function mockDatabaseHooks() {
       createOrOpenDatabase: vi.fn(),
       loadDatabaseFromFile: vi.fn(),
       exportDatabase,
+      connectCloudSource: vi.fn(),
+      migrateDatabaseToCloud: vi.fn(),
+      saveDatabaseToCurrentCloud: vi.fn(),
+      switchToLocalSource: vi.fn(),
     },
     transactions: {
       addTransaction,
@@ -224,6 +237,13 @@ describe('useDatabaseSlices', () => {
     const { result } = renderHook(() => useSettingsSlice());
 
     expect(result.current.exportDatabase).toBe(slices.lifecycle.exportDatabase);
+    expect(result.current.connectCloudSource).toBe(
+      slices.lifecycle.connectCloudSource
+    );
+    expect(result.current.databaseSource).toBe('local');
+    expect(result.current.databaseSourceState).toBe(
+      slices.status.databaseSourceState
+    );
     expect(result.current.isDatabaseLoaded).toBe(true);
     expect(result.current.error).toBe('database warning');
   });

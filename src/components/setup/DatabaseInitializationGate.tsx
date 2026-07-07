@@ -13,6 +13,8 @@ import {
   Typography,
 } from '@mui/material';
 
+import { PasswordSetup } from './PasswordSetup';
+import { PasswordEntry } from './PasswordEntry';
 import { TestBrowser, type TestResults } from './TestBrowser';
 import type { InitializationState } from '../../contexts/useDatabaseInitialization';
 import type { SampleDataImportProgress } from '../../lib/sampleDataService';
@@ -33,6 +35,12 @@ interface DatabaseInitializationGateProps {
   onConnectCloudSource: () => Promise<void>;
   onSwitchToLocalSource: () => void;
   onCancelSampleDataImport: () => void;
+  /** Called when the user confirms a new password on the setup screen. */
+  onPasswordSetupConfirmed: (password: string) => Promise<void>;
+  /** Called when the user enters a password to decrypt a loaded archive. */
+  onPasswordEntrySubmitted: (password: string) => Promise<void>;
+  /** Cancels the pending password-entry flow. */
+  onCancelPasswordEntry: () => void;
 }
 
 const centeredBoxSx = {
@@ -55,6 +63,9 @@ export function DatabaseInitializationGate({
   onConnectCloudSource,
   onSwitchToLocalSource,
   onCancelSampleDataImport,
+  onPasswordSetupConfirmed,
+  onPasswordEntrySubmitted,
+  onCancelPasswordEntry,
 }: DatabaseInitializationGateProps) {
   const handleCreateNew = useCallback(async () => {
     try {
@@ -121,6 +132,28 @@ export function DatabaseInitializationGate({
           }}
         />
       </Box>
+    );
+  }
+
+  if (initializationState === 'needs-password-setup') {
+    return (
+      <PasswordSetup
+        onPasswordConfirmed={onPasswordSetupConfirmed}
+        isLoading={isLoading}
+        error={error}
+      />
+    );
+  }
+
+  if (initializationState === 'needs-password-entry') {
+    return (
+      <PasswordEntry
+        description="This database file is encrypted. Enter your password to unlock and import it."
+        onPasswordSubmitted={onPasswordEntrySubmitted}
+        onCancel={onCancelPasswordEntry}
+        isLoading={isLoading}
+        error={error}
+      />
     );
   }
 

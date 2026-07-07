@@ -41,6 +41,10 @@ type MockService = {
   clearAndRecreateDatabase: ReturnType<typeof vi.fn>;
   loadDatabaseFromFile: ReturnType<typeof vi.fn>;
   getWorkerService: ReturnType<typeof vi.fn>;
+  isEncryptionReady: ReturnType<typeof vi.fn>;
+  setEncryptionPassword: ReturnType<typeof vi.fn>;
+  clearEncryptionPassword: ReturnType<typeof vi.fn>;
+  importDatabaseArchiveData: ReturnType<typeof vi.fn>;
 };
 
 const mockedDatabaseService = vi.mocked(DatabaseService);
@@ -70,6 +74,10 @@ function createServiceMock(overrides: Partial<MockService> = {}): MockService {
     clearAndRecreateDatabase: vi.fn().mockResolvedValue(undefined),
     loadDatabaseFromFile: vi.fn().mockResolvedValue(undefined),
     getWorkerService: vi.fn(() => workerService),
+    isEncryptionReady: vi.fn().mockResolvedValue(true),
+    setEncryptionPassword: vi.fn().mockResolvedValue(undefined),
+    clearEncryptionPassword: vi.fn().mockResolvedValue(undefined),
+    importDatabaseArchiveData: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -268,9 +276,14 @@ describe('useDatabaseInitialization', () => {
       () => service as unknown as DatabaseService
     );
     const loadAllData = vi.fn().mockResolvedValue(undefined);
-    const file = new File(['db-bytes'], 'budget.db', {
+    // Use a mock file whose arrayBuffer returns non-encrypted bytes so the
+    // hook falls through to the service without showing the password screen.
+    const plainBytes = new Uint8Array(8).fill(1);
+    const file = {
+      arrayBuffer: vi.fn().mockResolvedValue(plainBytes.buffer),
+      name: 'budget.db',
       type: 'application/octet-stream',
-    });
+    } as unknown as File;
 
     const { result } = renderHook(() =>
       useDatabaseInitialization({ loadAllData })

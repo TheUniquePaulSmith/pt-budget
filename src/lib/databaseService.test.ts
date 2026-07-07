@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { databaseWorkerService } from './databaseWorkerService';
 import { DatabaseService, type DatabaseWorkerTransport } from './databaseService';
-import { parseDatabaseArchive } from './databaseArchive';
+import {
+  buildDatabaseStatusFile,
+  createDatabaseArchive,
+  parseDatabaseArchive,
+} from './databaseArchive';
+import { encryptArchive } from './databaseEncryption';
 import {
   ACCOUNT_CARD_QUERIES,
   ACCOUNT_QUERIES,
@@ -186,6 +191,11 @@ function createWorkerTransportStub(
     exec: vi.fn(),
     exportDatabaseSnapshot: vi.fn(),
     importDatabaseSnapshot: vi.fn(),
+    setEncryptionPassword: vi.fn().mockResolvedValue(undefined),
+    clearEncryptionPassword: vi.fn().mockResolvedValue(undefined),
+    isEncryptionReady: vi.fn().mockResolvedValue(true),
+    encryptArchive: vi.fn().mockResolvedValue(new Uint8Array([0xaa, 0xbb])),
+    decryptArchive: vi.fn().mockResolvedValue(new Uint8Array()),
     onStatusChange: vi.fn(() => () => undefined),
     ...overrides,
   } as DatabaseWorkerTransport;
@@ -385,47 +395,62 @@ describe('DatabaseService lifecycle helpers', () => {
 });
 
 describe('DatabaseService file operations', () => {
-  async function createArchiveBuffer(data: number[] = [1, 2, 3, 4]) {
-    const archiveService = new DatabaseService(
-      createWorkerTransportStub({
-        query: vi
-          .fn()
-          .mockResolvedValueOnce([{ name: 'accounts' }])
-          .mockResolvedValueOnce([{ count: 2 }]),
-        exportDatabaseSnapshot: vi.fn().mockResolvedValue({
-          format: 'wa-sqlite-idb-batch-atomic-v1',
-          idbName: 'ptbudgetapp',
-          exportedAt: '2026-05-27T12:00:00.000Z',
-          metadata: [{ name: '/budget-app.db', fileSize: data.length, version: 1 }],
-          blocks: [
-            {
-              path: '/budget-app.db',
-              offset: 0,
-              version: 1,
-              data: Uint8Array.from(data),
-            },
-          ],
-        }),
-      })
-    );
-
-    return archiveService.exportDatabase();
+  /**
+   * Builds a plain inner ZIP archive that can stand-in for the decrypted
+   * payload returned by `workerService.decryptArchive` in mocked tests.
+   */
+  async function buildInnerArchive(data: number[] = [1, 2, 3, 4]) {
+    const snapshot = {
+      format: 'wa-sqlite-idb-batch-atomic-v1' as const,
+      idbName: 'ptbudgetapp',
+      exportedAt: '2026-05-27T12:00:00.000Z',
+      metadata: [{ name: '/budget-app.db', fileSize: data.length, version: 1 }],
+      blocks: [
+        {
+          path: '/budget-app.db',
+          offset: 0,
+          version: 1,
+          data: Uint8Array.from(data),
+        },
+      ],
+    };
+    return createDatabaseArchive({
+      snapshot,
+      status: buildDatabaseStatusFile({
+        exportedAt: snapshot.exportedAt,
+        lastWriteTimestamp: snapshot.exportedAt,
+        tableStats: { accounts: 1 },
+        snapshot,
+      }),
+    });
   }
 
-  it('passes imported archive snapshots through to the worker', async () => {
+  /**
+   * Builds a real encrypted envelope around `innerBytes` so that
+   * `isEncryptedArchive` returns `true` for the result.
+   */
+  async function buildEncryptedEnvelope(innerBytes: Uint8Array) {
+    return encryptArchive(innerBytes, 'test-password', '2026-05-27T12:00:00.000Z');
+  }
+
+  it('decrypts and passes the archive snapshot through to the worker', async () => {
+    const innerBytes = await buildInnerArchive();
+    const encryptedBytes = await buildEncryptedEnvelope(innerBytes);
+
     const importDatabaseSnapshot = vi.fn().mockResolvedValue({
       isSuccessful: true,
     });
+    const decryptArchive = vi.fn().mockResolvedValue(innerBytes);
     const service = new DatabaseService(
-      createWorkerTransportStub({ importDatabaseSnapshot })
+      createWorkerTransportStub({ importDatabaseSnapshot, decryptArchive })
     );
-    const fileBuffer = await createArchiveBuffer();
     const file = {
-      arrayBuffer: vi.fn().mockResolvedValue(fileBuffer.buffer),
+      arrayBuffer: vi.fn().mockResolvedValue(encryptedBytes.buffer),
     } as unknown as File;
 
     await service.loadDatabaseFromFile(file);
 
+    expect(decryptArchive).toHaveBeenCalled();
     expect(importDatabaseSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         format: 'wa-sqlite-idb-batch-atomic-v1',
@@ -434,17 +459,32 @@ describe('DatabaseService file operations', () => {
     );
   });
 
+  it('throws when loading a plain (unencrypted) archive file', async () => {
+    const innerBytes = await buildInnerArchive([9, 9]);
+    const service = new DatabaseService(createWorkerTransportStub());
+    const file = {
+      arrayBuffer: vi.fn().mockResolvedValue(innerBytes.buffer),
+    } as unknown as File;
+
+    await expect(service.loadDatabaseFromFile(file)).rejects.toThrow(
+      'Unencrypted archives are no longer supported'
+    );
+  });
+
   it('throws the worker import error when loading a file fails', async () => {
+    const innerBytes = await buildInnerArchive([9, 9]);
+    const encryptedBytes = await buildEncryptedEnvelope(innerBytes);
+
     const importDatabaseSnapshot = vi.fn().mockResolvedValue({
       isSuccessful: false,
       sqlResponse: { error: 'Import payload is invalid' },
     });
+    const decryptArchive = vi.fn().mockResolvedValue(innerBytes);
     const service = new DatabaseService(
-      createWorkerTransportStub({ importDatabaseSnapshot })
+      createWorkerTransportStub({ importDatabaseSnapshot, decryptArchive })
     );
-    const archiveBuffer = await createArchiveBuffer([9, 9]);
     const file = {
-      arrayBuffer: vi.fn().mockResolvedValue(archiveBuffer.buffer),
+      arrayBuffer: vi.fn().mockResolvedValue(encryptedBytes.buffer),
     } as unknown as File;
 
     await expect(service.loadDatabaseFromFile(file)).rejects.toThrow(
@@ -452,7 +492,16 @@ describe('DatabaseService file operations', () => {
     );
   });
 
-  it('returns a zipped archive containing the snapshot and dbstatus', async () => {
+  it('exports an encrypted archive whose inner ZIP contains the snapshot and dbstatus', async () => {
+    // Capture the inner archive bytes that encryptArchive receives.
+    let capturedInnerBytes: Uint8Array | null = null;
+    const encryptArchiveMock = vi
+      .fn()
+      .mockImplementation(async (innerBytes: Uint8Array) => {
+        capturedInnerBytes = innerBytes;
+        return new Uint8Array([0xfe, 0xed]);
+      });
+
     const service = new DatabaseService(
       createWorkerTransportStub({
         query: vi
@@ -474,17 +523,19 @@ describe('DatabaseService file operations', () => {
             },
           ],
         }),
+        encryptArchive: encryptArchiveMock,
       })
     );
 
-    const archive = await service.exportDatabase();
-    const parsed = await parseDatabaseArchive(archive);
+    const result = await service.exportDatabase();
 
-    expect(archive).toBeInstanceOf(Uint8Array);
-    expect(parsed.status.tableStats).toEqual({
-      accounts: 2,
-      transactions: 7,
-    });
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(encryptArchiveMock).toHaveBeenCalled();
+
+    // The inner archive (captured before encryption) must be a valid plain ZIP.
+    expect(capturedInnerBytes).not.toBeNull();
+    const parsed = await parseDatabaseArchive(capturedInnerBytes!);
+    expect(parsed.status.tableStats).toEqual({ accounts: 2, transactions: 7 });
     expect(parsed.status.lastWriteTimestamp).toBeTruthy();
   });
 });

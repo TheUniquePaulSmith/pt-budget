@@ -58,6 +58,8 @@ interface DatabaseLifecycleSlice {
   migrateDatabaseToCloud: (provider: CloudProvider) => Promise<void>;
   saveDatabaseToCurrentCloud: () => Promise<void>;
   switchToLocalSource: () => void;
+  setEncryptionPassword: (password: string) => Promise<void>;
+  clearEncryptionPassword: () => Promise<void>;
 }
 
 interface DatabaseDiagnosticsSlice {
@@ -189,6 +191,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     sampleDataImportProgress,
     setError,
     handleBrowserTestComplete,
+    handlePasswordSetupConfirmed,
+    handlePasswordEntrySubmitted,
+    cancelPasswordEntry,
     createOrOpenDatabase,
     loadDatabaseFromFile,
     connectCloudSource,
@@ -211,6 +216,16 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       return null;
     }
   }, [databaseService, setError]);
+
+  const setEncryptionPassword = useCallback(async (password: string) => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    await databaseService.setEncryptionPassword(password);
+  }, [databaseService]);
+
+  const clearEncryptionPassword = useCallback(async () => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    await databaseService.clearEncryptionPassword();
+  }, [databaseService]);
 
   const transactionsSlice = useDatabaseTransactionSlice({
     databaseService,
@@ -293,6 +308,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       migrateDatabaseToCloud,
       saveDatabaseToCurrentCloud,
       switchToLocalSource,
+      setEncryptionPassword,
+      clearEncryptionPassword,
     }),
     [
       createOrOpenDatabase,
@@ -302,6 +319,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       migrateDatabaseToCloud,
       saveDatabaseToCurrentCloud,
       switchToLocalSource,
+      setEncryptionPassword,
+      clearEncryptionPassword,
     ]
   );
 
@@ -326,6 +345,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         onConnectCloudSource={() => connectCloudSource()}
         onSwitchToLocalSource={switchToLocalSource}
         onCancelSampleDataImport={cancelSampleDataImport}
+        onPasswordSetupConfirmed={handlePasswordSetupConfirmed}
+        onPasswordEntrySubmitted={handlePasswordEntrySubmitted}
+        onCancelPasswordEntry={cancelPasswordEntry}
       />
     );
   }

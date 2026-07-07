@@ -182,6 +182,8 @@ export function useSettingsSlice() {
     migrateDatabaseToCloud: lifecycle.migrateDatabaseToCloud,
     saveDatabaseToCurrentCloud: lifecycle.saveDatabaseToCurrentCloud,
     switchToLocalSource: lifecycle.switchToLocalSource,
+    setEncryptionPassword: lifecycle.setEncryptionPassword,
+    clearEncryptionPassword: lifecycle.clearEncryptionPassword,
     isDatabaseLoaded: status.isDatabaseLoaded,
     databaseSource: status.databaseSource,
     databaseSourceState: status.databaseSourceState,

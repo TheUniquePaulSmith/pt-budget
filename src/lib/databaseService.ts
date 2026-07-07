@@ -15,6 +15,10 @@ import {
   type DatabaseVfsSnapshot,
 } from './databaseArchive';
 import {
+  isEncryptedArchive,
+  readEncryptedArchiveMeta,
+} from './databaseEncryption';
+import {
   TRANSACTION_QUERIES,
   CATEGORY_QUERIES,
   COMPANY_QUERIES,
@@ -56,6 +60,12 @@ export interface DatabaseWorkerTransport {
     isSuccessful: boolean;
     sqlResponse?: { error?: string };
   }>;
+  // Encryption
+  setEncryptionPassword(password: string): Promise<void>;
+  clearEncryptionPassword(): Promise<void>;
+  isEncryptionReady(): Promise<boolean>;
+  encryptArchive(archiveBytes: Uint8Array, lastSaveTimestamp: string): Promise<Uint8Array>;
+  decryptArchive(encryptedBytes: Uint8Array): Promise<Uint8Array>;
   onStatusChange(callback: (status: WorkerStatus) => void): () => void;
   destroy?(): void;
 }
@@ -129,7 +139,20 @@ export class DatabaseService {
 
       const arrayBuffer = await file.arrayBuffer();
       const fileData = new Uint8Array(arrayBuffer);
-      const { snapshot } = await parseDatabaseArchive(fileData);
+
+      let plainArchiveBytes: Uint8Array;
+
+      if (isEncryptedArchive(fileData)) {
+        console.info("Detected encrypted archive — decrypting...");
+        plainArchiveBytes = await this.workerService.decryptArchive(fileData);
+      } else {
+        throw new Error(
+          'Unencrypted archives are no longer supported. ' +
+          'Re-export the database with encryption enabled.'
+        );
+      }
+
+      const { snapshot } = await parseDatabaseArchive(plainArchiveBytes);
 
       const response = await this.workerService.importDatabaseSnapshot(snapshot);
 
@@ -150,20 +173,30 @@ export class DatabaseService {
     try {
       console.info("Exporting database through worker...");
       const databaseStatus = await this.getDatabaseStatus();
+      const lastWriteTimestamp =
+        databaseStatus.lastWriteTimestamp ?? new Date().toISOString();
       const snapshot = await this.workerService.exportDatabaseSnapshot();
       const exportedAt = new Date().toISOString();
-      const data = await createDatabaseArchive({
+
+      // Build the inner (plain) ZIP archive — the existing format.
+      const innerArchiveBytes = await createDatabaseArchive({
         snapshot,
         status: buildDatabaseStatusFile({
           exportedAt,
-          lastWriteTimestamp:
-            databaseStatus.lastWriteTimestamp ?? exportedAt,
+          lastWriteTimestamp,
           tableStats: databaseStatus.tableStats,
           snapshot,
         }),
       });
-      console.info("Database exported successfully");
-      return data;
+
+      // Wrap in the encrypted envelope using the worker's stored key.
+      const encryptedBytes = await this.workerService.encryptArchive(
+        innerArchiveBytes,
+        lastWriteTimestamp
+      );
+
+      console.info("Database exported and encrypted successfully");
+      return encryptedBytes;
     } catch (error) {
       console.error("Failed to export database:", error);
       throw error;
@@ -171,13 +204,77 @@ export class DatabaseService {
   }
 
   async importDatabaseArchiveData(archiveBytes: Uint8Array): Promise<void> {
-    const { snapshot } = await parseDatabaseArchive(archiveBytes);
+    let plainArchiveBytes: Uint8Array;
+
+    if (isEncryptedArchive(archiveBytes)) {
+      console.info("Detected encrypted archive — decrypting...");
+      plainArchiveBytes = await this.workerService.decryptArchive(archiveBytes);
+    } else {
+      throw new Error(
+        'Unencrypted archives are no longer supported. ' +
+        'Re-export the database with encryption enabled.'
+      );
+    }
+
+    const { snapshot } = await parseDatabaseArchive(plainArchiveBytes);
     const response = await this.workerService.importDatabaseSnapshot(snapshot);
 
     if (!response.isSuccessful) {
       throw new Error(
         response.sqlResponse?.error || 'Failed to import database archive'
       );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Encryption password management
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Stores the password in the SharedWorker for this session.
+   * Must be called before any export or before importing an encrypted archive.
+   */
+  async setEncryptionPassword(password: string): Promise<void> {
+    try {
+      await this.workerService.setEncryptionPassword(password);
+      console.info('[DB Service] Encryption password set');
+    } catch (error) {
+      console.error('[DB Service] Failed to set encryption password:', error);
+      throw error;
+    }
+  }
+
+  async clearEncryptionPassword(): Promise<void> {
+    try {
+      await this.workerService.clearEncryptionPassword();
+    } catch (error) {
+      console.error('[DB Service] Failed to clear encryption password:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Returns `true` when the worker holds a password and can encrypt/decrypt.
+   * Use this to decide whether to show the password prompt.
+   */
+  async isEncryptionReady(): Promise<boolean> {
+    try {
+      return await this.workerService.isEncryptionReady();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Reads the `lastSaveTimestamp` from an encrypted archive header WITHOUT
+   * decrypting the payload.  Used for cloud timestamp comparisons.
+   */
+  getEncryptedArchiveTimestamp(archiveBytes: Uint8Array): string | null {
+    if (!isEncryptedArchive(archiveBytes)) return null;
+    try {
+      return readEncryptedArchiveMeta(archiveBytes).lastSaveTimestamp;
+    } catch {
+      return null;
     }
   }
 

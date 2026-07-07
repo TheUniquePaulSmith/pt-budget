@@ -1,4 +1,5 @@
 import { parseDatabaseArchive } from './databaseArchive';
+import { isEncryptedArchive, readEncryptedArchiveMeta } from './databaseEncryption';
 import type { DatabaseService } from './databaseService';
 import {
   createCloudProviderClient,
@@ -170,11 +171,22 @@ export async function openDatabaseFromCloud(options: {
   }
 
   const archiveBytes = await client.downloadFile(linkedFile.fileId);
-  const archive = await parseDatabaseArchive(archiveBytes);
+
+  // Read the cloud timestamp WITHOUT decrypting the payload.
+  // Encrypted archives store the timestamp in the unencrypted header; plain
+  // archives (legacy/unsupported) are rejected by parseDatabaseArchive later.
+  let cloudTimestamp: string | null = null;
+  if (isEncryptedArchive(archiveBytes)) {
+    try {
+      cloudTimestamp = readEncryptedArchiveMeta(archiveBytes).lastSaveTimestamp;
+    } catch {
+      cloudTimestamp = null;
+    }
+  }
+
   const localStatus = await databaseService.getDatabaseStatus().catch(() => null);
   const localTimestamp =
     localStatus?.lastWriteTimestamp ?? currentState.lastLocalWriteTimestamp;
-  const cloudTimestamp = archive.status.lastWriteTimestamp;
   const timestampComparison = compareTimestamps(localTimestamp, cloudTimestamp);
 
   const baseState = {

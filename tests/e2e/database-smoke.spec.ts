@@ -39,6 +39,19 @@ async function bootstrapDatabase(page: Page) {
 
   if (await createDatabaseButton.isVisible().catch(() => false)) {
     await createDatabaseButton.click();
+
+    // New: the password setup screen appears after clicking Create New Database.
+    const passwordInput = page.getByLabel('Password');
+    const isPasswordScreen = await passwordInput
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (isPasswordScreen) {
+      await passwordInput.fill('TestPassword1!');
+      await page.getByLabel('Confirm Password').fill('TestPassword1!');
+      await page.getByRole('button', { name: 'Create Database' }).click();
+    }
   }
 
   await expect(sqlQueryButton).toBeVisible({ timeout: 120_000 });

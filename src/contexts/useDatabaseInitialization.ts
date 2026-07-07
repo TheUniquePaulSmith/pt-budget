@@ -10,6 +10,7 @@ import {
   saveDatabaseToCloud,
   switchDatabaseSource as persistDatabaseSourceSelection,
 } from '@/lib/cloudSyncService';
+import { isEncryptedArchive } from '@/lib/databaseEncryption';
 import type {
   CloudProvider,
   DatabaseSource,
@@ -23,6 +24,10 @@ export type InitializationState =
   | 'checking'
   | 'testing-browser'
   | 'needs-setup'
+  /** New database: user must choose a password before creation proceeds. */
+  | 'needs-password-setup'
+  /** Loading an encrypted archive: user must enter the password to decrypt. */
+  | 'needs-password-entry'
   | 'needs-cloud-auth'
   | 'initialized'
   | 'error';
@@ -45,6 +50,18 @@ interface UseDatabaseInitializationResult {
     isCompatible: boolean,
     testResults: TestResults
   ) => Promise<void>;
+  /**
+   * Called by the password setup screen once the user has confirmed a password.
+   * Sets the password in the worker and then creates the new database.
+   */
+  handlePasswordSetupConfirmed: (password: string) => Promise<void>;
+  /**
+   * Called by the password entry screen when the user enters a password to
+   * decrypt a file they are loading.
+   */
+  handlePasswordEntrySubmitted: (password: string) => Promise<void>;
+  /** Cancels a pending password-entry flow and returns to the setup screen. */
+  cancelPasswordEntry: () => void;
   createOrOpenDatabase: (isNew: boolean) => Promise<void>;
   loadDatabaseFromFile: (file: File) => Promise<void>;
   connectCloudSource: (provider?: CloudProvider) => Promise<void>;
@@ -81,6 +98,10 @@ export function useDatabaseInitialization({
   const [initializationState, setInitializationState] =
     useState<InitializationState>('checking');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Bytes of an encrypted archive that is waiting to be decrypted (e.g. after
+  // the user selects a file we detect is encrypted and need the password).
+  const pendingEncryptedBytesRef = useRef<Uint8Array | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [workerStatus, setWorkerStatus] = useState<WorkerStatus | null>(null);
   const [sampleDataImportProgress, setSampleDataImportProgress] =
@@ -235,6 +256,21 @@ export function useDatabaseInitialization({
         throw new Error('Database service not initialized');
       }
 
+      // For a new database we must collect a password first.  Check whether
+      // the worker already holds a key (from another tab in this session).
+      if (isNew) {
+        const encryptionAlreadyReady = await databaseService
+          .isEncryptionReady()
+          .catch(() => false);
+
+        if (!encryptionAlreadyReady) {
+          // Transition to the password setup screen.  The actual database
+          // creation happens in handlePasswordSetupConfirmed.
+          setInitializationState('needs-password-setup');
+          return;
+        }
+      }
+
       setIsLoading(true);
       setError(null);
 
@@ -326,6 +362,25 @@ export function useDatabaseInitialization({
     async (file: File) => {
       if (!databaseService) {
         throw new Error('Database service not initialized');
+      }
+
+      // Read the file bytes first so we can detect whether it is encrypted.
+      const arrayBuffer = await file.arrayBuffer();
+      const fileBytes = new Uint8Array(arrayBuffer);
+
+      if (isEncryptedArchive(fileBytes)) {
+        // Check if the worker already holds a key (e.g. another tab already
+        // authenticated in this session).
+        const encryptionAlreadyReady = await databaseService
+          .isEncryptionReady()
+          .catch(() => false);
+
+        if (!encryptionAlreadyReady) {
+          // Park the file bytes and ask the user for the password.
+          pendingEncryptedBytesRef.current = fileBytes;
+          setInitializationState('needs-password-entry');
+          return;
+        }
       }
 
       setIsLoading(true);
@@ -476,6 +531,126 @@ export function useDatabaseInitialization({
     }
   }, [initializationState]);
 
+  // ---------------------------------------------------------------------------
+  // Password setup (new database)
+  // ---------------------------------------------------------------------------
+
+  const handlePasswordSetupConfirmed = useCallback(
+    async (password: string) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Store the password in the worker first.
+        await databaseService.setEncryptionPassword(password);
+
+        // Now create the database (mirrors createOrOpenDatabase isNew=true path
+        // but skips the password gate since we just set it).
+        const shouldLoadSampleData = SampleDataService.shouldLoadSampleData();
+        await databaseService.createNewDatabase({
+          deferIndexes: shouldLoadSampleData,
+        });
+
+        if (shouldLoadSampleData) {
+          console.info('[DB Context] Loading sample data...');
+          const abortController = new AbortController();
+          sampleDataImportAbortControllerRef.current = abortController;
+          setSampleDataImportProgress({
+            stage: 'starting',
+            currentFile: null,
+            currentTable: null,
+            completedFiles: 0,
+            totalFiles: SAMPLE_DATA_IMPORT_FILE_COUNT,
+            importedRows: 0,
+            expectedRows: null,
+            isCancelable: true,
+            message: 'Preparing sample data import...',
+          });
+
+          try {
+            await SampleDataService.loadAllSampleData({
+              signal: abortController.signal,
+              onProgress: setSampleDataImportProgress,
+            });
+          } catch (sampleError) {
+            if (isAbortError(sampleError)) {
+              await databaseService.clearAndRecreateDatabase();
+            } else {
+              console.error('[DB Context] Failed to load sample data:', sampleError);
+              setError('Database created but sample data failed to load');
+            }
+          } finally {
+            sampleDataImportAbortControllerRef.current = null;
+          }
+
+          await databaseService.ensureIndexes();
+        }
+
+        await loadAllData(databaseService);
+        setInitializationState('initialized');
+      } catch (err) {
+        console.error('Failed to create database with password:', err);
+        setError(err instanceof Error ? err.message : 'Failed to create database');
+        // Return the user to the password setup screen so they can retry.
+      } finally {
+        setSampleDataImportProgress(null);
+        setIsLoading(false);
+      }
+    },
+    [databaseService, loadAllData]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Password entry (loading an encrypted archive)
+  // ---------------------------------------------------------------------------
+
+  const handlePasswordEntrySubmitted = useCallback(
+    async (password: string) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      const pendingBytes = pendingEncryptedBytesRef.current;
+      if (!pendingBytes) {
+        throw new Error('No pending archive to decrypt');
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Set the password in the worker (derives the key).
+        await databaseService.setEncryptionPassword(password);
+
+        // Delegate to importDatabaseArchiveData which will decrypt and import.
+        await databaseService.importDatabaseArchiveData(pendingBytes);
+        pendingEncryptedBytesRef.current = null;
+
+        await loadAllData(databaseService);
+        setInitializationState('initialized');
+      } catch (err) {
+        console.error('Failed to decrypt/import database:', err);
+        const message = err instanceof Error ? err.message : 'Failed to open database';
+        setError(message);
+        // Clear a bad password from the worker so the user can retry.
+        await databaseService.clearEncryptionPassword().catch(() => undefined);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [databaseService, loadAllData]
+  );
+
+  const cancelPasswordEntry = useCallback(() => {
+    pendingEncryptedBytesRef.current = null;
+    setError(null);
+    setInitializationState('needs-setup');
+  }, []);
+
   return {
     databaseService,
     databaseSource: databaseSourceState.source,
@@ -487,6 +662,9 @@ export function useDatabaseInitialization({
     sampleDataImportProgress,
     setError,
     handleBrowserTestComplete,
+    handlePasswordSetupConfirmed,
+    handlePasswordEntrySubmitted,
+    cancelPasswordEntry,
     createOrOpenDatabase,
     loadDatabaseFromFile,
     connectCloudSource,

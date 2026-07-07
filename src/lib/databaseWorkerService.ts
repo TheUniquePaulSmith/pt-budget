@@ -236,6 +236,11 @@ export class DatabaseWorkerService {
     ensure_indexes: 600000, // 10m for building indexes on large datasets
     export_database_snapshot: 60000, // 1min for exports
     import_database_snapshot: 120000, // 2min for archive imports
+    set_password: 30000,           // 30s for password derivation
+    clear_password: 5000,
+    check_encryption_ready: 5000,
+    encrypt_archive: 120000,       // 2min for large archive encryption
+    decrypt_archive: 120000,       // 2min for large archive decryption
     default: 30000       // 30s default for other operations
   };
 
@@ -345,6 +350,56 @@ export class DatabaseWorkerService {
     snapshot: DatabaseVfsSnapshot
   ): Promise<DatabaseResponse> {
     return this.sendMessage('import_database_snapshot', { snapshot });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Encryption operations
+  // ---------------------------------------------------------------------------
+
+  /** Store the user's password in the worker for this SharedWorker lifetime. */
+  public async setEncryptionPassword(password: string): Promise<void> {
+    await this.sendMessage('set_password', { password });
+  }
+
+  /** Remove the stored password from the worker (e.g. explicit sign-out). */
+  public async clearEncryptionPassword(): Promise<void> {
+    await this.sendMessage('clear_password');
+  }
+
+  /** Returns `true` if the worker has a password set and can encrypt/decrypt. */
+  public async isEncryptionReady(): Promise<boolean> {
+    const response = await this.sendMessage('check_encryption_ready');
+    return response.sqlResponse?.isReady === true;
+  }
+
+  /**
+   * Asks the worker to encrypt `archiveBytes` (an inner ZIP) using the stored
+   * password and returns the encrypted envelope bytes.
+   */
+  public async encryptArchive(
+    archiveBytes: Uint8Array,
+    lastSaveTimestamp: string
+  ): Promise<Uint8Array> {
+    const response = await this.sendMessage('encrypt_archive', {
+      archiveBytes,
+      lastSaveTimestamp,
+    });
+    if (!response.isSuccessful || !response.sqlResponse?.encryptedBytes) {
+      throw new Error(response.sqlResponse?.error || 'Failed to encrypt archive');
+    }
+    return response.sqlResponse.encryptedBytes as Uint8Array;
+  }
+
+  /**
+   * Asks the worker to decrypt `encryptedBytes` using the stored password and
+   * returns the inner ZIP bytes.
+   */
+  public async decryptArchive(encryptedBytes: Uint8Array): Promise<Uint8Array> {
+    const response = await this.sendMessage('decrypt_archive', { encryptedBytes });
+    if (!response.isSuccessful || !response.sqlResponse?.plainBytes) {
+      throw new Error(response.sqlResponse?.error || 'Failed to decrypt archive');
+    }
+    return response.sqlResponse.plainBytes as Uint8Array;
   }
 
   // Cleanup

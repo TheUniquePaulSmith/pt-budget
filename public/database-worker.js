@@ -23,9 +23,60 @@ class DatabaseWorker {
     // Query processing queue and lock
     this.queryQueue = [];
     this.isProcessingQuery = false;
+
+    // Encryption – the password is cached in worker memory for the lifetime of
+    // this SharedWorker instance (i.e. while at least one tab remains open).
+    this.encryptionPassword = null;
+
+    // Lazy-loaded encryption module (public/database-encryption.js)
+    this._encryptionModule = null;
     
     // Start heartbeat
     this.startHeartbeat();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Encryption helpers
+  // ---------------------------------------------------------------------------
+
+  async getEncryptionModule() {
+    if (!this._encryptionModule) {
+      this._encryptionModule = await import('/database-encryption.js');
+    }
+    return this._encryptionModule;
+  }
+
+  async setPassword(password) {
+    if (!password || typeof password !== 'string' || password.length === 0) {
+      throw new Error('Password must be a non-empty string');
+    }
+    this.encryptionPassword = password;
+    console.info('[DB Worker] Encryption password set for this session');
+  }
+
+  clearPassword() {
+    this.encryptionPassword = null;
+    console.info('[DB Worker] Encryption password cleared');
+  }
+
+  isEncryptionReady() {
+    return this.encryptionPassword !== null;
+  }
+
+  async encryptArchiveBytes(plainArchiveBytes, lastSaveTimestamp) {
+    if (!this.encryptionPassword) {
+      throw new Error('Encryption password is not set — call set_password first');
+    }
+    const enc = await this.getEncryptionModule();
+    return enc.encryptArchive(plainArchiveBytes, this.encryptionPassword, lastSaveTimestamp);
+  }
+
+  async decryptArchiveBytes(encryptedBytes) {
+    if (!this.encryptionPassword) {
+      throw new Error('Encryption password is not set — call set_password first');
+    }
+    const enc = await this.getEncryptionModule();
+    return enc.decryptArchive(encryptedBytes, this.encryptionPassword);
   }
 
   // Initialize WA-SQLite in the worker
@@ -773,6 +824,74 @@ class DatabaseWorker {
         case 'import_database_snapshot':
           response = await this.importDatabaseSnapshot(payload.snapshot);
           break;
+
+        // ----------------------------------------------------------------
+        // Encryption-related messages
+        // ----------------------------------------------------------------
+
+        case 'set_password': {
+          await this.setPassword(payload?.password);
+          response = {
+            type: 'set_password_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: { message: 'Password set successfully' }
+          };
+          break;
+        }
+
+        case 'clear_password': {
+          this.clearPassword();
+          response = {
+            type: 'clear_password_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: { message: 'Password cleared' }
+          };
+          break;
+        }
+
+        case 'check_encryption_ready': {
+          response = {
+            type: 'check_encryption_ready_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: { isReady: this.isEncryptionReady() }
+          };
+          break;
+        }
+
+        case 'encrypt_archive': {
+          // payload: { archiveBytes: Uint8Array, lastSaveTimestamp: string }
+          const encryptedBytes = await this.encryptArchiveBytes(
+            payload.archiveBytes,
+            payload.lastSaveTimestamp
+          );
+          response = {
+            type: 'encrypt_archive_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: { encryptedBytes }
+          };
+          break;
+        }
+
+        case 'decrypt_archive': {
+          // payload: { encryptedBytes: Uint8Array }
+          const plainBytes = await this.decryptArchiveBytes(payload.encryptedBytes);
+          response = {
+            type: 'decrypt_archive_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: { plainBytes }
+          };
+          break;
+        }
 
         case 'set_debug':
           this.debugMode = payload?.debug || false;

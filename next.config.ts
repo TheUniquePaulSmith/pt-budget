@@ -19,24 +19,25 @@ const nextConfig: NextConfig = {
       os: {browser: './empty.js'},
     }
   },
-  // Headers for SharedArrayBuffer support (required for wa-sqlite)
-  // async headers() {
-  //   return [
-  //     {
-  //       source: '/(.*)',
-  //       headers: [
-  //         {
-  //           key: 'Cross-Origin-Opener-Policy',
-  //           value: 'same-origin',
-  //         },
-  //         {
-  //           key: 'Cross-Origin-Embedder-Policy',
-  //           value: 'require-corp',
-  //         },
-  //       ],
-  //     },
-  //   ];
-  // },
+  // Headers for SharedArrayBuffer support in Next-served environments.
+  // Static export hosts must be configured to send equivalent headers.
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+        ],
+      },
+    ];
+  },
   // webpack: (config, { isServer }) => {
   //   // Basic fallbacks for Node.js modules in the browser
   //   if (!isServer) {

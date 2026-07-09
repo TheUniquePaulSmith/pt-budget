@@ -4,6 +4,7 @@ import "./globals.css";
 import { CustomThemeProvider } from "../theme/theme";
 import { DatabaseProvider } from "../contexts/DatabaseContext";
 import { LoggingProvider } from "../contexts/LoggingContext";
+import { WllamaProvider } from "../contexts/WllamaContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,9 +36,11 @@ export default function RootLayout({
       >
         <LoggingProvider>
           <CustomThemeProvider>
-            <DatabaseProvider>
-              {children}
-            </DatabaseProvider>
+            <WllamaProvider>
+              <DatabaseProvider>
+                {children}
+              </DatabaseProvider>
+            </WllamaProvider>
           </CustomThemeProvider>
         </LoggingProvider>
       </body>

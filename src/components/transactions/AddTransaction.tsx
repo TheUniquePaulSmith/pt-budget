@@ -260,7 +260,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
 
               <FormControl fullWidth>
                 <InputLabel>Account</InputLabel>
-                <Select
+                <Select<number | ''>
                   value={formData.account_id}
                   label="Account"
                   onChange={(e) => {

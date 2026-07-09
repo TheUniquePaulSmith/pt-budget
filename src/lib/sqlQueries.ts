@@ -39,6 +39,12 @@ export const TRANSACTION_QUERIES = {
     WHERE id = ?
   `,
 
+  UPDATE_CLASSIFICATION: `
+    UPDATE transactions
+    SET category_id = ?, company_id = ?, project_id = ?, trip_id = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `,
+
   GET_BY_PROJECT: `
     SELECT 
       t.*,
@@ -191,6 +197,7 @@ export const TRANSACTION_QUERIES = {
 export const CATEGORY_QUERIES = {
   GET_ALL: `SELECT * FROM categories ORDER BY type, name`,
   CREATE: `INSERT INTO categories (name, color, type) VALUES (?, ?, ?) RETURNING id`,
+  FIND_BY_NAME: `SELECT * FROM categories WHERE LOWER(name) = LOWER(?) LIMIT 1`,
   GET_BY_ID: `SELECT * FROM categories WHERE id = ?`,
   UPDATE: `UPDATE categories SET name = ?, color = ?, type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
   DELETE: `DELETE FROM categories WHERE id = ?`,

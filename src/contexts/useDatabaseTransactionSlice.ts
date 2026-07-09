@@ -4,6 +4,10 @@ import { useCallback, useMemo } from 'react';
 
 import { DatabaseService } from '../lib/databaseService';
 import type {
+  ApplyTransactionClassificationInput,
+  ApplyTransactionClassificationsResult,
+} from '../types/ai';
+import type {
   Transaction,
   TransactionQueryParams,
   TransactionsPaginatedResult,
@@ -31,6 +35,9 @@ export interface DatabaseTransactionSlice {
     projectId: number | null,
     tripId: number | null
   ) => Promise<void>;
+  applyTransactionClassifications: (
+    classifications: ApplyTransactionClassificationInput[]
+  ) => Promise<ApplyTransactionClassificationsResult>;
   generateTransactionHash: (
     accountId: string,
     date: string,
@@ -59,6 +66,7 @@ type TransactionService = Pick<
   | 'checkDuplicateTransactions'
   | 'bulkInsertFromTempTable'
   | 'updateTransactionLabels'
+  | 'applyTransactionClassifications'
   | 'getRecentTransactions'
   | 'getDashboardSummary'
   | 'getChartData'
@@ -72,11 +80,15 @@ type TransactionService = Pick<
 interface UseDatabaseTransactionSliceOptions {
   databaseService: TransactionService | null;
   refreshTransactions: () => Promise<void>;
+  refreshCategories?: () => Promise<void>;
+  refreshCompanies?: () => Promise<void>;
 }
 
 export function useDatabaseTransactionSlice({
   databaseService,
   refreshTransactions,
+  refreshCategories,
+  refreshCompanies,
 }: UseDatabaseTransactionSliceOptions): DatabaseTransactionSlice {
   const requireService = useCallback(() => {
     if (!databaseService) {
@@ -138,6 +150,21 @@ export function useDatabaseTransactionSlice({
       await refreshTransactions();
     },
     [refreshTransactions, requireService]
+  );
+
+  const applyTransactionClassifications = useCallback(
+    async (
+      classifications: ApplyTransactionClassificationInput[]
+    ): Promise<ApplyTransactionClassificationsResult> => {
+      const result = await requireService().applyTransactionClassifications(classifications);
+      await Promise.all([
+        refreshTransactions(),
+        refreshCategories?.() ?? Promise.resolve(),
+        refreshCompanies?.() ?? Promise.resolve(),
+      ]);
+      return result;
+    },
+    [refreshCategories, refreshCompanies, refreshTransactions, requireService]
   );
 
   const generateTransactionHash = useCallback(
@@ -214,6 +241,7 @@ export function useDatabaseTransactionSlice({
       checkDuplicateTransactions,
       bulkInsertFromTempTable,
       updateTransactionLabels,
+      applyTransactionClassifications,
       generateTransactionHash,
       getRecentTransactions,
       getDashboardSummary,
@@ -234,6 +262,7 @@ export function useDatabaseTransactionSlice({
       checkDuplicateTransactions,
       bulkInsertFromTempTable,
       updateTransactionLabels,
+      applyTransactionClassifications,
       generateTransactionHash,
       getRecentTransactions,
       getDashboardSummary,

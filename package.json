@@ -28,6 +28,7 @@
     "@types/papaparse": "^5.3.16",
     "@types/sql.js": "^1.4.9",
     "@types/uuid": "^10.0.0",
+    "@wllama/wllama": "^3.5.1",
     "buffer": "^6.0.3",
     "date-fns": "^4.1.0",
     "jszip": "^3.10.1",

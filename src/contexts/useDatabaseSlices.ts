@@ -104,6 +104,21 @@ export function useTransactionLabelingSlice() {
   };
 }
 
+export function useAiDatabaseToolsSlice() {
+  const collections = useDatabaseCollections();
+  const diagnostics = useDatabaseDiagnostics();
+  const transactions = useDatabaseTransactions();
+
+  return {
+    categories: collections.categories,
+    companies: collections.companies,
+    projects: collections.projects,
+    trips: collections.trips,
+    executeCustomQuery: diagnostics.executeCustomQuery,
+    applyTransactionClassifications: transactions.applyTransactionClassifications,
+  };
+}
+
 export function useCsvImportSlice() {
   const collections = useDatabaseCollections();
   const transactions = useDatabaseTransactions();

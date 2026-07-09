@@ -46,6 +46,10 @@ import {
   ChartData,
   ProjectCosts,
 } from '../types/database';
+import type {
+  ApplyTransactionClassificationInput,
+  ApplyTransactionClassificationsResult,
+} from '../types/ai';
 
 export interface DatabaseWorkerTransport {
   initialize(): Promise<unknown>;
@@ -972,6 +976,44 @@ export class DatabaseService {
     }
   }
 
+  async findCategoryByName(name: string): Promise<Category | null> {
+    try {
+      const rows = await this.workerService.query(
+        CATEGORY_QUERIES.FIND_BY_NAME,
+        [name]
+      );
+      return rows.length > 0 ? this.mapToCategory(rows[0]) : null;
+    } catch (error) {
+      console.error("Failed to find category by name:", error);
+      throw error;
+    }
+  }
+
+  async findOrCreateCategory(
+    category: Pick<Category, 'name' | 'type'> & Partial<Pick<Category, 'color'>>
+  ): Promise<number> {
+    try {
+      const existing = await this.findCategoryByName(category.name);
+      if (existing) {
+        if (existing.type !== category.type) {
+          throw new Error(
+            `Category "${category.name}" already exists as ${existing.type}, not ${category.type}`
+          );
+        }
+        return existing.id;
+      }
+
+      return await this.addCategory({
+        name: category.name,
+        type: category.type,
+        color: category.color || '#1976d2',
+      });
+    } catch (error) {
+      console.error("Failed to find or create category:", error);
+      throw error;
+    }
+  }
+
   // Company operations
   async getCompanies(): Promise<Company[]> {
     try {
@@ -1708,6 +1750,165 @@ export class DatabaseService {
       tripId,
       id,
     ]);
+  }
+
+  async applyTransactionClassifications(
+    classifications: ApplyTransactionClassificationInput[]
+  ): Promise<ApplyTransactionClassificationsResult> {
+    if (classifications.length === 0) {
+      return { appliedCount: 0, transactionIds: [] };
+    }
+
+    await this.workerService.query('BEGIN TRANSACTION');
+
+    try {
+      const transactionIds: number[] = [];
+
+      for (const classification of classifications) {
+        const rows = await this.workerService.query(
+          'SELECT id, type, category_id, company_id, project_id, trip_id FROM transactions WHERE id = ? LIMIT 1',
+          [classification.transactionId]
+        );
+
+        if (rows.length === 0) {
+          throw new Error(`Transaction ${classification.transactionId} was not found`);
+        }
+
+        const transaction = rows[0] as {
+          id: number;
+          type: Category['type'];
+          category_id: number | null;
+          company_id: number | null;
+          project_id: number | null;
+          trip_id: number | null;
+        };
+
+        const categoryId = await this.resolveClassificationCategoryId(
+          classification,
+          transaction
+        );
+        const companyId = await this.resolveClassificationCompanyId(
+          classification,
+          transaction.company_id
+        );
+        const { projectId, tripId } = this.resolveClassificationLabels(
+          classification,
+          transaction.project_id,
+          transaction.trip_id
+        );
+
+        await this.workerService.query(TRANSACTION_QUERIES.UPDATE_CLASSIFICATION, [
+          categoryId,
+          companyId,
+          projectId,
+          tripId,
+          classification.transactionId,
+        ]);
+        transactionIds.push(classification.transactionId);
+      }
+
+      await this.workerService.query('COMMIT');
+
+      return {
+        appliedCount: transactionIds.length,
+        transactionIds,
+      };
+    } catch (error) {
+      await this.workerService.query('ROLLBACK');
+      console.error('Failed to apply transaction classifications:', error);
+      throw error;
+    }
+  }
+
+  private async resolveClassificationCategoryId(
+    classification: ApplyTransactionClassificationInput,
+    transaction: { type: Category['type']; category_id: number | null }
+  ): Promise<number | null> {
+    if (classification.categoryId === null || classification.categoryName === null) {
+      return null;
+    }
+
+    if (typeof classification.categoryId === 'number') {
+      const rows = await this.workerService.query(CATEGORY_QUERIES.GET_BY_ID, [
+        classification.categoryId,
+      ]);
+      if (rows.length === 0) {
+        throw new Error(`Category ${classification.categoryId} was not found`);
+      }
+
+      const category = this.mapToCategory(rows[0]);
+      if (category.type !== transaction.type) {
+        throw new Error(
+          `Category "${category.name}" is ${category.type}, but transaction is ${transaction.type}`
+        );
+      }
+      return category.id;
+    }
+
+    if (typeof classification.categoryName === 'string' && classification.categoryName.trim()) {
+      return this.findOrCreateCategory({
+        name: classification.categoryName.trim(),
+        type: classification.categoryType || transaction.type,
+      });
+    }
+
+    return transaction.category_id;
+  }
+
+  private async resolveClassificationCompanyId(
+    classification: ApplyTransactionClassificationInput,
+    currentCompanyId: number | null
+  ): Promise<number | null> {
+    if (classification.companyId === null || classification.companyName === null) {
+      return null;
+    }
+
+    if (typeof classification.companyId === 'number') {
+      const rows = await this.workerService.query(COMPANY_QUERIES.GET_BY_ID, [
+        classification.companyId,
+      ]);
+      if (rows.length === 0) {
+        throw new Error(`Company ${classification.companyId} was not found`);
+      }
+      return classification.companyId;
+    }
+
+    if (typeof classification.companyName === 'string' && classification.companyName.trim()) {
+      return this.findOrCreateCompany(classification.companyName.trim());
+    }
+
+    return currentCompanyId;
+  }
+
+  private resolveClassificationLabels(
+    classification: ApplyTransactionClassificationInput,
+    currentProjectId: number | null,
+    currentTripId: number | null
+  ): { projectId: number | null; tripId: number | null } {
+    const hasProjectUpdate = classification.projectId !== undefined;
+    const hasTripUpdate = classification.tripId !== undefined;
+
+    if (
+      hasProjectUpdate &&
+      hasTripUpdate &&
+      classification.projectId !== null &&
+      classification.tripId !== null
+    ) {
+      throw new Error('A transaction can be labeled with a project or a trip, not both');
+    }
+
+    if (hasProjectUpdate && classification.projectId !== null) {
+      return { projectId: classification.projectId ?? null, tripId: null };
+    }
+
+    if (hasTripUpdate && classification.tripId !== null) {
+      return { projectId: null, tripId: classification.tripId ?? null };
+    }
+
+    return {
+      projectId: hasProjectUpdate ? null : currentProjectId,
+      tripId: hasTripUpdate ? null : currentTripId,
+    };
   }
 
   async updateTempTransactionHashes(updates: Array<{ tempId: number; newHash: string; variationSeed: number }>): Promise<void> {

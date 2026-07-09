@@ -120,8 +120,8 @@ export function createAppTheme(
   systemPaletteMode?: PaletteMode
 ) {
   const preset = getThemePreset(themeId);
-  const resolvedPaletteMode =
-    themeId === 'system'
+  const resolvedPaletteMode: PaletteMode =
+    preset.paletteMode === 'system'
       ? (systemPaletteMode ?? readSystemPaletteMode())
       : preset.paletteMode;
   const isDarkMode = resolvedPaletteMode === 'dark';

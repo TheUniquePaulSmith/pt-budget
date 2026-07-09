@@ -21,6 +21,7 @@ Budget Tracker is designed to manage day-to-day finances and longer-running spen
 - **SharedWorker-backed database execution** in `public/database-worker.js`
 - **Local browser persistence** using browser-managed storage plus file import/export flows
 - **Dedicated database domain contexts** with thin adapter hooks in `src/contexts/useDatabaseSlices.ts`
+- **Local AI side panel** using wllama for browser-based GGUF model inference
 - **Vitest + Playwright** for deterministic unit coverage and real-browser worker/database validation
 
 ## ✨ Key Features
@@ -39,6 +40,7 @@ Budget Tracker is designed to manage day-to-day finances and longer-running spen
 - **Transaction Report** with search, advanced filters, column visibility controls, sorting, pagination, and label editing
 - **Category / Company / Account-aware reporting** using joined transaction data from the browser-backed database
 - **Read-only SQL Query Page** for direct `SELECT` inspection of database state during debugging and validation
+- **Local AI Assistant** for model-assisted transaction analysis, recurring subscription detection, and staged transaction classification suggestions
 
 ### 🏠 Planning & Organization
 
@@ -55,11 +57,18 @@ Budget Tracker is designed to manage day-to-day finances and longer-running spen
 - **Browser Compatibility Gate** before database setup
 - **Developer Console** with log capture/export, plus developer-only sample data export tooling when `?dev=true` is present
 
+### Local AI Models
+
+The AI side panel is local-only and does not auto-load a model. Use the `Choose GGUF` button in the Model tab to select a local `.gguf` file from your machine. The picker filters for GGUF files. For split models, select all `.gguf` shard files together; the app sorts the selected files by name before loading them.
+
+The app serves wllama's wasm asset locally from `public/wllama/wllama.wasm`; no CDN inference path is required. WebGPU is detected at runtime. Multi-threaded wasm may require the host to serve `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers; static export hosting must be configured separately if those headers are needed.
+
 ## 🔒 Data Security & Privacy
 
 ### 🛡️ Local-First by Design
 
 - **100% Local Processing**: all application logic and database work run in the browser
+- **Local AI Inference**: GGUF models are loaded by the browser with wllama after explicit user selection
 - **No Backend Required**: there is no application server or remote database
 - **No Required Cloud Services**: the app does not depend on external data services to function
 - **Offline-Friendly Runtime**: once loaded, the app can continue working with local browser storage

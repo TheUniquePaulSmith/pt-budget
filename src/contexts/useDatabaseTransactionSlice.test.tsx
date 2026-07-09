@@ -20,6 +20,7 @@ function createServiceMock() {
     checkDuplicateTransactions: vi.fn().mockResolvedValue(['duplicate-hash']),
     bulkInsertFromTempTable: vi.fn().mockResolvedValue(3),
     updateTransactionLabels: vi.fn().mockResolvedValue(undefined),
+    applyTransactionClassifications: vi.fn().mockResolvedValue({ appliedCount: 1, transactionIds: [8] }),
     getRecentTransactions: vi.fn().mockResolvedValue([]),
     getDashboardSummary: vi.fn().mockResolvedValue({ totalIncome: 0, totalExpenses: 0, netIncome: 0, transactionCount: 0 }),
     getChartData: vi.fn().mockResolvedValue({ spendingByCategory: [], incomeBySource: [], trends: { months: [], income: [], expenses: [] }, accountAnalysis: { accountNames: [], income: [], expenses: [] } }),
@@ -140,5 +141,41 @@ describe('useDatabaseTransactionSlice', () => {
         'row-1'
       )
     );
+  });
+
+  it('applies transaction classifications and refreshes affected cached collections', async () => {
+    const refreshTransactions = vi.fn().mockResolvedValue(undefined);
+    const refreshCategories = vi.fn().mockResolvedValue(undefined);
+    const refreshCompanies = vi.fn().mockResolvedValue(undefined);
+    const service = createServiceMock();
+
+    const { result } = renderHook(() =>
+      useDatabaseTransactionSlice({
+        databaseService: service,
+        refreshTransactions,
+        refreshCategories,
+        refreshCompanies,
+      })
+    );
+
+    const classifications = [
+      {
+        transactionId: 8,
+        categoryName: 'Utilities',
+        categoryType: 'expense' as const,
+        companyName: 'Power Co',
+      },
+    ];
+
+    await act(async () => {
+      await expect(
+        result.current.applyTransactionClassifications(classifications)
+      ).resolves.toEqual({ appliedCount: 1, transactionIds: [8] });
+    });
+
+    expect(service.applyTransactionClassifications).toHaveBeenCalledWith(classifications);
+    expect(refreshTransactions).toHaveBeenCalledTimes(1);
+    expect(refreshCategories).toHaveBeenCalledTimes(1);
+    expect(refreshCompanies).toHaveBeenCalledTimes(1);
   });
 });

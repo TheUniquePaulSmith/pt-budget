@@ -20,8 +20,13 @@ vi.mock('@/contexts/useDatabaseSlices', () => ({
 }));
 
 vi.mock('@mui/icons-material', () => {
-  const createIcon = (testId: string) => () =>
-    React.createElement('span', { 'data-testid': testId });
+  const createIcon = (testId: string) => {
+    function MockIcon() {
+      return React.createElement('span', { 'data-testid': testId });
+    }
+
+    return MockIcon;
+  };
 
   return {
     FilterList: createIcon('filter-list-icon'),

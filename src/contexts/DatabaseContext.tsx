@@ -230,6 +230,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   const transactionsSlice = useDatabaseTransactionSlice({
     databaseService,
     refreshTransactions,
+    refreshCategories,
+    refreshCompanies,
   });
   const { accountsSlice, usersSlice } = useDatabaseAccountManagementSlices({
     databaseService,

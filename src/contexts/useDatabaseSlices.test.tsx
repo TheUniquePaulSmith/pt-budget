@@ -31,6 +31,7 @@ import {
   useDatabaseUsers,
 } from './DatabaseContext';
 import {
+  useAiDatabaseToolsSlice,
   useAppShellSlice,
   useDashboardSlice,
   useManageDataSlice,
@@ -107,6 +108,7 @@ function mockDatabaseHooks() {
       checkDuplicateTransactions: vi.fn(),
       bulkInsertFromTempTable: vi.fn(),
       updateTransactionLabels: vi.fn(),
+      applyTransactionClassifications: vi.fn(),
       generateTransactionHash: vi.fn(),
       getRecentTransactions: vi.fn(),
       getDashboardSummary: vi.fn(),
@@ -229,6 +231,21 @@ describe('useDatabaseSlices', () => {
 
     expect(result.current.addCategory).toBe(slices.categories.addCategory);
     expect(result.current.addCompany).toBe(slices.companies.addCompany);
+  });
+
+  it('maps AI database tools from diagnostics, collections, and transaction slices', () => {
+    const slices = mockDatabaseHooks();
+
+    const { result } = renderHook(() => useAiDatabaseToolsSlice());
+
+    expect(result.current.categories).toBe(slices.collections.categories);
+    expect(result.current.companies).toBe(slices.collections.companies);
+    expect(result.current.projects).toBe(slices.collections.projects);
+    expect(result.current.trips).toBe(slices.collections.trips);
+    expect(result.current.executeCustomQuery).toBe(slices.diagnostics.executeCustomQuery);
+    expect(result.current.applyTransactionClassifications).toBe(
+      slices.transactions.applyTransactionClassifications
+    );
   });
 
   it('maps settings state from grouped lifecycle and status slices', () => {

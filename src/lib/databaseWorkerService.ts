@@ -154,7 +154,7 @@ export class DatabaseWorkerService {
       }
       const pending = this.pendingMessages.get(response.id);
       if (pending) {
-        clearTimeout(pending.timeout);
+        if (pending.timeout) clearTimeout(pending.timeout);
         this.pendingMessages.delete(response.id);
         
         if (response.isSuccessful) {
@@ -410,7 +410,7 @@ export class DatabaseWorkerService {
 
     // Clear all pending messages
     this.pendingMessages.forEach(({ timeout, reject }) => {
-      clearTimeout(timeout);
+      if (timeout) clearTimeout(timeout);
       reject(new Error('Service destroyed'));
     });
     this.pendingMessages.clear();

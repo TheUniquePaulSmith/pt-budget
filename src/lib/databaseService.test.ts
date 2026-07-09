@@ -1416,4 +1416,62 @@ describe('DatabaseService trip helpers', () => {
       [5, 9, 77]
     );
   });
+
+  it('applies transaction classifications inside a database transaction', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 77,
+          type: 'expense',
+          category_id: null,
+          company_id: null,
+          project_id: null,
+          trip_id: null,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 3, name: 'Utilities', color: '#ff9800', type: 'expense' }])
+      .mockResolvedValueOnce([{ id: 4, name: 'Power Co' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const worker = createWorkerTransportStub({ query });
+    const service = new DatabaseService(worker);
+
+    await expect(
+      service.applyTransactionClassifications([
+        {
+          transactionId: 77,
+          categoryName: 'Utilities',
+          categoryType: 'expense',
+          companyName: 'Power Co',
+        },
+      ])
+    ).resolves.toEqual({ appliedCount: 1, transactionIds: [77] });
+
+    expect(query).toHaveBeenNthCalledWith(1, 'BEGIN TRANSACTION');
+    expect(query).toHaveBeenNthCalledWith(
+      5,
+      TRANSACTION_QUERIES.UPDATE_CLASSIFICATION,
+      [3, 4, null, null, 77]
+    );
+    expect(query).toHaveBeenNthCalledWith(6, 'COMMIT');
+  });
+
+  it('rolls back transaction classifications when a referenced transaction is missing', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const worker = createWorkerTransportStub({ query });
+    const service = new DatabaseService(worker);
+
+    await expect(
+      service.applyTransactionClassifications([{ transactionId: 404, categoryName: 'Utilities' }])
+    ).rejects.toThrow('Transaction 404 was not found');
+
+    expect(query).toHaveBeenNthCalledWith(1, 'BEGIN TRANSACTION');
+    expect(query).toHaveBeenLastCalledWith('ROLLBACK');
+  });
 });

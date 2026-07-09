@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -176,9 +176,9 @@ export default function AiChat({
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [suggestionsAnchorEl, setSuggestionsAnchorEl] = useState<HTMLElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
   const suggestionsOpen = Boolean(suggestionsAnchorEl);
 
   const databaseToolContext = useMemo(() => ({
@@ -193,7 +193,10 @@ export default function AiChat({
     }
 
     if (!isModelLoaded) {
-      setError('Load an AI model before asking questions.');
+      setMessages((current) => [
+        ...current,
+        createMessage('assistant', 'Load an AI model before asking questions.'),
+      ]);
       return;
     }
 
@@ -202,7 +205,6 @@ export default function AiChat({
     const requestMessages = [...messages, userMessage];
     setMessages([...requestMessages, pendingAssistantMessage]);
     setInput('');
-    setError(null);
     setRunning(true);
     onToolCallsChange([]);
 
@@ -262,8 +264,10 @@ export default function AiChat({
       }));
     } catch (err) {
       if (!abortController.signal.aborted) {
-        setError(err instanceof Error ? err.message : 'AI request failed');
-        setMessages((current) => current.filter((message) => message.id !== pendingAssistantMessage.id));
+        const errorMessage = err instanceof Error ? err.message : 'AI request failed';
+        setMessages((current) => current.map((message) => message.id === pendingAssistantMessage.id
+          ? { ...message, content: `Error: ${errorMessage}` }
+          : message));
       } else {
         setMessages((current) => current.map((message) => message.id === pendingAssistantMessage.id && message.content === '...'
           ? { ...message, content: 'Stopped.' }
@@ -274,6 +278,10 @@ export default function AiChat({
       abortControllerRef.current = null;
     }
   };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages]);
 
   const stopGeneration = () => {
     abortControllerRef.current?.abort();
@@ -290,12 +298,6 @@ export default function AiChat({
         {!isModelLoaded && (
           <Alert severity="info" sx={{ mb: 2 }}>
             Load a model from the Enable AI section to start chatting.
-          </Alert>
-        )}
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
           </Alert>
         )}
 
@@ -363,6 +365,7 @@ export default function AiChat({
             );
           })}
         </Stack>
+        <Box ref={chatEndRef} sx={{ height: 1 }} />
 
       </Box>
 

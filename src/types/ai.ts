@@ -63,6 +63,26 @@ export interface AiRuntimeCapabilities {
   webGpuSupported: boolean;
   crossOriginIsolated: boolean;
   sharedArrayBufferAvailable: boolean;
+  hardwareConcurrency?: number;
+  deviceMemoryGb?: number;
+  jsHeapSizeLimitBytes?: number;
+  jsHeapTotalBytes?: number;
+  jsHeapUsedBytes?: number;
+  webGpuAdapterName?: string;
+  webGpuAdapterVendor?: string;
+  webGpuAdapterArchitecture?: string;
+  webGpuAdapterDescription?: string;
+  webGpuLimits?: AiWebGpuLimits;
+  webGpuProbeError?: string;
+  capabilityProbeComplete?: boolean;
+}
+
+export interface AiWebGpuLimits {
+  maxBufferSize?: number;
+  maxStorageBufferBindingSize?: number;
+  maxUniformBufferBindingSize?: number;
+  maxComputeWorkgroupStorageSize?: number;
+  maxBindGroups?: number;
 }
 
 export type AiChatRole = 'system' | 'user' | 'assistant' | 'tool';

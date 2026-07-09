@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   Box,
   Button,
   Chip,
+  Collapse,
   FormControl,
   FormControlLabel,
   InputLabel,
@@ -19,6 +20,7 @@ import {
 } from '@mui/material';
 import {
   Download,
+  ExpandMore,
   FolderOpen,
   Memory,
   Stop,
@@ -53,10 +55,23 @@ function formatBytes(bytes?: number): string | null {
   return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+function formatMaybeBytes(bytes?: number): string {
+  return formatBytes(bytes) ?? 'Not reported';
+}
+
+function formatMaybeNumber(value?: number, suffix = ''): string {
+  if (value === undefined || value === null) {
+    return 'Not reported';
+  }
+
+  return `${new Intl.NumberFormat('en-US').format(value)}${suffix}`;
+}
+
 export default function AiModelSelector({
   showLoadedDetailsInline = false,
 }: AiModelSelectorProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [capacityExpanded, setCapacityExpanded] = useState(false);
   const {
     selectedModelFiles,
     selectedModelName,
@@ -65,6 +80,7 @@ export default function AiModelSelector({
     loadParams,
     loadedModel,
     error,
+    errorDetails,
     capabilities,
     isModelLoaded,
     showTokenUsage,
@@ -86,6 +102,13 @@ export default function AiModelSelector({
   const shouldWarnForHighSettings =
     AI_HIGH_RESOURCE_PRESET_IDS.includes(contextSizePreset) ||
     AI_HIGH_RESOURCE_PRESET_IDS.includes(outputLimitPreset);
+  const selectedModelSizeBytes = selectedModelFiles.reduce((total, file) => total + (file.sizeBytes ?? 0), 0);
+  const maxWebGpuBufferSize = capabilities.webGpuLimits?.maxBufferSize;
+  const selectedModelExceedsSingleBuffer = Boolean(
+    selectedModelSizeBytes > 0 &&
+    maxWebGpuBufferSize &&
+    selectedModelSizeBytes > maxWebGpuBufferSize
+  );
 
   const updateNumberParam = (key: keyof AiModelLoadParams, value: string) => {
     setLoadParams((current) => ({
@@ -111,6 +134,17 @@ export default function AiModelSelector({
         </MenuItem>
       );
     })
+  );
+
+  const renderCapacityRow = (label: string, value: string) => (
+    <Stack direction="row" spacing={1} justifyContent="space-between">
+      <Typography variant="body2" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ textAlign: 'right', wordBreak: 'break-word' }}>
+        {value}
+      </Typography>
+    </Stack>
   );
 
   const renderModelFields = () => (
@@ -164,6 +198,61 @@ export default function AiModelSelector({
           variant="outlined"
         />
       </Stack>
+
+      <Box sx={{ mb: 2 }}>
+        <Button
+          fullWidth
+          color="inherit"
+          onClick={() => setCapacityExpanded((current) => !current)}
+          endIcon={
+            <ExpandMore
+              sx={{
+                transform: capacityExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: (theme) => theme.transitions.create('transform'),
+              }}
+            />
+          }
+          sx={{ justifyContent: 'space-between', px: 0, textTransform: 'none' }}
+          aria-expanded={capacityExpanded}
+        >
+          <Box sx={{ textAlign: 'left' }}>
+            <Typography variant="subtitle2" fontWeight={600}>
+              Browser Capacity
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Memory signals and WebGPU limits
+            </Typography>
+          </Box>
+        </Button>
+        <Collapse in={capacityExpanded} timeout="auto" unmountOnExit>
+          <Box sx={{ pt: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              Browsers do not expose exact GPU VRAM. These are memory signals and WebGPU adapter limits reported by the browser.
+            </Typography>
+            <Stack spacing={0.75}>
+              {renderCapacityRow('CPU threads', formatMaybeNumber(capabilities.hardwareConcurrency))}
+              {renderCapacityRow('Device memory', capabilities.deviceMemoryGb ? `~${capabilities.deviceMemoryGb} GB` : 'Not reported')}
+              {renderCapacityRow('JS heap limit', formatMaybeBytes(capabilities.jsHeapSizeLimitBytes))}
+              {renderCapacityRow('JS heap used', formatMaybeBytes(capabilities.jsHeapUsedBytes))}
+              {renderCapacityRow('WebGPU adapter', capabilities.webGpuAdapterName || capabilities.webGpuAdapterDescription || capabilities.webGpuAdapterVendor || (capabilities.webGpuSupported ? 'Available' : 'Not available'))}
+              {renderCapacityRow('Max GPU buffer', formatMaybeBytes(capabilities.webGpuLimits?.maxBufferSize))}
+              {renderCapacityRow('Max storage binding', formatMaybeBytes(capabilities.webGpuLimits?.maxStorageBufferBindingSize))}
+              {renderCapacityRow('Max uniform binding', formatMaybeBytes(capabilities.webGpuLimits?.maxUniformBufferBindingSize))}
+              {renderCapacityRow('Max workgroup storage', formatMaybeBytes(capabilities.webGpuLimits?.maxComputeWorkgroupStorageSize))}
+            </Stack>
+            {capabilities.webGpuProbeError && (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                {capabilities.webGpuProbeError}
+              </Alert>
+            )}
+            {selectedModelExceedsSingleBuffer && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                The selected model is larger than the reported maximum single WebGPU buffer. wllama may split model data internally, but older or lower-memory GPUs can fail to load or fall back.
+              </Alert>
+            )}
+          </Box>
+        </Collapse>
+      </Box>
 
       <Box>
           <Typography variant="subtitle1" fontWeight={600}>
@@ -294,7 +383,18 @@ export default function AiModelSelector({
 
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
+              <Typography variant="body2" sx={{ mb: errorDetails.length > 0 ? 1 : 0 }}>
+                {error}
+              </Typography>
+              {errorDetails.length > 0 && (
+                <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                  {errorDetails.map((detail, index) => (
+                    <Typography component="li" variant="caption" key={`${detail}-${index}`} sx={{ mb: 0.5 }}>
+                      {detail}
+                    </Typography>
+                  ))}
+                </Box>
+              )}
             </Alert>
           )}
 
@@ -350,7 +450,18 @@ export default function AiModelSelector({
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
+          <Typography variant="body2" sx={{ mb: errorDetails.length > 0 ? 1 : 0 }}>
+            {error}
+          </Typography>
+          {errorDetails.length > 0 && (
+            <Box component="ul" sx={{ pl: 2, m: 0 }}>
+              {errorDetails.map((detail, index) => (
+                <Typography component="li" variant="caption" key={`${detail}-${index}`} sx={{ mb: 0.5 }}>
+                  {detail}
+                </Typography>
+              ))}
+            </Box>
+          )}
         </Alert>
       )}
 

@@ -45,17 +45,19 @@ export default function AiSidePanel({ open, onClose }: AiSidePanelProps) {
   const [activeTab, setActiveTab] = useState<AiPanelTab>('model');
   const [toolCalls, setToolCalls] = useState<AiToolCallRecord[]>([]);
   const [classificationSuggestions, setClassificationSuggestions] = useState<TransactionClassificationSuggestion[]>([]);
-  const wasModelLoadedRef = useRef(isModelLoaded);
+  const loadedModelIdRef = useRef(loadedModel?.id ?? null);
 
   useEffect(() => {
-    if (!isModelLoaded) {
+    const loadedModelId = loadedModel?.id ?? null;
+
+    if (!isModelLoaded || !loadedModelId) {
       setActiveTab('model');
-    } else if (!wasModelLoadedRef.current) {
+    } else if (loadedModelIdRef.current !== loadedModelId) {
       setActiveTab('chat');
     }
 
-    wasModelLoadedRef.current = isModelLoaded;
-  }, [isModelLoaded]);
+    loadedModelIdRef.current = loadedModelId;
+  }, [isModelLoaded, loadedModel?.id]);
 
   const automationCount = toolCalls.length + classificationSuggestions.length;
   const contextPreset = AI_CONTEXT_SIZE_PRESETS[contextSizePreset];

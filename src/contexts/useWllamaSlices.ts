@@ -13,6 +13,7 @@ export function useAiModelSlice() {
     loadParams: ai.loadParams,
     loadedModel: ai.loadedModel,
     error: ai.error,
+    errorDetails: ai.errorDetails,
     capabilities: ai.capabilities,
     isModelLoaded: ai.isModelLoaded,
     showTokenUsage: ai.showTokenUsage,

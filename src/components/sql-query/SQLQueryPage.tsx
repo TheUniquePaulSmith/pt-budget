@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -27,7 +27,7 @@ import {
   AccordionDetails,
   List,
   ListItem,
-  ListItemText,
+  MenuItem,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
@@ -39,7 +39,7 @@ import {
   ContentCopy,
   History,
 } from '@mui/icons-material';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useSqlQuerySlice } from '@/contexts/useDatabaseSlices';
 
 interface QueryResult {
   columns: string[];
@@ -58,7 +58,7 @@ interface QueryHistory {
 }
 
 export default function SQLQueryPage() {
-  const { executeCustomQuery, isDatabaseLoaded } = useDatabaseContext();
+  const { executeCustomQuery, isDatabaseLoaded } = useSqlQuerySlice();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -69,6 +69,9 @@ export default function SQLQueryPage() {
   const [queryHistory, setQueryHistory] = useState<QueryHistory[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [queryTimeout, setQueryTimeout] = useState(10000);
+  const [rangeStartInput, setRangeStartInput] = useState('');
+  const [rangeEndInput, setRangeEndInput] = useState('');
 
   // Sample queries for reference
   const sampleQueries = [
@@ -161,7 +164,7 @@ ORDER BY m.name, p.cid;`
       }
 
       // Execute the custom query
-      const rows: any[] = await executeCustomQuery(query.trim());
+      const rows: any[] = await executeCustomQuery(query.trim(), queryTimeout);
       const endTime = performance.now();
       
       let columns: string[] = [];
@@ -199,7 +202,7 @@ ORDER BY m.name, p.cid;`
     } finally {
       setLoading(false);
     }
-  }, [query, executeCustomQuery, isDatabaseLoaded]);
+  }, [query, executeCustomQuery, isDatabaseLoaded, queryTimeout]);
 
   const handleQuerySelect = (selectedQuery: string) => {
     setQuery(selectedQuery);
@@ -221,8 +224,11 @@ ORDER BY m.name, p.cid;`
   };
 
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
+    const nextRowsPerPage = parseInt(event.target.value, 10);
+    const currentFirstRow = page * rowsPerPage + 1;
+
+    setRowsPerPage(nextRowsPerPage);
+    setPage(Math.floor((currentFirstRow - 1) / nextRowsPerPage));
   };
 
   const copyToClipboard = async (text: string) => {
@@ -239,6 +245,74 @@ ORDER BY m.name, p.cid;`
     if (typeof value === 'number') return value.toString();
     if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
     return JSON.stringify(value);
+  };
+
+  const totalRows = result?.rows.length ?? 0;
+  const currentRangeStart = totalRows === 0 ? 0 : page * rowsPerPage + 1;
+  const currentRangeEnd = totalRows === 0 ? 0 : Math.min(currentRangeStart + rowsPerPage - 1, totalRows);
+  const rangeInputCharacterCount = Math.max(
+    String(totalRows || rowsPerPage).length,
+    String(currentRangeStart || '').length,
+    String(currentRangeEnd || '').length,
+    4
+  );
+  const rangeInputWidth = `calc(${rangeInputCharacterCount}ch + 1.5rem)`;
+
+  useEffect(() => {
+    if (totalRows === 0) {
+      setRangeStartInput('');
+      setRangeEndInput('');
+      return;
+    }
+
+    setRangeStartInput(String(currentRangeStart));
+    setRangeEndInput(String(currentRangeEnd));
+  }, [currentRangeEnd, currentRangeStart, totalRows]);
+
+  const resetRangeInputs = () => {
+    if (totalRows === 0) {
+      setRangeStartInput('');
+      setRangeEndInput('');
+      return;
+    }
+
+    setRangeStartInput(String(currentRangeStart));
+    setRangeEndInput(String(currentRangeEnd));
+  };
+
+  const jumpToRangeValue = (rawValue: string) => {
+    const parsedValue = Number.parseInt(rawValue.trim(), 10);
+
+    if (Number.isNaN(parsedValue) || totalRows === 0) {
+      resetRangeInputs();
+      return;
+    }
+
+    const clampedValue = Math.min(Math.max(parsedValue, 1), totalRows);
+    const nextPage = Math.floor((clampedValue - 1) / rowsPerPage);
+    const nextRangeStart = nextPage * rowsPerPage + 1;
+    const nextRangeEnd = Math.min(nextRangeStart + rowsPerPage - 1, totalRows);
+
+    setRangeStartInput(String(nextRangeStart));
+    setRangeEndInput(String(nextRangeEnd));
+    setPage(nextPage);
+  };
+
+  const handleRangeKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+    rawValue: string
+  ) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      jumpToRangeValue(rawValue);
+      event.currentTarget.blur();
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      resetRangeInputs();
+      event.currentTarget.blur();
+    }
   };
 
   return (
@@ -278,6 +352,9 @@ ORDER BY m.name, p.cid;`
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Enter your SQL query here..."
           variant="outlined"
+          inputProps={{
+            'data-testid': 'sql-query-input',
+          }}
           sx={{ 
             mb: 2,
             '& .MuiInputBase-input': {
@@ -287,11 +364,27 @@ ORDER BY m.name, p.cid;`
           }}
         />
 
-        <Stack 
-          direction={{ xs: 'column', sm: 'row' }} 
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
           spacing={2}
           sx={{ width: { xs: '100%', sm: 'auto' } }}
         >
+          <TextField
+            select
+            label="Time Limit"
+            value={queryTimeout}
+            onChange={(e) => setQueryTimeout(Number(e.target.value))}
+            size="small"
+            sx={{ minWidth: 130 }}
+          >
+            <MenuItem value={5000}>5 seconds</MenuItem>
+            <MenuItem value={10000}>10 seconds</MenuItem>
+            <MenuItem value={30000}>30 seconds</MenuItem>
+            <MenuItem value={60000}>1 minute</MenuItem>
+            <MenuItem value={120000}>2 minutes</MenuItem>
+            <MenuItem value={300000}>5 minutes</MenuItem>
+            <MenuItem value={Number.MAX_VALUE}>No limit</MenuItem>
+          </TextField>
           <Button
             variant="contained"
             startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <PlayArrow />}
@@ -451,7 +544,7 @@ ORDER BY m.name, p.cid;`
 
       {/* Results */}
       {result && (
-        <Paper sx={{ mb: 3 }}>
+        <Paper sx={{ mb: 3 }} data-testid="sql-query-results">
           <Box sx={{ p: { xs: 2, sm: 3 }, borderBottom: 1, borderColor: 'divider' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
               <Typography variant="h6">Query Results</Typography>
@@ -518,16 +611,127 @@ ORDER BY m.name, p.cid;`
                   </TableBody>
                 </Table>
               </TableContainer>
-              <TablePagination
-                rowsPerPageOptions={[10, 25, 50, 100, 250, 500]}
-                component="div"
-                count={result.rows.length}
-                rowsPerPage={rowsPerPage}
-                page={page}
-                onPageChange={handleChangePage}
-                onRowsPerPageChange={handleChangeRowsPerPage}
-                sx={{ borderTop: 1, borderColor: 'divider' }}
-              />
+              <Box
+                sx={{
+                  borderTop: 1,
+                  borderColor: 'divider',
+                  display: 'flex',
+                  flexDirection: { xs: 'column', lg: 'row' },
+                  alignItems: { xs: 'stretch', lg: 'center' },
+                  justifyContent: 'space-between',
+                  gap: { xs: 2, lg: 0 },
+                  px: { xs: 2, sm: 3 },
+                  py: { xs: 2, lg: 0 },
+                }}
+              >
+                <TablePagination
+                  rowsPerPageOptions={[10, 25, 50, 100, 250, 500]}
+                  component="div"
+                  count={result.rows.length}
+                  rowsPerPage={rowsPerPage}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                  labelDisplayedRows={() => (
+                    <Box
+                      component="span"
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 0.75,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Box
+                        component="input"
+                        value={rangeStartInput}
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                          setRangeStartInput(event.target.value.replace(/[^0-9]/g, ''));
+                        }}
+                        onBlur={() => jumpToRangeValue(rangeStartInput)}
+                        onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
+                          event.currentTarget.select();
+                        }}
+                        onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
+                          handleRangeKeyDown(event, rangeStartInput);
+                        }}
+                        inputMode="numeric"
+                        aria-label="Start row"
+                        data-testid="sql-query-range-start"
+                        sx={{
+                          width: rangeInputWidth,
+                          boxSizing: 'content-box',
+                          px: 0.75,
+                          py: 0.35,
+                          border: 0,
+                          borderRadius: 1,
+                          bgcolor: 'action.hover',
+                          color: 'text.primary',
+                          font: 'inherit',
+                          fontVariantNumeric: 'tabular-nums',
+                          textAlign: 'right',
+                          outline: '1px solid transparent',
+                          transition: 'outline-color 0.2s ease, background-color 0.2s ease',
+                          '&:focus': {
+                            bgcolor: 'background.paper',
+                            outlineColor: 'primary.main',
+                          },
+                        }}
+                      />
+                      <Box component="span">-</Box>
+                      <Box
+                        component="input"
+                        value={rangeEndInput}
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                          setRangeEndInput(event.target.value.replace(/[^0-9]/g, ''));
+                        }}
+                        onBlur={() => jumpToRangeValue(rangeEndInput)}
+                        onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
+                          event.currentTarget.select();
+                        }}
+                        onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
+                          handleRangeKeyDown(event, rangeEndInput);
+                        }}
+                        inputMode="numeric"
+                        aria-label="End row"
+                        data-testid="sql-query-range-end"
+                        sx={{
+                          width: rangeInputWidth,
+                          boxSizing: 'content-box',
+                          px: 0.75,
+                          py: 0.35,
+                          border: 0,
+                          borderRadius: 1,
+                          bgcolor: 'action.hover',
+                          color: 'text.primary',
+                          font: 'inherit',
+                          fontVariantNumeric: 'tabular-nums',
+                          textAlign: 'right',
+                          outline: '1px solid transparent',
+                          transition: 'outline-color 0.2s ease, background-color 0.2s ease',
+                          '&:focus': {
+                            bgcolor: 'background.paper',
+                            outlineColor: 'primary.main',
+                          },
+                        }}
+                      />
+                      <Box component="span">of {totalRows}</Box>
+                    </Box>
+                  )}
+                  sx={{
+                    borderTop: 0,
+                    ml: { lg: 'auto' },
+                    '& .MuiToolbar-root': {
+                      px: 0,
+                      flexWrap: 'wrap',
+                      rowGap: 1,
+                    },
+                    '& .MuiTablePagination-displayedRows': {
+                      m: 0,
+                    },
+                  }}
+                />
+              </Box>
             </>
           ) : (
             <Box sx={{ p: 3, textAlign: 'center' }}>

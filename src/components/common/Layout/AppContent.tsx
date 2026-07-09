@@ -30,7 +30,8 @@ import {
   BugReport,
   Code as SQLIcon,
   AccountBalance as AccountIcon,
-  FlightTakeoff as TripsIcon
+  FlightTakeoff as TripsIcon,
+  SmartToy as AiIcon
 } from '@mui/icons-material';
 import Dashboard from '@/components/dashboard/Dashboard';
 import ManageProjects from '@/components/projects/ManageProjects';
@@ -42,7 +43,8 @@ import ManageData from '@/components/data-management/ManageData';
 import DeveloperConsolePage from '@/components/common/Console/DeveloperConsolePage';
 import SQLQueryPage from '@/components/sql-query/SQLQueryPage';
 import DatabaseStatusBar from '@/components/common/StatusBar/DatabaseStatusBar';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import AiSidePanel from '@/components/ai/AiSidePanel';
+import { useAppShellSlice } from '@/contexts/useDatabaseSlices';
 //import { appLogger } from '../lib/logger';
 
 /**
@@ -50,12 +52,13 @@ import { useDatabaseContext } from '@/contexts/DatabaseContext';
  * This is separated from the page.tsx to prevent SSR issues
  */
 export default function AppContent() {
-  const { isDatabaseLoaded, workerStatus } = useDatabaseContext();
+  const { isDatabaseLoaded, workerStatus } = useAppShellSlice();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showSettings, setShowSettings] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageDataOpen, setManageDataOpen] = useState(false);
   const [showDeveloperConsole, setShowDeveloperConsole] = useState(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
   
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -78,8 +81,7 @@ export default function AppContent() {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
-  // The database initialization is now handled by SimplifiedDatabaseContext
-  // We only render the main app when database is loaded
+  // The provider owns initialization screens, so AppContent only renders once data is ready.
   if (!isDatabaseLoaded) {
     return null; // The context will show initialization UI
   }
@@ -161,6 +163,14 @@ export default function AppContent() {
             </ListItem>
           )}
           <ListItem disablePadding>
+            <ListItemButton onClick={() => { setAiPanelOpen(true); setMobileMenuOpen(false); }}>
+              <ListItemIcon>
+                <AiIcon />
+              </ListItemIcon>
+              <ListItemText primary="Local AI" />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
             <ListItemButton onClick={() => { setShowDeveloperConsole(true); setMobileMenuOpen(false); }}>
               <ListItemIcon>
                 <BugReport />
@@ -231,6 +241,16 @@ export default function AppContent() {
             {!isMobile && (
               <IconButton
                 color="inherit"
+                onClick={() => setAiPanelOpen(true)}
+                sx={{ ml: 2 }}
+                title="Local AI"
+              >
+                <AiIcon />
+              </IconButton>
+            )}
+            {!isMobile && (
+              <IconButton
+                color="inherit"
                 onClick={() => setShowDeveloperConsole(true)}
                 sx={{ ml: 2 }}
                 title="Developer Console"
@@ -284,6 +304,11 @@ export default function AppContent() {
       <ManageData
         open={manageDataOpen}
         onClose={() => setManageDataOpen(false)}
+      />
+
+      <AiSidePanel
+        open={aiPanelOpen}
+        onClose={() => setAiPanelOpen(false)}
       />
 
       {/* Database Status Bar */}

@@ -1,124 +1,171 @@
 # Budget Tracker - AI Coding Instructions
 
 ## Project Overview
-This is a **100% client-side** personal finance application built with Next.js, TypeScript, and Material-UI. No backend servers - everything runs in the browser using SQLite WebAssembly with SharedWorker architecture for cross-tab synchronization.
 
-## Core Architecture
+This is a 100% client-side personal finance and project-cost tracking application built with Next.js, React, TypeScript, Material UI, and SQLite WebAssembly. There is no application backend. Database execution, persistence, and cross-tab coordination happen in the browser through a SharedWorker.
 
-### Database Layer Architecture
-The app uses a sophisticated 4-layer database architecture:
+## Current App Composition
 
-1. **Types Layer**: [`src/types/database.ts`](src/types/database.ts) - TypeScript interfaces for all data models
-2. **Business Layer**: [`src/lib/databaseService.ts`](src/lib/databaseService.ts) - SQL queries, data mapping, validation
-3. **Transport Layer**: [`src/lib/databaseWorkerService.ts`](src/lib/databaseWorkerService.ts) - Message passing with SharedWorker
-4. **Execution Layer**: [`public/database-worker.js`](public/database-worker.js) - SharedWorker running wa-sqlite WASM
+### Runtime Shell
 
+- The app uses the Next.js App Router with a client-only shell.
+- [`src/app/layout.tsx`](../src/app/layout.tsx) wraps the app with `LoggingProvider`, `CustomThemeProvider`, and `DatabaseProvider`.
+- [`src/app/page.tsx`](../src/app/page.tsx) dynamically loads the main shell to avoid SSR issues with browser-only database features.
+- [`src/components/common/Layout/AppContent.tsx`](../src/components/common/Layout/AppContent.tsx) owns top-level navigation between dashboard, projects, trips, accounts, transactions, SQL Query, settings, and developer console.
+
+### UI and Design Notes
+
+- The visual system is currently driven by [`src/theme/theme.tsx`](../src/theme/theme.tsx), which defines the Material UI theme, palette, typography, elevation, and common component overrides.
+- Preserve the existing Material UI visual language unless the task explicitly asks for a redesign.
+- The app is responsive through Material UI breakpoints, with drawer-based mobile navigation and app-bar navigation on larger screens.
+- Logging is always captured through [`src/contexts/LoggingContext.tsx`](../src/contexts/LoggingContext.tsx), and the Developer Console is a real part of the product surface rather than a temporary debug tool.
+
+## Current Architecture
+
+### Database and State Layers
+
+The current database flow is:
+
+```text
+React components
+    -> feature-facing slice hooks in src/contexts/useDatabaseSlices.ts
+    -> domain hooks and provider contexts in src/contexts/DatabaseContext.tsx
+    -> internal provider hooks in src/contexts/useDatabase*.ts
+    -> src/lib/databaseService.ts
+    -> src/lib/databaseWorkerService.ts
+    -> public/database-worker.js
 ```
-React Components → DatabaseService → DatabaseWorkerService → SharedWorker
-                     (business)        (transport)           (execution)
-```
 
-### Key Files by Layer
-- **Business Logic**: All SQL queries in [`src/lib/sqlQueries.ts`](src/lib/sqlQueries.ts), organized by entity
-- **Context Management**: [`src/contexts/DatabaseContext.tsx`](src/contexts/DatabaseContext.tsx) - Single context for database + data management
-- **Worker Communication**: Message-based async communication with timeout handling
-- **Data Flow**: Always use `useDatabaseContext()` hook for database operations in components
+### Layer Responsibilities
+
+1. **Types layer**: [`src/types/database.ts`](../src/types/database.ts) contains the shared entity contracts.
+2. **Business layer**: [`src/lib/databaseService.ts`](../src/lib/databaseService.ts) and [`src/lib/sqlQueries.ts`](../src/lib/sqlQueries.ts) contain SQL orchestration, mapping, validation, analytics helpers, duplicate detection, and import/export related logic.
+3. **Transport layer**: [`src/lib/databaseWorkerService.ts`](../src/lib/databaseWorkerService.ts) handles worker messaging, status, timeouts, and reconnect behavior.
+4. **Execution layer**: [`public/database-worker.js`](../public/database-worker.js) runs the SQLite worker and persistence integration.
+5. **Provider state layer**: [`src/contexts/DatabaseContext.tsx`](../src/contexts/DatabaseContext.tsx) composes initialization, lifecycle, cached collections, diagnostics, and domain mutations.
+6. **Provider internals**:
+    - [`src/contexts/useDatabaseInitialization.ts`](../src/contexts/useDatabaseInitialization.ts)
+    - [`src/contexts/useDatabaseCollectionsState.ts`](../src/contexts/useDatabaseCollectionsState.ts)
+    - [`src/contexts/useDatabaseTransactionSlice.ts`](../src/contexts/useDatabaseTransactionSlice.ts)
+    - [`src/contexts/useDatabaseAccountManagementSlices.ts`](../src/contexts/useDatabaseAccountManagementSlices.ts)
+    - [`src/contexts/useDatabaseCatalogAndPlanningSlices.ts`](../src/contexts/useDatabaseCatalogAndPlanningSlices.ts)
+7. **Component adapter layer**: [`src/contexts/useDatabaseSlices.ts`](../src/contexts/useDatabaseSlices.ts) exposes narrow hooks for the app shell and feature components.
+
+### Preferred Consumption Pattern
+
+- Prefer the thin hooks in [`src/contexts/useDatabaseSlices.ts`](../src/contexts/useDatabaseSlices.ts) when working in components.
+- Prefer the dedicated domain hooks exported from [`src/contexts/DatabaseContext.tsx`](../src/contexts/DatabaseContext.tsx) over `useDatabaseContext()` when you need provider data directly.
+- Treat `useDatabaseContext()` as a compatibility aggregator, not the default path for new component code.
+- Do not add startup refresh effects in components unless there is a local cache outside provider state; the provider already owns initialization and shared refresh behavior.
 
 ## Development Patterns
 
-### Adding New Database Operations
-1. Add SQL query to [`src/lib/sqlQueries.ts`](src/lib/sqlQueries.ts) under appropriate entity section
-2. Add types/interfaces to [`src/types/database.ts`](src/types/database.ts) if needed
-3. Add method to [`src/lib/databaseService.ts`](src/lib/databaseService.ts) that calls the worker
-4. Update [`src/lib/databaseWorkerService.ts`](src/lib/databaseWorkerService.ts) to send message to SharedWorker based off query type
-5. Update SharedWorker (`public/database-worker.js`) to handle new query type and return results
-6. Expose new method in [`DatabaseContext`](src/contexts/DatabaseContext.tsx
-7. Use feature based folder structure to add any new components needed
+### WA-SQLITE Core API Functions
+- Capabilities for WA-SQLITE are documented at: https://rhashimoto.github.io/wa-sqlite/docs/index.html, please refer to this for any questions about the underlying database API and capabilities.
 
-### Component Architecture
-- **Dialog Pattern**: Transaction forms use Material-UI dialogs (see [`src/components/AddTransaction.tsx`](src/components/AddTransaction.tsx))
-- **Auto-complete Pattern**: Company/category creation on-the-fly using Autocomplete with `getOptionLabel`
-- **Data Grid Pattern**: Use `@mui/x-data-grid` for tabular data with built-in sorting/filtering
-- **Chart Pattern**: Use `@mui/x-charts` or `recharts` for analytics dashboards
+### Adding or Changing Database Operations
 
-### State Management Conventions
-- **Single Context**: [`DatabaseContext`](src/contexts/DatabaseContext.tsx) manages both database connection + all data arrays
-- **Optimistic Updates**: Update local state when callback succeeds, rollback on error
-- **Memoization**: Use `useMemo` and `useCallback` extensively to prevent unnecessary re-renders
-- **Error Boundaries**: Use try/catch in context methods, expose `error` state to components
-- **Loading States**: Context exposes `isLoading` for operations, components show progress indicators
+When adding a new database-backed operation:
 
-## Critical Development Setup
+1. Update interfaces in [`src/types/database.ts`](../src/types/database.ts) if the domain contract changes.
+2. Add or adjust SQL in [`src/lib/sqlQueries.ts`](../src/lib/sqlQueries.ts).
+3. Implement the business operation in [`src/lib/databaseService.ts`](../src/lib/databaseService.ts).
+4. Update [`src/lib/databaseWorkerService.ts`](../src/lib/databaseWorkerService.ts) if a new worker message or transport behavior is required.
+5. Update [`public/database-worker.js`](../public/database-worker.js) if the worker must understand a new operation.
+6. If cached collections or refresh behavior change, update [`src/contexts/useDatabaseCollectionsState.ts`](../src/contexts/useDatabaseCollectionsState.ts).
+7. Put new mutation logic in the appropriate provider-domain hook instead of expanding `DatabaseContext.tsx` again.
+8. Expose the new behavior through the correct slice hook in [`src/contexts/useDatabaseSlices.ts`](../src/contexts/useDatabaseSlices.ts) when components need it.
+9. Add or update focused tests for the touched slice, service, or UI flow.
 
-### Running the Application
+### Context and Provider Conventions
+
+- `DatabaseProvider` owns initialization and renders the setup gate through `DatabaseInitializationGate`.
+- Cached collections are provider-backed state, not ad hoc component state.
+- Transaction and account-management mutations already refresh their provider-backed collections on success; avoid redundant manual refresh calls unless you are synchronizing a separate local cache.
+- When changing provider shape or slice mapping, add or update focused tests in the context test files under `src/contexts/`.
+
+### Feature and Component Conventions
+
+- Components are organized by feature under `src/components/`.
+- Keep new components in the existing feature folders such as `accounts`, `csv-import`, `dashboard`, `data-management`, `projects`, `settings`, `setup`, `sql-query`, `transactions`, and `trips`.
+- The SQL Query page is intentionally read-only and should only execute `SELECT` statements.
+- Real database mutations in UI tests or manual validation should happen through supported product flows such as transactions, trips, projects, accounts, or data management dialogs.
+- Preserve the current responsive app shell patterns in `AppContent` unless the task is explicitly about navigation or layout redesign.
+
+## Product-Specific Behavior
+
+### Transaction and Planning Rules
+
+- Amounts use the existing sign convention: negative for expenses and positive for income.
+- Transactions can be associated with categories, companies, projects, and trips.
+- Duplicate detection is hash-based and built from account, date, amount, and description data.
+- Projects and trips are first-class planning surfaces, not secondary metadata.
+
+### Import, Sample Data, and Diagnostics
+
+- CSV import uses [`src/lib/csvImportService.ts`](../src/lib/csvImportService.ts) and the `src/components/csv-import/` UI.
+- Sample data support exists through [`src/lib/sampleDataService.ts`](../src/lib/sampleDataService.ts) and `public/sample-data/`.
+- The current sample data bootstrap path is triggered by `?loadSampleData` during new database creation.
+- Storage/export and diagnostics are part of the normal product workflow; check dashboard, settings, and developer console surfaces before inventing new debug-only paths.
+
+## Development Setup
+
+### Core Commands
+
 ```bash
-npm run dev  # Uses Next.js with Turbopack for fast development
+npm run dev
+npm run build
+npm test
+npm run test:unit
+npm run test:unit:coverage
+npm run test:unit:watch
+npm run test:e2e:smoke
+npm run test:e2e
 ```
-- **Port**: Development server runs on `http://localhost:3000`
-- **SharedWorker**: Database worker accessible at `/database-worker.js` (public directory)
-- **SQLite Files**: wa-sqlite WASM files served from `/public/wa-sqlite/`
 
-### Database Development Workflow
-1. **Schema Changes**: Update [`src/types/database.ts`](src/types/database.ts) interfaces first
-2. **SQL Updates**: Modify queries in [`src/lib/sqlQueries.ts`](src/lib/sqlQueries.ts)
-3. **Service Layer**: Update business logic in [`src/lib/databaseService.ts`](src/lib/databaseService.ts)
-4. **Context Updates**: Expose new operations in [`DatabaseContext`](src/contexts/DatabaseContext.tsx)
-5. **Migration**: Add table creation/modification SQL to worker initialization
+### Current Testing Strategy
 
-### Testing Database Features
-- **Browser Testing**: Use `/public/test-wa-sqlite.html` for wa-sqlite compatibility testing
-- **Worker Debugging**: Check browser DevTools → Application → SharedWorkers
-- **Database Inspection**: Export database and use SQLite browser tools
+- `npm test` is the default post-change verification lane in this repo. It runs unit coverage plus the Playwright smoke lane.
+- `npm run test:unit` runs the Vitest unit and component suite.
+- `npm run test:unit:coverage` runs Vitest with coverage enforcement.
+- `npm run test:e2e:smoke` is the default browser regression lane.
+- `npm run test:e2e` is reserved for broader browser validation, especially worker recovery, persistence, cross-page, or multi-step user flows.
 
-## Key Integration Points
+### Testing Notes
 
-### CSV Import System
-- **Parser**: Uses `papaparse` library for CSV parsing
-- **Mapping**: Dynamic field mapping UI in [`CSVImport`](src/components/CSVImport.tsx) component
-- **Duplicate Detection**: Automatic hash-based duplicate prevention using account+date+amount+description
-- **Batch Processing**: Large CSV files processed in chunks to prevent UI blocking
+- Always use `http://localhost:3000` for local browser work.
+- Coverage enforcement currently centers on [`src/lib/databaseService.ts`](../src/lib/databaseService.ts).
+- The Add Transaction dialog account field is an unnamed Material UI select, so automated tests should target it structurally rather than by accessible name.
+- Browser setup should wait for either the initialization/setup screen or the loaded app shell before deciding whether to create a new database.
+- Worker recovery validation uses `window.__budgetTrackerTestApi.disconnectWorker()` and a full page reload.
 
-### File System Integration
-- **Modern Browsers**: Uses File System Access API for direct file save/load (Chrome/Edge)
-- **Fallback**: Traditional download/file input for other browsers
-- **Format**: SQLite database files (.db) with optional compression
+## Regression Testing Agent
 
-### SharedWorker Communication
-- **Message Pattern**: All database operations use async message passing with unique IDs
-- **Timeout Handling**: 30-second timeout on database operations with proper cleanup
-- **Multi-tab Sync**: SharedWorker ensures data consistency across browser tabs
-- **Heartbeat**: Regular status checking between main thread and worker, when disconnnected, attempt to reconnect, disable operations until reconnected
+Use the exact agent name `Budget Tracker Regression Tester` when the user asks for regression testing, validation before merge, smoke tests, coverage checks, Playwright verification, or to investigate a likely test regression.
 
-## Project-Specific Conventions
+### When to Delegate
 
-### Transaction Management
-- **Amount Convention**: Negative for expenses, positive for income (enforced in business layer)
-- **Hash Generation**: Automatic duplicate detection using account+date+amount+description hash
-- **Association Pattern**: Transactions can link to categories, companies, projects, and trips
-- **Audit Trail**: All entities have `created_at` and `updated_at` timestamps
+- The user asks to validate a change, run regression coverage, or confirm nothing broke.
+- The change touches worker behavior, persistence, import/export, initialization, or cross-page flows.
+- The user wants a narrow failing test isolated before broader verification.
 
-### UI Component Patterns
-- **Form Validation**: Client-side validation with Material-UI form helpers
-- **Auto-save**: Real-time status indicator in navigation showing database save status
-- **Responsive Design**: Mobile-first approach using Material-UI breakpoint system
-- **Color Coding**: Categories use color picker with hex color storage
+### How to Trigger It
 
-### Data Model Relationships
-```
-User (1) → Accounts (M) → Transactions (M)
-Transactions (M) → Categories (1), Companies (1), Projects (1), Trips (1)
-Projects/Trips → Budget tracking with estimated vs actual costs
-```
+- If the user explicitly names the agent, invoke `Budget Tracker Regression Tester` directly.
+- If the user asks for regression testing without naming an agent, route to `Budget Tracker Regression Tester` automatically.
+- Pass the changed file, feature, or workflow in the handoff prompt so the agent can choose the narrowest lane first.
+
+### Example Handoffs
+
+- `Use Budget Tracker Regression Tester to validate changes in src/lib/databaseService.ts with the narrowest reliable test lane.`
+- `Run Budget Tracker Regression Tester on the trips workflow and escalate to full e2e only if smoke coverage is insufficient.`
+- `Use Budget Tracker Regression Tester to verify this pull request before merge.`
 
 ## Common Gotchas
-- **Worker Initialization**: Always check `isDatabaseLoaded` before database operations
-- **Type Safety**: Use exact interfaces from [`database.ts`](src/types/database.ts) - worker communication is untyped
-- **Client-Side Only**: No server-side rendering - use `'use client'` directive and check `typeof window`
-- **SharedWorker Support**: Require modern browsers that support SharedWorkers
-- **Memory Management**: Large CSV imports need chunked processing to prevent tab crashes
 
-## Performance Considerations
-- **Database Queries**: Use indexed columns (id, date, account_id) for filtering
-- **Component Optimization**: Use React.memo for heavy data grid components  
-- **Worker Offloading**: Heavy operations (CSV processing, analytics) run in SharedWorker
-- **Lazy Loading**: Charts and complex visualizations load on demand
+- This app is client-only. Check for browser-only APIs and SSR boundaries before adding runtime logic.
+- SharedWorker support is required for the primary experience.
+- Avoid broad refactors in the database provider when a change belongs in one of the internal slice hooks.
+- Do not assume the SQL Query page can be used for mutations.
+- Large imports and worker-heavy flows should keep expensive work off the main UI thread.
+- If a test or manual validation depends on export backup fidelity, verify the current worker/export implementation first rather than assuming backup flows are healthy.

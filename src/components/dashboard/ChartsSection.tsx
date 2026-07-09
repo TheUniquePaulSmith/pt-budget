@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
-import { Box, Paper, Typography, Tabs, Tab } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Paper, Typography, Tabs, Tab, Chip, Stack, Divider } from '@mui/material';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { BarChart } from '@mui/x-charts/BarChart';
-import { Transaction, Category, User, Account } from '@/types/database';
-import { format } from 'date-fns';
+import type { ChartData, Account, User } from '@/types/database';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -23,190 +22,45 @@ function TabPanel({ children, value, index }: TabPanelProps) {
 }
 
 interface ChartsSectionProps {
-  transactions: Transaction[];
-  categories: Category[];
+  chartData: ChartData | null;
   accounts: Account[];
   users: User[];
-  dateRanges: { start: string; end: string };
   timeRangeLabel: string;
 }
 
-const ChartsSection: React.FC<ChartsSectionProps> = ({
-  transactions,
-  categories,
-  accounts,
-  users,
-  dateRanges,
-  timeRangeLabel,
-}) => {
-  
-   const getAccountType = useCallback((accountId: number): 'checking' | 'savings' | 'credit' | 'joint' | undefined => {
-    const account = accounts.find(acc => acc.id === accountId);
-    return account?.type;
-  }, [accounts]);
-  
+const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel }) => {
   const [tabValue, setTabValue] = useState(0);
 
-  // Helper function to get owner display name from account_id
-  const getUserDisplayName = useCallback((accountId: number): string => {
-    const account = accounts.find(a => a.id === accountId);
-    if (!account) return 'Unknown Owner';
-    return account.owner_display_name || 'Unknown Owner';
-  }, [accounts]);
+  const spendingData = chartData?.spendingByCategory ?? [];
+  const incomeData = chartData?.incomeBySource ?? [];
+  const trendsData = chartData?.trends ?? { months: [], income: [], expenses: [] };
+  const accountData = chartData?.accountAnalysis ?? { accountNames: [], income: [], expenses: [] };
+  const totalSpending = spendingData.reduce((sum, category) => sum + category.value, 0);
 
-  // Spending by Category
-  const spendingData = useMemo(() => {
-    const startDate = new Date(dateRanges.start);
-    const endDate = new Date(dateRanges.end);
-    
-    const categoryTotals = new Map<number, { label: string; value: number; color: string }>();
-    
-    transactions
-      .filter(t => {
-        const tDate = new Date(t.date);
-        return t.type === 'expense' && tDate >= startDate && tDate <= endDate;
-      })
-      .forEach(t => {
-        if (!t.category_id) return;
-        const categoryId = Number(t.category_id);
-        const category = categories.find(c => Number(c.id) === categoryId);
-        const existing = categoryTotals.get(categoryId);
-        if (existing) {
-          categoryTotals.set(categoryId, {
-            ...existing,
-            value: existing.value + Math.abs(t.amount),
-          });
-        } else {
-          categoryTotals.set(categoryId, {
-            label: category?.name || t.category_name || 'Unknown',
-            value: Math.abs(t.amount),
-            color: category?.color || '#999',
-          });
-        }
-      });
-    
-    return Array.from(categoryTotals.entries()).map(([id, data]) => ({
-      id,
-      ...data,
-    }));
-  }, [transactions, dateRanges, categories]);
+  const netCashFlow = trendsData.income.map((income, idx) => income - (trendsData.expenses[idx] ?? 0));
+  const spendingPressure = trendsData.income.map((income, idx) => {
+    const expense = trendsData.expenses[idx] ?? 0;
+    return income > 0 ? Number(((expense / income) * 100).toFixed(1)) : 0;
+  });
 
-  // Income by Source
-  const incomeData = useMemo(() => {
-    const startDate = new Date(dateRanges.start);
-    const endDate = new Date(dateRanges.end);
-    
-    const incomeTotals = new Map<string, { label: string; value: number; color: string }>();
-    
-    transactions
-      .filter(t => {
-        const tDate = new Date(t.date);
-        return ((t.type === 'income' && getAccountType(t.account_id) !== 'credit') && tDate >= startDate && tDate <= endDate);
-      })
-      .forEach(t => {
-        const userName = getUserDisplayName(t.account_id);
-        const accountName = t.account_name || 'Unknown Account';
-        const categoryId = t.category_id ? Number(t.category_id) : null;
-        const category = categoryId ? categories.find(c => Number(c.id) === categoryId) : null;
-        const categoryName = category?.name || t.category_name || 'Not Defined';
-        const categoryColor = category?.color || 'green';
-        
-        const key = `${t.account_id}-${categoryId || 'undefined'}`;
-        const label = `${userName} - ${accountName} - ${categoryName}`;
-        
-        const existing = incomeTotals.get(key);
-        if (existing) {
-          incomeTotals.set(key, {
-            ...existing,
-            value: existing.value + t.amount,
-          });
-        } else {
-          incomeTotals.set(key, {
-            label: label,
-            value: t.amount,
-            color: categoryColor,
-          });
-        }
-      });
-    
-    return Array.from(incomeTotals.entries()).map(([key, data]) => ({
-      id: key,
-      ...data,
-    }));
-  }, [transactions, dateRanges, categories, getAccountType, getUserDisplayName]);
-
-  // Trends Data (Last 6 months from end date)
-  const trendsData = useMemo(() => {
-    const endDate = new Date(dateRanges.end);
-    const startDate = new Date(endDate);
-    startDate.setMonth(startDate.getMonth() - 6);
-    
-    const monthlyData = new Map<string, { income: number; expenses: number }>();
-    
-    transactions
-      .filter(t => {
-        const tDate = new Date(t.date);
-        return tDate >= startDate && tDate <= endDate;
-      })
-      .forEach(t => {
-        const monthKey = format(new Date(t.date), 'yyyy-MM');
-        const existing = monthlyData.get(monthKey) || { income: 0, expenses: 0 };
-        if (t.type === 'income' && getAccountType(t.account_id) !== 'credit') {
-          existing.income += t.amount;
-        } else {
-          existing.expenses += Math.abs(t.amount);
-        }
-        monthlyData.set(monthKey, existing);
-      });
-    
-    const sortedMonths = Array.from(monthlyData.keys()).sort();
-    
+  const topSpendingCategories = spendingData.slice(0, 5).map((category) => {
+    const percent = totalSpending > 0 ? (category.value / totalSpending) * 100 : 0;
     return {
-      xAxis: sortedMonths,
-      income: sortedMonths.map(m => monthlyData.get(m)?.income || 0),
-      expenses: sortedMonths.map(m => monthlyData.get(m)?.expenses || 0),
+      ...category,
+      percent,
     };
-  }, [transactions, dateRanges, getAccountType]);
+  });
 
-  // Account Analysis
-  const accountData = useMemo(() => {
-    const startDate = new Date(dateRanges.start);
-    const endDate = new Date(dateRanges.end);
-    
-    const accountTotals = new Map<number, { accountName: string; income: number; expenses: number }>();
-    
-    transactions
-      .filter(t => {
-        const tDate = new Date(t.date);
-        return tDate >= startDate && tDate <= endDate;
-      })
-      .forEach(t => {
-        const accountId = t.account_id;
-        const existing = accountTotals.get(accountId) || { 
-          accountName: `${getUserDisplayName(t.account_id)} - ${t.account_name} ` || 'Unknown Account', 
-          income: 0, 
-          expenses: 0 
-        };
-        
-        if (t.type === 'income') {
-          existing.income += t.amount;
-        } else {
-          existing.expenses += Math.abs(t.amount);
-        }
-        
-        accountTotals.set(accountId, existing);
-      });
-    
-    const accountNames = Array.from(accountTotals.values()).map(a => a.accountName);
-    const incomeByAccount = Array.from(accountTotals.values()).map(a => a.income);
-    const expensesByAccount = Array.from(accountTotals.values()).map(a => a.expenses);
-    
-    return {
-      accountNames,
-      income: incomeByAccount,
-      expenses: expensesByAccount,
-    };
-  }, [transactions, dateRanges, getUserDisplayName]);
+  const avgMonthlyIncome = trendsData.income.length > 0
+    ? trendsData.income.reduce((sum, value) => sum + value, 0) / trendsData.income.length
+    : 0;
+  const avgMonthlyExpenses = trendsData.expenses.length > 0
+    ? trendsData.expenses.reduce((sum, value) => sum + value, 0) / trendsData.expenses.length
+    : 0;
+  const avgMonthlyNet = avgMonthlyIncome - avgMonthlyExpenses;
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 
   return (
     <Paper sx={{ width: '100%', mb: 4 }}>
@@ -225,24 +79,40 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
             Spending by Category - {timeRangeLabel}
           </Typography>
           {spendingData.length > 0 ? (
-            <Box height={400} display="flex" justifyContent="center">
-              <PieChart
-                series={[
-                  {
+            <Box>
+              <Box height={380} display="flex" justifyContent="center">
+                <PieChart
+                  series={[{
                     data: spendingData,
                     highlightScope: { fade: 'global', highlight: 'item' },
                     faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
-                  },
-                ]}
-                width={600}
-                height={400}
-              />
+                  }]}
+                  width={600}
+                  height={380}
+                />
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                Top Expense Categories
+              </Typography>
+              <Stack direction="row" flexWrap="wrap" gap={1}>
+                {topSpendingCategories.map((category) => (
+                  <Chip
+                    key={String(category.id)}
+                    label={`${category.label}: ${formatCurrency(category.value)} (${category.percent.toFixed(1)}%)`}
+                    sx={{
+                      borderLeft: `4px solid ${category.color}`,
+                      backgroundColor: 'background.default',
+                    }}
+                  />
+                ))}
+              </Stack>
             </Box>
           ) : (
             <Box display="flex" justifyContent="center" alignItems="center" height={200}>
-              <Typography color="text.secondary">
-                No spending data for this period
-              </Typography>
+              <Typography color="text.secondary">No spending data for this period</Typography>
             </Box>
           )}
         </Box>
@@ -256,22 +126,18 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
           {incomeData.length > 0 ? (
             <Box height={400} display="flex" justifyContent="center">
               <PieChart
-                series={[
-                  {
-                    data: incomeData,
-                    highlightScope: { fade: 'global', highlight: 'item' },
-                    faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
-                  },
-                ]}
+                series={[{
+                  data: incomeData,
+                  highlightScope: { fade: 'global', highlight: 'item' },
+                  faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
+                }]}
                 width={600}
                 height={400}
               />
             </Box>
           ) : (
             <Box display="flex" justifyContent="center" alignItems="center" height={200}>
-              <Typography color="text.secondary">
-                No income data for this period
-              </Typography>
+              <Typography color="text.secondary">No income data for this period</Typography>
             </Box>
           )}
         </Box>
@@ -279,41 +145,52 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
 
       <TabPanel value={tabValue} index={2}>
         <Box p={3}>
-          <Typography variant="h6" gutterBottom>
-            Income vs Expenses Trend
-          </Typography>
-          {trendsData.xAxis.length > 0 ? (
-            <Box height={400}>
-              <LineChart
-                //width={800}
-                //height={400}
-                series={[
-                  {
-                    data: trendsData.income,
-                    label: 'Income',
-                    color: '#4caf50',
-                  },
-                  {
-                    data: trendsData.expenses,
-                    label: 'Expenses',
-                    color: '#f44336',
-                  },
-                ]}
-                xAxis={[{ 
-                  scaleType: 'point', 
-                  data: trendsData.xAxis,
-                }]}
-                yAxis={[{
-                  width: 80
-                }]}
-                //margin={{ top: 20, right: 20, bottom: 20, left: 60 }}
-              />
+          <Typography variant="h6" gutterBottom>Income vs Expenses Trend</Typography>
+          {trendsData.months.length > 0 ? (
+            <Box>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} mb={2}>
+                <Chip label={`Avg monthly income: ${formatCurrency(avgMonthlyIncome)}`} color="success" variant="outlined" />
+                <Chip label={`Avg monthly expenses: ${formatCurrency(avgMonthlyExpenses)}`} color="error" variant="outlined" />
+                <Chip label={`Avg monthly net: ${formatCurrency(avgMonthlyNet)}`} color={avgMonthlyNet >= 0 ? 'success' : 'warning'} variant="filled" />
+              </Stack>
+
+              <Box height={320}>
+                <LineChart
+                  series={[
+                    { data: trendsData.income, label: 'Income', color: '#4caf50' },
+                    { data: trendsData.expenses, label: 'Expenses', color: '#f44336' },
+                  ]}
+                  xAxis={[{ scaleType: 'point', data: trendsData.months }]}
+                  yAxis={[{ width: 80 }]}
+                />
+              </Box>
+
+              <Box height={280} mt={3}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Net Cash Flow by Month
+                </Typography>
+                <BarChart
+                  series={[{ data: netCashFlow, label: 'Net Cash Flow', color: '#1976d2' }]}
+                  xAxis={[{ scaleType: 'band', data: trendsData.months }]}
+                  yAxis={[{ width: 80 }]}
+                  margin={{ top: 20, right: 20, bottom: 50, left: 80 }}
+                />
+              </Box>
+
+              <Box height={260} mt={3}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Spending Pressure (Expense/Income)
+                </Typography>
+                <LineChart
+                  series={[{ data: spendingPressure, label: 'Expense Ratio %', color: '#ef6c00' }]}
+                  xAxis={[{ scaleType: 'point', data: trendsData.months }]}
+                  yAxis={[{ width: 80, valueFormatter: (value: number) => `${value}%` }]}
+                />
+              </Box>
             </Box>
           ) : (
             <Box display="flex" justifyContent="center" alignItems="center" height={200}>
-              <Typography color="text.secondary">
-                No trend data available
-              </Typography>
+              <Typography color="text.secondary">No trend data available</Typography>
             </Box>
           )}
         </Box>
@@ -327,26 +204,11 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
           {accountData.accountNames.length > 0 ? (
             <Box height={400}>
               <BarChart
-                //width={800}
-                //height={400}
                 series={[
-                  {
-                    data: accountData.income,
-                    label: 'Income',
-                    color: '#4caf50',
-                    //stack: 'total',
-                  },
-                  {
-                    data: accountData.expenses,
-                    label: 'Expenses',
-                    color: '#f44336',
-                    //stack: 'total',
-                  },
+                  { data: accountData.income, label: 'Income', color: '#4caf50' },
+                  { data: accountData.expenses, label: 'Expenses', color: '#f44336' },
                 ]}
-                xAxis={[{ 
-                  scaleType: 'band', 
-                  data: accountData.accountNames,
-                }]}
+                xAxis={[{ scaleType: 'band', data: accountData.accountNames }]}
                 yAxis={[{
                   width: 80,
                   valueFormatter: (value: string) => `$${value.toLocaleString()}`,
@@ -356,9 +218,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
             </Box>
           ) : (
             <Box display="flex" justifyContent="center" alignItems="center" height={200}>
-              <Typography color="text.secondary">
-                No account data for this period
-              </Typography>
+              <Typography color="text.secondary">No account data for this period</Typography>
             </Box>
           )}
         </Box>

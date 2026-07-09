@@ -43,3 +43,6 @@ next-env.d.ts
 
 #logs
 /logs*
+
+# Public Sample Data (use generator to generate data)
+public/sample-data/*.json

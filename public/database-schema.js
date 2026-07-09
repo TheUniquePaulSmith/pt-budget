@@ -146,6 +146,12 @@ export const CREATE_TABLES = {
   `
 };
 
+// Indexes — run on every open (IF NOT EXISTS makes them idempotent)
+export const CREATE_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_transactions_date_id ON transactions(date DESC, id DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_temp_import_transactions_hash ON temp_import_transactions(transaction_hash) WHERE transaction_hash IS NOT NULL`,
+];
+
 // Default Data Inserts
 export const DEFAULT_DATA = {
   CATEGORIES: `

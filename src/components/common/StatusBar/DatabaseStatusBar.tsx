@@ -124,7 +124,10 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
           <Typography variant="caption" color="text.secondary">
             v{status.version}
           </Typography>   
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+              data-testid="database-status"
+            >
               <Circle 
                 sx={{ 
                   fontSize: 8, 
@@ -150,7 +153,12 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
                 },
               }}
               >
-                <Typography variant="caption" color="text.secondary" style={{cursor: 'pointer'}}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  style={{cursor: 'pointer'}}
+                  data-testid="database-status-text"
+                >
                   {status.isConnected ? 'Connected' : 'Disconnected'}
                 </Typography>
               </Tooltip>

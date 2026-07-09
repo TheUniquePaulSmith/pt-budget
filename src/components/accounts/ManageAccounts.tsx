@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -36,25 +36,22 @@ import {
   ExpandMore as ExpandMoreIcon,
   CreditCard as CreditCardIcon,
 } from '@mui/icons-material';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
+import { useAccountManagementSlice } from '@/contexts/useDatabaseSlices';
 import { Account, User, AccountCard } from '@/types/database';
 
 export default function ManageAccounts() {
   const { 
     accounts, 
     users, 
-    isDatabaseLoaded,
     addAccount, 
     deleteAccount, 
-    refreshAccounts,
     addUser,
     updateUser,
     deleteUser,
-    refreshUsers,
     getAccountCards,
     addAccountCard,
     deleteAccountCard,
-  } = useDatabaseContext();
+  } = useAccountManagementSlice();
   
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [userDialogOpen, setUserDialogOpen] = useState(false);
@@ -85,28 +82,9 @@ export default function ManageAccounts() {
     user_id: null as number | null,
   });
 
-  const loadingRef = useRef(false);
-
-  useEffect(() => {
-    if (isDatabaseLoaded && !loadingRef.current) {
-      loadingRef.current = true;
-      const loadData = async () => {
-        try {
-          await refreshAccounts();
-          await refreshUsers();
-        } catch (error) {
-          console.error('Error loading data:', error);
-        } finally {
-          loadingRef.current = false;
-        }
-      };
-      loadData();
-    }
-  }, [isDatabaseLoaded, refreshAccounts, refreshUsers]);
-
   // Preload all account cards to enable cardholder account detection
   useEffect(() => {
-    if (isDatabaseLoaded && accounts.length > 0) {
+    if (accounts.length > 0) {
       const loadAllCards = async () => {
         const cardsByAccount: Record<number, AccountCard[]> = {};
         for (const account of accounts) {
@@ -123,7 +101,7 @@ export default function ManageAccounts() {
       loadAllCards();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDatabaseLoaded, accounts.length]);
+  }, [accounts.length]);
 
   const handleOpenUserDialog = (user?: User) => {
     if (user) {
@@ -260,7 +238,6 @@ export default function ManageAccounts() {
       // Update the accountCardsByAccountId state to reflect changes in UI
       setAccountCardsByAccountId(prev => ({ ...prev, [selectedAccountForCardManagement.id]: cards }));
       setCardFormData({ last_four: '', nickname: '', user_id: null });
-      await refreshAccounts();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add card');
     } finally {
@@ -278,7 +255,6 @@ export default function ManageAccounts() {
         // Update the accountCardsByAccountId state to reflect changes in UI
         setAccountCardsByAccountId(prev => ({ ...prev, [selectedAccountForCardManagement.id]: cards }));
       }
-      await refreshAccounts();
       setDeleteDialogOpen(false);
       setItemToDelete(null);
     } catch (err) {

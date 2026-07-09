@@ -25,9 +25,20 @@ import {
 } from '@mui/material';
 import { CloudUpload, CheckCircle, Error as ErrorIcon, ExpandMore } from '@mui/icons-material';
 import Papa from 'papaparse';
-import { useDatabaseContext } from '@/contexts/DatabaseContext';
 import { Transaction, Account, AccountCard } from '@/types/database';
-import { DatabaseService } from '@/lib/databaseService';
+import {
+  autoDetectColumnMapping,
+  buildDuplicateGroups,
+  calculateImportableTransactions,
+  createAccountMatches,
+  createHashUpdatesForSelectedDuplicates,
+  mapTransactionsFromCSV,
+  type CSVAccountMatch as AccountMatch,
+  type CSVImportAnalysisResult as AnalysisResult,
+  type CSVImportColumnMapping as ColumnMapping,
+  type CSVImportDuplicateGroup as DuplicateGroup,
+} from '@/lib/csvImportService';
+import { useCsvImportSlice } from '@/contexts/useDatabaseSlices';
 import InternalDuplicatesResolver from './InternalDuplicatesResolver';
 
 interface CSVImportProps {
@@ -44,43 +55,6 @@ interface ImportResult {
   errors: string[];
 }
 
-interface AnalysisResult {
-  totalRows: number;
-  mappableRows: number;
-  duplicateCount: number;
-  internalDuplicates: number;
-  uniqueCount: number;
-  skippedRows: number;
-  duplicateGroups?: DuplicateGroup[];
-}
-
-interface DuplicateGroup {
-  hash: string;
-  transactions: Array<{
-    index: number;
-    transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>;
-    csvAccountValue: string;
-    tempId: number;
-    lastFourValue: string;
-    uniqueIdentifier?: string;
-  }>;
-}
-
-interface ColumnMapping {
-  accountColumn: string;
-  dateColumn: string;
-  amountColumn: string;
-  descriptionColumn: string;
-  uniqueIdentifierColumn: string;
-}
-
-interface AccountMatch {
-  csvAccountValue: string;
-  lastFourValue: string;
-  matchingAccounts: Account[];
-  selectedAccountId: number | null;
-}
-
 export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) {
   const { 
     accounts, 
@@ -93,7 +67,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     bulkInsertFromTempTable,
     findAccountsByLastFour,
     getAccountCards,
-  } = useDatabaseContext();
+  } = useCsvImportSlice();
   
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
@@ -127,32 +101,21 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
   // Function to analyze account column and find matching accounts
   const analyzeAccountColumn = useCallback(async (data: any[], accountColumn: string) => {
-    // Get unique account values from CSV
-    const uniqueAccountValues = [...new Set(data.map(row => String(row[accountColumn])))];
-    
     console.debug(`Available accounts in database:`, accounts.map(acc => ({
       id: acc.id,
       name: acc.name,
       type: acc.type
     })));
-    
-    const matches: AccountMatch[] = await Promise.all(uniqueAccountValues.map(async csvValue => {
-      // Extract last 4 digits from CSV value (e.g., "...1682" -> "1682")
-      const lastFourMatch = csvValue.match(/(\d{4})$/);
-      const lastFour = lastFourMatch ? lastFourMatch[1] : '';
-      console.debug(`Analyzing account column: ${csvValue}, extracted last four: "${lastFour}" (type: ${typeof lastFour})`);
-      
-      // Use findAccountsByLastFour to search account_cards table
-      const matchingAccounts = lastFour ? await findAccountsByLastFour(lastFour) : [];
-      console.debug(`Found ${matchingAccounts.length} matching accounts for last four "${lastFour}":`, matchingAccounts);
-      
-      return {
-        csvAccountValue: csvValue,
-        lastFourValue: lastFour,
-        matchingAccounts,
-        selectedAccountId: matchingAccounts.length === 1 ? matchingAccounts[0].id : null,
-      };
-    }));
+
+    const matches = await createAccountMatches(data, accountColumn, async (lastFour) => {
+      console.debug(`Analyzing account column by last four: "${lastFour}"`);
+      const matchingAccounts = await findAccountsByLastFour(lastFour);
+      console.debug(
+        `Found ${matchingAccounts.length} matching accounts for last four "${lastFour}":`,
+        matchingAccounts
+      );
+      return matchingAccounts;
+    });
     
     setAccountMatches(matches);
   }, [accounts, findAccountsByLastFour]);
@@ -267,13 +230,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       if (result.length > 0) {
         const headers = Object.keys(result[0]);
         
-        const newMapping: ColumnMapping = {
-          accountColumn: headers.find(h => h.toLowerCase().includes('account') && h.toLowerCase().includes('number')) || '',
-          dateColumn: headers.find(h => h.toLowerCase().includes('date') || h.toLowerCase().includes('time')) || '',
-          amountColumn: headers.find(h => h.toLowerCase().includes('amount') || h.toLowerCase().includes('billing')) || '',
-          descriptionColumn: headers.find(h => h.toLowerCase().includes('merchant') || h.toLowerCase().includes('description') || h.toLowerCase().includes('memo')) || '',
-          uniqueIdentifierColumn: headers.find(h => h.toLowerCase().includes('reference') || h.toLowerCase().includes('id')) || '',
-        };
+        const newMapping = autoDetectColumnMapping(headers);
         
         setMapping(newMapping);
         
@@ -296,106 +253,6 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     );
   };
 
-  const mapTransactionsFromCSV = (
-    data: any[], 
-    columnMapping: ColumnMapping,
-    accountMappings: AccountMatch[]
-  ): Array<{
-    transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>;
-    csvAccountValue: string;
-    lastFourValue: string;
-    hash: string;
-    uniqueIdentifier?: string;
-  }> => {
-    // Check if a direct account was selected
-    const isDirectAccount = columnMapping.accountColumn.startsWith('DIRECT_ACCOUNT:');
-    const directAccountMapping = isDirectAccount ? accountMappings[0] : null;
-
-    return data.filter(row => {
-      if (isDirectAccount) {
-        return directAccountMapping?.selectedAccountId; // All rows are valid if direct account is selected
-      }
-      const csvAccountValue = String(row[columnMapping.accountColumn]);
-      const accountMapping = accountMappings.find(m => m.csvAccountValue === csvAccountValue);
-      return accountMapping?.selectedAccountId; // Only include rows with mapped accounts
-    }).map(row => {
-      let csvAccountValue: string;
-      let accountMapping: AccountMatch | undefined | null;
-      let lastFourValue: string;
-
-      if (isDirectAccount) {
-        csvAccountValue = 'ALL_TRANSACTIONS';
-        accountMapping = directAccountMapping;
-        lastFourValue = '';
-      } else {
-        csvAccountValue = String(row[columnMapping.accountColumn]);
-        accountMapping = accountMappings.find(m => m.csvAccountValue === csvAccountValue);
-        lastFourValue = accountMapping?.lastFourValue || '';
-      }
-
-      // We know this exists because we filtered above
-      if (!accountMapping?.selectedAccountId) {
-        throw new Error(`No account mapping found for ${csvAccountValue}`);
-      }
-
-      const dateStr = row[columnMapping.dateColumn];
-      const amountStr = String(row[columnMapping.amountColumn]);
-      const description = String(row[columnMapping.descriptionColumn]);
-      const uniqueIdentifier = columnMapping.uniqueIdentifierColumn 
-        ? String(row[columnMapping.uniqueIdentifierColumn]) 
-        : undefined;
-      
-      // Parse date
-      let date: string;
-      try {
-        const parsedDate = new Date(dateStr);
-        if (isNaN(parsedDate.getTime())) {
-          throw new Error('Invalid date');
-        }
-        date = parsedDate.toISOString().split('T')[0];
-      } catch {
-        date = new Date().toISOString().split('T')[0];
-      }
-      
-      // Parse amount
-      const cleanAmount = amountStr.replace(/[^\d.-]/g, '');
-      const amount = parseFloat(cleanAmount) || 0;
-      
-      // Determine transaction type
-      const type: 'income' | 'expense' = amount > 0 ? 'income' : 'expense';
-      
-      const transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'> = {
-        date,
-        amount: Math.abs(amount) * (type === 'expense' ? -1 : 1),
-        description: description || 'Imported transaction',
-        account_id: accountMapping.selectedAccountId,
-        category_id: null,
-        company_id: null,
-        project_id: null,
-        trip_id: null,
-        type,
-      };
-
-      // Generate hash for duplicate detection
-      //Hash is date, amount, description, 
-      const hash = generateTransactionHash(
-        csvAccountValue,
-        date,
-        amount,
-        description,
-        uniqueIdentifier
-      );
-      
-      return {
-        transaction: { ...transaction, transaction_hash: hash },
-        csvAccountValue,
-        lastFourValue,
-        hash,
-        uniqueIdentifier,
-      };
-    });
-  };
-
   const toggleSection = (section: 'columnMapping' | 'accountMapping' | 'preview') => {
     setExpandedSections(prev => ({
       ...prev,
@@ -406,45 +263,10 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   const handleResolveDuplicates = async (selectedIndices: Set<number>) => {
     if (!analysisResult || !analysisResult.duplicateGroups) return;
 
-    // Separate selected and excluded transactions
-    const tempIdsToDelete: number[] = [];
-    const hashUpdates: Array<{ tempId: number; newHash: string; variationSeed: number }> = [];
-    
-    analysisResult.duplicateGroups.forEach(group => {
-      // Get selected transactions from this group
-      const selectedInGroup = group.transactions.filter(item => selectedIndices.has(item.index));
-      
-      // Assign variation seeds to selected transactions
-      selectedInGroup.forEach((item, variationIndex) => {
-        const variationSeed = variationIndex; // 0, 1, 2, etc.
-        
-        // Regenerate hash with variation seed
-        const newHash = DatabaseService.generateTransactionHashFromFields(
-          item.csvAccountValue,
-          item.transaction.date,
-          item.transaction.amount,
-          item.transaction.description,
-          item.uniqueIdentifier,
-          variationSeed
-        );
-        
-        // Only update if variation seed > 0 (seed 0 keeps original hash)
-        if (variationSeed > 0) {
-          hashUpdates.push({
-            tempId: item.tempId,
-            newHash,
-            variationSeed,
-          });
-        }
-      });
-      
-      // Collect excluded transactions for deletion
-      group.transactions.forEach(item => {
-        if (!selectedIndices.has(item.index)) {
-          tempIdsToDelete.push(item.tempId);
-        }
-      });
-    });
+    const { hashUpdates, tempIdsToDelete } = createHashUpdatesForSelectedDuplicates(
+      analysisResult.duplicateGroups,
+      selectedIndices
+    );
     
     setDuplicateResolverOpen(false);
     
@@ -531,68 +353,25 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     });
 
     try {
-      const mappedTransactions = mapTransactionsFromCSV(csvData, mapping, accountMatches);
+      const mappedTransactions = mapTransactionsFromCSV(
+        csvData,
+        mapping,
+        accountMatches,
+        generateTransactionHash
+      );
       
       const totalRows = csvData.length;
       const mappableRows = mappedTransactions.length;
       const skippedRows = totalRows - mappableRows;
       
-      // Detect internal duplicates within the CSV itself and group them
-      type TransactionItem = {
-        index: number;
-        transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>;
-        csvAccountValue: string;
-        lastFourValue: string;
-        uniqueIdentifier?: string;
-      };
-      const hashMap = new Map<string, Array<TransactionItem>>();
-      
-      mappedTransactions.forEach((mapped, index) => {
-        if (!hashMap.has(mapped.hash)) {
-          hashMap.set(mapped.hash, []);
-        }
-        hashMap.get(mapped.hash)!.push({
-          index,
-          transaction: mapped.transaction,
-          csvAccountValue: mapped.csvAccountValue,
-          lastFourValue: mapped.lastFourValue,
-          uniqueIdentifier: mapped.uniqueIdentifier,
-        });
-      });
-      
       // Insert ALL mapped transactions into temp table
       await truncateImportTable();
       const allTransactions = mappedTransactions.map(m => m.transaction);
       const tempIds = await insertIntoTempTable(allTransactions);
-      
-      // Map temp_ids back to transactions in hashMap
-      mappedTransactions.forEach((mapped, index) => {
-        const tempId = tempIds[index];
-        const items = hashMap.get(mapped.hash);
-        if (items) {
-          const item = items.find(i => i.index === index);
-          if (item) {
-            (item as any).tempId = tempId; // Add tempId to the transaction item
-          }
-        }
-      });
-      
-      // Find duplicate groups (hashes with more than 1 transaction)
-      const duplicateGroups: DuplicateGroup[] = [];
-      let internalDuplicateCount = 0;
-      
-      hashMap.forEach((transactions, hash) => {
-        if (transactions.length > 1) {
-          duplicateGroups.push({ 
-            hash, 
-            transactions: transactions.map(t => ({
-              ...t,
-              tempId: (t as any).tempId
-            }))
-          });
-          internalDuplicateCount += transactions.length - 1; // Count extras beyond the first
-        }
-      });
+      const { duplicateGroups, internalDuplicateCount } = buildDuplicateGroups(
+        mappedTransactions,
+        tempIds
+      );
       
       // Check for duplicates against existing database transactions
       const existingHashes = await checkDuplicateTransactions();
@@ -698,16 +477,11 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
   const columnOptions = csvData.length > 0 ? Object.keys(csvData[0]) : [];
   
-  // Calculate how many transactions can be imported
-  const importableTransactions = csvData.length > 0 && mapping.accountColumn && accountMatches.length > 0 
-    ? (mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') 
-        ? csvData.length // All transactions when direct account is selected
-        : csvData.filter(row => {
-            const csvAccountValue = String(row[mapping.accountColumn]);
-            const accountMapping = accountMatches.find(m => m.csvAccountValue === csvAccountValue);
-            return accountMapping?.selectedAccountId;
-          }).length)
-    : 0;
+  const importableTransactions = calculateImportableTransactions(
+    csvData,
+    mapping,
+    accountMatches
+  );
     
   const skippedTransactions = csvData.length - importableTransactions;
     

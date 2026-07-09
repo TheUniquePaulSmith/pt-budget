@@ -6,9 +6,18 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sample-data:generate": "node scripts/generate-sample-data.mjs",
+    "sample-data:validate": "node scripts/validate-sample-data-schema.mjs",
+    "test": "npm run test:unit:coverage && npm run test:e2e:smoke",
+    "test:unit": "vitest run",
+    "test:unit:coverage": "vitest run --coverage",
+    "test:unit:watch": "vitest",
+    "test:e2e:smoke": "playwright test --grep @smoke",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@azure/msal-browser": "^5.11.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.1.2",
@@ -19,8 +28,10 @@
     "@types/papaparse": "^5.3.16",
     "@types/sql.js": "^1.4.9",
     "@types/uuid": "^10.0.0",
+    "@wllama/wllama": "^3.5.1",
     "buffer": "^6.0.3",
     "date-fns": "^4.1.0",
+    "jszip": "^3.10.1",
     "next": "15.3.4",
     "next-auth": "^4.24.11",
     "papaparse": "^5.5.3",
@@ -33,14 +44,21 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.54.0",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^3.2.4",
     "copy-webpack-plugin": "^13.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.3.4",
+    "jsdom": "^26.1.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

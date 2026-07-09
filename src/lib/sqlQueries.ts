@@ -39,6 +39,12 @@ export const TRANSACTION_QUERIES = {
     WHERE id = ?
   `,
 
+  UPDATE_CLASSIFICATION: `
+    UPDATE transactions
+    SET category_id = ?, company_id = ?, project_id = ?, trip_id = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `,
+
   GET_BY_PROJECT: `
     SELECT 
       t.*,
@@ -119,6 +125,35 @@ export const TRANSACTION_QUERIES = {
     SELECT COUNT(*) as count FROM transactions WHERE transaction_hash = ?
     `,
   
+  GET_RECENT: `
+    SELECT
+      t.*,
+      c.name as category_name,
+      c.color as category_color,
+      c.type as category_type,
+      comp.name as company_name,
+      a.name as account_name,
+      a.type as account_type,
+      p.name as project_name,
+      tr.name as trip_name
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN companies comp ON t.company_id = comp.id
+    LEFT JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN projects p ON t.project_id = p.id
+    LEFT JOIN trips tr ON t.trip_id = tr.id
+    ORDER BY t.date DESC, t.id DESC
+    LIMIT ?
+  `,
+
+  GET_COUNT_BY_PROJECT: `
+    SELECT COUNT(*) as total FROM transactions WHERE project_id = ?
+  `,
+
+  GET_COUNT_BY_TRIP: `
+    SELECT COUNT(*) as total FROM transactions WHERE trip_id = ?
+  `,
+
   GET_ALL_HASHES: `
     SELECT transaction_hash FROM transactions
   `,
@@ -162,6 +197,7 @@ export const TRANSACTION_QUERIES = {
 export const CATEGORY_QUERIES = {
   GET_ALL: `SELECT * FROM categories ORDER BY type, name`,
   CREATE: `INSERT INTO categories (name, color, type) VALUES (?, ?, ?) RETURNING id`,
+  FIND_BY_NAME: `SELECT * FROM categories WHERE LOWER(name) = LOWER(?) LIMIT 1`,
   GET_BY_ID: `SELECT * FROM categories WHERE id = ?`,
   UPDATE: `UPDATE categories SET name = ?, color = ?, type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
   DELETE: `DELETE FROM categories WHERE id = ?`,
@@ -278,13 +314,24 @@ export const PROJECT_QUERIES = {
   UPDATE: `UPDATE projects SET name = ?, company_name = ?, contact_details = ?, project_category = ?, status = ?, start_date = ?, end_date = ?, estimated_cost = ?, actual_cost = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
   DELETE: `DELETE FROM projects WHERE id = ?`,
   GET_COSTS: `
-    SELECT 
+    SELECT
       p.estimated_cost,
       p.actual_cost,
       COALESCE(SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as transactions_total
     FROM projects p
     LEFT JOIN transactions t ON p.id = t.project_id
     WHERE p.id = ?
+    GROUP BY p.id, p.estimated_cost, p.actual_cost
+  `,
+
+  GET_ALL_COSTS: `
+    SELECT
+      p.id as project_id,
+      COALESCE(p.estimated_cost, 0) as estimated,
+      COALESCE(p.actual_cost, 0) as actual,
+      COALESCE(SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as transactions_total
+    FROM projects p
+    LEFT JOIN transactions t ON p.id = t.project_id
     GROUP BY p.id, p.estimated_cost, p.actual_cost
   `,
 };
@@ -359,7 +406,7 @@ export const ANALYTICS_QUERIES = {
   `,
 
   MONTHLY_TRENDS: `
-    SELECT 
+    SELECT
       strftime('%Y-%m', t.date) as month,
       SUM(CASE WHEN c.type = 'income' THEN t.amount ELSE 0 END) as income,
       SUM(CASE WHEN c.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as expense
@@ -368,6 +415,62 @@ export const ANALYTICS_QUERIES = {
     WHERE t.date >= date('now', ? || ' months')
     GROUP BY strftime('%Y-%m', t.date)
     ORDER BY month DESC
+  `,
+
+  DASHBOARD_SUMMARY: `
+    SELECT
+      COUNT(*) as transaction_count,
+      SUM(CASE WHEN t.type = 'income' AND a.type != 'credit' THEN t.amount ELSE 0 END) as total_income,
+      SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as total_expenses
+    FROM transactions t
+    LEFT JOIN accounts a ON t.account_id = a.id
+    WHERE t.date BETWEEN ? AND ?
+  `,
+
+  INCOME_BY_SOURCE: `
+    SELECT
+      a.id as account_id,
+      a.name as account_name,
+      u.display_name as user_display_name,
+      c.id as category_id,
+      c.name as category_name,
+      c.color as category_color,
+      SUM(t.amount) as total
+    FROM transactions t
+    JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN users u ON a.owner_user_id = u.id
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.type = 'income' AND a.type != 'credit' AND t.date BETWEEN ? AND ?
+    GROUP BY a.id, c.id
+    HAVING total > 0
+    ORDER BY total DESC
+  `,
+
+  TRENDS_BY_DATE_RANGE: `
+    SELECT
+      strftime('%Y-%m', t.date) as month,
+      SUM(CASE WHEN t.type = 'income' AND a.type != 'credit' THEN t.amount ELSE 0 END) as income,
+      SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as expense
+    FROM transactions t
+    LEFT JOIN accounts a ON t.account_id = a.id
+    WHERE t.date BETWEEN ? AND ?
+    GROUP BY strftime('%Y-%m', t.date)
+    ORDER BY month ASC
+  `,
+
+  ACCOUNT_ANALYSIS: `
+    SELECT
+      a.id as account_id,
+      a.name as account_name,
+      u.display_name as user_display_name,
+      SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END) as income,
+      SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as expenses
+    FROM transactions t
+    JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN users u ON a.owner_user_id = u.id
+    WHERE t.date BETWEEN ? AND ?
+    GROUP BY a.id
+    ORDER BY (income + expenses) DESC
   `,
 };
 

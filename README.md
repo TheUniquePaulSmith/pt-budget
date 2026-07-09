@@ -1,108 +1,97 @@
 # Budget Tracker Application
 
-A comprehensive personal finance management application designed for end-users to manage their finances, budgeting, and projects in a completely client-side environment.
+A client-side personal finance and project cost tracking application built with Next.js, React, TypeScript, Material UI, and SQLite WebAssembly. The app runs entirely in the browser, keeps data local to the user, and still provides a worker-backed database, cross-tab synchronization, import/export workflows, analytics, and browser-backed automated tests.
 
 ## 🚀 Core Purpose
 
-A powerful yet user-friendly budget tracking application that provides enterprise-level database functionality in a privacy-focused package that runs entirely in your browser. Perfect for personal finance management, home project budgeting, and comprehensive expense tracking.
+Budget Tracker is designed to manage day-to-day finances and longer-running spending work in one place. The current codebase supports:
+
+- Personal income and expense tracking
+- Category, company, account, and account-card management
+- House project and trip tracking with transaction labeling
+- CSV-based transaction import with duplicate analysis
+- Local-first database storage and exportable SQLite backups
 
 ## 🏗️ Architecture & Technology
 
-- **Single Page Application (SPA)** - No server dependencies required
-- **100% Client-Side** - No backend servers or server-side rendering
-- **SQLite Database** - Uses wa-sqlite (SQLite compiled to WebAssembly) for robust data management
-- **SharedWorker Architecture** - Database operations run in a dedicated SharedWorker for performance isolation
-- **Browser Local Storage** - Uses IndexedDB and browser storage for persistent data
-- **File System Access API** - Modern browser API for direct file saving/loading
-- **React + TypeScript** - Built with Next.js framework and Material-UI components
-- **Automated Compatibility Testing** - Built-in browser capability detection and testing
+- **Next.js 15 App Router** with static export output and a client-only application shell
+- **React 19 + TypeScript 5** for the UI and application logic
+- **Material UI 7** with MUI X charts, data grid, and date pickers
+- **wa-sqlite / WebAssembly SQLite** assets served from `public/`
+- **SharedWorker-backed database execution** in `public/database-worker.js`
+- **Local browser persistence** using browser-managed storage plus file import/export flows
+- **Dedicated database domain contexts** with thin adapter hooks in `src/contexts/useDatabaseSlices.ts`
+- **Local AI side panel** using wllama for browser-based GGUF model inference
+- **Vitest + Playwright** for deterministic unit coverage and real-browser worker/database validation
 
 ## ✨ Key Features
 
 ### 💰 Financial Management
-- **Transaction Tracking** - Add, view, and categorize income/expense transactions
-- **Category Management** - Custom categories with color coding for both income and expenses
-- **Company/Vendor Tracking** - Manage and track transactions by company
-- **Account Management** - Multiple account support
-- **CSV Import/Export** - Import transactions from CSV files and export database backups
+
+- **Transaction Tracking**: add, filter, sort, and review income and expense transactions
+- **Category and Company Management**: create and manage transaction metadata directly in the app
+- **Account Management**: manage accounts, account ownership, and account cards
+- **Project and Trip Labels**: attach transactions to projects and trips for grouped reporting
+- **CSV Import Pipeline**: import transaction files with column auto-detection, account matching, duplicate analysis, and temp-table staging
 
 ### 📊 Analytics & Reporting
-- **Interactive Dashboard** - Real-time financial overview with charts
-- **Spending Analysis** - Pie charts showing spending breakdown by category
-- **Income Analysis** - Visual representation of income sources
-- **Trend Analysis** - Line charts showing income vs expenses over time
-- **Time Period Filtering** - View data by week, month, or year
-- **Summary Statistics** - Total income, expenses, net income, and transaction counts
 
-### 🏠 Project Management
-- **House Projects** - Dedicated project tracking for home improvement/construction
-- **Budget vs Actual** - Compare estimated costs to actual spending
-- **Project-specific Transactions** - Link transactions to specific projects
-- **Cost Analysis** - Track project costs and progress
+- **Interactive Dashboard** with summary cards, date-range controls, charts, and recent transactions
+- **Transaction Report** with search, advanced filters, column visibility controls, sorting, pagination, and label editing
+- **Category / Company / Account-aware reporting** using joined transaction data from the browser-backed database
+- **Read-only SQL Query Page** for direct `SELECT` inspection of database state during debugging and validation
+- **Local AI Assistant** for model-assisted transaction analysis, recurring subscription detection, and staged transaction classification suggestions
 
-### 💾 Data Management & Storage
-- **Multiple Database Options:**
-  - Create new database with file save location
-  - Load existing database files
-- **Persistent Storage** - Data persists automatically using IndexedDB
-- **Data Export** - Complete database backups in .db format
-- **SharedWorker Database Engine** - Database operations run in isolation for optimal performance
-- **Cross-Tab Synchronization** - Multiple browser tabs share the same database instance
+### 🏠 Planning & Organization
 
-### 🔧 Advanced Features
-- **Browser Compatibility Testing** - Automatic detection of required browser features
-- **Real-time Compatibility Checks** - Tests SharedWorker, WebAssembly, SQLite, and storage support
-- **Settings Management** - Comprehensive settings page with multiple tabs
-- **Storage Quota Monitoring** - Track browser storage usage
-- **Cross-Browser Compatibility** - Graceful degradation for browsers without File System Access API
-- **Auto-Save Status Indicator** - Real-time status in navigation bar with tooltips
-- **Data Validation** - Robust error handling and data integrity checks
-- **Message-Based Architecture** - Clean communication between UI and database worker
+- **Project Management** for estimated costs and linked spending
+- **Trip Management** for travel-related tracking and transaction grouping
+- **Manage Data Dialog** for maintaining reusable categories and companies
 
-### 🎨 User Experience
-- **Modern Material Design** - Clean, intuitive interface
-- **Responsive Layout** - Works on desktop and mobile devices
-- **Dark/Light Theme Support** - Theme customization (coming soon)
-- **Real-time Updates** - Instant data refresh across components
-- **Progress Indicators** - Loading states and status feedback
+### 💾 Storage, Import, and Diagnostics
+
+- **Create New Database / Load Existing Database** flows through the initialization gate
+- **SQLite Export** from the dashboard and settings UI
+- **Cross-Tab Synchronization** through a shared worker-backed database session
+- **Storage Quota Monitoring** in the settings page
+- **Browser Compatibility Gate** before database setup
+- **Developer Console** with log capture/export, plus developer-only sample data export tooling when `?dev=true` is present
+
+### Local AI Models
+
+The AI side panel is local-only and does not auto-load a model. Use the `Choose GGUF` button in the Model tab to select a local `.gguf` file from your machine. The picker filters for GGUF files. For split models, select all `.gguf` shard files together; the app sorts the selected files by name before loading them.
+
+The app serves wllama's wasm asset locally from `public/wllama/wllama.wasm`; no CDN inference path is required. WebGPU is detected at runtime. Multi-threaded wasm may require the host to serve `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers; static export hosting must be configured separately if those headers are needed.
 
 ## 🔒 Data Security & Privacy
 
-### 🛡️ Complete Privacy Protection
-- **100% Local Processing** - All data processing happens entirely in your browser
-- **Zero Server Communication** - No data is ever transmitted to external servers
-- **No Analytics or Tracking** - Application doesn't collect any usage data or personal information
-- **No Third-Party Services** - No external APIs, CDNs, or cloud services are used
-- **Offline Capability** - Works completely offline once loaded
+### 🛡️ Local-First by Design
 
-### 🔐 Data Security Features
-- **Local-First Architecture** - All financial data stays exclusively on your device
-- **Browser-Native Encryption** - IndexedDB provides built-in data protection
-- **File-Based Backups** - You maintain complete control over your data files
-- **No Data Sharing** - Impossible for data to be shared since there's no backend
-- **Secure Storage** - Uses browser's secure IndexedDB for persistent storage
+- **100% Local Processing**: all application logic and database work run in the browser
+- **Local AI Inference**: GGUF models are loaded by the browser with wllama after explicit user selection
+- **No Backend Required**: there is no application server or remote database
+- **No Required Cloud Services**: the app does not depend on external data services to function
+- **Offline-Friendly Runtime**: once loaded, the app can continue working with local browser storage
 
-### 🏠 Data Ownership & Control
-- **Full Data Ownership** - You own and control all your financial data
-- **Export Anytime** - Complete database export functionality available
-- **No Vendor Lock-in** - Standard SQLite format ensures data portability
-- **Manual Backups** - Create and manage your own backup files
-- **Clear Data Path** - Transparent about where and how data is stored
+### 🔐 User Control
 
-## 🌟 Unique Selling Points
+- **Data stays on the device** unless the user explicitly exports it
+- **SQLite backup export** keeps data portable
+- **File-based workflows** make ownership and backup strategies explicit
+- **No vendor lock-in** because exported data is in standard SQLite format
 
-1. **No Backend Required** - Completely self-contained application
-2. **Professional Database** - Full SQLite functionality in the browser
-3. **File System Integration** - Direct file saving like desktop applications
-4. **Project-Specific Budgeting** - Specialized for home project management
-5. **Advanced Analytics** - Professional-grade financial reporting
-6. **Persistent Storage** - Data persists automatically using IndexedDB
-7. **SharedWorker Architecture** - Multi-tab synchronization with isolated database operations
-8. **Built-in Compatibility Testing** - Automatic browser feature detection and validation
+## 🌟 What Makes This App Different
+
+1. **Browser-only database architecture** with a real SQLite engine in the client
+2. **SharedWorker execution** for multi-tab access and UI-thread isolation
+3. **Project and trip budgeting workflows** alongside regular finance tracking
+4. **Practical diagnostics** including SQL inspection, storage monitoring, and console capture
+5. **Real browser test coverage** for the worker, WebAssembly, and persistence path
 
 ## 📊 Database Schema
 
 For detailed information about the database structure and relationships, see [Database Schema - ER Diagram](./erDiagram.md). This includes:
+
 - Complete entity relationship diagram
 - Table structures and constraints
 - Foreign key relationships
@@ -111,146 +100,147 @@ For detailed information about the database structure and relationships, see [Da
 
 ## 🚀 Getting Started
 
-First, install dependencies:
+Install dependencies:
 
 ```bash
 npm install
-# or
-yarn install
-# or
-pnpm install
 ```
 
-Then, run the development server:
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
+Open [http://localhost:3000](http://localhost:3000) in a compatible browser.
+
+## 🧪 Testing
+
+The project uses a two-lane testing strategy:
+
+- **Vitest** for unit and component coverage of service logic, context hooks, and focused UI behavior
+- **Playwright (Chromium)** for browser-backed validation of SharedWorker communication, persistence, and real user flows
+
+### Test Commands
+
+```bash
+# Default local verification after a change
+npm test
+
+# Fast unit and component suite only
+npm run test:unit
+
+# Unit suite with enforced coverage
+npm run test:unit:coverage
+
+# Watch mode for local editing
+npm run test:unit:watch
+
+# Smoke subset of browser coverage
+npm run test:e2e:smoke
+
+# Full browser suite
+npm run test:e2e
+```
+
+### What Each Lane Covers
+
+- `npm run test:unit` runs the Vitest suite for files under `src/**/*.{test,spec}.{ts,tsx}`.
+- `npm run test:unit:coverage` runs the same unit suite with V8 coverage reporting enabled.
+- `npm run test:e2e:smoke` runs only Playwright tests tagged `@smoke`, which currently verify create/reopen persistence of the browser-backed database.
+- `npm run test:e2e` runs the full browser suite in `tests/e2e/database-smoke.spec.ts`, including cross-page SharedWorker sharing, transaction creation, project-linked transaction verification, and worker recovery after disconnect.
+
+### Testing Notes
+
+- Browser tests run against `http://localhost:3000` and reuse an existing local dev server when one is already available.
+- Coverage is currently enforced for [src/lib/databaseService.ts](./src/lib/databaseService.ts), which remains the highest-value deterministic business layer in the app.
+- The HTML coverage report is written to `coverage/index.html`.
+- The SQL Query page is intentionally read-only; mutating flows in browser tests should happen through real UI paths such as dashboard, trips, or projects.
 
 ## 📁 Project Structure
 
-```
+```text
 budget-tracker/
 ├── src/
-│   ├── app/                    # Next.js app directory
-│   ├── components/             # React components
-│   │   ├── Dashboard.tsx       # Main dashboard with analytics
-│   │   ├── AddTransaction.tsx  # Transaction entry form
-│   │   ├── DatabaseInitializer.tsx # Database setup
-│   │   ├── SettingsPage.tsx    # Application settings
-│   │   └── ...
+│   ├── app/                              # Next.js app entry, layout, global styles
+│   ├── components/                       # Feature-based React components
+│   │   ├── accounts/
+│   │   ├── common/
+│   │   ├── csv-import/
+│   │   ├── dashboard/
+│   │   ├── data-management/
+│   │   ├── projects/
+│   │   ├── settings/
+│   │   ├── setup/
+│   │   ├── sql-query/
+│   │   ├── transactions/
+│   │   └── trips/
 │   ├── contexts/
-│   │   └── DatabaseContext.tsx # Database state management
+│   │   ├── DatabaseContext.tsx
+│   │   ├── LoggingContext.tsx
+│   │   ├── useDatabaseSlices.ts
+│   │   ├── useDatabaseInitialization.ts
+│   │   ├── useDatabaseCollectionsState.ts
+│   │   ├── useDatabaseTransactionSlice.ts
+│   │   ├── useDatabaseAccountManagementSlices.ts
+│   │   └── useDatabaseCatalogAndPlanningSlices.ts
 │   ├── lib/
-│   │   ├── waSqliteDatabase.ts # wa-sqlite WebAssembly integration
-│   │   ├── databaseService.ts  # Business logic and high-level operations
-│   │   ├── databaseWorkerService.ts # SharedWorker communication layer
-│   │   └── sqlQueries.ts       # Centralized SQL query definitions
-│   ├── types/
-│   │   └── database.ts         # TypeScript type definitions
-│   └── workers/
-│       └── databaseWorker.ts   # SharedWorker for database operations
+│   │   ├── csvImportService.ts
+│   │   ├── databaseService.ts
+│   │   ├── databaseWorkerService.ts
+│   │   ├── sampleDataService.ts
+│   │   └── sqlQueries.ts
+│   ├── theme/
+│   └── types/
 ├── public/
-│   └── wa-sqlite/             # wa-sqlite WebAssembly files
-└── ...
+│   ├── database-worker.js                # SharedWorker execution layer
+│   ├── sample-data/                      # JSON sample data used for local bootstrap
+│   ├── sql-wasm/                         # SQL.js assets
+│   ├── test-wa-sqlite.html               # Browser compatibility/testing helper
+│   └── wa-sqlite/                        # wa-sqlite WebAssembly assets
+├── tests/
+│   └── e2e/
+│       └── database-smoke.spec.ts
+├── docs/
+├── playwright.config.ts
+├── vitest.config.ts
+└── README.md
 ```
 
-### SharedWorker Database Architecture
+## 🧩 Current Database Architecture
 
-The application uses a sophisticated multi-layered architecture for database operations:
+The current codebase has a layered database and state model:
 
-```
-React Components → DatabaseService → DatabaseWorkerService → SharedWorker
-                     (business)        (transport)           (execution)
-```
-
-**Layer Breakdown:**
-
-1. **database.ts** - Type definitions and interfaces for all data models
-2. **databaseService.ts** - Business logic layer containing SQL queries, data mapping, and validation
-3. **databaseWorkerService.ts** - Communication layer managing message passing with SharedWorker
-4. **databaseWorker.ts** - SharedWorker that runs database operations in isolation
-
-**SharedWorker Benefits:**
-- **Performance Isolation** - Database operations don't block the main UI thread
-- **Multi-Tab Synchronization** - Multiple browser tabs share the same database instance
-- **Memory Efficiency** - Single database connection shared across all tabs
-- **Background Processing** - Heavy operations (CSV imports, exports) run in background
-
-### Database Service Architecture Details
-
-The database layer follows a clean, multi-tier architecture with clear separation of concerns:
-
-#### Core Database Files
-
-**1. `/types/database.ts` - Type Definitions**
-- Defines TypeScript interfaces for all data models (Transaction, Category, Company, etc.)
-- Provides type safety and IntelliSense throughout the application
-- Acts as the "contract" defining data structure expectations
-- Referenced by both services and UI components
-
-**2. `databaseWorkerService.ts` - Communication Layer**
-- Manages message passing between main thread and SharedWorker
-- Handles worker lifecycle, connection management, and heartbeat monitoring
-- Provides low-level database operations (query, exec, import/export)
-- Acts as the "transport layer" for database communication
-- Implements timeout handling and error recovery
-
-**3. `databaseService.ts` - Business Logic Layer**
-- Contains actual SQL queries and business rules
-- Maps database rows to TypeScript objects
-- Handles transaction hashing, duplicate detection, and validation
-- Provides clean, high-level API for React components
-- Implements domain-specific operations (analytics, project costs, etc.)
-
-**4. `/workers/databaseWorker.ts` - Execution Layer**
-- SharedWorker that runs database operations in isolation
-- Manages wa-sqlite WebAssembly instance
-- Handles IndexedDB storage and file operations
-- Processes heavy operations without blocking UI
-
-#### Architecture Flow
-
-```
-React Components → DatabaseService → DatabaseWorkerService → SharedWorker
-                     (business)        (transport)           (execution)
+```text
+React Components
+  -> useDatabaseSlices.ts
+  -> DatabaseContext domain hooks / providers
+  -> DatabaseService
+  -> DatabaseWorkerService
+  -> public/database-worker.js
 ```
 
-| Layer | File | Responsibility | Why It's Essential |
-|-------|------|----------------|-------------------|
-| **Types** | `database.ts` | Type definitions | Type safety, IntelliSense, contracts |
-| **Business** | `databaseService.ts` | SQL queries, data mapping, validation | Clean API, business logic isolation |
-| **Transport** | `databaseWorkerService.ts` | Message passing, connection management | Worker communication, error handling |
-| **Execution** | `databaseWorker.ts` | Database operations, storage management | Performance isolation, multi-tab sync |
+### Layer Breakdown
 
-#### Supporting Database Files
+| Layer | Files | Responsibility |
+|-------|-------|----------------|
+| **Types** | `src/types/database.ts` | Shared TypeScript contracts for transactions, projects, trips, accounts, and related entities |
+| **UI State / Context** | `src/contexts/DatabaseContext.tsx`, `src/contexts/useDatabaseSlices.ts`, internal slice hooks | Database initialization, cached collection state, domain contexts, and component-facing adapter hooks |
+| **Business Logic** | `src/lib/databaseService.ts`, `src/lib/sqlQueries.ts` | SQL orchestration, row mapping, validation, analytics helpers, duplicate detection, and domain-specific operations |
+| **Transport** | `src/lib/databaseWorkerService.ts` | Message passing, worker lifecycle, timeout handling, heartbeat/status management |
+| **Execution** | `public/database-worker.js` | SharedWorker-hosted database execution and browser persistence integration |
+| **Import / Sample Data Support** | `src/lib/csvImportService.ts`, `src/lib/sampleDataService.ts` | CSV mapping, duplicate grouping, account matching, and sample-data bootstrap/export helpers |
 
-**5. `sqlQueries.ts` - SQL Query Definitions**
-- Contains all SQL statements organized by entity (transactions, categories, etc.)
-- Centralizes query management for maintainability
-- Separates SQL logic from business logic
-- Enables easy query optimization and debugging
+### Context Architecture
 
-**6. `waSqliteDatabase.ts` - SQLite Integration Layer**
-- Manages wa-sqlite WebAssembly initialization
-- Handles SQLite-specific operations and configurations
-- Provides SQLite instance management
-- Bridges between JavaScript and SQLite WASM
+The provider layer has also been simplified compared to earlier versions of the app:
 
-This architecture ensures:
-- **Maintainability** - Clear separation of concerns makes code easy to modify
-- **Testability** - Each layer can be tested independently
-- **Performance** - Database operations don't block the UI thread
-- **Scalability** - Easy to add new features without affecting existing code
-- **Type Safety** - TypeScript ensures data integrity across all layers
+- `DatabaseProvider` now composes dedicated internal hooks instead of owning one large flat implementation file
+- Provider-backed collection state lives in `useDatabaseCollectionsState.ts`
+- Mutation logic is separated by domain into transaction, account/user, and catalog/planning hooks
+- Dedicated domain hooks such as `useDatabaseStatus`, `useDatabaseCollections`, and `useDatabaseTransactions` are exposed from `DatabaseContext.tsx`
+- `useDatabaseSlices.ts` remains the consumer-facing compatibility layer used by components
+
 ## 🛠️ Building for Production
 
 Build the application:
@@ -259,33 +249,29 @@ Build the application:
 npm run build
 ```
 
-The build is optimized for production and includes:
-- Code splitting and optimization
-- Static asset optimization
-- TypeScript compilation
-- ESLint validation
+The current Next.js configuration uses static export output, so the production build is written to `dist/`.
 
 ## 🌐 Browser Compatibility
 
-- **Modern Browsers** - Chrome, Firefox, Safari, Edge (latest versions)
-- **File System Access API** - Available in Chromium-based browsers for auto-save
-- **Graceful Degradation** - Manual export/import in browsers without File System Access
-- [Note] Does not currently work on Chrome for Android, but slated to be fixed in late 2025
+- **Modern desktop browsers** with JavaScript, WebAssembly, and SharedWorker support are the primary target
+- **Chromium-based browsers** provide the best file-handling experience
+- **Compatibility is checked at runtime** before database setup begins
+- **Android/experimental support is browser-dependent**; the app currently includes an origin-trial meta tag in the layout for SharedWorker-on-Android experimentation, but mobile compatibility should still be validated per browser/device
 
 ## 📋 Requirements
 
-- Modern web browser with JavaScript enabled
-- Node.js 18+ (for development)
-- ~50MB available browser storage for large databases
+- Node.js 18+ for development
+- A modern browser with JavaScript, WebAssembly, and browser storage support
+- Sufficient local browser storage for SQLite data and imports
 
 ## 🤝 Contributing
 
-This is a personal finance application designed for individual use. The codebase is structured for easy customization and extension.
+This is a personal finance application designed for individual use, but the codebase is structured to support continued refinement of the browser database architecture, UI workflows, and test coverage.
 
 ## 📄 License
 
-This project is for personal use. Please ensure you comply with all dependencies' licenses when modifying or distributing.
+This project is for personal use. Please ensure you comply with all dependency licenses when modifying or distributing it.
 
 ---
 
-**Built with ❤️ using Next.js, React, TypeScript, and SQLite**
+Built with Next.js, React, TypeScript, Material UI, and SQLite WebAssembly.

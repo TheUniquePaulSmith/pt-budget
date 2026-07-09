@@ -4,10 +4,20 @@
 
 This developer feature enables automatic loading of sample data from a local folder structure when initializing a new database. It's designed for development, testing, and demonstrations, allowing quick database setup with realistic data.
 
+The repo also provides schema-aware generation and validation commands so fixture files can be refreshed when the database schema changes.
+
+```bash
+npm run sample-data:validate
+npm run sample-data:generate
+npm run sample-data:generate -- --months 60 --amount 6000
+npm run sample-data:generate -- --months 120 --amount 100000000 --dry-run
+npm run sample-data:generate -- --full-schema
+```
+
 ## How It Works
 
 ### Query Parameter Detection
-- Access the app with `?loadSampleData=true` query parameter
+- Access the app with the `?loadSampleData` query parameter
 - When creating a new database, the system automatically loads sample data
 - Sample data is loaded **after** database initialization but **before** the data refresh
 
@@ -23,9 +33,11 @@ public/
     categories.json
     companies.json
     transactions.json
-    projects.json
-    trips.json
+    projects.json        # full-schema generation only when runtime queries are compatible
+    trips.json           # full-schema generation only when runtime queries are compatible
 ```
+
+Default generation writes the runtime-compatible subset: `users`, `accounts`, `account_cards`, `categories`, `companies`, and `transactions`.
 
 ### Loading Order
 Files are loaded in dependency order to maintain foreign key relationships:
@@ -41,7 +53,7 @@ Files are loaded in dependency order to maintain foreign key relationships:
 ## Usage
 
 ### Step 1: Access with Query Parameter
-Navigate to: `http://localhost:3000?loadSampleData=true`
+Navigate to: `http://localhost:3000?loadSampleData`
 
 ### Step 2: Create New Database
 Click "Create New Database" button
@@ -49,7 +61,22 @@ Click "Create New Database" button
 ### Step 3: Automatic Loading
 Sample data automatically loads with preserved primary keys
 
+Before relying on the runtime load path after schema changes, run `npm run sample-data:validate` and review `dist/sample-data/schema-validation-report.json` for drift.
+
 ## Creating Sample Data Files
+
+### Option 0: Generate from the Live Schema
+1. Run `npm run sample-data:validate`
+2. Run `npm run sample-data:generate` and answer the prompts for how many months back from today the data should cover and roughly how many transactions should be generated for that full period
+3. For scripted runs, pass the same values directly, for example `npm run sample-data:generate -- --months 60 --amount 6000`
+4. Add `--dry-run` to any scripted run when you want a no-write estimate of the generated date window, output mode, chunk count, approximate disk usage, and runtime import cost before committing to the write
+5. Use `npm run sample-data:generate -- --full-schema` only when you explicitly want schema-only fixtures for currently runtime-incompatible tables
+
+The transaction count is approximate rather than a hard guarantee. The generator keeps the monthly income and expense totals in roughly the same family-budget range and adjusts the transaction granularity to land near the requested count. Extremely large requests may be clipped when a date range does not have enough non-zero currency precision to split the modeled monthly budgets further.
+
+When the generated transaction volume exceeds the single-file threshold, `transactions.json` becomes a manifest that references `transactions.part-*.json` chunk files instead of one monolithic transaction array.
+
+Dry-run estimates reuse the same transaction planner, so large requests such as `--months 120 --amount 100000000 --dry-run` can be sized without generating or modifying fixture files.
 
 ### Option 1: Export from Existing Database
 1. Open the **Developer Console** (Settings → Developer Console)
@@ -180,6 +207,8 @@ Create JSON files following this format:
 DatabaseContext → SampleDataService → DatabaseWorkerService → SharedWorker
 ```
 
+Schema-aware generation and validation use `public/database-schema.js` as the source of truth and compare runtime compatibility against `src/lib/sqlQueries.ts`.
+
 ### Key Files
 - [`src/lib/sampleDataService.ts`](../src/lib/sampleDataService.ts) - Sample data loading logic
 - [`src/lib/sqlQueries.ts`](../src/lib/sqlQueries.ts) - SQL queries for explicit ID insertion
@@ -197,7 +226,7 @@ UPDATE sqlite_sequence SET seq = ? WHERE name = ?
 ```
 
 ### Loading Process
-1. Check URL for `?loadSampleData=true` parameter
+1. Check URL for `?loadSampleData` parameter
 2. After database creation, iterate through sample data files
 3. For each file:
    - Fetch JSON from `/sample-data/[filename]`
@@ -263,7 +292,7 @@ UPDATE sqlite_sequence SET seq = ? WHERE name = ?
 **Problem**: Created new database but no sample data appears
 
 **Solutions**:
-1. Verify URL contains `?loadSampleData=true`
+1. Verify URL contains `?loadSampleData`
 2. Check browser console for errors
 3. Verify JSON files exist in `/public/sample-data/`
 4. Check JSON syntax is valid
@@ -358,7 +387,7 @@ Create sample data with:
 Loads all sample data files from `/public/sample-data/` in dependency order.
 
 #### `shouldLoadSampleData(): boolean`
-Returns true if URL contains `?loadSampleData=true` parameter.
+Returns true if the URL contains the `loadSampleData` parameter.
 
 #### `exportTableToJSON(tableName: string): Promise<string>`
 Exports a database table to JSON format for sample data creation.

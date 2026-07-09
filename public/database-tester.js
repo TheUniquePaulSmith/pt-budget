@@ -4,17 +4,25 @@
 class DatabaseTester {
   constructor() {
     this.ports = new Set();
+    this.testResults = this.createInitialResults();
+  }
+
+  createInitialResults() {
     this.testResults = {
       sharedWorkerSupport: true,
       wasmSupport: false,
       sqliteSupport: false,
       vfsSupport: false,
+      databaseOperationsSupport: false,
       overallCompatible: false
     };
+
+    return this.testResults;
   }
 
   async performCompatibilityTest() {
     console.log('[DB Tester] Starting browser compatibility test...');
+    this.testResults = this.createInitialResults();
     
     try {
       // Test 1: WASM Support (basic check)
@@ -86,13 +94,21 @@ class DatabaseTester {
       sqlite3.close(db);
       
       console.log('[DB Tester] Test query executed successfully');
+
+      this.testResults.databaseOperationsSupport = resultMatched;
       
-      this.testResults.overallCompatible = resultMatched;
+      this.testResults.overallCompatible =
+        this.testResults.sharedWorkerSupport &&
+        this.testResults.wasmSupport &&
+        this.testResults.sqliteSupport &&
+        this.testResults.vfsSupport &&
+        this.testResults.databaseOperationsSupport;
       
       console.log('[DB Tester] Compatibility test completed successfully:', this.testResults);
       
     } catch (error) {
       console.error('[DB Tester] Compatibility test failed:', error);
+      this.testResults.databaseOperationsSupport = false;
       this.testResults.overallCompatible = false;
     }
 

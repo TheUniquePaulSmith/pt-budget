@@ -1,6 +1,8 @@
 // Database Worker Message Channel Service
 // Handles communication between main thread and database worker
 
+import type { DatabaseVfsSnapshot } from './databaseArchive';
+
 export interface DatabaseMessage {
   id: string;
   type: string;
@@ -16,6 +18,18 @@ export interface DatabaseResponse {
   sqlResponse: any;
 }
 
+export interface BatchQueryOptions {
+  useTransaction?: boolean;
+}
+
+export interface OpenDatabaseOptions {
+  deferIndexes?: boolean;
+}
+
+export interface CreateTablesOptions {
+  ensureIndexes?: boolean;
+}
+
 export interface WorkerStatus {
   isWorkerAlive: boolean;
   isConnected: boolean;
@@ -28,7 +42,7 @@ export class DatabaseWorkerService {
   private worker: SharedWorker | null = null;
   private port: MessagePort | null = null;
   private messageId = 0;
-  private pendingMessages = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timeout: NodeJS.Timeout }>();
+  private pendingMessages = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timeout: NodeJS.Timeout | null }>();
   private statusCallbacks = new Set<(status: WorkerStatus) => void>();
   private heartbeatTimeout: NodeJS.Timeout | null = null;
   private status: WorkerStatus = {
@@ -43,6 +57,10 @@ export class DatabaseWorkerService {
     this.initializeWorker();
   }
 
+  private isDebugMode(): boolean {
+    return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
+  }
+
   private initializeWorker() {
     // Skip initialization on server-side
     if (typeof window === 'undefined') {
@@ -54,14 +72,18 @@ export class DatabaseWorkerService {
       //Define the worker & port
       this.worker = new SharedWorker('/database-worker.js', { name: 'wa-SQLite' });
       this.port = this.worker.port;
-      
+
       //Add event listeners for messages and errors
       this.port.addEventListener('message', this.handleMessage.bind(this));
       this.port.addEventListener('messageerror', this.handleError.bind(this));
-      
+
       //Start the worker
       this.port.start();
-      
+
+      if (this.isDebugMode()) {
+        this.port.postMessage({ id: 'debug_config', type: 'set_debug', payload: { debug: true } });
+      }
+
       // Start monitoring heartbeat
       this.startHeartbeatMonitoring();
 
@@ -127,10 +149,12 @@ export class DatabaseWorkerService {
 
     //Handle pending message responses
     if (response.id) {
-      console.debug(`[DB Service] Received message: ${response.type} with ID: ${response.id}`, response);
+      if (this.isDebugMode()) {
+        console.debug(`[DB Service] Received message: ${response.type} with ID: ${response.id}`, response);
+      }
       const pending = this.pendingMessages.get(response.id);
       if (pending) {
-        clearTimeout(pending.timeout);
+        if (pending.timeout) clearTimeout(pending.timeout);
         this.pendingMessages.delete(response.id);
         
         if (response.isSuccessful) {
@@ -204,12 +228,19 @@ export class DatabaseWorkerService {
   // Operation-specific timeout configurations
   private readonly OPERATION_TIMEOUTS = {
     query: 10000,        // 10s for queries
+    batch_query: 120000, // 2m for batched inserts/imports
     exec: 5000,          // 5s for commands
     ping: 5000,          // 5s for heartbeat
     initialize: 30000,   // 30s for initialization
     open_database: 30000, // 30s for opening database
-    export_database: 60000, // 1min for exports
-    import_database: 120000, // 2min for CSV imports
+    ensure_indexes: 600000, // 10m for building indexes on large datasets
+    export_database_snapshot: 60000, // 1min for exports
+    import_database_snapshot: 120000, // 2min for archive imports
+    set_password: 30000,           // 30s for password derivation
+    clear_password: 5000,
+    check_encryption_ready: 5000,
+    encrypt_archive: 120000,       // 2min for large archive encryption
+    decrypt_archive: 120000,       // 2min for large archive decryption
     default: 30000       // 30s default for other operations
   };
 
@@ -232,8 +263,11 @@ export class DatabaseWorkerService {
       // Use custom timeout if provided, otherwise use operation-specific timeout
       const timeoutMs = customTimeoutMs ?? this.getTimeoutForOperation(type);
 
-      const timeout = setTimeout(() => {
+      const timeout = timeoutMs === Number.MAX_VALUE ? null : setTimeout(() => {
         console.warn(`[DB Service] Message timeout after ${timeoutMs}ms: ${type} with ID: ${id}`);
+        if (this.isDebugMode()) {
+          console.debug(`[DB Service] Timed out SQL:`, payload?.sql ?? payload);
+        }
         this.pendingMessages.delete(id);
         reject(new Error(`Database operation timed out after ${timeoutMs}ms: ${type}`));
       }, timeoutMs);
@@ -241,10 +275,10 @@ export class DatabaseWorkerService {
       this.pendingMessages.set(id, { resolve, reject, timeout });
 
       try {
-        this.port.postMessage(message);        
+        this.port.postMessage(message);
         // console.debug(`[DB Service] Sent message: ${type} with ID: ${id}`);
       } catch (error) {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         this.pendingMessages.delete(id);
         reject(error);
       }
@@ -256,17 +290,44 @@ export class DatabaseWorkerService {
     return this.sendMessage('initialize');
   }
 
-  public async openDatabase(filename?: string, isNew?: boolean): Promise<DatabaseResponse> {
-    return this.sendMessage('open_database', { filename, isNew });
+  public async openDatabase(
+    filename?: string,
+    isNew?: boolean,
+    options: OpenDatabaseOptions = {}
+  ): Promise<DatabaseResponse> {
+    return this.sendMessage('open_database', { filename, isNew, options });
   }
 
-  public async createTables(): Promise<DatabaseResponse> {
-    return this.sendMessage('create_tables');
+  public async createTables(options: CreateTablesOptions = {}): Promise<DatabaseResponse> {
+    return this.sendMessage('create_tables', { options });
+  }
+
+  public async ensureIndexes(): Promise<DatabaseResponse> {
+    return this.sendMessage('ensure_indexes');
   }
 
   public async query(sql: string, parameters: any[] = []): Promise<any[]> {
     const response = await this.sendMessage('query', { sql, parameters });
     return response.sqlResponse?.results || [];
+  }
+
+  public async queryWithTimeout(sql: string, parameters: any[] = [], timeoutMs: number): Promise<any[]> {
+    const response = await this.sendMessage('query', { sql, parameters }, timeoutMs);
+    return response.sqlResponse?.results || [];
+  }
+
+  public async batchQuery(
+    sql: string,
+    parameterSets: any[][] = [],
+    options: BatchQueryOptions = {}
+  ): Promise<number> {
+    const response = await this.sendMessage('batch_query', {
+      sql,
+      parameterSets,
+      options,
+    });
+
+    return response.sqlResponse?.rowCount || 0;
   }
 
   public async exec(sql: string): Promise<void> {
@@ -277,16 +338,68 @@ export class DatabaseWorkerService {
     return this.sendMessage('ping', null, 5000);
   }
 
-  public async exportDatabase(): Promise<Uint8Array> {
-    const response = await this.sendMessage('export_database');
-    if (response.isSuccessful && response.sqlResponse?.data) {
-      return response.sqlResponse.data;
+  public async exportDatabaseSnapshot(): Promise<DatabaseVfsSnapshot> {
+    const response = await this.sendMessage('export_database_snapshot');
+    if (response.isSuccessful && response.sqlResponse?.snapshot) {
+      return response.sqlResponse.snapshot;
     }
     throw new Error(response.sqlResponse?.error || 'Failed to export database');
   }
 
-  public async importDatabase(fileData: Uint8Array): Promise<DatabaseResponse> {
-    return this.sendMessage('import_database', { fileData });
+  public async importDatabaseSnapshot(
+    snapshot: DatabaseVfsSnapshot
+  ): Promise<DatabaseResponse> {
+    return this.sendMessage('import_database_snapshot', { snapshot });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Encryption operations
+  // ---------------------------------------------------------------------------
+
+  /** Store the user's password in the worker for this SharedWorker lifetime. */
+  public async setEncryptionPassword(password: string): Promise<void> {
+    await this.sendMessage('set_password', { password });
+  }
+
+  /** Remove the stored password from the worker (e.g. explicit sign-out). */
+  public async clearEncryptionPassword(): Promise<void> {
+    await this.sendMessage('clear_password');
+  }
+
+  /** Returns `true` if the worker has a password set and can encrypt/decrypt. */
+  public async isEncryptionReady(): Promise<boolean> {
+    const response = await this.sendMessage('check_encryption_ready');
+    return response.sqlResponse?.isReady === true;
+  }
+
+  /**
+   * Asks the worker to encrypt `archiveBytes` (an inner ZIP) using the stored
+   * password and returns the encrypted envelope bytes.
+   */
+  public async encryptArchive(
+    archiveBytes: Uint8Array,
+    lastSaveTimestamp: string
+  ): Promise<Uint8Array> {
+    const response = await this.sendMessage('encrypt_archive', {
+      archiveBytes,
+      lastSaveTimestamp,
+    });
+    if (!response.isSuccessful || !response.sqlResponse?.encryptedBytes) {
+      throw new Error(response.sqlResponse?.error || 'Failed to encrypt archive');
+    }
+    return response.sqlResponse.encryptedBytes as Uint8Array;
+  }
+
+  /**
+   * Asks the worker to decrypt `encryptedBytes` using the stored password and
+   * returns the inner ZIP bytes.
+   */
+  public async decryptArchive(encryptedBytes: Uint8Array): Promise<Uint8Array> {
+    const response = await this.sendMessage('decrypt_archive', { encryptedBytes });
+    if (!response.isSuccessful || !response.sqlResponse?.plainBytes) {
+      throw new Error(response.sqlResponse?.error || 'Failed to decrypt archive');
+    }
+    return response.sqlResponse.plainBytes as Uint8Array;
   }
 
   // Cleanup
@@ -297,7 +410,7 @@ export class DatabaseWorkerService {
 
     // Clear all pending messages
     this.pendingMessages.forEach(({ timeout, reject }) => {
-      clearTimeout(timeout);
+      if (timeout) clearTimeout(timeout);
       reject(new Error('Service destroyed'));
     });
     this.pendingMessages.clear();

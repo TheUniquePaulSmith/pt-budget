@@ -19,11 +19,14 @@ import {
   Typography,
 } from '@mui/material';
 import {
+  CheckCircle,
   Download,
+  ErrorOutline,
   ExpandMore,
   FolderOpen,
   Memory,
   Stop,
+  WarningAmber,
 } from '@mui/icons-material';
 
 import { useAiModelSlice } from '@/contexts/useWllamaSlices';
@@ -75,6 +78,7 @@ export default function AiModelSelector({
   const {
     selectedModelFiles,
     selectedModelName,
+    modelInspection,
     loadState,
     loadProgress,
     loadParams,
@@ -97,6 +101,8 @@ export default function AiModelSelector({
 
   const isLoadingModel = loadState === 'loading-model';
   const hasSelectedModel = selectedModelFiles.length > 0;
+  const isValidatingModel = modelInspection.status === 'validating';
+  const hasInvalidModelSelection = modelInspection.status === 'invalid';
   const selectedSize = formatBytes(selectedModelFiles.reduce((total, file) => total + (file.sizeBytes ?? 0), 0));
   const isLoaded = isModelLoaded && Boolean(loadedModel);
   const shouldWarnForHighSettings =
@@ -147,6 +153,78 @@ export default function AiModelSelector({
     </Stack>
   );
 
+  const renderValidationRow = (label: string, value?: string | number | null) => {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+
+    return renderCapacityRow(label, typeof value === 'number' ? formatMaybeNumber(value) : value);
+  };
+
+  const getValidationChip = () => {
+    switch (modelInspection.status) {
+      case 'validating':
+        return <Chip size="small" label="Validating GGUF" variant="outlined" />;
+      case 'valid':
+        return <Chip size="small" icon={<CheckCircle />} label="Valid GGUF" color="success" variant="outlined" />;
+      case 'warning':
+        return <Chip size="small" icon={<WarningAmber />} label="Review GGUF" color="warning" variant="outlined" />;
+      case 'invalid':
+        return <Chip size="small" icon={<ErrorOutline />} label="Invalid GGUF" color="error" variant="outlined" />;
+      default:
+        return null;
+    }
+  };
+
+  const renderModelInspection = () => {
+    if (!hasSelectedModel || modelInspection.status === 'idle') {
+      return null;
+    }
+
+    const validationChip = getValidationChip();
+    const issueSeverity = modelInspection.issues.some((issue) => issue.severity === 'error') ? 'error' : 'warning';
+
+    return (
+      <Box sx={{ mb: 2, p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+          <Typography variant="subtitle2" fontWeight={600}>
+            Model validation
+          </Typography>
+          {validationChip}
+        </Stack>
+
+        {isValidatingModel ? (
+          <LinearProgress />
+        ) : (
+          <Stack spacing={0.75}>
+            {renderValidationRow('Model', modelInspection.stats.modelName)}
+            {renderValidationRow('Architecture', modelInspection.stats.architecture)}
+            {renderValidationRow('Quantization', modelInspection.stats.quantization)}
+            {renderValidationRow('Context length', modelInspection.stats.contextLength)}
+            {renderValidationRow('Embedding length', modelInspection.stats.embeddingLength)}
+            {renderValidationRow('Layers', modelInspection.stats.layerCount)}
+            {renderValidationRow('Vocabulary', modelInspection.stats.vocabularySize)}
+            {renderValidationRow('Tensors', modelInspection.stats.tensorCount)}
+            {renderValidationRow('Metadata entries', modelInspection.stats.metadataCount)}
+            {renderValidationRow('GGUF version', modelInspection.stats.formatVersion)}
+          </Stack>
+        )}
+
+        {modelInspection.issues.length > 0 && (
+          <Alert severity={issueSeverity} sx={{ mt: 1 }}>
+            <Box component="ul" sx={{ pl: 2, m: 0 }}>
+              {modelInspection.issues.map((issue, index) => (
+                <Typography component="li" variant="caption" key={`${issue.message}-${index}`} sx={{ mb: 0.5 }}>
+                  {issue.message}
+                </Typography>
+              ))}
+            </Box>
+          </Alert>
+        )}
+      </Box>
+    );
+  };
+
   const renderModelFields = () => (
     <>
       <input
@@ -182,6 +260,8 @@ export default function AiModelSelector({
           </Typography>
         </Box>
       )}
+
+      {renderModelInspection()}
 
       <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Chip
@@ -346,7 +426,7 @@ export default function AiModelSelector({
           variant="contained"
           startIcon={<Download />}
           onClick={() => void loadSelectedModel()}
-          disabled={!hasSelectedModel || isLoadingModel}
+          disabled={!hasSelectedModel || isLoadingModel || isValidatingModel || hasInvalidModelSelection}
         >
           {isModelLoaded ? 'Reload Model' : 'Load Model'}
         </Button>

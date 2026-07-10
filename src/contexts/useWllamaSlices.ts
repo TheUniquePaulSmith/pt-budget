@@ -8,6 +8,7 @@ export function useAiModelSlice() {
   return {
     selectedModelFiles: ai.selectedModelFiles,
     selectedModelName: ai.selectedModelName,
+    modelInspection: ai.modelInspection,
     loadState: ai.loadState,
     loadProgress: ai.loadProgress,
     loadParams: ai.loadParams,

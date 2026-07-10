@@ -53,6 +53,42 @@ export interface AiSelectedModelFile {
   lastModified?: number;
 }
 
+export type AiModelValidationStatus = 'idle' | 'validating' | 'valid' | 'warning' | 'invalid';
+
+export interface AiModelValidationIssue {
+  severity: 'error' | 'warning';
+  message: string;
+}
+
+export interface AiModelFileStats {
+  name: string;
+  sizeBytes?: number;
+  formatVersion?: number;
+  tensorCount?: number;
+  metadataCount?: number;
+}
+
+export interface AiModelInspectionStats {
+  modelName?: string;
+  architecture?: string;
+  quantization?: string;
+  contextLength?: number;
+  embeddingLength?: number;
+  layerCount?: number;
+  vocabularySize?: number;
+  tensorCount?: number;
+  metadataCount?: number;
+  formatVersion?: number;
+}
+
+export interface AiModelInspectionResult {
+  status: AiModelValidationStatus;
+  files: AiModelFileStats[];
+  totalSizeBytes: number;
+  stats: AiModelInspectionStats;
+  issues: AiModelValidationIssue[];
+}
+
 export type AiModelLoadState =
   | 'idle'
   | 'loading-model'

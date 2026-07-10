@@ -22,6 +22,7 @@ import type {
   AiSettingPreset,
   AiModelLoadParams,
   AiModelLoadState,
+  AiModelInspectionResult,
   AiRuntimeCapabilities,
   AiSelectedModelFile,
   AiWebGpuLimits,
@@ -30,6 +31,7 @@ import {
   AI_CONTEXT_SIZE_PRESETS,
   AI_OUTPUT_LIMIT_PRESETS,
 } from '@/types/ai';
+import { inspectGgufModelFiles } from '@/lib/aiModelFileInspection';
 
 const WLLAMA_LOCAL_PATHS = {
   default: '/wllama/wllama.wasm',
@@ -103,9 +105,18 @@ interface LoadedModelInfo {
   metadata?: Record<string, string>;
 }
 
+const EMPTY_MODEL_INSPECTION: AiModelInspectionResult = {
+  status: 'idle',
+  files: [],
+  totalSizeBytes: 0,
+  stats: {},
+  issues: [],
+};
+
 interface WllamaContextValue {
   selectedModelFiles: AiSelectedModelFile[];
   selectedModelName: string;
+  modelInspection: AiModelInspectionResult;
   loadState: AiModelLoadState;
   loadProgress: ModelLoadProgress | null;
   loadParams: AiModelLoadParams;
@@ -273,7 +284,9 @@ function validateLoadedContextInfo(contextInfo: ReturnType<Wllama['getLoadedCont
 export function WllamaProvider({ children }: { children: React.ReactNode }) {
   const wllamaRef = useRef<Wllama | null>(null);
   const selectedModelFileRefs = useRef<File[]>([]);
+  const modelInspectionRunRef = useRef(0);
   const [selectedModelFiles, setSelectedModelFiles] = useState<AiSelectedModelFile[]>([]);
+  const [modelInspection, setModelInspection] = useState<AiModelInspectionResult>(EMPTY_MODEL_INSPECTION);
   const [loadState, setLoadState] = useState<AiModelLoadState>('idle');
   const [loadProgress, setLoadProgress] = useState<ModelLoadProgress | null>(null);
   const [loadParams, setLoadParams] = useState<AiModelLoadParams>(() => getDefaultLoadParams());
@@ -322,17 +335,47 @@ export function WllamaProvider({ children }: { children: React.ReactNode }) {
     }
 
     const sortedFiles = sortModelFiles(ggufFiles);
+    const inspectionRunId = modelInspectionRunRef.current + 1;
+    modelInspectionRunRef.current = inspectionRunId;
     selectedModelFileRefs.current = sortedFiles;
     setSelectedModelFiles(sortedFiles.map((file) => ({
       name: file.name,
       sizeBytes: file.size,
       lastModified: file.lastModified,
     })));
+    setModelInspection({
+      status: sortedFiles.length > 0 ? 'validating' : 'idle',
+      files: sortedFiles.map((file) => ({ name: file.name, sizeBytes: file.size })),
+      totalSizeBytes: sortedFiles.reduce((total, file) => total + file.size, 0),
+      stats: {},
+      issues: [],
+    });
     setLoadedModel(null);
     setLoadProgress(null);
     setLoadState('idle');
     setError(null);
     setErrorDetails([]);
+
+    void inspectGgufModelFiles(sortedFiles)
+      .then((inspection) => {
+        if (modelInspectionRunRef.current === inspectionRunId) {
+          setModelInspection(inspection);
+        }
+      })
+      .catch((err) => {
+        if (modelInspectionRunRef.current === inspectionRunId) {
+          setModelInspection({
+            status: 'invalid',
+            files: sortedFiles.map((file) => ({ name: file.name, sizeBytes: file.size })),
+            totalSizeBytes: sortedFiles.reduce((total, file) => total + file.size, 0),
+            stats: {},
+            issues: [{
+              severity: 'error',
+              message: err instanceof Error ? err.message : 'Unable to inspect the selected GGUF model file.',
+            }],
+          });
+        }
+      });
   }, []);
 
   const unloadModel = useCallback(async () => {
@@ -349,6 +392,14 @@ export function WllamaProvider({ children }: { children: React.ReactNode }) {
     const files = selectedModelFileRefs.current;
     if (files.length === 0) {
       throw new Error('Choose a local GGUF model file before loading.');
+    }
+
+    if (modelInspection.status === 'validating') {
+      throw new Error('Wait for model validation to finish before loading.');
+    }
+
+    if (modelInspection.status === 'invalid') {
+      throw new Error('Resolve the selected model validation errors before loading.');
     }
 
     const wllama = getWllama();
@@ -397,7 +448,7 @@ export function WllamaProvider({ children }: { children: React.ReactNode }) {
       setErrorDetails(getRecentWllamaErrors());
       throw err;
     }
-  }, [contextSizeTokens, getWllama, loadParams]);
+  }, [contextSizeTokens, getWllama, loadParams, modelInspection.status]);
 
   const createChatCompletion = useCallback(async (
     params: ChatCompletionParams
@@ -430,6 +481,7 @@ export function WllamaProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<WllamaContextValue>(() => ({
     selectedModelFiles,
     selectedModelName,
+    modelInspection,
     loadState,
     loadProgress,
     loadParams,
@@ -455,6 +507,7 @@ export function WllamaProvider({ children }: { children: React.ReactNode }) {
   }), [
     selectedModelFiles,
     selectedModelName,
+    modelInspection,
     loadState,
     loadProgress,
     loadParams,

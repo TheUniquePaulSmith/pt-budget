@@ -178,7 +178,7 @@ export default function AiChat({
   const [running, setRunning] = useState(false);
   const [suggestionsAnchorEl, setSuggestionsAnchorEl] = useState<HTMLElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const suggestionsOpen = Boolean(suggestionsAnchorEl);
 
   const databaseToolContext = useMemo(() => ({
@@ -280,7 +280,12 @@ export default function AiChat({
   };
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    const chatScroll = chatScrollRef.current;
+    if (!chatScroll || messages.length === 0) {
+      return;
+    }
+
+    chatScroll.scrollTop = chatScroll.scrollHeight;
   }, [messages]);
 
   const stopGeneration = () => {
@@ -294,7 +299,7 @@ export default function AiChat({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
-      <Box sx={{ p: 2, overflow: 'auto', flex: 1, minHeight: 220 }}>
+      <Box ref={chatScrollRef} sx={{ p: 2, overflowY: 'auto', flex: 1, minHeight: 0 }}>
         {!isModelLoaded && (
           <Alert severity="info" sx={{ mb: 2 }}>
             Load a model from the Enable AI section to start chatting.
@@ -365,8 +370,6 @@ export default function AiChat({
             );
           })}
         </Stack>
-        <Box ref={chatEndRef} sx={{ height: 1 }} />
-
       </Box>
 
       <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>

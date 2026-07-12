@@ -2259,12 +2259,45 @@ export class DatabaseService {
 
   // --- Recurring series ---
 
-  async getRecurringSeriesWithStats(): Promise<RecurringSeries[]> {
+  async getRecurringSeriesWithStats(range?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<RecurringSeries[]> {
     try {
-      const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_SERIES_WITH_STATS);
+      const startDate = range?.startDate ?? null;
+      const endDate = range?.endDate ?? null;
+      const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_SERIES_WITH_STATS, [
+        startDate,
+        startDate,
+        endDate,
+        endDate,
+      ]);
       return rows.map(this.mapToRecurringSeries);
     } catch (error) {
       console.error('Failed to get recurring series:', error);
+      throw error;
+    }
+  }
+
+  async getTransactionsByIds(ids: number[]): Promise<Transaction[]> {
+    const uniqueIds = Array.from(new Set(ids.map((id) => Number(id)).filter(Number.isInteger)));
+    if (uniqueIds.length === 0) return [];
+
+    try {
+      const placeholders = uniqueIds.map(() => '?').join(',');
+      const rows = await this.workerService.query(
+        `
+          SELECT ${this.TRANSACTION_SELECT}
+          FROM transactions t
+          ${this.TRANSACTION_JOINS}
+          WHERE t.id IN (${placeholders})
+          ORDER BY t.date DESC, t.id DESC
+        `,
+        uniqueIds
+      );
+      return rows.map((row) => this.mapToTransaction(row));
+    } catch (error) {
+      console.error('Failed to get transactions by ids:', error);
       throw error;
     }
   }

@@ -514,12 +514,14 @@ export const SUBSCRIPTION_QUERIES = {
     SELECT
       rs.*,
       comp.name as company_name,
-      COUNT(tsl.id) as transaction_count,
+      COUNT(t.id) as transaction_count,
       COALESCE(SUM(ABS(t.amount)), 0) as total_spent
     FROM recurring_series rs
     LEFT JOIN companies comp ON rs.company_id = comp.id
     LEFT JOIN transaction_series_links tsl ON tsl.series_id = rs.id
     LEFT JOIN transactions t ON t.id = tsl.transaction_id
+      AND (? IS NULL OR t.date >= ?)
+      AND (? IS NULL OR t.date <= ?)
     GROUP BY rs.id
     ORDER BY rs.status, rs.kind, rs.name
   `,

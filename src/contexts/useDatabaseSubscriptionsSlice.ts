@@ -56,6 +56,8 @@ export interface DatabaseSubscriptionsSlice {
   updateRecurringSeries: (id: number, updates: RecurringSeriesUpdate) => Promise<void>;
   updateRecurringSeriesStatus: (id: number, status: RecurringSeriesStatus) => Promise<void>;
   deleteRecurringSeries: (id: number) => Promise<void>;
+  getRecurringSeriesWithStats: (range?: { startDate?: string; endDate?: string }) => Promise<RecurringSeries[]>;
+  getTransactionsByIds: (ids: number[]) => Promise<Transaction[]>;
   getSeriesTransactions: (seriesId: number) => Promise<Transaction[]>;
   getUnmatchedRecurringClusters: (minOccurrences?: number) => Promise<UnmatchedCluster[]>;
   reseedCommunityRules: () => Promise<SeedMerchantRulesResult>;
@@ -73,6 +75,8 @@ type SubscriptionsService = Pick<
   | 'updateRecurringSeries'
   | 'updateRecurringSeriesStatus'
   | 'deleteRecurringSeries'
+  | 'getRecurringSeriesWithStats'
+  | 'getTransactionsByIds'
   | 'getSeriesTransactions'
   | 'getUnmatchedRecurringClusters'
   | 'seedCommunityMerchantRules'
@@ -165,6 +169,17 @@ export function useDatabaseSubscriptionsSlice({
     [refreshRecurringSeries, requireService]
   );
 
+  const getRecurringSeriesWithStats = useCallback(
+    async (range?: { startDate?: string; endDate?: string }): Promise<RecurringSeries[]> =>
+      requireService().getRecurringSeriesWithStats(range),
+    [requireService]
+  );
+
+  const getTransactionsByIds = useCallback(
+    async (ids: number[]): Promise<Transaction[]> => requireService().getTransactionsByIds(ids),
+    [requireService]
+  );
+
   const getSeriesTransactions = useCallback(
     async (seriesId: number): Promise<Transaction[]> =>
       requireService().getSeriesTransactions(seriesId),
@@ -203,6 +218,8 @@ export function useDatabaseSubscriptionsSlice({
       updateRecurringSeries,
       updateRecurringSeriesStatus,
       deleteRecurringSeries,
+      getRecurringSeriesWithStats,
+      getTransactionsByIds,
       getSeriesTransactions,
       getUnmatchedRecurringClusters,
       reseedCommunityRules,
@@ -218,6 +235,8 @@ export function useDatabaseSubscriptionsSlice({
       updateRecurringSeries,
       updateRecurringSeriesStatus,
       deleteRecurringSeries,
+      getRecurringSeriesWithStats,
+      getTransactionsByIds,
       getSeriesTransactions,
       getUnmatchedRecurringClusters,
       reseedCommunityRules,

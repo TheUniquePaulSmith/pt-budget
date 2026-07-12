@@ -60,6 +60,22 @@ class FakeSubscriptionDb {
   }
 
   query = async (sql: string, params: any[] = []): Promise<any[]> => {
+    if (sql.includes('WHERE t.id IN')) {
+      return this.transactions
+        .filter((txn) => params.includes(txn.id))
+        .map((txn) => ({
+          ...txn,
+          category_id: null,
+          project_id: null,
+          trip_id: null,
+          created_at: 'now',
+          updated_at: 'now',
+          company_name: null,
+          account_name: 'Checking',
+        }))
+        .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+    }
+
     switch (sql) {
       case 'BEGIN TRANSACTION':
       case 'COMMIT':
@@ -306,17 +322,26 @@ class FakeSubscriptionDb {
       case SUBSCRIPTION_QUERIES.GET_SERIES_WITH_STATS:
         return this.series.map((series) => {
           const seriesLinks = this.links.filter((link) => link.series_id === series.id);
+          const startDate = params[0] as string | null;
+          const endDate = params[2] as string | null;
+          const linkedTransactions = seriesLinks
+            .map((link) => this.transactions.find((candidate) => candidate.id === link.transaction_id))
+            .filter((txn): txn is FakeTransactionRow => Boolean(txn))
+            .filter((txn) => (!startDate || txn.date >= startDate) && (!endDate || txn.date <= endDate));
           const totalSpent = seriesLinks.reduce((total, link) => {
             const txn = this.transactions.find(
               (candidate) => candidate.id === link.transaction_id
             );
-            return total + Math.abs(txn?.amount ?? 0);
+            if (!txn) return total;
+            if (startDate && txn.date < startDate) return total;
+            if (endDate && txn.date > endDate) return total;
+            return total + Math.abs(txn.amount);
           }, 0);
           const company = this.companies.find((candidate) => candidate.id === series.company_id);
           return {
             ...series,
             company_name: company?.name ?? null,
-            transaction_count: seriesLinks.length,
+            transaction_count: linkedTransactions.length,
             total_spent: totalSpent,
           };
         });
@@ -650,6 +675,27 @@ describe('DatabaseService recurring series operations', () => {
     expect(netflix.company_name).toBe('Netflix');
     expect(netflix.transaction_count).toBe(3);
     expect(netflix.total_spent).toBeCloseTo(118.71, 2);
+  });
+
+  it('filters recurring series stats by transaction date range', async () => {
+    const { service } = await scannedService();
+    const series = await service.getRecurringSeriesWithStats({
+      startDate: '2026-02-01',
+      endDate: '2026-02-28',
+    });
+
+    const netflix = series.find((item) => item.match_key === 'rule:community:netflix')!;
+    expect(netflix.transaction_count).toBe(1);
+    expect(netflix.total_spent).toBeCloseTo(39.57, 2);
+  });
+
+  it('returns transactions by ids for unmatched clusters', async () => {
+    const { service } = await scannedService();
+
+    const transactions = await service.getTransactionsByIds([14, 12]);
+
+    expect(transactions.map((txn) => txn.id)).toEqual([14, 12]);
+    expect(transactions[0].account_name).toBe('Checking');
   });
 
   it('returns linked transactions for a series', async () => {

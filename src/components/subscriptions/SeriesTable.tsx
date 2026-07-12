@@ -1,9 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Chip,
+  Collapse,
+  Button,
   IconButton,
   Paper,
   Table,
@@ -18,6 +20,8 @@ import {
 import {
   CheckCircleOutline as ConfirmIcon,
   Edit as EditIcon,
+  ExpandLess as ExpandLessIcon,
+  ExpandMore as ExpandMoreIcon,
   ReceiptLong as ViewIcon,
   Restore as RestoreIcon,
   VisibilityOff as IgnoreIcon,
@@ -56,6 +60,8 @@ interface SeriesTableProps {
   onRestore?: (series: RecurringSeries) => void;
   onEdit: (series: RecurringSeries) => void;
   onViewTransactions: (series: RecurringSeries) => void;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
 const SeriesTable: React.FC<SeriesTableProps> = ({
@@ -67,21 +73,43 @@ const SeriesTable: React.FC<SeriesTableProps> = ({
   onRestore,
   onEdit,
   onViewTransactions,
+  collapsible = true,
+  defaultExpanded = true,
 }) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
   if (series.length === 0 && !emptyMessage) {
     return null;
   }
 
+  const hasTitle = title.trim().length > 0;
+
   return (
     <Box mb={4}>
-      <Typography variant="h6" gutterBottom>
-        {title}
-      </Typography>
-      {series.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">
-          {emptyMessage}
-        </Typography>
-      ) : (
+      {hasTitle && (
+        collapsible ? (
+          <Button
+            size="small"
+            onClick={() => setExpanded((value) => !value)}
+            endIcon={expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            sx={{ mb: 1, px: 0, justifyContent: 'flex-start' }}
+          >
+            <Typography variant="h6" component="span">
+              {title}
+            </Typography>
+          </Button>
+        ) : (
+          <Typography variant="h6" gutterBottom>
+            {title}
+          </Typography>
+        )
+      )}
+      <Collapse in={!collapsible || expanded}>
+        {series.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            {emptyMessage}
+          </Typography>
+        ) : (
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
@@ -168,7 +196,8 @@ const SeriesTable: React.FC<SeriesTableProps> = ({
             </TableBody>
           </Table>
         </TableContainer>
-      )}
+        )}
+      </Collapse>
     </Box>
   );
 };

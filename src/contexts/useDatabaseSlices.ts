@@ -162,6 +162,8 @@ export function useSubscriptionsSlice() {
     updateRecurringSeries: subscriptions.updateRecurringSeries,
     updateRecurringSeriesStatus: subscriptions.updateRecurringSeriesStatus,
     deleteRecurringSeries: subscriptions.deleteRecurringSeries,
+    getRecurringSeriesWithStats: subscriptions.getRecurringSeriesWithStats,
+    getTransactionsByIds: subscriptions.getTransactionsByIds,
     getSeriesTransactions: subscriptions.getSeriesTransactions,
     getUnmatchedRecurringClusters: subscriptions.getUnmatchedRecurringClusters,
   };

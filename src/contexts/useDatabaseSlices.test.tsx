@@ -38,6 +38,7 @@ import {
   useDashboardSlice,
   useManageDataSlice,
   useSettingsSlice,
+  useSubscriptionsSlice,
   useTransactionComposerSlice,
 } from './useDatabaseSlices';
 
@@ -165,6 +166,8 @@ function mockDatabaseHooks() {
       updateRecurringSeries: vi.fn(),
       updateRecurringSeriesStatus: vi.fn(),
       deleteRecurringSeries: vi.fn(),
+      getRecurringSeriesWithStats: vi.fn(),
+      getTransactionsByIds: vi.fn(),
       getSeriesTransactions: vi.fn(),
       getUnmatchedRecurringClusters: vi.fn(),
       reseedCommunityRules: vi.fn(),
@@ -267,6 +270,24 @@ describe('useDatabaseSlices', () => {
     expect(result.current.executeCustomQuery).toBe(slices.diagnostics.executeCustomQuery);
     expect(result.current.applyTransactionClassifications).toBe(
       slices.transactions.applyTransactionClassifications
+    );
+  });
+
+  it('maps subscriptions page data and actions from collection and subscription slices', () => {
+    const slices = mockDatabaseHooks();
+
+    const { result } = renderHook(() => useSubscriptionsSlice());
+
+    expect(result.current.transactionVersion).toBe(slices.collections.transactionVersion);
+    expect(result.current.companies).toBe(slices.collections.companies);
+    expect(result.current.merchantRules).toBe(slices.collections.merchantRules);
+    expect(result.current.recurringSeries).toBe(slices.collections.recurringSeries);
+    expect(result.current.getRecurringSeriesWithStats).toBe(
+      slices.subscriptions.getRecurringSeriesWithStats
+    );
+    expect(result.current.getTransactionsByIds).toBe(slices.subscriptions.getTransactionsByIds);
+    expect(result.current.getUnmatchedRecurringClusters).toBe(
+      slices.subscriptions.getUnmatchedRecurringClusters
     );
   });
 

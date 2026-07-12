@@ -22,7 +22,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useTransactionComposerSlice } from '@/contexts/useDatabaseSlices';
-import { Transaction, Category, Company, Account, Project } from '@/types/database';
+import { Transaction, AccountCard } from '@/types/database';
 
 interface AddTransactionProps {
   open: boolean;
@@ -38,6 +38,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
     categories,
     companies,
     accounts,
+    getAccountCards,
     projects
   } = useTransactionComposerSlice();
   const [formData, setFormData] = useState({
@@ -49,8 +50,10 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
     company_id: null as number | null,
     project_id: null as number | null,
     account_id: '' as number | '',
+    card_id: null as number | null,
     is_recurring: false,
   });
+  const [accountCards, setAccountCards] = useState<AccountCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [companyInput, setCompanyInput] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
@@ -99,6 +102,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
         company_id: companyId || null,
         project_id: formData.project_id || null,
         account_id: Number(formData.account_id),
+        card_id: formData.card_id,
         trip_id: null, // Trip association handled separately
       };
 
@@ -121,8 +125,10 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
       company_id: null,
       project_id: null,
       account_id: '',
+      card_id: null,
       is_recurring: false,
     });
+    setAccountCards([]);
     setCompanyInput('');
     setCategoryInput('');
     onClose();
@@ -134,6 +140,35 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
   };
 
   const filteredCategories = categories.filter(cat => cat.type === formData.type);
+
+  useEffect(() => {
+    if (!formData.account_id) {
+      setAccountCards([]);
+      setFormData((current) => ({ ...current, card_id: null }));
+      return;
+    }
+
+    let cancelled = false;
+    getAccountCards(Number(formData.account_id))
+      .then((cards) => {
+        if (cancelled) return;
+        setAccountCards(cards);
+        setFormData((current) => ({
+          ...current,
+          card_id: cards.some((card) => card.id === current.card_id)
+            ? current.card_id
+            : cards[0]?.id ?? null,
+        }));
+      })
+      .catch((error) => {
+        console.error('Failed to load account cards:', error);
+        if (!cancelled) setAccountCards([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.account_id, getAccountCards]);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -268,6 +303,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
                     setFormData({
                       ...formData,
                       account_id: value === '' ? '' : Number(value),
+                      card_id: null,
                     });
                   }}
                   required
@@ -278,6 +314,30 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
                   {accounts.map((account) => (
                     <MenuItem key={account.id} value={account.id}>
                       {account.name} ({account.type})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth disabled={!formData.account_id || accountCards.length === 0}>
+                <InputLabel>Card</InputLabel>
+                <Select<number | ''>
+                  value={formData.card_id ?? ''}
+                  label="Card"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData({
+                      ...formData,
+                      card_id: value === '' ? null : Number(value),
+                    });
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>No card</em>
+                  </MenuItem>
+                  {accountCards.map((card) => (
+                    <MenuItem key={card.id} value={card.id}>
+                      {card.nickname ? `${card.nickname} - ` : ''}••{card.last_four}
                     </MenuItem>
                   ))}
                 </Select>

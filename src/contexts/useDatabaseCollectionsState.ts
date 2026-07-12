@@ -16,6 +16,7 @@ import type {
 
 export interface DatabaseCollectionsSlice {
   transactionVersion: number;
+  budgetVersion: number;
   categories: Category[];
   companies: Company[];
   accounts: Account[];
@@ -47,6 +48,7 @@ interface UseDatabaseCollectionsStateResult {
   collections: DatabaseCollectionsSlice;
   loadAllData: (service: CollectionDataService) => Promise<void>;
   refreshTransactions: () => Promise<void>;
+  refreshBudgets: () => Promise<void>;
   refreshCategories: () => Promise<void>;
   refreshCompanies: () => Promise<void>;
   refreshAccounts: () => Promise<void>;
@@ -61,6 +63,7 @@ export function useDatabaseCollectionsState({
   getDatabaseService,
 }: UseDatabaseCollectionsStateOptions): UseDatabaseCollectionsStateResult {
   const [transactionVersion, setTransactionVersion] = useState(0);
+  const [budgetVersion, setBudgetVersion] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -119,6 +122,10 @@ export function useDatabaseCollectionsState({
   // Incrementing transactionVersion signals components to re-fetch transaction data from the DB.
   const refreshTransactions = useCallback(async () => {
     setTransactionVersion(v => v + 1);
+  }, []);
+
+  const refreshBudgets = useCallback(async () => {
+    setBudgetVersion(v => v + 1);
   }, []);
 
   const refreshCategories = useCallback(async () => {
@@ -220,6 +227,7 @@ export function useDatabaseCollectionsState({
   const collections = useMemo(
     () => ({
       transactionVersion,
+      budgetVersion,
       categories,
       companies,
       accounts,
@@ -229,13 +237,14 @@ export function useDatabaseCollectionsState({
       merchantRules,
       recurringSeries,
     }),
-    [transactionVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries]
+    [transactionVersion, budgetVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries]
   );
 
   return {
     collections,
     loadAllData,
     refreshTransactions,
+    refreshBudgets,
     refreshCategories,
     refreshCompanies,
     refreshAccounts,

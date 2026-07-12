@@ -12,6 +12,10 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   DateRange,
@@ -20,6 +24,7 @@ import {
   Download,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
+import type { Account, TransactionScopeFilters, User } from '@/types/database';
 
 interface DateRangeSelectorProps {
   timeRange: 'week' | 'month' | 'year' | 'custom';
@@ -30,6 +35,10 @@ interface DateRangeSelectorProps {
   onExport?: () => void;
   onAddTransaction?: () => void;
   onCsvImport?: () => void;
+  accounts?: Account[];
+  users?: User[];
+  scopeFilters?: TransactionScopeFilters;
+  onScopeFiltersChange?: (filters: TransactionScopeFilters) => void;
 }
 
 const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
@@ -41,6 +50,10 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
   onExport,
   onAddTransaction,
   onCsvImport,
+  accounts = [],
+  users = [],
+  scopeFilters = {},
+  onScopeFiltersChange,
 }) => {
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(customStartDate);
@@ -173,6 +186,42 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
               {getTimeRangeLabel()}
             </Typography>
           )}
+        </Stack>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 2 }}>
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel>Accounts</InputLabel>
+            <Select
+              multiple
+              value={scopeFilters.accountIds ?? []}
+              label="Accounts"
+              onChange={(event) => onScopeFiltersChange?.({
+                ...scopeFilters,
+                accountIds: (event.target.value as number[]),
+              })}
+              renderValue={(selected) => selected.length === 0 ? 'All' : `${selected.length} selected`}
+            >
+              {accounts.map((account) => (
+                <MenuItem key={account.id} value={account.id}>{account.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel>Users</InputLabel>
+            <Select
+              multiple
+              value={scopeFilters.userIds ?? []}
+              label="Users"
+              onChange={(event) => onScopeFiltersChange?.({
+                ...scopeFilters,
+                userIds: (event.target.value as number[]),
+              })}
+              renderValue={(selected) => selected.length === 0 ? 'All' : `${selected.length} selected`}
+            >
+              {users.map((user) => (
+                <MenuItem key={user.id} value={user.id}>{user.display_name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Stack>
       </Box>
 

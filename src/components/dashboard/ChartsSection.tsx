@@ -32,6 +32,8 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
   const [tabValue, setTabValue] = useState(0);
 
   const spendingData = chartData?.spendingByCategory ?? [];
+  const companySpendingData = chartData?.spendingByCompany ?? [];
+  const recurringSpendingData = chartData?.spendingByRecurring ?? [];
   const incomeData = chartData?.incomeBySource ?? [];
   const trendsData = chartData?.trends ?? { months: [], income: [], expenses: [] };
   const accountData = chartData?.accountAnalysis ?? { accountNames: [], income: [], expenses: [] };
@@ -62,6 +64,53 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 
+  const percentLabel = (value: number, total: number) => {
+    if (total <= 0) return '0%';
+    const percent = (value / total) * 100;
+    return `${percent.toFixed(percent >= 10 ? 0 : 1)}%`;
+  };
+
+  const renderPiePanel = (title: string, data: typeof spendingData, emptyMessage: string) => (
+    <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+      <Typography variant="subtitle1" fontWeight={700} gutterBottom>{title}</Typography>
+      {data.length > 0 ? (
+        <>
+          <Box height={320} display="flex" justifyContent="center">
+            <PieChart
+              series={[{
+                data,
+                arcLabel: (item) => percentLabel(Number(item.value || 0), data.reduce((sum, row) => sum + row.value, 0)),
+                arcLabelMinAngle: 14,
+                outerRadius: 98,
+                arcLabelRadius: 122,
+                paddingAngle: 1,
+                highlightScope: { fade: 'global', highlight: 'item' },
+                faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
+              }]}
+              width={380}
+              height={320}
+              margin={{ top: 38, bottom: 38, left: 38, right: 38 }}
+            />
+          </Box>
+          <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
+            {data.slice(0, 5).map((item) => (
+              <Chip
+                key={String(item.id)}
+                label={`${item.label}: ${formatCurrency(item.value)} (${percentLabel(item.value, data.reduce((sum, row) => sum + row.value, 0))})`}
+                size="small"
+                sx={{ borderLeft: `4px solid ${item.color}`, backgroundColor: 'background.default' }}
+              />
+            ))}
+          </Stack>
+        </>
+      ) : (
+        <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+          <Typography color="text.secondary">{emptyMessage}</Typography>
+        </Box>
+      )}
+    </Paper>
+  );
+
   return (
     <Paper sx={{ width: '100%', mb: 4 }}>
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
@@ -69,31 +118,24 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
           <Tab label="Spending Breakdown" />
           <Tab label="Income Sources" />
           <Tab label="Trends" />
-          <Tab label="Account Analysis" />
+          <Tab label="User Analysis" />
         </Tabs>
       </Box>
 
       <TabPanel value={tabValue} index={0}>
         <Box p={3}>
           <Typography variant="h6" gutterBottom>
-            Spending by Category - {timeRangeLabel}
+            Spending Breakdown - {timeRangeLabel}
           </Typography>
-          {spendingData.length > 0 ? (
-            <Box>
-              <Box height={380} display="flex" justifyContent="center">
-                <PieChart
-                  series={[{
-                    data: spendingData,
-                    highlightScope: { fade: 'global', highlight: 'item' },
-                    faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
-                  }]}
-                  width={600}
-                  height={380}
-                />
-              </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
+            {renderPiePanel('Categories', spendingData, 'No category spending for this period')}
+            {renderPiePanel('Companies / Services', companySpendingData, 'No company spending for this period')}
+            {renderPiePanel('Subscriptions & Recurring Bills', recurringSpendingData, 'No recurring spending for this period')}
+          </Box>
 
+          {spendingData.length > 0 && (
+            <>
               <Divider sx={{ my: 2 }} />
-
               <Typography variant="subtitle1" fontWeight={700} gutterBottom>
                 Top Expense Categories
               </Typography>
@@ -102,18 +144,11 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
                   <Chip
                     key={String(category.id)}
                     label={`${category.label}: ${formatCurrency(category.value)} (${category.percent.toFixed(1)}%)`}
-                    sx={{
-                      borderLeft: `4px solid ${category.color}`,
-                      backgroundColor: 'background.default',
-                    }}
+                    sx={{ borderLeft: `4px solid ${category.color}`, backgroundColor: 'background.default' }}
                   />
                 ))}
               </Stack>
-            </Box>
-          ) : (
-            <Box display="flex" justifyContent="center" alignItems="center" height={200}>
-              <Typography color="text.secondary">No spending data for this period</Typography>
-            </Box>
+            </>
           )}
         </Box>
       </TabPanel>
@@ -128,11 +163,17 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
               <PieChart
                 series={[{
                   data: incomeData,
+                  arcLabel: (item) => percentLabel(Number(item.value || 0), incomeData.reduce((sum, row) => sum + row.value, 0)),
+                  arcLabelMinAngle: 12,
+                  outerRadius: 140,
+                  arcLabelRadius: 168,
+                  paddingAngle: 1,
                   highlightScope: { fade: 'global', highlight: 'item' },
                   faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
                 }]}
                 width={600}
                 height={400}
+                margin={{ top: 44, bottom: 44, left: 56, right: 56 }}
               />
             </Box>
           ) : (
@@ -199,7 +240,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
       <TabPanel value={tabValue} index={3}>
         <Box p={3}>
           <Typography variant="h6" gutterBottom>
-            Income and Expenses by Account - {timeRangeLabel}
+            Income and Expenses by User - {timeRangeLabel}
           </Typography>
           {accountData.accountNames.length > 0 ? (
             <Box height={400}>
@@ -218,7 +259,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
             </Box>
           ) : (
             <Box display="flex" justifyContent="center" alignItems="center" height={200}>
-              <Typography color="text.secondary">No account data for this period</Typography>
+              <Typography color="text.secondary">No user data for this period</Typography>
             </Box>
           )}
         </Box>

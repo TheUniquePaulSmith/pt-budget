@@ -12,9 +12,10 @@ import {
   ACCOUNT_CARD_QUERIES,
   ACCOUNT_QUERIES,
   ANALYTICS_QUERIES,
-  BUDGET_QUERIES,
+  BUDGET_PLAN_QUERIES,
   CATEGORY_QUERIES,
   COMPANY_QUERIES,
+  INCOME_SOURCE_QUERIES,
   PROJECT_QUERIES,
   TRANSACTION_QUERIES,
   TRIP_QUERIES,
@@ -23,7 +24,6 @@ import {
 import type {
   Account,
   AccountCard,
-  Budget,
   Category,
   Company,
   Project,
@@ -39,6 +39,7 @@ const baseTransaction: TransactionInput = {
   amount: -42.5,
   description: 'Hardware store purchase',
   account_id: 7,
+  card_id: null,
   category_id: null,
   company_id: 12,
   project_id: null,
@@ -83,7 +84,9 @@ const transactionRow = {
   date: '2026-04-20',
   amount: -25.75,
   description: 'Fuel stop',
+  comment: null,
   account_id: 3,
+  card_id: null,
   category_id: 4,
   company_id: null,
   project_id: 8,
@@ -98,6 +101,14 @@ const transactionRow = {
   company_name: null,
   account_name: 'Credit Card',
   account_type: 'credit',
+  card_last_four: undefined,
+  card_nickname: null,
+  effective_user_id: null,
+  effective_user_name: undefined,
+  account_owner_name: undefined,
+  series_id: null,
+  series_name: undefined,
+  service_name: undefined,
   project_name: 'Kitchen Remodel',
   trip_name: null,
 };
@@ -107,7 +118,9 @@ const expectedMappedTransaction: Transaction = {
   date: '2026-04-20',
   amount: -25.75,
   description: 'Fuel stop',
+  comment: null,
   account_id: 3,
+  card_id: null,
   category_id: 4,
   company_id: null,
   project_id: 8,
@@ -122,6 +135,14 @@ const expectedMappedTransaction: Transaction = {
   company_name: undefined,
   account_name: 'Credit Card',
   account_type: 'credit',
+  card_last_four: undefined,
+  card_nickname: null,
+  effective_user_id: null,
+  effective_user_name: undefined,
+  account_owner_name: undefined,
+  series_id: null,
+  series_name: undefined,
+  service_name: undefined,
   project_name: 'Kitchen Remodel',
   trip_name: undefined,
 };
@@ -161,20 +182,10 @@ const accountCardRow = {
   created_at: '2026-02-02T00:00:00.000Z',
 };
 
-const budgetRow: Budget = {
-  id: 6,
-  category_id: 4,
-  amount: 500,
-  period: 'monthly',
-  start_date: '2026-04-01',
-  end_date: '2026-04-30',
-  created_at: '2026-04-01T00:00:00.000Z',
-  updated_at: '2026-04-01T00:00:00.000Z',
-};
-
 const userRow: User = {
   id: 7,
   display_name: 'Pat Doe',
+  is_primary: 0,
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
 };
@@ -267,7 +278,9 @@ describe('DatabaseService.addTransaction', () => {
         baseTransaction.date,
         baseTransaction.amount,
         baseTransaction.description,
+        null,
         baseTransaction.account_id,
+        null,
         null,
         baseTransaction.company_id,
         null,
@@ -302,6 +315,17 @@ describe('DatabaseService.addTransaction', () => {
       'Database operation timed out after 10000ms: query'
     );
   });
+  
+    it('updates a transaction comment without changing the imported description', async () => {
+      const querySpy = vi.fn().mockResolvedValue([]);
+      const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+  
+      await service.setTransactionComment(31, '  Needs receipt follow-up  ');
+  
+      expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.SET_COMMENT, ['Needs receipt follow-up', 31]);
+    });
+  
+
 });
 
 describe('DatabaseService lifecycle helpers', () => {
@@ -599,7 +623,9 @@ describe('DatabaseService batch and import helpers', () => {
         baseTransaction.date,
         baseTransaction.amount,
         baseTransaction.description,
+        null,
         baseTransaction.account_id,
+        null,
         null,
         baseTransaction.company_id,
         null,
@@ -616,7 +642,9 @@ describe('DatabaseService batch and import helpers', () => {
         baseTransaction.date,
         baseTransaction.amount,
         'Imported airfare',
+        null,
         baseTransaction.account_id,
+        null,
         null,
         baseTransaction.company_id,
         null,
@@ -803,14 +831,6 @@ describe('DatabaseService singleton-backed query wrappers', () => {
       parameters: [3],
       response: [accountCardRow],
       expected: [accountCardRow],
-    },
-    {
-      name: 'maps budget rows',
-      call: (service: DatabaseService) => service.getBudgets(),
-      query: BUDGET_QUERIES.GET_ALL,
-      parameters: undefined,
-      response: [budgetRow],
-      expected: [budgetRow],
     },
     {
       name: 'maps project rows',
@@ -1016,15 +1036,6 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
       expected: 52,
     },
     {
-      name: 'adds an account for a user',
-      call: (service: DatabaseService) =>
-        service.addAccount({ name: 'Joint Checking', type: 'joint' }, 7),
-      query: ACCOUNT_QUERIES.CREATE,
-      parameters: ['Joint Checking', 'joint', 7],
-      response: [{ id: 53 }],
-      expected: 53,
-    },
-    {
       name: 'deletes an account by id',
       call: (service: DatabaseService) => service.deleteAccount(53),
       query: ACCOUNT_QUERIES.DELETE,
@@ -1066,21 +1077,6 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
       parameters: [54],
       response: [],
       expected: undefined,
-    },
-    {
-      name: 'adds a monthly budget by default',
-      call: (service: DatabaseService) =>
-        service.addBudget({
-          category_id: 4,
-          amount: 750,
-          period: 'monthly',
-          start_date: '2026-04-01',
-          end_date: '',
-        }),
-      query: BUDGET_QUERIES.CREATE,
-      parameters: [4, 750, 'monthly', '2026-04-01', null],
-      response: [{ id: 55 }],
-      expected: 55,
     },
     {
       name: 'adds a project with default nullable fields',
@@ -1126,7 +1122,7 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
       call: (service: DatabaseService) =>
         service.addUser({ display_name: 'Jordan Smith' }),
       query: USER_QUERIES.CREATE,
-      parameters: ['Jordan Smith'],
+      parameters: ['Jordan Smith', 0],
       response: [{ id: 57 }],
       expected: 57,
     },
@@ -1184,6 +1180,244 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
       ACCOUNT_CARD_QUERIES.FIND_ACCOUNT_BY_LAST_FOUR,
       ['4242']
     );
+  });
+});
+
+describe('DatabaseService budget income calculations', () => {
+  it('adds multiple expected income sources and excludes credit-card payments from linked actual income', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      switch (sql) {
+        case BUDGET_PLAN_QUERIES.GET_ALL_PLANS:
+          return [{ id: 1, effective_month: '2026-07', total_amount: 2000, notes: null, created_at: 'now', updated_at: 'now' }];
+        case BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES:
+          return [{ id: 1, plan_id: 1, category_id: 2, amount: 500, created_at: 'now', updated_at: 'now', category_name: 'Groceries', category_color: '#43A047' }];
+        case BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY:
+          return [];
+        case BUDGET_PLAN_QUERIES.ACTUAL_INCOME_LINKED_BY_MONTH:
+          expect(sql).toContain("a.type != 'credit'");
+          return [{ month: '2026-07', total: 3200 }];
+        case INCOME_SOURCE_QUERIES.GET_ALL:
+          return [
+            { id: 1, name: 'Salary', kind: 'recurring_salary', account_id: null, amount: 3000, frequency: 'monthly', start_date: null, end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: null },
+            { id: 2, name: 'Side account', kind: 'linked_account', account_id: 4, amount: 600, frequency: 'monthly', start_date: null, end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: 'Checking' },
+          ];
+        default:
+          throw new Error(`Unexpected SQL: ${sql}`);
+      }
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const status = await service.getBudgetStatus({ type: 'month', key: '2026-07' });
+
+    expect(status.expectedIncome).toBe(3600);
+    expect(status.actualLinkedIncome).toBe(3200);
+  });
+
+  it('counts income sources that started before the selected year across all year months', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      switch (sql) {
+        case BUDGET_PLAN_QUERIES.GET_ALL_PLANS:
+        case BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES:
+        case BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY:
+        case BUDGET_PLAN_QUERIES.ACTUAL_INCOME_LINKED_BY_MONTH:
+          return [];
+        case INCOME_SOURCE_QUERIES.GET_ALL:
+          return [
+            { id: 1, name: 'Company draw', kind: 'recurring_salary', account_id: null, amount: 5000, frequency: 'monthly', start_date: '2023-03-01', end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: null },
+          ];
+        default:
+          throw new Error(`Unexpected SQL: ${sql}`);
+      }
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const status = await service.getBudgetStatus({ type: 'year', key: '2026' });
+
+    expect(status.months).toHaveLength(12);
+    expect(status.expectedIncome).toBe(60000);
+  });
+});
+
+describe('DatabaseService dashboard income summaries', () => {
+  it('uses configured income-source totals when actual non-credit income is lower', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*) as transaction_count')) {
+        expect(sql).toContain("a.type != 'credit'");
+        return [{ transaction_count: 0, total_income: 0, total_expenses: 1250 }];
+      }
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
+        return [
+          { id: 1, name: 'Owner draw', kind: 'recurring_salary', account_id: null, amount: 5000, frequency: 'monthly', start_date: '2023-03-01', end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: null },
+          { id: 2, name: 'Consulting', kind: 'linked_account', account_id: 4, amount: 2000, frequency: 'monthly', start_date: '2023-03-01', end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: 'Checking' },
+        ];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const summary = await service.getDashboardSummary('2026-01-01', '2026-12-31');
+
+    expect(summary.totalIncome).toBe(84000);
+    expect(summary.totalExpenses).toBe(1250);
+    expect(summary.netIncome).toBe(82750);
+  });
+
+  it('only includes configured income in a week when the recurrence date falls inside that week', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*) as transaction_count')) {
+        return [{ transaction_count: 0, total_income: 0, total_expenses: 0 }];
+      }
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
+        return [
+          { id: 1, name: 'Owner draw', kind: 'recurring_salary', account_id: null, amount: 5000, frequency: 'monthly', start_date: '2023-03-15', end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: null },
+        ];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await expect(service.getDashboardSummary('2026-07-01', '2026-07-07')).resolves.toMatchObject({
+      totalIncome: 0,
+      netIncome: 0,
+    });
+    await expect(service.getDashboardSummary('2026-07-12', '2026-07-18')).resolves.toMatchObject({
+      totalIncome: 5000,
+      netIncome: 5000,
+    });
+  });
+
+  it('counts weekly configured income occurrences inside a week span', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*) as transaction_count')) {
+        return [{ transaction_count: 0, total_income: 0, total_expenses: 0 }];
+      }
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
+        return [
+          { id: 1, name: 'Weekly draw', kind: 'recurring_salary', account_id: null, amount: 1200, frequency: 'weekly', start_date: '2023-03-03', end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: null },
+        ];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const summary = await service.getDashboardSummary('2026-07-05', '2026-07-12');
+
+    expect(summary.totalIncome).toBe(1200);
+    expect(summary.netIncome).toBe(1200);
+  });
+
+  it('keeps actual income when it is higher than configured income-source totals', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*) as transaction_count')) {
+        return [{ transaction_count: 3, total_income: 9000, total_expenses: 1000 }];
+      }
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
+        return [
+          { id: 1, name: 'Owner draw', kind: 'recurring_salary', account_id: null, amount: 5000, frequency: 'monthly', start_date: '2026-01-01', end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: null },
+        ];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const summary = await service.getDashboardSummary('2026-01-01', '2026-01-31');
+
+    expect(summary.totalIncome).toBe(9000);
+    expect(summary.netIncome).toBe(8000);
+  });
+
+  it('uses income sources for chart source, trend, and account-analysis income', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('SUM(ABS(t.amount)) as total') && sql.includes("c.type = 'expense'")) {
+        return [];
+      }
+      if (sql.includes('COALESCE(comp.name') && sql.includes('mr.service_name')) {
+        expect(sql).toContain('tsl.transaction_id = t.id');
+        expect(sql).not.toContain('rs.company_id = comp.id');
+        return [
+          { company_id: 12, company_name: 'StreamHouse', service_name: 'Streaming', total: 49.99 },
+        ];
+      }
+      if (sql.includes('rs.id as series_id') && sql.includes('transaction_series_links')) {
+        return [
+          { series_id: 3, series_name: 'StreamHouse', kind: 'subscription', total: 49.99 },
+        ];
+      }
+      if (sql.includes('SUM(t.amount) as total') && sql.includes("a.type != 'credit'")) {
+        return [];
+      }
+      if (sql.includes("strftime('%Y-%m', t.date) as month") && sql.includes('as expense')) {
+        return [
+          { month: '2026-07', income: 0, expense: 2500 },
+        ];
+      }
+      if (sql.includes('a.id as account_id') && sql.includes('as expenses')) {
+        expect(sql).toContain("t.type = 'income' AND a.type != 'credit'");
+        return [
+          { account_id: 7, account_name: 'Credit Card', user_display_name: 'Pat', income: 0, expenses: 1250 },
+        ];
+      }
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
+        return [
+          { id: 1, name: 'Owner draw', kind: 'recurring_salary', account_id: null, amount: 5000, frequency: 'monthly', start_date: '2023-03-15', end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: null, owner_display_name: null },
+          { id: 2, name: 'Consulting deposits', kind: 'linked_account', account_id: 4, amount: 1000, frequency: 'monthly', start_date: '2023-03-10', end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: 'Checking', owner_display_name: 'Pat' },
+        ];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const chartData = await service.getChartData('2026-07-01', '2026-07-31');
+
+    expect(chartData.spendingByCompany).toEqual([
+      expect.objectContaining({ id: '12-Streaming', label: 'StreamHouse - Streaming', value: 49.99 }),
+    ]);
+    expect(chartData.spendingByRecurring).toEqual([
+      expect.objectContaining({ id: 3, label: 'StreamHouse (Subscription)', value: 49.99 }),
+    ]);
+    expect(chartData.incomeBySource).toEqual([
+      expect.objectContaining({ id: 'income-source-1', label: 'Owner draw', value: 5000, color: '#2e7d32' }),
+      expect.objectContaining({ id: 'income-source-2', label: 'Checking - Consulting deposits', value: 1000, color: '#ed6c02' }),
+    ]);
+    expect(chartData.trends.months).toContain('2026-07');
+    expect(chartData.trends.income[chartData.trends.months.indexOf('2026-07')]).toBe(6000);
+    expect(chartData.accountAnalysis).toEqual({
+      accountNames: ['Owner draw', 'Pat'],
+      income: [5000, 1000],
+      expenses: [0, 1250],
+    });
+  });
+});
+
+describe('DatabaseService transaction report aggregates', () => {
+  it('uses configured income-source totals for paginated report income when date filters are present', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string, params: any[] = []) => {
+      if (sql.includes('COUNT(*) as total')) {
+        return [{ total: 0, total_income: 0, total_expenses: 200 }];
+      }
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
+        return [
+          { id: 1, name: 'Owner draw', kind: 'recurring_salary', account_id: null, amount: 5000, frequency: 'monthly', start_date: '2023-03-15', end_date: null, is_active: 1, notes: null, created_at: 'now', updated_at: 'now', account_name: null },
+        ];
+      }
+      if (sql.includes('SELECT') && sql.includes('FROM transactions t')) {
+        expect(params).toEqual(['2026-07-01', '2026-07-31', 25, 0]);
+        return [];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const result = await service.getTransactionsPaginated({
+      page: 0,
+      pageSize: 25,
+      sortBy: 'date',
+      sortOrder: 'desc',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+    });
+
+    expect(result).toEqual({ data: [], total: 0, totalIncome: 5000, totalExpenses: 200 });
   });
 });
 

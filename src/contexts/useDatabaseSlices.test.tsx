@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./DatabaseContext', () => ({
   useDatabaseAccounts: vi.fn(),
+  useDatabaseBudget: vi.fn(),
   useDatabaseCategories: vi.fn(),
   useDatabaseCollections: vi.fn(),
   useDatabaseCompanies: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('./DatabaseContext', () => ({
 
 import {
   useDatabaseAccounts,
+  useDatabaseBudget,
   useDatabaseCategories,
   useDatabaseCollections,
   useDatabaseCompanies,
@@ -43,6 +45,7 @@ import {
 } from './useDatabaseSlices';
 
 const mockedUseDatabaseAccounts = vi.mocked(useDatabaseAccounts);
+const mockedUseDatabaseBudget = vi.mocked(useDatabaseBudget);
 const mockedUseDatabaseCategories = vi.mocked(useDatabaseCategories);
 const mockedUseDatabaseCollections = vi.mocked(useDatabaseCollections);
 const mockedUseDatabaseCompanies = vi.mocked(useDatabaseCompanies);
@@ -86,6 +89,7 @@ function mockDatabaseHooks() {
     },
     collections: {
       transactionVersion: 0,
+      budgetVersion: 0,
       categories: [{ id: 2, name: 'Housing' }],
       companies: [{ id: 3, name: 'Landlord LLC' }],
       accounts: [{ id: 4, name: 'Checking' }],
@@ -103,6 +107,8 @@ function mockDatabaseHooks() {
       migrateDatabaseToCloud: vi.fn(),
       saveDatabaseToCurrentCloud: vi.fn(),
       switchToLocalSource: vi.fn(),
+      setEncryptionPassword: vi.fn(),
+      clearEncryptionPassword: vi.fn(),
     },
     transactions: {
       addTransaction,
@@ -115,6 +121,11 @@ function mockDatabaseHooks() {
       bulkInsertFromTempTable: vi.fn(),
       updateTransactionLabels: vi.fn(),
       applyTransactionClassifications: vi.fn(),
+      setTransactionCategory: vi.fn(),
+      setTransactionCompany: vi.fn(),
+      setTransactionComment: vi.fn(),
+      linkTransactionToSeries: vi.fn(),
+      unlinkTransactionFromSeries: vi.fn(),
       generateTransactionHash: vi.fn(),
       getRecentTransactions: vi.fn(),
       getDashboardSummary: vi.fn(),
@@ -130,9 +141,10 @@ function mockDatabaseHooks() {
     },
     companies: {
       addCompany,
+      updateCompany: vi.fn(),
     },
     accounts: {
-      addAccount: vi.fn(),
+      addAccountWithCard: vi.fn(),
       deleteAccount: vi.fn(),
       getAccountCards: vi.fn(),
       addAccountCard: vi.fn(),
@@ -174,10 +186,22 @@ function mockDatabaseHooks() {
       getMerchantRuleCounts: vi.fn(),
       getMerchantRulesSeedVersion: vi.fn(),
     },
+    budgets: {
+      getBudgetPlans: vi.fn(),
+      saveBudgetPlan: vi.fn(),
+      deleteBudgetPlan: vi.fn(),
+      getEffectiveBudgetPlan: vi.fn(),
+      getBudgetStatus: vi.fn(),
+      getIncomeSources: vi.fn(),
+      addIncomeSource: vi.fn(),
+      updateIncomeSource: vi.fn(),
+      deleteIncomeSource: vi.fn(),
+    },
   } as const;
 
   mockedUseDatabaseStatus.mockReturnValue(slices.status as never);
   mockedUseDatabaseCollections.mockReturnValue(slices.collections as never);
+  mockedUseDatabaseBudget.mockReturnValue(slices.budgets as never);
   mockedUseDatabaseLifecycle.mockReturnValue(slices.lifecycle as never);
   mockedUseDatabaseTransactions.mockReturnValue(slices.transactions as never);
   mockedUseDatabaseCategories.mockReturnValue(slices.categories as never);
@@ -195,6 +219,7 @@ function mockDatabaseHooks() {
 describe('useDatabaseSlices', () => {
   beforeEach(() => {
     mockedUseDatabaseAccounts.mockReset();
+    mockedUseDatabaseBudget.mockReset();
     mockedUseDatabaseCategories.mockReset();
     mockedUseDatabaseCollections.mockReset();
     mockedUseDatabaseCompanies.mockReset();
@@ -228,6 +253,7 @@ describe('useDatabaseSlices', () => {
     const { result } = renderHook(() => useDashboardSlice());
 
     expect(result.current.transactionVersion).toBe(slices.collections.transactionVersion);
+    expect(result.current.budgetVersion).toBe(slices.collections.budgetVersion);
     expect(result.current.categories).toBe(slices.collections.categories);
     expect(result.current.accounts).toBe(slices.collections.accounts);
     expect(result.current.users).toBe(slices.collections.users);
@@ -235,6 +261,7 @@ describe('useDatabaseSlices', () => {
     expect(result.current.getRecentTransactions).toBe(slices.transactions.getRecentTransactions);
     expect(result.current.getDashboardSummary).toBe(slices.transactions.getDashboardSummary);
     expect(result.current.getChartData).toBe(slices.transactions.getChartData);
+    expect(result.current.getBudgetStatus).toBe(slices.budgets.getBudgetStatus);
   });
 
   it('maps transaction composer actions from grouped transaction and catalog slices', () => {

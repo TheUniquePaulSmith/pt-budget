@@ -15,6 +15,7 @@ export interface CSVAccountMatch {
   lastFourValue: string;
   matchingAccounts: Account[];
   selectedAccountId: number | null;
+  selectedCardId?: number | null;
 }
 
 export interface MappedCsvTransaction {
@@ -120,6 +121,7 @@ export async function createAccountMatches(
         matchingAccounts,
         selectedAccountId:
           matchingAccounts.length === 1 ? matchingAccounts[0].id : null,
+        selectedCardId: null,
       };
     })
   );
@@ -193,7 +195,9 @@ export function mapTransactionsFromCSV(
         date,
         amount: Math.abs(amount) * (type === 'expense' ? -1 : 1),
         description: description || 'Imported transaction',
+        comment: null,
         account_id: accountMapping.selectedAccountId,
+        card_id: accountMapping.selectedCardId ?? null,
         category_id: null,
         company_id: null,
         project_id: null,

@@ -35,6 +35,7 @@ describe('useDatabaseCollectionsState', () => {
 
     expect(result.current.collections).toEqual({
       transactionVersion: 0,
+      budgetVersion: 0,
       categories: [{ id: 2, name: 'Housing' }],
       companies: [{ id: 3, name: 'Landlord LLC' }],
       accounts: [{ id: 4, name: 'Checking' }],

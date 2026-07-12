@@ -39,6 +39,12 @@ const FAMILY_ACCOUNT_IDS = {
   REWARDS_VISA: 3,
   HOUSEHOLD_JOINT: 4,
 };
+const FAMILY_ACCOUNT_CARD_IDS = {
+  HOUSEHOLD_CHECKING: 1,
+  RAINY_DAY_SAVINGS: 2,
+  REWARDS_VISA: 3,
+  HOUSEHOLD_JOINT: 4,
+};
 const FAMILY_CATEGORY_IDS = {
   HOUSING: 1,
   GROCERIES: 2,
@@ -156,6 +162,9 @@ export const MANAGED_SAMPLE_TABLES = [
   'companies',
   'projects',
   'trips',
+  'budget_plans',
+  'budget_plan_categories',
+  'income_sources',
   'transactions',
 ];
 export const SAMPLE_DATA_GENERATION_MODES = {
@@ -977,8 +986,8 @@ function getBaseRowsForTable(tableName, context) {
   switch (tableName) {
     case 'users':
       return [
-        { id: 1, display_name: 'Avery Parker' },
-        { id: 2, display_name: 'Jordan Parker' },
+        { id: 1, display_name: 'Avery Parker', is_primary: 1 },
+        { id: 2, display_name: 'Jordan Parker', is_primary: 0 },
       ];
     case 'accounts':
       return [
@@ -1018,13 +1027,20 @@ function getBaseRowsForTable(tableName, context) {
         },
         {
           id: 2,
+          account_id: FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS,
+          last_four: '6502',
+          nickname: 'Savings ATM',
+          user_id: 1,
+        },
+        {
+          id: 3,
           account_id: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
           last_four: '9034',
           nickname: 'Rewards Card',
           user_id: 1,
         },
         {
-          id: 3,
+          id: 4,
           account_id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT,
           last_four: '1176',
           nickname: 'Joint Debit',
@@ -1155,6 +1171,60 @@ function getBaseRowsForTable(tableName, context) {
           estimated_cost: 2450,
           actual_cost: 0,
           notes: 'Historic district hotel plus aquarium and food tour',
+        },
+      ];
+    case 'budget_plans':
+      return [
+        {
+          id: 1,
+          effective_month: '2026-01',
+          total_amount: 6575,
+          notes: 'Baseline household budget for the year',
+        },
+        {
+          id: 2,
+          effective_month: '2026-04',
+          total_amount: 6840,
+          notes: 'Spring adjustment for travel and school activities',
+        },
+      ];
+    case 'budget_plan_categories':
+      return [
+        { id: 1, plan_id: 1, category_id: FAMILY_CATEGORY_IDS.HOUSING, amount: 2450 },
+        { id: 2, plan_id: 1, category_id: FAMILY_CATEGORY_IDS.GROCERIES, amount: 780 },
+        { id: 3, plan_id: 1, category_id: FAMILY_CATEGORY_IDS.UTILITIES, amount: 410 },
+        { id: 4, plan_id: 1, category_id: FAMILY_CATEGORY_IDS.DINING_OUT, amount: 360 },
+        { id: 5, plan_id: 2, category_id: FAMILY_CATEGORY_IDS.HOUSING, amount: 2450 },
+        { id: 6, plan_id: 2, category_id: FAMILY_CATEGORY_IDS.GROCERIES, amount: 825 },
+        { id: 7, plan_id: 2, category_id: FAMILY_CATEGORY_IDS.TRAVEL, amount: 620 },
+        { id: 8, plan_id: 2, category_id: FAMILY_CATEGORY_IDS.CHILDCARE_AND_SCHOOL, amount: 1180 },
+      ];
+    case 'income_sources':
+      return [
+        {
+          id: 1,
+          name: 'Primary salary',
+          kind: 'recurring_salary',
+          user_id: 1,
+          amount: 4200,
+          frequency: 'monthly',
+          start_date: '2024-01-01',
+          end_date: null,
+          is_active: 1,
+          notes: 'Monthly take-home pay estimate',
+        },
+        {
+          id: 2,
+          name: 'Household checking income deposits',
+          kind: 'linked_account',
+          user_id: 1,
+          account_id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
+          amount: null,
+          frequency: null,
+          start_date: '2024-01-01',
+          end_date: null,
+          is_active: 1,
+          notes: 'Actual income linked from deposits',
         },
       ];
     default:
@@ -1754,6 +1824,7 @@ function buildMergedTransactionRow(group, id, variationSeed) {
     amount,
     description,
     account_id: dominantEntry.accountId,
+    card_id: getCardIdForAccount(dominantEntry.accountId),
     category_id: dominantEntry.categoryId,
     company_id: dominantEntry.companyId,
     project_id: null,
@@ -1792,6 +1863,7 @@ function buildSplitTransactionRow(
     amount,
     description: entry.description,
     account_id: entry.accountId,
+    card_id: getCardIdForAccount(entry.accountId),
     category_id: entry.categoryId,
     company_id: entry.companyId,
     project_id: null,
@@ -2532,6 +2604,10 @@ function createFallbackValue(schemaTable, column, rowIndex, context) {
     return offsetDate(rowIndex);
   }
 
+  if (columnName === 'comment') {
+    return null;
+  }
+
   if (foreignKey) {
     return pickForeignKeyValue(foreignKey.referencedTable, rowIndex, context);
   }
@@ -2698,4 +2774,19 @@ function toTitleCase(value) {
     .split('_')
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
+}
+
+function getCardIdForAccount(accountId) {
+  switch (accountId) {
+    case FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING:
+      return FAMILY_ACCOUNT_CARD_IDS.HOUSEHOLD_CHECKING;
+    case FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS:
+      return FAMILY_ACCOUNT_CARD_IDS.RAINY_DAY_SAVINGS;
+    case FAMILY_ACCOUNT_IDS.REWARDS_VISA:
+      return FAMILY_ACCOUNT_CARD_IDS.REWARDS_VISA;
+    case FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT:
+      return FAMILY_ACCOUNT_CARD_IDS.HOUSEHOLD_JOINT;
+    default:
+      return null;
+  }
 }

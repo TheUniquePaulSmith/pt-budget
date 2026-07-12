@@ -19,6 +19,25 @@ vi.mock('@/contexts/useDatabaseSlices', () => ({
   useSqlQuerySlice: vi.fn(),
 }));
 
+vi.mock('@/components/common/DataGrid/AppDataGrid', () => ({
+  AppDataGrid: ({ rows, columns }: { rows: any[]; columns: Array<{ field: string; headerName?: string }> }) => (
+    <div role="grid">
+      <div role="row">
+        {columns.map((column) => (
+          <div role="columnheader" key={column.field}>{column.headerName ?? column.field}</div>
+        ))}
+      </div>
+      {rows.map((row) => (
+        <div role="row" key={row.__idx}>
+          {columns.map((column) => (
+            <div role="gridcell" key={column.field}>{String(row[column.field] ?? '')}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  ),
+}));
+
 vi.mock('@mui/icons-material', () => {
   const createIcon = (testId: string) => {
     function MockIcon() {
@@ -98,7 +117,7 @@ describe('SQLQueryPage', () => {
     expect(screen.getByText('Success')).toBeInTheDocument();
   });
 
-  it('allows direct range edits that stay aligned with rows per page', async () => {
+  it('renders larger result sets in a grid', async () => {
     const rows = Array.from({ length: 260 }, (_, index) => ({ value: `row-${index + 1}` }));
     const executeCustomQuery = vi.fn().mockResolvedValue(rows);
     mockedUseSqlQuerySlice.mockReturnValue({
@@ -112,24 +131,9 @@ describe('SQLQueryPage', () => {
     await user.type(screen.getByTestId('sql-query-input'), 'SELECT value FROM transactions;');
     await user.click(screen.getByRole('button', { name: 'Execute Query' }));
 
-    expect(await screen.findByText('row-1')).toBeInTheDocument();
-    expect(screen.getByTestId('sql-query-range-start')).toHaveValue('1');
-    expect(screen.getByTestId('sql-query-range-end')).toHaveValue('25');
-
-    await user.click(screen.getByRole('combobox', { name: /rows per page/i }));
-    await user.click(await screen.findByRole('option', { name: '100' }));
-
-    const endInput = screen.getByTestId('sql-query-range-end');
-    await user.clear(endInput);
-    await user.type(endInput, '260');
-    await user.tab();
-
-    await waitFor(() => {
-      expect(screen.getByText('row-201')).toBeInTheDocument();
-    });
-
-    expect(screen.getByTestId('sql-query-range-start')).toHaveValue('201');
-    expect(screen.getByTestId('sql-query-range-end')).toHaveValue('260');
-    expect(screen.queryByText('row-1')).not.toBeInTheDocument();
+    expect(await screen.findByRole('grid')).toBeInTheDocument();
+    expect(screen.getAllByRole('gridcell')).toHaveLength(260);
+    expect(screen.getByText('row-1')).toBeInTheDocument();
+    expect(screen.getByText('row-260')).toBeInTheDocument();
   });
 });

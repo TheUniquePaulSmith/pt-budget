@@ -24,6 +24,7 @@ export const CREATE_TABLES = {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       display_name TEXT NOT NULL,
+      is_primary INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -60,7 +61,9 @@ export const CREATE_TABLES = {
       date DATE NOT NULL,
       amount REAL NOT NULL,
       description TEXT NOT NULL,
+      comment TEXT,
       account_id INTEGER NOT NULL,
+      card_id INTEGER,
       category_id INTEGER,
       company_id INTEGER,
       project_id INTEGER,
@@ -71,6 +74,7 @@ export const CREATE_TABLES = {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (account_id) REFERENCES accounts (id),
+      FOREIGN KEY (card_id) REFERENCES account_cards (id) ON DELETE SET NULL,
       FOREIGN KEY (category_id) REFERENCES categories (id),
       FOREIGN KEY (company_id) REFERENCES companies (id),
       FOREIGN KEY (project_id) REFERENCES projects (id),
@@ -78,17 +82,47 @@ export const CREATE_TABLES = {
     )
   `,
   
-  BUDGETS: `
-    CREATE TABLE IF NOT EXISTS budgets (
+  BUDGET_PLANS: `
+    CREATE TABLE IF NOT EXISTS budget_plans (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      effective_month TEXT NOT NULL UNIQUE CHECK(effective_month GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]'),
+      total_amount REAL,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `,
+
+  BUDGET_PLAN_CATEGORIES: `
+    CREATE TABLE IF NOT EXISTS budget_plan_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_id INTEGER NOT NULL,
       category_id INTEGER NOT NULL,
       amount REAL NOT NULL,
-      period TEXT CHECK(period IN ('weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'monthly',
-      start_date DATE NOT NULL,
-      end_date DATE,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (plan_id) REFERENCES budget_plans (id) ON DELETE CASCADE,
       FOREIGN KEY (category_id) REFERENCES categories (id)
+    )
+  `,
+
+  INCOME_SOURCES: `
+    CREATE TABLE IF NOT EXISTS income_sources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      kind TEXT CHECK(kind IN ('linked_account','recurring_salary')) NOT NULL,
+      user_id INTEGER,
+      account_id INTEGER,
+      amount REAL,
+      frequency TEXT CHECK(frequency IN ('weekly','biweekly','semi_monthly','monthly')),
+      start_date DATE,
+      end_date DATE,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
+      FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE
     )
   `,
   
@@ -134,7 +168,9 @@ export const CREATE_TABLES = {
       date DATE NOT NULL,
       amount REAL NOT NULL,
       description TEXT NOT NULL,
+      comment TEXT,
       account_id INTEGER NOT NULL,
+      card_id INTEGER,
       category_id INTEGER,
       company_id INTEGER,
       project_id INTEGER,
@@ -210,6 +246,10 @@ export const CREATE_TABLES = {
 // Indexes — run on every open (IF NOT EXISTS makes them idempotent)
 export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_transactions_date_id ON transactions(date DESC, id DESC)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_bpc_plan_category ON budget_plan_categories(plan_id, category_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_budget_plans_month ON budget_plans(effective_month)`,
+  `CREATE INDEX IF NOT EXISTS idx_transactions_card ON transactions(card_id) WHERE card_id IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_transactions_type_date ON transactions(type, date)`,
   `CREATE INDEX IF NOT EXISTS idx_temp_import_transactions_hash ON temp_import_transactions(transaction_hash) WHERE transaction_hash IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_merchant_rules_enabled ON merchant_rules(enabled, priority)`,
   `CREATE INDEX IF NOT EXISTS idx_recurring_series_status ON recurring_series(status, kind)`,
@@ -254,8 +294,8 @@ export const DEFAULT_DATA = {
   `,
   
   USERS: `
-    INSERT OR IGNORE INTO users (id, display_name) VALUES
-    (1, 'Default User')
+    INSERT OR IGNORE INTO users (id, display_name, is_primary) VALUES
+    (1, 'Default User', 1)
   `,
   
   ACCOUNTS: `

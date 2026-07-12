@@ -148,13 +148,15 @@ class DatabaseWorker {
           // ACCOUNT_USERS removed in favor of owner_user_id on accounts
           await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNT_CARDS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTIONS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGETS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.PROJECTS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRIPS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TEMP_IMPORT_TRANSACTIONS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.MERCHANT_RULES);
           await this.sqlite3.exec(this.db, CREATE_TABLES.RECURRING_SERIES);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTION_SERIES_LINKS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGET_PLANS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGET_PLAN_CATEGORIES);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.INCOME_SOURCES);
           await this.sqlite3.exec(this.db, CREATE_TABLES.APP_METADATA);
 
           // Insert default data

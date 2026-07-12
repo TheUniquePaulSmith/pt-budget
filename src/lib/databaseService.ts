@@ -24,7 +24,8 @@ import {
   COMPANY_QUERIES,
   ACCOUNT_QUERIES,
   ACCOUNT_CARD_QUERIES,
-  BUDGET_QUERIES,
+  BUDGET_PLAN_QUERIES,
+  INCOME_SOURCE_QUERIES,
   PROJECT_QUERIES,
   USER_QUERIES,
   TRIP_QUERIES,
@@ -37,11 +38,17 @@ import {
   Company,
   Account,
   AccountCard,
-  Budget,
+  BudgetPeriod,
+  BudgetPlan,
+  BudgetPlanCategory,
+  BudgetPlanWithCategories,
+  BudgetStatus,
+  IncomeSource,
   Project,
   User,
   Trip,
   TransactionQueryParams,
+  TransactionScopeFilters,
   TransactionsPaginatedResult,
   DashboardSummary,
   ChartData,
@@ -441,7 +448,7 @@ export class DatabaseService {
 
   // Transaction operations
   async addTransaction(
-    transaction: Omit<Transaction, "id" | "created_at" | "updated_at">
+    transaction: Omit<Transaction, "id" | "created_at" | "updated_at" | "card_id"> & { card_id?: number | null }
   ): Promise<string> {
     try {
       const hash = this.generateTransactionHash(transaction);
@@ -461,7 +468,9 @@ export class DatabaseService {
           transaction.date,
           transaction.amount,
           transaction.description,
+          transaction.comment || null,
           transaction.account_id,
+          transaction.card_id || null,
           transaction.category_id || null,
           transaction.company_id || null,
           transaction.project_id || null,
@@ -500,7 +509,7 @@ export class DatabaseService {
   }
 
   async insertIntoTempTable(
-    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
+    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at" | "card_id"> & { card_id?: number | null }>
   ): Promise<number[]> {
     try {
       const insertedIds: number[] = [];
@@ -509,7 +518,9 @@ export class DatabaseService {
           transaction.date,
           transaction.amount,
           transaction.description,
+          transaction.comment || null,
           transaction.account_id,
+          transaction.card_id || null,
           transaction.category_id || null,
           transaction.company_id || null,
           transaction.project_id || null,
@@ -600,7 +611,7 @@ export class DatabaseService {
   }
 
   async addTransactionsBatch(
-    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
+    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at" | "card_id"> & { card_id?: number | null }>
   ): Promise<{ success: number; failed: number; errors: string[] }> {
     const result = { success: 0, failed: 0, errors: [] as string[] };
 
@@ -630,11 +641,20 @@ export class DatabaseService {
     }
   }
 
-  async getRecentTransactions(limit: number): Promise<Transaction[]> {
+  async getRecentTransactions(limit: number, filters?: TransactionScopeFilters): Promise<Transaction[]> {
     try {
+      const { where, params } = this.buildTransactionScopeWhereClause(filters);
+      const sql = `
+        SELECT ${this.TRANSACTION_SELECT}
+        FROM transactions t
+        ${this.TRANSACTION_JOINS}
+        ${where}
+        ORDER BY t.date DESC, t.id DESC
+        LIMIT ?
+      `;
       const rows = await this.workerService.query(
-        TRANSACTION_QUERIES.GET_RECENT,
-        [limit]
+        sql,
+        [...params, limit]
       );
       return rows.map(this.mapToTransaction);
     } catch (error) {
@@ -650,6 +670,7 @@ export class DatabaseService {
     category_name: 'c.name',
     company_name: 'comp.name',
     account_name: 'a.name',
+    effective_user_name: 'effective_user_name',
   };
 
   private buildTransactionWhereClause(params: TransactionQueryParams): { where: string; params: any[] } {
@@ -681,6 +702,10 @@ export class DatabaseService {
       conditions.push(`t.account_id IN (${params.accountIds.map(() => '?').join(',')})`);
       queryParams.push(...params.accountIds);
     }
+    if (params.userIds && params.userIds.length > 0) {
+      conditions.push(`COALESCE(card.user_id, a.owner_user_id) IN (${params.userIds.map(() => '?').join(',')})`);
+      queryParams.push(...params.userIds);
+    }
     if (params.startDate) {
       conditions.push('t.date >= ?');
       queryParams.push(params.startDate);
@@ -702,10 +727,70 @@ export class DatabaseService {
     return { where, params: queryParams };
   }
 
+  private buildTransactionScopeWhereClause(filters?: TransactionScopeFilters): { where: string; params: any[] } {
+    const conditions: string[] = [];
+    const queryParams: any[] = [];
+    if (filters?.accountIds && filters.accountIds.length > 0) {
+      conditions.push(`t.account_id IN (${filters.accountIds.map(() => '?').join(',')})`);
+      queryParams.push(...filters.accountIds);
+    }
+    if (filters?.userIds && filters.userIds.length > 0) {
+      conditions.push(`COALESCE(card.user_id, a.owner_user_id) IN (${filters.userIds.map(() => '?').join(',')})`);
+      queryParams.push(...filters.userIds);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    return { where, params: queryParams };
+  }
+
+  private buildAnalyticsFilters(sql: string, filters?: TransactionScopeFilters): { joins: string; where: string; params: any[] } {
+    const conditions: string[] = [];
+    const queryParams: any[] = [];
+    const needsCardJoin = !!(filters?.userIds && filters.userIds.length > 0);
+    const joins: string[] = [];
+
+    if (needsCardJoin && !sql.includes('accounts a')) {
+      joins.push('LEFT JOIN accounts a ON t.account_id = a.id');
+    }
+    if (needsCardJoin) {
+      joins.push('LEFT JOIN account_cards card ON t.card_id = card.id');
+    }
+
+    if (filters?.accountIds && filters.accountIds.length > 0) {
+      conditions.push(`t.account_id IN (${filters.accountIds.map(() => '?').join(',')})`);
+      queryParams.push(...filters.accountIds);
+    }
+    if (filters?.userIds && filters.userIds.length > 0) {
+      conditions.push(`COALESCE(card.user_id, a.owner_user_id) IN (${filters.userIds.map(() => '?').join(',')})`);
+      queryParams.push(...filters.userIds);
+    }
+
+    return {
+      joins: joins.join('\n'),
+      where: conditions.length > 0 ? ` AND ${conditions.join(' AND ')}` : '',
+      params: queryParams,
+    };
+  }
+
+  private applyAnalyticsFilters(sql: string, filters?: TransactionScopeFilters): { sql: string; params: any[] } {
+    const analyticsFilters = this.buildAnalyticsFilters(sql, filters);
+    return {
+      sql: sql
+        .replace('/*__FILTER_JOINS__*/', analyticsFilters.joins)
+        .replace('/*__FILTERS__*/', analyticsFilters.where),
+      params: analyticsFilters.params,
+    };
+  }
+
   private readonly TRANSACTION_JOINS = `
     LEFT JOIN categories c ON t.category_id = c.id
     LEFT JOIN companies comp ON t.company_id = comp.id
     LEFT JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN account_cards card ON t.card_id = card.id
+    LEFT JOIN users card_user ON card.user_id = card_user.id
+    LEFT JOIN users owner_user ON a.owner_user_id = owner_user.id
+    LEFT JOIN transaction_series_links tsl ON tsl.transaction_id = t.id
+    LEFT JOIN recurring_series rs ON rs.id = tsl.series_id
+    LEFT JOIN merchant_rules service_rule ON service_rule.id = rs.rule_id
     LEFT JOIN projects p ON t.project_id = p.id
     LEFT JOIN trips tr ON t.trip_id = tr.id
   `;
@@ -718,6 +803,14 @@ export class DatabaseService {
     comp.name as company_name,
     a.name as account_name,
     a.type as account_type,
+    card.last_four as card_last_four,
+    card.nickname as card_nickname,
+    COALESCE(card.user_id, a.owner_user_id) as effective_user_id,
+    COALESCE(card_user.display_name, owner_user.display_name) as effective_user_name,
+    owner_user.display_name as account_owner_name,
+    tsl.series_id as series_id,
+    rs.name as series_name,
+    COALESCE(service_rule.service_name, rs.name) as service_name,
     p.name as project_name,
     tr.name as trip_name
   `;
@@ -735,10 +828,18 @@ export class DatabaseService {
         ${this.TRANSACTION_JOINS}
         ${where}
       `;
-      const aggregateResult = await this.workerService.query(aggregateSql, filterParams);
+      const [aggregateResult, incomeSourceRows] = await Promise.all([
+        this.workerService.query(aggregateSql, filterParams),
+        this.workerService.query(INCOME_SOURCE_QUERIES.GET_ALL),
+      ]);
       const total = Number(aggregateResult[0]?.total || 0);
-      const totalIncome = Number(aggregateResult[0]?.total_income || 0);
+      const actualIncome = Number(aggregateResult[0]?.total_income || 0);
       const totalExpenses = Number(aggregateResult[0]?.total_expenses || 0);
+      const range = this.getTransactionParamsDateRange(params);
+      const expectedIncome = range
+        ? this.expectedIncomeForDateRange(incomeSourceRows.map(this.mapToIncomeSource), range.startDate, range.endDate, params)
+        : 0;
+      const totalIncome = Math.max(actualIncome, expectedIncome);
 
       const sortCol = this.ALLOWED_SORT_COLUMNS[params.sortBy] ?? 't.date';
       const sortDir = params.sortOrder === 'asc' ? 'ASC' : 'DESC';
@@ -784,15 +885,26 @@ export class DatabaseService {
     }
   }
 
-  async getDashboardSummary(startDate: string, endDate: string): Promise<DashboardSummary> {
+  async getDashboardSummary(startDate: string, endDate: string, filters?: TransactionScopeFilters): Promise<DashboardSummary> {
     try {
-      const rows = await this.workerService.query(
-        ANALYTICS_QUERIES.DASHBOARD_SUMMARY,
-        [startDate, endDate]
-      );
+      const dashboardQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.DASHBOARD_SUMMARY, filters);
+      const [rows, incomeSourceRows] = await Promise.all([
+        this.workerService.query(
+          dashboardQuery.sql,
+          [startDate, endDate, ...dashboardQuery.params]
+        ),
+        this.workerService.query(INCOME_SOURCE_QUERIES.GET_ALL),
+      ]);
       const row = rows[0] || {};
-      const totalIncome = Number(row.total_income || 0);
+      const actualIncome = Number(row.total_income || 0);
       const totalExpenses = Number(row.total_expenses || 0);
+      const expectedIncome = this.expectedIncomeForDateRange(
+        incomeSourceRows.map(this.mapToIncomeSource),
+        startDate,
+        endDate,
+        filters
+      );
+      const totalIncome = Math.max(actualIncome, expectedIncome);
       return {
         totalIncome,
         totalExpenses,
@@ -805,18 +917,30 @@ export class DatabaseService {
     }
   }
 
-  async getChartData(startDate: string, endDate: string): Promise<ChartData> {
+  async getChartData(startDate: string, endDate: string, filters?: TransactionScopeFilters): Promise<ChartData> {
     try {
       const trendStart = new Date(endDate);
       trendStart.setMonth(trendStart.getMonth() - 6);
       const trendStartStr = trendStart.toISOString().split('T')[0];
 
-      const [spendingRows, incomeRows, trendRows, accountRows] = await Promise.all([
-        this.workerService.query(ANALYTICS_QUERIES.SPENDING_BY_CATEGORY, [startDate, endDate]),
-        this.workerService.query(ANALYTICS_QUERIES.INCOME_BY_SOURCE, [startDate, endDate]),
-        this.workerService.query(ANALYTICS_QUERIES.TRENDS_BY_DATE_RANGE, [trendStartStr, endDate]),
-        this.workerService.query(ANALYTICS_QUERIES.ACCOUNT_ANALYSIS, [startDate, endDate]),
+      const spendingQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.SPENDING_BY_CATEGORY, filters);
+      const companySpendingQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.SPENDING_BY_COMPANY_SERVICE, filters);
+      const recurringSpendingQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.SPENDING_BY_RECURRING_SERIES, filters);
+      const incomeQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.INCOME_BY_SOURCE, filters);
+      const trendsQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.TRENDS_BY_DATE_RANGE, filters);
+      const accountQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.ACCOUNT_ANALYSIS, filters);
+
+      const [spendingRows, companySpendingRows, recurringSpendingRows, incomeRows, trendRows, accountRows, incomeSourceRows] = await Promise.all([
+        this.workerService.query(spendingQuery.sql, [startDate, endDate, ...spendingQuery.params]),
+        this.workerService.query(companySpendingQuery.sql, [startDate, endDate, ...companySpendingQuery.params]),
+        this.workerService.query(recurringSpendingQuery.sql, [startDate, endDate, ...recurringSpendingQuery.params]),
+        this.workerService.query(incomeQuery.sql, [startDate, endDate, ...incomeQuery.params]),
+        this.workerService.query(trendsQuery.sql, [trendStartStr, endDate, ...trendsQuery.params]),
+        this.workerService.query(accountQuery.sql, [startDate, endDate, ...accountQuery.params]),
+        this.workerService.query(INCOME_SOURCE_QUERIES.GET_ALL),
       ]);
+      const incomeSources = incomeSourceRows.map(this.mapToIncomeSource);
+      const selectedRangeIncomeSources = this.getIncomeSourceChartRows(incomeSources, startDate, endDate, filters);
 
       const spendingByCategory = spendingRows.map((r: any) => ({
         id: r.category_id,
@@ -825,7 +949,21 @@ export class DatabaseService {
         color: r.color || '#999',
       }));
 
-      const incomeBySource = incomeRows.map((r: any) => {
+      const spendingByCompany = companySpendingRows.map((r: any, index: number) => ({
+        id: `${r.company_id}-${r.service_name || 'company'}`,
+        label: r.service_name ? `${r.company_name} - ${r.service_name}` : r.company_name,
+        value: Number(r.total),
+        color: this.chartColor(index),
+      }));
+
+      const spendingByRecurring = recurringSpendingRows.map((r: any, index: number) => ({
+        id: r.series_id,
+        label: `${r.series_name} (${r.kind === 'bill' ? 'Bill' : 'Subscription'})`,
+        value: Number(r.total),
+        color: this.chartColor(index + 3),
+      }));
+
+      const transactionIncomeBySource = incomeRows.map((r: any) => {
         const label = `${r.user_display_name || 'Unknown'} - ${r.account_name} - ${r.category_name || 'Not Defined'}`;
         return {
           id: `${r.account_id}-${r.category_id || 'undefined'}`,
@@ -834,22 +972,37 @@ export class DatabaseService {
           color: r.category_color || '#4caf50',
         };
       });
+      const transactionIncomeTotal = transactionIncomeBySource.reduce((sum, item) => sum + item.value, 0);
+      const expectedIncomeTotal = selectedRangeIncomeSources.reduce((sum, item) => sum + item.value, 0);
+      const incomeBySource = expectedIncomeTotal > transactionIncomeTotal
+        ? selectedRangeIncomeSources
+        : transactionIncomeBySource;
+
+      const expectedIncomeByTrendMonth = this.getExpectedIncomeByMonth(incomeSources, trendStartStr, endDate, filters);
 
       const trends = {
         months: trendRows.map((r: any) => r.month),
-        income: trendRows.map((r: any) => Number(r.income || 0)),
+        income: trendRows.map((r: any) => Math.max(Number(r.income || 0), Number(expectedIncomeByTrendMonth.get(r.month) || 0))),
         expenses: trendRows.map((r: any) => Number(r.expense || 0)),
       };
 
-      const accountAnalysis = {
-        accountNames: accountRows.map((r: any) =>
-          `${r.user_display_name ? r.user_display_name + ' - ' : ''}${r.account_name}`
-        ),
-        income: accountRows.map((r: any) => Number(r.income || 0)),
-        expenses: accountRows.map((r: any) => Number(r.expenses || 0)),
+      for (const [month, expectedIncome] of expectedIncomeByTrendMonth.entries()) {
+        if (!trends.months.includes(month)) {
+          trends.months.push(month);
+          trends.income.push(expectedIncome);
+          trends.expenses.push(0);
+        }
+      }
+      const sortedTrendIndexes = trends.months.map((month, index) => ({ month, index })).sort((a, b) => a.month.localeCompare(b.month));
+      const sortedTrends = {
+        months: sortedTrendIndexes.map((entry) => trends.months[entry.index]),
+        income: sortedTrendIndexes.map((entry) => trends.income[entry.index]),
+        expenses: sortedTrendIndexes.map((entry) => trends.expenses[entry.index]),
       };
 
-      return { spendingByCategory, incomeBySource, trends, accountAnalysis };
+      const accountAnalysis = this.mergeIncomeSourcesIntoAccountAnalysis(accountRows, incomeSources, startDate, endDate, filters);
+
+      return { spendingByCategory, spendingByCompany, spendingByRecurring, incomeBySource, trends: sortedTrends, accountAnalysis };
     } catch (error) {
       console.error("Failed to get chart data:", error);
       throw error;
@@ -1060,6 +1213,15 @@ export class DatabaseService {
     }
   }
 
+  async updateCompany(id: number, name: string): Promise<void> {
+    try {
+      await this.workerService.query(COMPANY_QUERIES.UPDATE, [name.trim(), id]);
+    } catch (error) {
+      console.error("Failed to update company:", error);
+      throw error;
+    }
+  }
+
   async findCompanyByName(name: string): Promise<Company | null> {
     try {
       const rows = await this.workerService.query(
@@ -1097,20 +1259,34 @@ export class DatabaseService {
     }
   }
 
-  async addAccount(
+  async addAccountWithCard(
     account: Omit<Account, "id" | "created_at" | "updated_at" | "owner_user_id">,
-    ownerUserId: number
-  ): Promise<number> {
+    ownerUserId: number,
+    card: Omit<AccountCard, 'id' | 'created_at' | 'updated_at' | 'account_id'>
+  ): Promise<{ accountId: number; cardId: number }> {
+    await this.workerService.query('BEGIN TRANSACTION');
     try {
-      const result = await this.workerService.query(ACCOUNT_QUERIES.CREATE, [
+      const accountResult = await this.workerService.query(ACCOUNT_QUERIES.CREATE, [
         account.name,
         account.type,
         ownerUserId,
       ]);
-      const accountId = result[0].id;
-      return accountId;
+      const accountId = Number(accountResult[0].id);
+      const cardResult = await this.workerService.query(ACCOUNT_CARD_QUERIES.CREATE, [
+        accountId,
+        card.last_four,
+        card.nickname || null,
+        card.user_id || null,
+      ]);
+      const cardId = Number(cardResult[0].id);
+      await this.workerService.query('COMMIT');
+      return { accountId, cardId };
     } catch (error) {
-      console.error("Failed to add account:", error);
+      await this.workerService.query('ROLLBACK');
+      if (error instanceof Error && /UNIQUE|constraint/i.test(error.message)) {
+        throw new Error('A card with that last four already exists.');
+      }
+      console.error("Failed to add account with card:", error);
       throw error;
     }
   }
@@ -1150,15 +1326,29 @@ export class DatabaseService {
       ]);
       return result[0].id;
     } catch (error) {
+      if (error instanceof Error && /UNIQUE|constraint/i.test(error.message)) {
+        throw new Error('A card with that last four already exists.');
+      }
       console.error("Failed to add account card:", error);
       throw error;
     }
   }
 
   async deleteAccountCard(id: number): Promise<void> {
+    await this.workerService.query('BEGIN TRANSACTION');
     try {
+      const cardRows = await this.workerService.query('SELECT account_id FROM account_cards WHERE id = ?', [id]);
+      const accountId = cardRows[0]?.account_id;
+      if (accountId != null) {
+        const countRows = await this.workerService.query('SELECT COUNT(*) as count FROM account_cards WHERE account_id = ?', [accountId]);
+        if (Number(countRows[0]?.count || 0) <= 1) {
+          throw new Error('An account must keep at least one card');
+        }
+      }
       await this.workerService.query(ACCOUNT_CARD_QUERIES.DELETE, [id]);
+      await this.workerService.query('COMMIT');
     } catch (error) {
+      await this.workerService.query('ROLLBACK');
       console.error("Failed to delete account card:", error);
       throw error;
     }
@@ -1191,31 +1381,294 @@ export class DatabaseService {
     }
   }
 
-  // Budget operations
-  async getBudgets(): Promise<Budget[]> {
+  async setTransactionCategory(txId: number, categoryId: number | null): Promise<void> {
     try {
-      const rows = await this.workerService.query(BUDGET_QUERIES.GET_ALL);
-      return rows.map(this.mapToBudget);
+      if (categoryId != null) {
+        const [transactionRows, categoryRows] = await Promise.all([
+          this.workerService.query('SELECT type FROM transactions WHERE id = ?', [txId]),
+          this.workerService.query(CATEGORY_QUERIES.GET_BY_ID, [categoryId]),
+        ]);
+        const transactionType = transactionRows[0]?.type;
+        const categoryType = categoryRows[0]?.type;
+        if (transactionType && categoryType && transactionType !== categoryType) {
+          throw new Error(`Category type ${categoryType} does not match transaction type ${transactionType}`);
+        }
+      }
+      await this.workerService.query(TRANSACTION_QUERIES.SET_CATEGORY, [categoryId, txId]);
     } catch (error) {
-      console.error("Failed to get budgets:", error);
+      console.error("Failed to set transaction category:", error);
       throw error;
     }
   }
 
-  async addBudget(
-    budget: Omit<Budget, "id" | "created_at" | "updated_at">
-  ): Promise<number> {
+  async setTransactionCompany(
+    txId: number,
+    input: { companyId?: number | null; companyName?: string | null }
+  ): Promise<void> {
     try {
-      const result = await this.workerService.query(BUDGET_QUERIES.CREATE, [
-        budget.category_id,
-        budget.amount,
-        budget.period || "monthly",
-        budget.start_date,
-        budget.end_date || null,
-      ]);
-      return result[0].id;
+      let companyId = input.companyId ?? null;
+      const companyName = input.companyName?.trim();
+      if (companyName) {
+        companyId = await this.findOrCreateCompany(companyName);
+      }
+      await this.workerService.query(TRANSACTION_QUERIES.SET_COMPANY, [companyId, txId]);
     } catch (error) {
-      console.error("Failed to add budget:", error);
+      console.error("Failed to set transaction company:", error);
+      throw error;
+    }
+  }
+
+  async setTransactionComment(txId: number, comment: string): Promise<void> {
+    try {
+      const trimmedComment = comment.trim();
+      await this.workerService.query(TRANSACTION_QUERIES.SET_COMMENT, [trimmedComment || null, txId]);
+    } catch (error) {
+      console.error('Failed to set transaction comment:', error);
+      throw error;
+    }
+  }
+
+  async linkTransactionToSeries(txId: number, seriesId: number): Promise<void> {
+    try {
+      await this.workerService.query(SUBSCRIPTION_QUERIES.LINK_TRANSACTION_MANUAL, [txId, seriesId]);
+    } catch (error) {
+      console.error('Failed to link transaction to series:', error);
+      throw error;
+    }
+  }
+
+  async unlinkTransactionFromSeries(txId: number): Promise<void> {
+    try {
+      await this.workerService.query(SUBSCRIPTION_QUERIES.DELETE_LINK_FOR_TRANSACTION, [txId]);
+    } catch (error) {
+      console.error('Failed to unlink transaction from series:', error);
+      throw error;
+    }
+  }
+
+  async getBudgetPlans(): Promise<BudgetPlanWithCategories[]> {
+    try {
+      const [planRows, categoryRows] = await Promise.all([
+        this.workerService.query(BUDGET_PLAN_QUERIES.GET_ALL_PLANS),
+        this.workerService.query(BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES),
+      ]);
+      return this.stitchBudgetPlans(planRows.map(this.mapToBudgetPlan), categoryRows.map(this.mapToBudgetPlanCategory));
+    } catch (error) {
+      console.error('Failed to get budget plans:', error);
+      throw error;
+    }
+  }
+
+  async saveBudgetPlan(input: {
+    effectiveMonth: string;
+    totalAmount?: number | null;
+    notes?: string | null;
+    categories: Array<{ category_id: number; amount: number }>;
+  }): Promise<number> {
+    await this.workerService.query('BEGIN TRANSACTION');
+    try {
+      const result = await this.workerService.query(BUDGET_PLAN_QUERIES.UPSERT_PLAN, [
+        input.effectiveMonth,
+        input.totalAmount ?? null,
+        input.notes ?? null,
+      ]);
+      const planId = Number(result[0].id);
+      await this.workerService.query(BUDGET_PLAN_QUERIES.DELETE_PLAN_CATEGORIES, [planId]);
+      for (const category of input.categories) {
+        await this.workerService.query(BUDGET_PLAN_QUERIES.INSERT_PLAN_CATEGORY, [
+          planId,
+          category.category_id,
+          category.amount,
+        ]);
+      }
+      await this.workerService.query('COMMIT');
+      return planId;
+    } catch (error) {
+      await this.workerService.query('ROLLBACK');
+      console.error('Failed to save budget plan:', error);
+      throw error;
+    }
+  }
+
+  async deleteBudgetPlan(id: number): Promise<void> {
+    try {
+      await this.workerService.query(BUDGET_PLAN_QUERIES.DELETE_PLAN, [id]);
+    } catch (error) {
+      console.error('Failed to delete budget plan:', error);
+      throw error;
+    }
+  }
+
+  async getEffectiveBudgetPlan(month: string): Promise<BudgetPlanWithCategories | null> {
+    try {
+      const planRows = await this.workerService.query(BUDGET_PLAN_QUERIES.GET_EFFECTIVE_PLAN_FOR_MONTH, [month]);
+      if (planRows.length === 0) return null;
+      const categoryRows = await this.workerService.query(BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES);
+      return this.stitchBudgetPlans(planRows.map(this.mapToBudgetPlan), categoryRows.map(this.mapToBudgetPlanCategory))[0] ?? null;
+    } catch (error) {
+      console.error('Failed to get effective budget plan:', error);
+      throw error;
+    }
+  }
+
+  async getBudgetStatus(period: BudgetPeriod): Promise<BudgetStatus> {
+    try {
+      const months = this.expandBudgetPeriod(period);
+      const startDate = `${months[0]}-01`;
+      const endDate = this.endOfMonth(months[months.length - 1]);
+      const [planRows, categoryRows, expenseRows, linkedIncomeRows, incomeSourceRows] = await Promise.all([
+        this.workerService.query(BUDGET_PLAN_QUERIES.GET_ALL_PLANS),
+        this.workerService.query(BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES),
+        this.workerService.query(BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY, [startDate, endDate]),
+        this.workerService.query(BUDGET_PLAN_QUERIES.ACTUAL_INCOME_LINKED_BY_MONTH, [startDate, endDate]),
+        this.workerService.query(INCOME_SOURCE_QUERIES.GET_ALL),
+      ]);
+      const plans = this.stitchBudgetPlans(planRows.map(this.mapToBudgetPlan), categoryRows.map(this.mapToBudgetPlanCategory))
+        .sort((a, b) => a.effective_month.localeCompare(b.effective_month));
+      const planForMonth = new Map<string, BudgetPlanWithCategories>();
+      for (const month of months) {
+        const effectivePlan = [...plans].reverse().find((plan) => plan.effective_month <= month);
+        if (effectivePlan) planForMonth.set(month, effectivePlan);
+      }
+
+      const monthsWithPlan = months.filter((month) => planForMonth.has(month));
+      const expensesByMonthCategory = new Map<string, number>();
+      let actualExpenses = 0;
+      for (const row of expenseRows) {
+        const key = `${row.month}:${row.category_id ?? 'uncategorized'}`;
+        const total = Number(row.total || 0);
+        expensesByMonthCategory.set(key, total);
+        actualExpenses += total;
+      }
+
+      const categoryStatuses = new Map<number, BudgetStatus['categories'][number]>();
+      let budgetedTotal = 0;
+      let unbudgetedSpend = 0;
+      for (const month of months) {
+        const plan = planForMonth.get(month);
+        if (!plan) continue;
+        const categoryIds = new Set<number>();
+        const planCategoryTotal = plan.categories.reduce((sum, category) => sum + Number(category.amount || 0), 0);
+        budgetedTotal += Number(plan.total_amount ?? planCategoryTotal);
+        for (const category of plan.categories) {
+          categoryIds.add(category.category_id);
+          const actual = Number(expensesByMonthCategory.get(`${month}:${category.category_id}`) || 0);
+          const existing = categoryStatuses.get(category.category_id) ?? {
+            category_id: category.category_id,
+            category_name: category.category_name,
+            category_color: category.category_color,
+            budgetedAmount: 0,
+            actualExpenses: 0,
+            remaining: 0,
+            isOverBudget: false,
+          };
+          existing.budgetedAmount += Number(category.amount || 0);
+          existing.actualExpenses += actual;
+          existing.remaining = existing.budgetedAmount - existing.actualExpenses;
+          existing.isOverBudget = existing.remaining < 0;
+          categoryStatuses.set(category.category_id, existing);
+        }
+
+        for (const row of expenseRows) {
+          if (row.month !== month) continue;
+          const categoryId = row.category_id == null ? null : Number(row.category_id);
+          if (categoryId == null || !categoryIds.has(categoryId)) {
+            unbudgetedSpend += Number(row.total || 0);
+          }
+        }
+      }
+
+      const linkedIncomeByMonth = new Map<string, number>();
+      for (const row of linkedIncomeRows) {
+        linkedIncomeByMonth.set(row.month, Number(row.total || 0));
+      }
+      const incomeSources = incomeSourceRows.map(this.mapToIncomeSource);
+      const expectedIncome = months.reduce((sum, month) => (
+        sum + incomeSources.reduce((monthSum, source) => monthSum + this.expectedMonthlyIncome(source, month), 0)
+      ), 0);
+      const actualLinkedIncome = months.reduce((sum, month) => sum + Number(linkedIncomeByMonth.get(month) || 0), 0);
+      const hasPlan = monthsWithPlan.length > 0;
+      const totalBudget = hasPlan ? budgetedTotal : null;
+      const remaining = totalBudget == null ? null : totalBudget - actualExpenses;
+
+      return {
+        period,
+        months,
+        budgetedTotal: totalBudget,
+        actualExpenses,
+        remaining,
+        isOverBudget: remaining != null ? remaining < 0 : false,
+        categories: Array.from(categoryStatuses.values()),
+        unbudgetedSpend,
+        expectedIncome,
+        actualLinkedIncome,
+        monthsWithPlan,
+      };
+    } catch (error) {
+      console.error('Failed to get budget status:', error);
+      throw error;
+    }
+  }
+
+  async getIncomeSources(): Promise<IncomeSource[]> {
+    try {
+      const rows = await this.workerService.query(INCOME_SOURCE_QUERIES.GET_ALL);
+      return rows.map(this.mapToIncomeSource);
+    } catch (error) {
+      console.error('Failed to get income sources:', error);
+      throw error;
+    }
+  }
+
+  async addIncomeSource(input: Omit<IncomeSource, 'id' | 'created_at' | 'updated_at' | 'account_name'>): Promise<number> {
+    this.validateIncomeSource(input);
+    try {
+      const result = await this.workerService.query(INCOME_SOURCE_QUERIES.CREATE, [
+        input.name,
+        input.kind,
+        input.user_id ?? null,
+        input.account_id ?? null,
+        input.amount ?? null,
+        input.frequency ?? null,
+        input.start_date ?? null,
+        input.end_date ?? null,
+        input.is_active ?? 1,
+        input.notes ?? null,
+      ]);
+      return Number(result[0].id);
+    } catch (error) {
+      console.error('Failed to add income source:', error);
+      throw error;
+    }
+  }
+
+  async updateIncomeSource(id: number, input: Omit<IncomeSource, 'id' | 'created_at' | 'updated_at' | 'account_name'>): Promise<void> {
+    this.validateIncomeSource(input);
+    try {
+      await this.workerService.query(INCOME_SOURCE_QUERIES.UPDATE, [
+        input.name,
+        input.kind,
+        input.user_id ?? null,
+        input.account_id ?? null,
+        input.amount ?? null,
+        input.frequency ?? null,
+        input.start_date ?? null,
+        input.end_date ?? null,
+        input.is_active ?? 1,
+        input.notes ?? null,
+        id,
+      ]);
+    } catch (error) {
+      console.error('Failed to update income source:', error);
+      throw error;
+    }
+  }
+
+  async deleteIncomeSource(id: number): Promise<void> {
+    try {
+      await this.workerService.query(INCOME_SOURCE_QUERIES.DELETE, [id]);
+    } catch (error) {
+      console.error('Failed to delete income source:', error);
       throw error;
     }
   }
@@ -1432,15 +1885,37 @@ export class DatabaseService {
   }
 
   async addUser(
-    user: Omit<User, "id" | "created_at" | "updated_at">
+    user: Omit<User, "id" | "created_at" | "updated_at" | "is_primary"> & Partial<Pick<User, "is_primary">>
   ): Promise<number> {
     try {
       const result = await this.workerService.query(USER_QUERIES.CREATE, [
         user.display_name,
+        user.is_primary || 0,
       ]);
       return result[0].id;
     } catch (error) {
       console.error("Failed to add user:", error);
+      throw error;
+    }
+  }
+
+  async ensurePrimaryUser(displayName: string): Promise<number> {
+    const trimmedName = displayName.trim() || 'Primary User';
+    await this.workerService.query('BEGIN TRANSACTION');
+    try {
+      const existingRows = await this.workerService.query(USER_QUERIES.GET_PRIMARY);
+      if (existingRows.length > 0) {
+        await this.workerService.query(USER_QUERIES.RENAME_PRIMARY, [trimmedName]);
+        await this.workerService.query('COMMIT');
+        return Number(existingRows[0].id);
+      }
+
+      const result = await this.workerService.query(USER_QUERIES.CREATE, [trimmedName, 1]);
+      await this.workerService.query('COMMIT');
+      return Number(result[0].id);
+    } catch (error) {
+      await this.workerService.query('ROLLBACK');
+      console.error("Failed to ensure primary user:", error);
       throw error;
     }
   }
@@ -1462,6 +1937,10 @@ export class DatabaseService {
 
   async deleteUser(id: number): Promise<void> {
     try {
+      const rows = await this.workerService.query(USER_QUERIES.GET_BY_ID, [id]);
+      if (Number(rows[0]?.is_primary || 0) === 1) {
+        throw new Error('The primary user cannot be deleted');
+      }
       await this.workerService.query(USER_QUERIES.DELETE, [id]);
     } catch (error) {
       console.error("Failed to delete user:", error);
@@ -1599,7 +2078,9 @@ export class DatabaseService {
       date: row.date,
       amount: row.amount,
       description: row.description,
+      comment: row.comment ?? null,
       account_id: row.account_id,
+      card_id: row.card_id ?? null,
       category_id: row.category_id || null,
       company_id: row.company_id || null,
       project_id: row.project_id || null,
@@ -1614,6 +2095,14 @@ export class DatabaseService {
       company_name: row.company_name || undefined,
       account_name: row.account_name || undefined,
       account_type: row.account_type || undefined,
+      card_last_four: row.card_last_four || undefined,
+      card_nickname: row.card_nickname ?? null,
+      effective_user_id: row.effective_user_id ?? null,
+      effective_user_name: row.effective_user_name || undefined,
+      account_owner_name: row.account_owner_name || undefined,
+      series_id: row.series_id ?? null,
+      series_name: row.series_name || undefined,
+      service_name: row.service_name || undefined,
       project_name: row.project_name || undefined,
       trip_name: row.trip_name || undefined,
       trip_id: row.trip_id ? row.trip_id : null,
@@ -1660,20 +2149,374 @@ export class DatabaseService {
       nickname: row.nickname,
       user_id: row.user_id,
       created_at: row.created_at,
+      user_display_name: row.user_display_name,
+      account_name: row.account_name,
     };
   }
 
-  private mapToBudget(row: any): Budget {
+  private mapToBudgetPlan(row: any): BudgetPlan {
     return {
       id: row.id,
-      category_id: row.category_id,
-      amount: row.amount,
-      period: row.period,
-      start_date: row.start_date,
-      end_date: row.end_date,
+      effective_month: row.effective_month,
+      total_amount: row.total_amount == null ? null : Number(row.total_amount),
+      notes: row.notes,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
+  }
+
+  private mapToBudgetPlanCategory(row: any): BudgetPlanCategory {
+    return {
+      id: row.id,
+      plan_id: row.plan_id,
+      category_id: row.category_id,
+      amount: Number(row.amount || 0),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      category_name: row.category_name,
+      category_color: row.category_color,
+    };
+  }
+
+  private mapToIncomeSource(row: any): IncomeSource {
+    return {
+      id: row.id,
+      name: row.name,
+      kind: row.kind,
+      user_id: row.user_id ?? null,
+      account_id: row.account_id ?? null,
+      amount: row.amount == null ? null : Number(row.amount),
+      frequency: row.frequency ?? null,
+      start_date: row.start_date ?? null,
+      end_date: row.end_date ?? null,
+      is_active: Number(row.is_active ?? 1),
+      notes: row.notes,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      account_name: row.account_name,
+      user_display_name: row.user_display_name,
+      owner_display_name: row.owner_display_name,
+    };
+  }
+
+  private stitchBudgetPlans(plans: BudgetPlan[], categories: BudgetPlanCategory[]): BudgetPlanWithCategories[] {
+    const categoriesByPlan = new Map<number, BudgetPlanCategory[]>();
+    for (const category of categories) {
+      const list = categoriesByPlan.get(category.plan_id) ?? [];
+      list.push(category);
+      categoriesByPlan.set(category.plan_id, list);
+    }
+    return plans.map((plan) => ({ ...plan, categories: categoriesByPlan.get(plan.id) ?? [] }));
+  }
+
+  private expandBudgetPeriod(period: BudgetPeriod): string[] {
+    if (period.type === 'month') return [period.key];
+    if (period.type === 'quarter') {
+      const match = period.key.match(/^(\d{4})-Q([1-4])$/);
+      if (!match) throw new Error(`Invalid budget quarter key: ${period.key}`);
+      const year = Number(match[1]);
+      const startMonth = (Number(match[2]) - 1) * 3 + 1;
+      return [0, 1, 2].map((offset) => `${year}-${String(startMonth + offset).padStart(2, '0')}`);
+    }
+    const year = Number(period.key);
+    if (!Number.isInteger(year)) throw new Error(`Invalid budget year key: ${period.key}`);
+    return Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, '0')}`);
+  }
+
+  private endOfMonth(month: string): string {
+    const [year, monthNumber] = month.split('-').map(Number);
+    const date = new Date(Date.UTC(year, monthNumber, 0));
+    return `${month}-${String(date.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  private monthsForDateRange(startDate: string, endDate: string): string[] {
+    const [startYear, startMonth] = startDate.slice(0, 7).split('-').map(Number);
+    const [endYear, endMonth] = endDate.slice(0, 7).split('-').map(Number);
+    const months: string[] = [];
+    let year = startYear;
+    let month = startMonth;
+
+    while (year < endYear || (year === endYear && month <= endMonth)) {
+      months.push(`${year}-${String(month).padStart(2, '0')}`);
+      month += 1;
+      if (month > 12) {
+        month = 1;
+        year += 1;
+      }
+    }
+
+    return months;
+  }
+
+  private expectedIncomeForDateRange(
+    incomeSources: IncomeSource[],
+    startDate: string,
+    endDate: string,
+    filters?: TransactionScopeFilters
+  ): number {
+    const accountFilter = filters?.accountIds && filters.accountIds.length > 0
+      ? new Set(filters.accountIds)
+      : null;
+    const filteredSources = incomeSources.filter((source) => (
+      !accountFilter || source.kind !== 'linked_account' || (source.account_id != null && accountFilter.has(source.account_id))
+    ));
+
+    return filteredSources.reduce((sum, source) => (
+      sum + this.expectedIncomeOccurrencesForDateRange(source, startDate, endDate)
+    ), 0);
+  }
+
+  private getTransactionParamsDateRange(params: Partial<TransactionQueryParams>): { startDate: string; endDate: string } | null {
+    if (!params.startDate && !params.endDate) return null;
+
+    const today = new Date().toISOString().split('T')[0];
+    return {
+      startDate: params.startDate ?? `${today.slice(0, 7)}-01`,
+      endDate: params.endDate ?? today,
+    };
+  }
+
+  private filterIncomeSourcesForAnalytics(
+    incomeSources: IncomeSource[],
+    filters?: TransactionScopeFilters
+  ): IncomeSource[] {
+    const accountFilter = filters?.accountIds && filters.accountIds.length > 0
+      ? new Set(filters.accountIds)
+      : null;
+    const userFilter = filters?.userIds && filters.userIds.length > 0
+      ? new Set(filters.userIds)
+      : null;
+
+    return incomeSources.filter((source) => (
+      (!accountFilter || source.kind !== 'linked_account' || (source.account_id != null && accountFilter.has(source.account_id))) &&
+      (!userFilter || (source.user_id != null && userFilter.has(source.user_id)))
+    ));
+  }
+
+  private incomeSourceUserLabel(source: IncomeSource): string {
+    return source.user_display_name || source.owner_display_name || source.name;
+  }
+
+  private chartColor(index: number): string {
+    const colors = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#795548', '#607d8b'];
+    return colors[index % colors.length];
+  }
+
+  private getIncomeSourceChartRows(
+    incomeSources: IncomeSource[],
+    startDate: string,
+    endDate: string,
+    filters?: TransactionScopeFilters
+  ): ChartData['incomeBySource'] {
+    return this.filterIncomeSourcesForAnalytics(incomeSources, filters)
+      .map((source, index) => ({
+        id: `income-source-${source.id}`,
+        label: source.kind === 'linked_account'
+          ? `${source.account_name || 'Linked account'} - ${source.name}`
+          : source.name,
+        value: this.expectedIncomeOccurrencesForDateRange(source, startDate, endDate),
+        color: this.chartColor(index + 1),
+      }))
+      .filter((row) => row.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }
+
+  private getExpectedIncomeByMonth(
+    incomeSources: IncomeSource[],
+    startDate: string,
+    endDate: string,
+    filters?: TransactionScopeFilters
+  ): Map<string, number> {
+    const monthlyIncome = new Map<string, number>();
+    const months = this.monthsForDateRange(startDate, endDate);
+
+    for (const month of months) {
+      const monthStart = `${month}-01`;
+      const monthEnd = this.endOfMonth(month);
+      const effectiveStart = month === startDate.slice(0, 7) && startDate > monthStart ? startDate : monthStart;
+      const effectiveEnd = month === endDate.slice(0, 7) && endDate < monthEnd ? endDate : monthEnd;
+      const total = this.filterIncomeSourcesForAnalytics(incomeSources, filters).reduce(
+        (sum, source) => sum + this.expectedIncomeOccurrencesForDateRange(source, effectiveStart, effectiveEnd),
+        0
+      );
+      if (total > 0) {
+        monthlyIncome.set(month, total);
+      }
+    }
+
+    return monthlyIncome;
+  }
+
+  private mergeIncomeSourcesIntoAccountAnalysis(
+    accountRows: any[],
+    incomeSources: IncomeSource[],
+    startDate: string,
+    endDate: string,
+    filters?: TransactionScopeFilters
+  ): ChartData['accountAnalysis'] {
+    const userMap = new Map<string, { label: string; income: number; expenses: number }>();
+
+    for (const row of accountRows) {
+      const label = row.user_display_name || 'Unknown User';
+      const key = String(label);
+      const existing = userMap.get(key) ?? { label, income: 0, expenses: 0 };
+      existing.income += Number(row.income || 0);
+      existing.expenses += Number(row.expenses || 0);
+      userMap.set(key, existing);
+    }
+
+    for (const source of this.filterIncomeSourcesForAnalytics(incomeSources, filters)) {
+      const expectedIncome = this.expectedIncomeOccurrencesForDateRange(source, startDate, endDate);
+      if (expectedIncome <= 0) continue;
+
+      const label = this.incomeSourceUserLabel(source);
+      const key = String(label);
+      const existing = userMap.get(key) ?? { label, income: 0, expenses: 0 };
+      existing.income = Math.max(existing.income, expectedIncome);
+      userMap.set(key, existing);
+    }
+
+    const rows = Array.from(userMap.values()).sort((a, b) => (b.income + b.expenses) - (a.income + a.expenses));
+    return {
+      accountNames: rows.map((row) => row.label),
+      income: rows.map((row) => row.income),
+      expenses: rows.map((row) => row.expenses),
+    };
+  }
+
+  private expectedIncomeOccurrencesForDateRange(source: IncomeSource, startDate: string, endDate: string): number {
+    if (source.is_active !== 1 || source.amount == null) return 0;
+    const frequency = source.frequency ?? 'monthly';
+    const rangeStart = this.parseDateOnly(startDate);
+    const rangeEnd = this.parseDateOnly(endDate);
+    const sourceStart = this.parseDateOnly(source.start_date || startDate);
+    const sourceEnd = source.end_date ? this.parseDateOnly(source.end_date) : null;
+    const effectiveStart = sourceStart > rangeStart ? sourceStart : rangeStart;
+    const effectiveEnd = sourceEnd && sourceEnd < rangeEnd ? sourceEnd : rangeEnd;
+    if (effectiveStart > effectiveEnd) return 0;
+
+    const amount = Number(source.amount || 0);
+    if (frequency === 'semi_monthly') {
+      return this.countSemiMonthlyOccurrences(sourceStart, effectiveStart, effectiveEnd) * amount;
+    }
+    if (frequency === 'monthly') {
+      return this.countMonthlyOccurrences(sourceStart, effectiveStart, effectiveEnd) * amount;
+    }
+
+    const intervalDays = frequency === 'weekly' ? 7 : 14;
+    return this.countFixedIntervalOccurrences(sourceStart, effectiveStart, effectiveEnd, intervalDays) * amount;
+  }
+
+  private parseDateOnly(value: string): Date {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
+  }
+
+  private addUtcDays(date: Date, days: number): Date {
+    const next = new Date(date.getTime());
+    next.setUTCDate(next.getUTCDate() + days);
+    return next;
+  }
+
+  private addUtcMonths(date: Date, months: number): Date {
+    const next = new Date(date.getTime());
+    const day = next.getUTCDate();
+    next.setUTCDate(1);
+    next.setUTCMonth(next.getUTCMonth() + months);
+    const lastDay = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
+    next.setUTCDate(Math.min(day, lastDay));
+    return next;
+  }
+
+  private countFixedIntervalOccurrences(sourceStart: Date, rangeStart: Date, rangeEnd: Date, intervalDays: number): number {
+    let current = new Date(sourceStart.getTime());
+    while (current < rangeStart) {
+      current = this.addUtcDays(current, intervalDays);
+    }
+
+    let count = 0;
+    while (current <= rangeEnd) {
+      count += 1;
+      current = this.addUtcDays(current, intervalDays);
+    }
+    return count;
+  }
+
+  private countMonthlyOccurrences(sourceStart: Date, rangeStart: Date, rangeEnd: Date): number {
+    let current = new Date(sourceStart.getTime());
+    while (current < rangeStart) {
+      current = this.addUtcMonths(current, 1);
+    }
+
+    let count = 0;
+    while (current <= rangeEnd) {
+      count += 1;
+      current = this.addUtcMonths(current, 1);
+    }
+    return count;
+  }
+
+  private countSemiMonthlyOccurrences(sourceStart: Date, rangeStart: Date, rangeEnd: Date): number {
+    const firstDay = sourceStart.getUTCDate();
+    const secondDay = firstDay <= 15 ? Math.min(firstDay + 15, 28) : Math.max(firstDay - 15, 1);
+    let count = 0;
+    let year = rangeStart.getUTCFullYear();
+    let month = rangeStart.getUTCMonth();
+
+    while (year < rangeEnd.getUTCFullYear() || (year === rangeEnd.getUTCFullYear() && month <= rangeEnd.getUTCMonth())) {
+      for (const day of [firstDay, secondDay]) {
+        const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+        const occurrence = new Date(Date.UTC(year, month, Math.min(day, lastDay)));
+        if (occurrence >= sourceStart && occurrence >= rangeStart && occurrence <= rangeEnd) {
+          count += 1;
+        }
+      }
+      month += 1;
+      if (month > 11) {
+        month = 0;
+        year += 1;
+      }
+    }
+
+    return count;
+  }
+
+  private expectedMonthlyIncome(source: IncomeSource, month: string): number {
+    if (source.is_active !== 1) return 0;
+    const startMonth = source.start_date ? source.start_date.slice(0, 7) : null;
+    const endMonth = source.end_date ? source.end_date.slice(0, 7) : null;
+    if (startMonth && month < startMonth) return 0;
+    if (endMonth && month > endMonth) return 0;
+    const amount = Number(source.amount || 0);
+    if (source.kind === 'linked_account') {
+      return source.frequency ? this.normalizeIncomeAmount(amount, source.frequency) : amount;
+    }
+
+    return this.normalizeIncomeAmount(amount, source.frequency);
+  }
+
+  private normalizeIncomeAmount(amount: number, frequency: IncomeSource['frequency']): number {
+    switch (frequency) {
+      case 'weekly':
+        return amount * 52 / 12;
+      case 'biweekly':
+        return amount * 26 / 12;
+      case 'semi_monthly':
+        return amount * 2;
+      case 'monthly':
+        return amount;
+      default:
+        return 0;
+    }
+  }
+
+  private validateIncomeSource(input: Pick<IncomeSource, 'kind' | 'account_id' | 'amount' | 'frequency'>): void {
+    if (input.kind === 'linked_account' && input.account_id == null) {
+      throw new Error('Linked account income sources require an account');
+    }
+    if (input.kind === 'recurring_salary' && (input.amount == null || !input.frequency)) {
+      throw new Error('Recurring salary income sources require an amount and frequency');
+    }
   }
 
   private mapToProject(row: any): Project {
@@ -1698,6 +2541,7 @@ export class DatabaseService {
     return {
       id: row.id,
       display_name: row.display_name,
+      is_primary: Number(row.is_primary || 0),
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
@@ -1722,7 +2566,7 @@ export class DatabaseService {
   }
 
   private generateTransactionHash(
-    transaction: Omit<Transaction, "id" | "created_at" | "updated_at">
+    transaction: Pick<Transaction, "account_id" | "date" | "amount" | "description">
   ): string {
     const hashInput = `${transaction.account_id || "null"}-${
       transaction.date

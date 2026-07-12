@@ -87,6 +87,8 @@ describe('SettingsPage theme presets', () => {
       migrateDatabaseToCloud: vi.fn().mockResolvedValue(undefined),
       saveDatabaseToCurrentCloud: vi.fn().mockResolvedValue(undefined),
       switchToLocalSource: vi.fn(),
+      setEncryptionPassword: vi.fn().mockResolvedValue(undefined),
+      clearEncryptionPassword: vi.fn().mockResolvedValue(undefined),
       isDatabaseLoaded: true,
       databaseSource: 'local',
       databaseSourceState: {

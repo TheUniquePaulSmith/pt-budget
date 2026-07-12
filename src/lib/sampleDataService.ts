@@ -85,6 +85,9 @@ export class SampleDataService {
     'companies.json',
     'projects.json',
     'trips.json',
+    'budget_plans.json',
+    'budget_plan_categories.json',
+    'income_sources.json',
     'transactions.json',
   ];
 
@@ -430,6 +433,7 @@ export class SampleDataService {
           toParameters: (row) => [
             row.id,
             row.display_name,
+            row.is_primary || 0,
             row.created_at,
             row.updated_at,
           ],
@@ -498,7 +502,9 @@ export class SampleDataService {
             row.date,
             row.amount,
             row.description,
+            row.comment ?? null,
             row.account_id,
+            row.card_id || null,
             row.category_id || null,
             row.company_id || null,
             row.project_id || null,
@@ -518,13 +524,15 @@ export class SampleDataService {
           toParameters: (row) => [
             row.id,
             row.name,
-            row.description || null,
-            row.budget || null,
+            row.company_name || null,
+            row.contact_details || null,
+            row.project_category || 'other',
+            row.status || 'planning',
             row.start_date || null,
             row.end_date || null,
             row.estimated_cost || 0,
             row.actual_cost || 0,
-            row.status || 'planning',
+            row.notes || null,
             row.created_at,
             row.updated_at,
           ],
@@ -537,13 +545,63 @@ export class SampleDataService {
           toParameters: (row) => [
             row.id,
             row.name,
-            row.description || null,
+            row.destination || null,
+            row.purpose || null,
             row.trip_category || 'other',
             row.status || 'planning',
             row.start_date || null,
             row.end_date || null,
             row.estimated_cost || 0,
             row.actual_cost || 0,
+            row.notes || null,
+            row.created_at,
+            row.updated_at,
+          ],
+        };
+      case 'budget_plans':
+        return {
+          insertQuery: SAMPLE_DATA_QUERIES.INSERT_BUDGET_PLAN,
+          batchSize: DEFAULT_BATCH_SIZE,
+          progressLogInterval: DEFAULT_PROGRESS_LOG_INTERVAL,
+          toParameters: (row) => [
+            row.id,
+            row.effective_month,
+            row.total_amount ?? null,
+            row.notes || null,
+            row.created_at,
+            row.updated_at,
+          ],
+        };
+      case 'budget_plan_categories':
+        return {
+          insertQuery: SAMPLE_DATA_QUERIES.INSERT_BUDGET_PLAN_CATEGORY,
+          batchSize: DEFAULT_BATCH_SIZE,
+          progressLogInterval: DEFAULT_PROGRESS_LOG_INTERVAL,
+          toParameters: (row) => [
+            row.id,
+            row.plan_id,
+            row.category_id,
+            row.amount,
+            row.created_at,
+            row.updated_at,
+          ],
+        };
+      case 'income_sources':
+        return {
+          insertQuery: SAMPLE_DATA_QUERIES.INSERT_INCOME_SOURCE,
+          batchSize: DEFAULT_BATCH_SIZE,
+          progressLogInterval: DEFAULT_PROGRESS_LOG_INTERVAL,
+          toParameters: (row) => [
+            row.id,
+            row.name,
+            row.kind,
+            row.user_id ?? null,
+            row.account_id ?? null,
+            row.amount ?? null,
+            row.frequency ?? null,
+            row.start_date ?? null,
+            row.end_date ?? null,
+            row.is_active ?? 1,
             row.notes || null,
             row.created_at,
             row.updated_at,

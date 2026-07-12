@@ -2,6 +2,7 @@
 
 import {
   useDatabaseAccounts,
+  useDatabaseBudget,
   useDatabaseCategories,
   useDatabaseCollections,
   useDatabaseCompanies,
@@ -66,6 +67,7 @@ export function useTransactionComposerSlice() {
   const transactions = useDatabaseTransactions();
   const categories = useDatabaseCategories();
   const companies = useDatabaseCompanies();
+  const accountMethods = useDatabaseAccounts();
   const collections = useDatabaseCollections();
 
   return {
@@ -75,6 +77,7 @@ export function useTransactionComposerSlice() {
     categories: collections.categories,
     companies: collections.companies,
     accounts: collections.accounts,
+    getAccountCards: accountMethods.getAccountCards,
     projects: collections.projects,
   };
 }
@@ -89,8 +92,32 @@ export function useTransactionReportSlice() {
     companies: collections.companies,
     projects: collections.projects,
     accounts: collections.accounts,
+    users: collections.users,
+    trips: collections.trips,
+    recurringSeries: collections.recurringSeries,
     getTransactionsPaginated: transactions.getTransactionsPaginated,
     getTransactionsForExport: transactions.getTransactionsForExport,
+    setTransactionComment: transactions.setTransactionComment,
+  };
+}
+
+export function useTransactionQuickActionsSlice() {
+  const collections = useDatabaseCollections();
+  const transactions = useDatabaseTransactions();
+  const companies = useDatabaseCompanies();
+
+  return {
+    categories: collections.categories,
+    companies: collections.companies,
+    trips: collections.trips,
+    recurringSeries: collections.recurringSeries,
+    setTransactionCategory: transactions.setTransactionCategory,
+    setTransactionCompany: transactions.setTransactionCompany,
+    linkTransactionToSeries: transactions.linkTransactionToSeries,
+    unlinkTransactionFromSeries: transactions.unlinkTransactionFromSeries,
+    updateTransactionLabels: transactions.updateTransactionLabels,
+    addCompany: companies.addCompany,
+    updateCompany: companies.updateCompany,
   };
 }
 
@@ -173,9 +200,11 @@ export function useDashboardSlice() {
   const collections = useDatabaseCollections();
   const lifecycle = useDatabaseLifecycle();
   const transactions = useDatabaseTransactions();
+  const budgets = useDatabaseBudget();
 
   return {
     transactionVersion: collections.transactionVersion,
+    budgetVersion: collections.budgetVersion,
     categories: collections.categories,
     accounts: collections.accounts,
     users: collections.users,
@@ -183,6 +212,30 @@ export function useDashboardSlice() {
     getRecentTransactions: transactions.getRecentTransactions,
     getDashboardSummary: transactions.getDashboardSummary,
     getChartData: transactions.getChartData,
+    setTransactionComment: transactions.setTransactionComment,
+    getBudgetStatus: budgets.getBudgetStatus,
+  };
+}
+
+export function useBudgetPageSlice() {
+  const collections = useDatabaseCollections();
+  const budgets = useDatabaseBudget();
+
+  return {
+    categories: collections.categories,
+    accounts: collections.accounts,
+    users: collections.users,
+    budgetVersion: collections.budgetVersion,
+    transactionVersion: collections.transactionVersion,
+    getBudgetPlans: budgets.getBudgetPlans,
+    saveBudgetPlan: budgets.saveBudgetPlan,
+    deleteBudgetPlan: budgets.deleteBudgetPlan,
+    getEffectiveBudgetPlan: budgets.getEffectiveBudgetPlan,
+    getBudgetStatus: budgets.getBudgetStatus,
+    getIncomeSources: budgets.getIncomeSources,
+    addIncomeSource: budgets.addIncomeSource,
+    updateIncomeSource: budgets.updateIncomeSource,
+    deleteIncomeSource: budgets.deleteIncomeSource,
   };
 }
 
@@ -194,7 +247,7 @@ export function useAccountManagementSlice() {
   return {
     accounts: collections.accounts,
     users: collections.users,
-    addAccount: accounts.addAccount,
+    addAccountWithCard: accounts.addAccountWithCard,
     deleteAccount: accounts.deleteAccount,
     addUser: users.addUser,
     updateUser: users.updateUser,
@@ -215,6 +268,7 @@ export function useManageDataSlice() {
     companies: collections.companies,
     addCategory: categories.addCategory,
     addCompany: companies.addCompany,
+    updateCompany: companies.updateCompany,
   };
 }
 

@@ -3,18 +3,19 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Account, User } from '../types/database';
+import type { Account, AccountCard, User } from '../types/database';
 import { useDatabaseAccountManagementSlices } from './useDatabaseAccountManagementSlices';
 
 type AccountInput = Omit<
   Account,
   'id' | 'created_at' | 'updated_at' | 'owner_user_id'
 >;
-type UserInput = Omit<User, 'id' | 'created_at' | 'updated_at'>;
+type CardInput = Omit<AccountCard, 'id' | 'created_at' | 'updated_at' | 'account_id'>;
+type UserInput = Omit<User, 'id' | 'created_at' | 'updated_at' | 'is_primary'> & Partial<Pick<User, 'is_primary'>>;
 
 function createServiceMock() {
   return {
-    addAccount: vi.fn().mockResolvedValue(41),
+    addAccountWithCard: vi.fn().mockResolvedValue({ accountId: 41, cardId: 42 }),
     deleteAccount: vi.fn().mockResolvedValue(undefined),
     getAccountCards: vi.fn().mockResolvedValue([]),
     addAccountCard: vi.fn().mockResolvedValue(7),
@@ -30,14 +31,8 @@ describe('useDatabaseAccountManagementSlices', () => {
   it('throws when account mutations run without an initialized service', async () => {
     const refreshAccounts = vi.fn().mockResolvedValue(undefined);
     const refreshUsers = vi.fn().mockResolvedValue(undefined);
-    const account: AccountInput = {
-      name: 'Checking',
-      type: 'checking',
-      balance: 1250,
-      institution: 'Local Bank',
-      currency: 'USD',
-      is_active: true,
-    } as AccountInput;
+    const account: AccountInput = { name: 'Checking', type: 'checking' };
+    const card: CardInput = { last_four: '4242', nickname: 'Main', user_id: 1 };
 
     const { result } = renderHook(() =>
       useDatabaseAccountManagementSlices({
@@ -47,7 +42,7 @@ describe('useDatabaseAccountManagementSlices', () => {
       })
     );
 
-    await expect(result.current.accountsSlice.addAccount(account, 1)).rejects.toThrow(
+    await expect(result.current.accountsSlice.addAccountWithCard(account, 1, card)).rejects.toThrow(
       'Database service not initialized'
     );
     expect(refreshAccounts).not.toHaveBeenCalled();
@@ -91,7 +86,6 @@ describe('useDatabaseAccountManagementSlices', () => {
     const service = createServiceMock();
     const updates: Partial<UserInput> = {
       display_name: 'Pat Doe',
-      email: 'pat@example.com',
     };
 
     const { result } = renderHook(() =>

@@ -37,6 +37,7 @@ type MockService = {
   initialize: ReturnType<typeof vi.fn>;
   openExistingDatabase: ReturnType<typeof vi.fn>;
   createNewDatabase: ReturnType<typeof vi.fn>;
+  ensurePrimaryUser: ReturnType<typeof vi.fn>;
   ensureIndexes: ReturnType<typeof vi.fn>;
   clearAndRecreateDatabase: ReturnType<typeof vi.fn>;
   loadDatabaseFromFile: ReturnType<typeof vi.fn>;
@@ -70,6 +71,7 @@ function createServiceMock(overrides: Partial<MockService> = {}): MockService {
     initialize: vi.fn().mockResolvedValue(undefined),
     openExistingDatabase: vi.fn().mockResolvedValue(undefined),
     createNewDatabase: vi.fn().mockResolvedValue(undefined),
+    ensurePrimaryUser: vi.fn().mockResolvedValue(1),
     ensureIndexes: vi.fn().mockResolvedValue(undefined),
     clearAndRecreateDatabase: vi.fn().mockResolvedValue(undefined),
     loadDatabaseFromFile: vi.fn().mockResolvedValue(undefined),

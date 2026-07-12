@@ -19,6 +19,33 @@ vi.mock('@/contexts/useDatabaseSlices', () => ({
   useTransactionReportSlice: vi.fn(),
 }));
 
+vi.mock('@/components/common/DataGrid/AppDataGrid', () => ({
+  AppDataGrid: ({ rows, columns }: { rows: any[]; columns: Array<any> }) => (
+    <table role="grid">
+      <thead>
+        <tr role="row">
+          {columns.map((column) => (
+            <th role="columnheader" key={column.field}>{column.headerName ?? column.field}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr role="row" key={row.id}>
+            {columns.map((column) => (
+              <td role="gridcell" key={column.field}>
+                {column.renderCell
+                  ? column.renderCell({ row, value: row[column.field] })
+                  : String(row[column.field] ?? '')}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ),
+}));
+
 vi.mock('@mui/icons-material', () => {
   const createIcon = (testId: string) => {
     function MockIcon() {
@@ -32,11 +59,17 @@ vi.mock('@mui/icons-material', () => {
     FilterList: createIcon('filter-list-icon'),
     ClearAll: createIcon('clear-all-icon'),
     Download: createIcon('download-icon'),
+    EditNote: createIcon('edit-note-icon'),
     Receipt: createIcon('receipt-icon'),
     ViewColumn: createIcon('view-column-icon'),
     ExpandMore: createIcon('expand-more-icon'),
     ExpandLess: createIcon('expand-less-icon'),
     Label: createIcon('label-icon'),
+    CalendarMonth: createIcon('calendar-month-icon'),
+    CreditCard: createIcon('credit-card-icon'),
+    Flag: createIcon('flag-icon'),
+    Savings: createIcon('savings-icon'),
+    Work: createIcon('work-icon'),
   };
 });
 
@@ -79,6 +112,10 @@ const accounts: Account[] = [
   { id: 1, name: 'Primary Checking', type: 'checking', owner_user_id: 1, owner_display_name: 'Pat', created_at: '2026-04-25T00:00:00.000Z', updated_at: '2026-04-25T00:00:00.000Z' },
 ];
 
+const users = [
+  { id: 1, display_name: 'Pat', is_primary: 1, created_at: '2026-04-25T00:00:00.000Z', updated_at: '2026-04-25T00:00:00.000Z' },
+];
+
 const projects: Project[] = [
   { id: 4, name: 'Kitchen Remodel', company_name: 'Acme Builders', contact_details: 'builder@example.com', project_category: 'other', status: 'in_progress', start_date: null, end_date: null, estimated_cost: null, actual_cost: null, notes: null, created_at: '2026-04-25T00:00:00.000Z', updated_at: '2026-04-25T00:00:00.000Z' },
 ];
@@ -90,6 +127,7 @@ const baseTransactions: Transaction[] = [
     amount: 2500,
     description: 'Monthly salary deposit',
     account_id: 1,
+    card_id: null,
     category_id: 1,
     company_id: 1,
     project_id: null,
@@ -101,6 +139,7 @@ const baseTransactions: Transaction[] = [
     category_name: 'Salary',
     company_name: 'Employer Inc',
     account_name: 'Primary Checking',
+    service_name: 'Payroll',
   },
   {
     id: 2,
@@ -108,6 +147,7 @@ const baseTransactions: Transaction[] = [
     amount: -82.35,
     description: 'Weekly grocery shopping',
     account_id: 1,
+    card_id: null,
     category_id: 2,
     company_id: 2,
     project_id: 4,
@@ -118,6 +158,7 @@ const baseTransactions: Transaction[] = [
     updated_at: '2026-04-22T00:00:00.000Z',
     category_name: 'Groceries',
     company_name: 'Fresh Market',
+    service_name: 'Grocery Delivery',
     account_name: 'Primary Checking',
     project_name: 'Kitchen Remodel',
   },
@@ -147,6 +188,7 @@ function createMockGetTransactionsPaginated(allTransactions: Transaction[]) {
 function renderReport(transactions: Transaction[] = baseTransactions) {
   const getTransactionsPaginated = createMockGetTransactionsPaginated(transactions);
   const getTransactionsForExport = vi.fn().mockResolvedValue(transactions);
+  const setTransactionComment = vi.fn().mockResolvedValue(undefined);
 
   mockedUseTransactionReportSlice.mockReturnValue({
     transactionVersion: 0,
@@ -154,8 +196,11 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
     companies,
     projects,
     accounts,
+    users,
+    recurringSeries: [],
     getTransactionsPaginated,
     getTransactionsForExport,
+    setTransactionComment,
   } as never);
 
   render(
@@ -164,7 +209,7 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
     </ThemeProvider>
   );
 
-  return { getTransactionsPaginated };
+  return { getTransactionsPaginated, setTransactionComment };
 }
 
 describe('TransactionReport', () => {
@@ -183,6 +228,7 @@ describe('TransactionReport', () => {
     await waitFor(() => {
       expect(screen.getByText('Monthly salary deposit')).toBeInTheDocument();
     });
+    expect(screen.getByText('Payroll')).toBeInTheDocument();
 
     expect(getTransactionsPaginated).toHaveBeenCalledWith(expect.objectContaining({ page: 0 }));
   });
@@ -229,5 +275,28 @@ describe('TransactionReport', () => {
     await user.click(within(salaryRow).getByTitle('Label Transaction'));
 
     expect(await screen.findByTestId('transaction-label-dialog')).toHaveTextContent('Monthly salary deposit');
+  });
+
+  it('opens and saves the comment dialog for the selected transaction', async () => {
+    const { setTransactionComment } = renderReport();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+    await waitFor(() => {
+      expect(screen.getByText('Monthly salary deposit')).toBeInTheDocument();
+    });
+
+    const salaryRow = screen.getByText('Monthly salary deposit').closest('tr');
+    if (!salaryRow) throw new Error('Salary transaction row was not rendered');
+
+    await user.click(within(salaryRow).getByTitle('Edit Comment'));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit Comment' });
+    const input = within(dialog).getByLabelText('Comment');
+    await user.clear(input);
+    await user.type(input, 'Updated salary memo');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(setTransactionComment).toHaveBeenCalledWith(1, 'Updated salary memo');
+    });
   });
 });

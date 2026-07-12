@@ -1,5 +1,7 @@
 'use client';
 
+import type {} from '@mui/x-data-grid/themeAugmentation';
+
 import { CssBaseline } from '@mui/material';
 import {
   PaletteMode,
@@ -363,6 +365,24 @@ export function createAppTheme(
           },
         },
       },
+      MuiDataGrid: {
+        styleOverrides: {
+          root: {
+            border: 'none',
+            backgroundColor: 'transparent',
+          },
+          columnHeaders: {
+            fontWeight: 700,
+          },
+          columnHeaderTitle: {
+            fontWeight: 700,
+          },
+          cell: {
+            paddingTop: isCompact ? 4 : 8,
+            paddingBottom: isCompact ? 4 : 8,
+          },
+        },
+      },
     },
   });
 }
@@ -379,6 +399,10 @@ export function useThemePreferences() {
   }
 
   return context;
+}
+
+export function useOptionalThemePreferences() {
+  return useContext(ThemePreferencesContext);
 }
 
 export const CustomThemeProvider: React.FC<CustomThemeProviderProps> = ({

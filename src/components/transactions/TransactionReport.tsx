@@ -5,6 +5,10 @@ import {
   Box,
   Typography,
   Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   TextField,
   FormControl,
   InputLabel,
@@ -12,14 +16,6 @@ import {
   MenuItem,
   Chip,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TablePagination,
-  TableSortLabel,
   Button,
   Card,
   CardContent,
@@ -31,22 +27,26 @@ import {
   Collapse,
   useMediaQuery,
   useTheme,
-  alpha,
   CircularProgress,
 } from '@mui/material';
 import {
   FilterList,
   ClearAll,
   Download,
+  EditNote,
   Receipt,
   ViewColumn,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
+
+import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
+import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
 import TransactionLabelDialog from './TransactionLabelDialog';
-import { Transaction, Category, Company, Account, TransactionsPaginatedResult } from '@/types/database';
+import { Transaction, Category, Company, Account, TransactionsPaginatedResult, User } from '@/types/database';
 import { format, parseISO } from 'date-fns';
 
 type Order = 'asc' | 'desc';
@@ -58,8 +58,11 @@ export default function TransactionReport() {
     companies,
     projects,
     accounts,
+    users = [],
+    recurringSeries = [],
     getTransactionsPaginated,
     getTransactionsForExport,
+    setTransactionComment,
   } = useTransactionReportSlice();
 
   // Filters
@@ -70,6 +73,7 @@ export default function TransactionReport() {
   const [companyFilter, setCompanyFilter] = useState<number[]>([]);
   const [projectFilter, setProjectFilter] = useState<number[]>([]);
   const [accountFilter, setAccountFilter] = useState<number[]>([]);
+  const [userFilter, setUserFilter] = useState<number[]>([]);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [minAmount, setMinAmount] = useState<string>('');
@@ -88,18 +92,27 @@ export default function TransactionReport() {
   // Dialog
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [commentTransaction, setCommentTransaction] = useState<Transaction | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
 
   // Column visibility
   const [showColumnControls, setShowColumnControls] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState({
     date: true,
     description: true,
+    commentIndicator: true,
+    comment: true,
     category: true,
     company: true,
+    service: true,
     project: true,
     label: true,
+    user: true,
     amount: true,
     account: true,
+    card: true,
+    indicators: true,
     actions: true,
   });
 
@@ -108,7 +121,7 @@ export default function TransactionReport() {
 
   useEffect(() => {
     if (isMobile) {
-      setVisibleColumns(prev => ({ ...prev, category: false, company: false, project: false, label: false, account: false }));
+      setVisibleColumns(prev => ({ ...prev, category: false, company: false, service: false, project: false, label: false, account: false, user: false, card: false, indicators: false }));
     }
   }, [isMobile]);
 
@@ -123,7 +136,7 @@ export default function TransactionReport() {
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     setPage(0);
-  }, [debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, startDate, endDate, minAmount, maxAmount, rowsPerPage]);
+  }, [debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, rowsPerPage]);
 
   // Fetch from DB whenever page/filters/sort/version change
   useEffect(() => {
@@ -142,6 +155,7 @@ export default function TransactionReport() {
           companyIds: companyFilter.length > 0 ? companyFilter : undefined,
           projectIds: projectFilter.length > 0 ? projectFilter : undefined,
           accountIds: accountFilter.length > 0 ? accountFilter : undefined,
+          userIds: userFilter.length > 0 ? userFilter : undefined,
           startDate: startDate ? format(startDate, 'yyyy-MM-dd') : undefined,
           endDate: endDate ? format(endDate, 'yyyy-MM-dd') : undefined,
           minAmount: minAmount ? parseFloat(minAmount) : undefined,
@@ -156,12 +170,13 @@ export default function TransactionReport() {
     };
     fetch();
     return () => { cancelled = true; };
-  }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, startDate, endDate, minAmount, maxAmount, getTransactionsPaginated]);
+  }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, getTransactionsPaginated]);
 
   const columnLabels = {
-    date: 'Date', description: 'Description', category: 'Category',
-    company: 'Company', project: 'Project', label: 'Label',
-    amount: 'Amount', account: 'Account', actions: 'Actions',
+    date: 'Date', description: 'Description', comment: 'Comment', category: 'Category',
+    commentIndicator: 'Has Comment', company: 'Company', service: 'Service', project: 'Project', label: 'Label',
+    user: 'User', amount: 'Amount', account: 'Account', card: 'Card',
+    indicators: 'Indicators', actions: 'Actions',
   };
 
   const handleColumnToggle = (column: keyof typeof visibleColumns) => {
@@ -182,6 +197,7 @@ export default function TransactionReport() {
     setCompanyFilter([]);
     setProjectFilter([]);
     setAccountFilter([]);
+    setUserFilter([]);
     setStartDate(null);
     setEndDate(null);
     setMinAmount('');
@@ -192,6 +208,20 @@ export default function TransactionReport() {
   const handleLabelTransaction = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
     setLabelDialogOpen(true);
+  };
+
+  const handleOpenCommentDialog = (transaction: Transaction) => {
+    setCommentTransaction(transaction);
+    setCommentDraft(transaction.comment || '');
+    setCommentDialogOpen(true);
+  };
+
+  const handleSaveComment = async () => {
+    if (!commentTransaction) return;
+    await setTransactionComment(commentTransaction.id, commentDraft);
+    setCommentDialogOpen(false);
+    setCommentTransaction(null);
+    setCommentDraft('');
   };
 
   const handleExportCSV = async () => {
@@ -205,6 +235,7 @@ export default function TransactionReport() {
         companyIds: companyFilter.length > 0 ? companyFilter : undefined,
         projectIds: projectFilter.length > 0 ? projectFilter : undefined,
         accountIds: accountFilter.length > 0 ? accountFilter : undefined,
+        userIds: userFilter.length > 0 ? userFilter : undefined,
         startDate: startDate ? format(startDate, 'yyyy-MM-dd') : undefined,
         endDate: endDate ? format(endDate, 'yyyy-MM-dd') : undefined,
         minAmount: minAmount ? parseFloat(minAmount) : undefined,
@@ -219,11 +250,16 @@ export default function TransactionReport() {
         const row: string[] = [];
         if (visibleColumns.date) row.push(t.date);
         if (visibleColumns.description) row.push(t.description);
+        if (visibleColumns.comment) row.push(t.comment || '');
+        if (visibleColumns.commentIndicator) row.push(t.comment?.trim() ? 'Yes' : 'No');
         if (visibleColumns.category) row.push(t.category_name || '');
         if (visibleColumns.company) row.push(t.company_name || '');
+        if (visibleColumns.service) row.push(t.service_name || '');
         if (visibleColumns.project) row.push(t.project_name || '');
         if (visibleColumns.amount) row.push(Math.abs(t.amount).toString());
+        if (visibleColumns.user) row.push(t.effective_user_name || '');
         if (visibleColumns.account) row.push(t.account_name || '');
+        if (visibleColumns.card) row.push(t.card_last_four || '');
         return row;
       });
 
@@ -257,6 +293,124 @@ export default function TransactionReport() {
       return <Chip label={`Trip: ${transaction.trip_name}`} color="secondary" size="small" variant="outlined" />;
     }
     return null;
+  };
+
+  const budgetedCategoryIds = React.useMemo(() => new Set<number>(), []);
+
+  const gridColumns = React.useMemo<GridColDef<Transaction>[]>(() => [
+    {
+      ...dateColumn<Transaction>('date'),
+      flex: 0.65,
+      valueFormatter: (value) => value ? format(parseISO(String(value)), 'MMM dd, yyyy') : '',
+    },
+    {
+      field: 'description',
+      headerName: 'Description',
+      flex: 1.5,
+      minWidth: 220,
+    },
+    {
+      field: 'comment',
+      headerName: 'Comment',
+      flex: 1,
+      minWidth: 180,
+      valueGetter: (_, row) => row.comment || '',
+    },
+    {
+      field: 'commentIndicator',
+      headerName: 'Has Comment',
+      minWidth: 140,
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => {
+        const hasComment = !!params.row.comment?.trim();
+        return <Chip label={hasComment ? 'Yes' : 'No'} color={hasComment ? 'success' : 'default'} size="small" variant="outlined" />;
+      },
+    },
+    categoryChipColumn<Transaction>(),
+    {
+      field: 'company_name',
+      headerName: 'Company',
+      minWidth: 160,
+      flex: 0.75,
+      valueGetter: (_, row) => row.company_name || '',
+    },
+    {
+      field: 'service_name',
+      headerName: 'Service',
+      minWidth: 160,
+      flex: 0.75,
+      valueGetter: (_, row) => row.service_name || '',
+    },
+    {
+      field: 'project_name',
+      headerName: 'Project',
+      minWidth: 160,
+      flex: 0.8,
+      valueGetter: (_, row) => row.project_name || '',
+    },
+    {
+      field: 'label',
+      headerName: 'Label',
+      minWidth: 160,
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => renderTransactionLabel(params.row),
+    },
+    userColumn<Transaction>(),
+    accountColumn<Transaction>(),
+    cardColumn<Transaction>(),
+    indicatorsColumn(budgetedCategoryIds),
+    currencyColumn<Transaction>('amount'),
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      minWidth: 90,
+      align: 'center',
+      headerAlign: 'center',
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        <Stack direction="row" spacing={0.5} justifyContent="center">
+          <IconButton size="small" onClick={() => handleOpenCommentDialog(params.row)} title="Edit Comment">
+            <EditNote fontSize="small" />
+          </IconButton>
+          <IconButton size="small" onClick={() => handleLabelTransaction(params.row)} title="Label Transaction">
+            <Receipt fontSize="small" />
+          </IconButton>
+        </Stack>
+      ),
+    },
+  ], [budgetedCategoryIds]);
+
+  const columnVisibilityModel = React.useMemo(() => ({
+    date: visibleColumns.date,
+    description: visibleColumns.description,
+    comment: visibleColumns.comment,
+    commentIndicator: visibleColumns.commentIndicator,
+    category_name: visibleColumns.category,
+    company_name: visibleColumns.company,
+    service_name: visibleColumns.service,
+    project_name: visibleColumns.project,
+    label: visibleColumns.label,
+    effective_user_name: visibleColumns.user,
+    account_name: visibleColumns.account,
+    card_last_four: visibleColumns.card,
+    indicators: visibleColumns.indicators,
+    amount: visibleColumns.amount,
+    actions: visibleColumns.actions,
+  }), [visibleColumns]);
+
+  const handleSortModelChange = (model: GridSortModel) => {
+    const sort = model[0];
+    setOrderBy(sort?.field || 'date');
+    setOrder(sort?.sort === 'asc' ? 'asc' : 'desc');
+    setPage(0);
+  };
+
+  const handlePaginationModelChange = (model: GridPaginationModel) => {
+    setPage(model.page);
+    setRowsPerPage(model.pageSize);
   };
 
   const transactions = result?.data ?? [];
@@ -304,8 +458,8 @@ export default function TransactionReport() {
               <Typography variant="h6">Column Visibility</Typography>
             </Box>
             <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Button variant="outlined" size="small" onClick={() => setVisibleColumns({ date: true, description: true, category: true, company: true, project: true, label: true, amount: true, account: true, actions: true })}>Show All</Button>
-              <Button variant="outlined" size="small" onClick={() => setVisibleColumns({ date: true, description: true, category: false, company: false, project: false, label: false, amount: true, account: false, actions: true })}>Mobile View</Button>
+              <Button variant="outlined" size="small" onClick={() => setVisibleColumns({ date: true, description: true, comment: true, commentIndicator: true, category: true, company: true, service: true, project: true, label: true, user: true, amount: true, account: true, card: true, indicators: true, actions: true })}>Show All</Button>
+              <Button variant="outlined" size="small" onClick={() => setVisibleColumns({ date: true, description: true, comment: true, commentIndicator: true, category: false, company: false, service: false, project: false, label: false, user: false, amount: true, account: false, card: false, indicators: false, actions: true })}>Mobile View</Button>
             </Box>
             <FormGroup>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1 }}>
@@ -385,88 +539,45 @@ export default function TransactionReport() {
                 renderOption={(props, option) => { const { key, ...op } = props; return <li key={option.id} {...op}>{option.owner_display_name ? `${option.owner_display_name} - ${option.name}` : option.name}</li>; }}
                 renderInput={(p) => <TextField {...p} label="Accounts" />}
                 renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.owner_display_name ? `${o.owner_display_name} - ${o.name}` : o.name} size="small" {...cp} />; })} />
+              <Autocomplete multiple options={users}
+                getOptionLabel={(o) => o.display_name}
+                isOptionEqualToValue={(o, v) => o.id === v.id}
+                value={users.filter((user: User) => userFilter.includes(user.id))}
+                onChange={(_, v) => setUserFilter(v.map(x => x.id))}
+                renderInput={(p) => <TextField {...p} label="Users" />}
+                renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.display_name} size="small" {...cp} />; })} />
             </Box>
           </Box>
         </Paper>
 
-        {/* Results Table */}
+        {/* Results Grid */}
         <Paper>
           {loading && (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
               <CircularProgress size={24} />
             </Box>
           )}
-          <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table sx={{ minWidth: { xs: 300, sm: 800 } }}>
-              <TableHead>
-                <TableRow>
-                  {visibleColumns.date && <TableCell><TableSortLabel active={orderBy === 'date'} direction={orderBy === 'date' ? order : 'asc'} onClick={() => handleRequestSort('date')}>Date</TableSortLabel></TableCell>}
-                  {visibleColumns.description && <TableCell><TableSortLabel active={orderBy === 'description'} direction={orderBy === 'description' ? order : 'asc'} onClick={() => handleRequestSort('description')}>Description</TableSortLabel></TableCell>}
-                  {visibleColumns.category && <TableCell>Category</TableCell>}
-                  {visibleColumns.company && <TableCell>Company</TableCell>}
-                  {visibleColumns.project && <TableCell>Project</TableCell>}
-                  {visibleColumns.label && <TableCell>Label</TableCell>}
-                  {visibleColumns.amount && <TableCell align="right"><TableSortLabel active={orderBy === 'amount'} direction={orderBy === 'amount' ? order : 'asc'} onClick={() => handleRequestSort('amount')}>Amount</TableSortLabel></TableCell>}
-                  {visibleColumns.account && <TableCell>Account</TableCell>}
-                  {visibleColumns.actions && <TableCell align="center">Actions</TableCell>}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {transactions.map((transaction: Transaction) => (
-                  <TableRow key={transaction.id} hover sx={{
-                    backgroundColor: alpha(transaction.type === 'income' ? theme.palette.success.main : theme.palette.error.main, 0.1),
-                    '&:hover': { backgroundColor: alpha(transaction.type === 'income' ? theme.palette.success.main : theme.palette.error.main, 0.2) + ' !important' }
-                  }}>
-                    {visibleColumns.date && <TableCell sx={{ minWidth: 100 }}>{format(parseISO(transaction.date), isMobile ? 'MM/dd/yy' : 'MMM dd, yyyy')}</TableCell>}
-                    {visibleColumns.description && (
-                      <TableCell sx={{ minWidth: { xs: 150, sm: 200 }, maxWidth: { xs: 200, sm: 300 }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <Box component="div" title={transaction.description} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transaction.description}</Box>
-                      </TableCell>
-                    )}
-                    {visibleColumns.category && <TableCell sx={{ minWidth: 120 }}>{transaction.category_name}</TableCell>}
-                    {visibleColumns.company && <TableCell sx={{ minWidth: 120 }}>{transaction.company_name || '-'}</TableCell>}
-                    {visibleColumns.project && <TableCell sx={{ minWidth: 120 }}>{transaction.project_name || '-'}</TableCell>}
-                    {visibleColumns.label && <TableCell sx={{ minWidth: 120 }}>{renderTransactionLabel(transaction)}</TableCell>}
-                    {visibleColumns.amount && (
-                      <TableCell align="right" sx={{ minWidth: 100 }}>
-                        <Typography color={transaction.type === 'income' ? 'success.main' : 'error.main'} fontWeight="medium" variant={isMobile ? 'body2' : 'body1'}>
-                          {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount))}
-                        </Typography>
-                      </TableCell>
-                    )}
-                    {visibleColumns.account && (
-                      <TableCell sx={{ minWidth: 120 }}>
-                        {(() => {
-                          const account = accounts.find((a: Account) => a.id === transaction.account_id);
-                          return account?.owner_display_name ? `${account.owner_display_name} - ${transaction.account_name}` : transaction.account_name;
-                        })()}
-                      </TableCell>
-                    )}
-                    {visibleColumns.actions && (
-                      <TableCell align="center" sx={{ minWidth: 80 }}>
-                        <IconButton size="small" onClick={() => handleLabelTransaction(transaction)} title="Label Transaction">
-                          <Receipt fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          <TablePagination
-            rowsPerPageOptions={isMobile ? [10, 25] : [10, 25, 50, 100]}
-            component="div"
-            count={totalCount}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={(_, newPage) => setPage(newPage)}
-            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-            labelRowsPerPage={isMobile ? 'Rows:' : 'Rows per page:'}
-            sx={{
-              '& .MuiTablePagination-spacer': { display: { xs: 'none', sm: 'flex' } },
-              '& .MuiTablePagination-selectLabel': { display: { xs: 'none', sm: 'block' } }
-            }}
+          <AppDataGrid
+            rows={transactions}
+            columns={gridColumns}
+            rowCount={totalCount}
+            loading={loading}
+            paginationMode="server"
+            sortingMode="server"
+            paginationModel={{ page, pageSize: rowsPerPage }}
+            onPaginationModelChange={handlePaginationModelChange}
+            sortModel={[{ field: orderBy, sort: order }]}
+            onSortModelChange={handleSortModelChange}
+            columnVisibilityModel={columnVisibilityModel}
+            pageSizeOptions={isMobile ? [10, 25] : [10, 25, 50, 100]}
+            height={640}
+            footerSummary={
+              <Typography variant="body2" color="text.secondary">
+                Income {formatCurrency(totalIncome)} • Expenses {formatCurrency(totalExpenses)} • Net {formatCurrency(netIncome)}
+              </Typography>
+            }
+            emptyMessage="No transactions found matching your filters"
+            disableVirtualization={process.env.NODE_ENV === 'test'}
           />
         </Paper>
 
@@ -483,6 +594,24 @@ export default function TransactionReport() {
           transaction={selectedTransaction}
           onSuccess={() => console.log('Transaction labeled successfully')}
         />
+        <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Edit Comment</DialogTitle>
+          <DialogContent>
+            <TextField
+              label="Comment"
+              value={commentDraft}
+              onChange={(event) => setCommentDraft(event.target.value)}
+              fullWidth
+              multiline
+              minRows={3}
+              sx={{ mt: 1 }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCommentDialogOpen(false)}>Cancel</Button>
+            <Button variant="contained" onClick={() => { void handleSaveComment(); }}>Save</Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </LocalizationProvider>
   );

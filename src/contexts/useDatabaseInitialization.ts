@@ -54,7 +54,7 @@ interface UseDatabaseInitializationResult {
    * Called by the password setup screen once the user has confirmed a password.
    * Sets the password in the worker and then creates the new database.
    */
-  handlePasswordSetupConfirmed: (password: string) => Promise<void>;
+  handlePasswordSetupConfirmed: (password: string, primaryUserName: string) => Promise<void>;
   /**
    * Called by the password entry screen when the user enters a password to
    * decrypt a file they are loading.
@@ -81,7 +81,7 @@ declare global {
 }
 
 const BROWSER_TEST_STORAGE_KEY = 'budgetApp_browserTestPassed';
-const SAMPLE_DATA_IMPORT_FILE_COUNT = 8;
+const SAMPLE_DATA_IMPORT_FILE_COUNT = 11;
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
@@ -339,6 +339,7 @@ export function useDatabaseInitialization({
             console.info('[DB Context] Ensuring indexes after sample data import...');
             await databaseService.ensureIndexes();
           }
+          await databaseService.ensurePrimaryUser('Primary User');
         } else {
           await databaseService.openExistingDatabase();
         }
@@ -536,7 +537,7 @@ export function useDatabaseInitialization({
   // ---------------------------------------------------------------------------
 
   const handlePasswordSetupConfirmed = useCallback(
-    async (password: string) => {
+    async (password: string, primaryUserName: string) => {
       if (!databaseService) {
         throw new Error('Database service not initialized');
       }
@@ -589,6 +590,8 @@ export function useDatabaseInitialization({
 
           await databaseService.ensureIndexes();
         }
+
+        await databaseService.ensurePrimaryUser(primaryUserName.trim());
 
         await loadAllData(databaseService);
         setInitializationState('initialized');

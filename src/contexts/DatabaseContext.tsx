@@ -37,6 +37,10 @@ import {
   useDatabaseTransactionSlice,
   type DatabaseTransactionSlice,
 } from './useDatabaseTransactionSlice';
+import {
+  useDatabaseSubscriptionsSlice,
+  type DatabaseSubscriptionsSlice,
+} from './useDatabaseSubscriptionsSlice';
 import { useDatabaseInitialization } from './useDatabaseInitialization';
 //import { appLogger } from '../lib/logger';
 
@@ -77,6 +81,7 @@ interface DatabaseContextType {
   projects: DatabaseProjectSlice;
   users: DatabaseUserSlice;
   trips: DatabaseTripSlice;
+  subscriptions: DatabaseSubscriptionsSlice;
   diagnostics: DatabaseDiagnosticsSlice;
 }
 
@@ -97,6 +102,8 @@ const DatabaseProjectsContext =
   createContext<DatabaseProjectSlice | null>(null);
 const DatabaseUsersContext = createContext<DatabaseUserSlice | null>(null);
 const DatabaseTripsContext = createContext<DatabaseTripSlice | null>(null);
+const DatabaseSubscriptionsContext =
+  createContext<DatabaseSubscriptionsSlice | null>(null);
 const DatabaseDiagnosticsContext =
   createContext<DatabaseDiagnosticsSlice | null>(null);
 
@@ -142,6 +149,9 @@ export const useDatabaseUsers = () =>
 export const useDatabaseTrips = () =>
   useRequiredContext(DatabaseTripsContext, 'useDatabaseTrips');
 
+export const useDatabaseSubscriptions = () =>
+  useRequiredContext(DatabaseSubscriptionsContext, 'useDatabaseSubscriptions');
+
 export const useDatabaseDiagnostics = () =>
   useRequiredContext(DatabaseDiagnosticsContext, 'useDatabaseDiagnostics');
 
@@ -156,6 +166,7 @@ export const useDatabaseContext = (): DatabaseContextType => ({
   projects: useDatabaseProjects(),
   users: useDatabaseUsers(),
   trips: useDatabaseTrips(),
+  subscriptions: useDatabaseSubscriptions(),
   diagnostics: useDatabaseDiagnostics(),
 });
 
@@ -176,6 +187,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     refreshProjects,
     refreshUsers,
     refreshTrips,
+    refreshMerchantRules,
+    refreshRecurringSeries,
   } = useDatabaseCollectionsState({
     getDatabaseService: () => databaseService,
   });
@@ -249,6 +262,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     refreshCompanies,
     refreshProjects,
     refreshTrips,
+  });
+  const subscriptionsSlice = useDatabaseSubscriptionsSlice({
+    databaseService,
+    refreshTransactions,
+    refreshCompanies,
+    refreshMerchantRules,
+    refreshRecurringSeries,
   });
 
   // Custom SQL query execution
@@ -365,9 +385,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
                   <DatabaseProjectsContext.Provider value={projectsSlice}>
                     <DatabaseUsersContext.Provider value={usersSlice}>
                       <DatabaseTripsContext.Provider value={tripsSlice}>
-                        <DatabaseDiagnosticsContext.Provider value={diagnosticsValue}>
-                          {children}
-                        </DatabaseDiagnosticsContext.Provider>
+                        <DatabaseSubscriptionsContext.Provider value={subscriptionsSlice}>
+                          <DatabaseDiagnosticsContext.Provider value={diagnosticsValue}>
+                            {children}
+                          </DatabaseDiagnosticsContext.Provider>
+                        </DatabaseSubscriptionsContext.Provider>
                       </DatabaseTripsContext.Provider>
                     </DatabaseUsersContext.Provider>
                   </DatabaseProjectsContext.Provider>

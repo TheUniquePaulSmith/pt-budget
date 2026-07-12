@@ -16,9 +16,11 @@ import type {
   AiToolCallRecord,
   AiWriteMode,
   ApplyTransactionClassificationInput,
+  MerchantRuleSuggestion,
   TransactionClassificationSuggestion,
 } from '@/types/ai';
 import AiClassificationReview from './AiClassificationReview';
+import AiMerchantRuleReview from './AiMerchantRuleReview';
 
 interface AiAutomationPanelProps {
   writeMode: AiWriteMode;
@@ -26,6 +28,8 @@ interface AiAutomationPanelProps {
   toolCalls: AiToolCallRecord[];
   classificationSuggestions: TransactionClassificationSuggestion[];
   onClearClassifications: () => void;
+  merchantRuleSuggestions: MerchantRuleSuggestion[];
+  onClearMerchantRuleSuggestions: () => void;
 }
 
 export default function AiAutomationPanel({
@@ -34,6 +38,8 @@ export default function AiAutomationPanel({
   toolCalls,
   classificationSuggestions,
   onClearClassifications,
+  merchantRuleSuggestions,
+  onClearMerchantRuleSuggestions,
 }: AiAutomationPanelProps) {
   const databaseTools = useAiDatabaseToolsSlice();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -45,8 +51,23 @@ export default function AiAutomationPanel({
     setStatusMessage(`Applied ${result.appliedCount} classification${result.appliedCount === 1 ? '' : 's'}.`);
   };
 
+  const applyMerchantRules = async (rules: MerchantRuleSuggestion[]) => {
+    for (const rule of rules) {
+      await databaseTools.addMerchantRule({
+        pattern: rule.pattern,
+        match_type: rule.match_type,
+        merchant_name: rule.merchant_name,
+        service_name: rule.service_name ?? null,
+        default_kind: rule.default_kind,
+      });
+    }
+    // Re-scan so the new rules take effect immediately
+    await databaseTools.runSubscriptionScan();
+    setStatusMessage(`Created ${rules.length} merchant rule${rules.length === 1 ? '' : 's'} and re-ran the subscription scan.`);
+  };
+
   const hasToolCalls = toolCalls.length > 0;
-  const hasSuggestions = classificationSuggestions.length > 0;
+  const hasSuggestions = classificationSuggestions.length > 0 || merchantRuleSuggestions.length > 0;
 
   return (
     <Box sx={{ p: 2, overflow: 'auto', flex: 1 }}>
@@ -105,6 +126,12 @@ export default function AiAutomationPanel({
           suggestions={classificationSuggestions}
           onApply={applyClassifications}
           onClear={onClearClassifications}
+        />
+
+        <AiMerchantRuleReview
+          suggestions={merchantRuleSuggestions}
+          onApply={applyMerchantRules}
+          onClear={onClearMerchantRuleSuggestions}
         />
       </Stack>
     </Box>

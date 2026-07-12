@@ -31,12 +31,14 @@ import {
   Code as SQLIcon,
   AccountBalance as AccountIcon,
   FlightTakeoff as TripsIcon,
-  SmartToy as AiIcon
+  SmartToy as AiIcon,
+  Autorenew as SubscriptionsIcon
 } from '@mui/icons-material';
 import Dashboard from '@/components/dashboard/Dashboard';
 import ManageProjects from '@/components/projects/ManageProjects';
 import ManageTrips from '@/components/trips/ManageTrips';
 import ManageAccounts from '@/components/accounts/ManageAccounts';
+import SubscriptionsPage from '@/components/subscriptions/SubscriptionsPage';
 import TransactionReport from '@/components/transactions/TransactionReport';
 import SettingsPage from '@/components/settings/SettingsPage';
 import ManageData from '@/components/data-management/ManageData';
@@ -69,6 +71,7 @@ export default function AppContent() {
     { id: 'trips', label: 'Trips', icon: <TripsIcon /> },
     { id: 'accounts', label: 'Accounts', icon: <AccountIcon /> },
     { id: 'transactions', label: 'Transactions', icon: <TransactionsIcon /> },
+    { id: 'subscriptions', label: 'Subscriptions', icon: <SubscriptionsIcon /> },
     { id: 'sql-query', label: 'SQL Query', icon: <SQLIcon /> },
   ];
 
@@ -294,6 +297,10 @@ export default function AppContent() {
       
       {currentPage === 'transactions' && (
         <TransactionReport />
+      )}
+
+      {currentPage === 'subscriptions' && (
+        <SubscriptionsPage onOpenAiPanel={() => setAiPanelOpen(true)} />
       )}
 
       {currentPage === 'sql-query' && (

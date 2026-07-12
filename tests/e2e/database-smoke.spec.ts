@@ -41,7 +41,9 @@ async function bootstrapDatabase(page: Page) {
     await createDatabaseButton.click();
 
     // New: the password setup screen appears after clicking Create New Database.
-    const passwordInput = page.getByLabel('Password');
+    // exact: true — a bare 'Password' label also matches 'Confirm Password'
+    // and trips Playwright's strict mode.
+    const passwordInput = page.getByLabel('Password', { exact: true });
     const isPasswordScreen = await passwordInput
       .waitFor({ state: 'visible', timeout: 10_000 })
       .then(() => true)

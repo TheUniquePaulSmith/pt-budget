@@ -474,11 +474,114 @@ export const ANALYTICS_QUERIES = {
   `,
 };
 
+// Subscription / Merchant Rule Queries
+export const SUBSCRIPTION_QUERIES = {
+  // --- merchant_rules ---
+  GET_ALL_RULES: `SELECT * FROM merchant_rules ORDER BY priority, LENGTH(pattern) DESC, rule_key`,
+  GET_ENABLED_RULES: `SELECT * FROM merchant_rules WHERE enabled = 1 ORDER BY priority, LENGTH(pattern) DESC, rule_key`,
+  GET_RULE_BY_ID: `SELECT * FROM merchant_rules WHERE id = ?`,
+  CREATE_RULE: `
+    INSERT INTO merchant_rules (rule_key, source, pattern, match_type, priority, merchant_name, service_name, default_kind, enabled, user_modified, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+  `,
+  UPDATE_RULE: `
+    UPDATE merchant_rules
+    SET pattern = ?, match_type = ?, priority = ?, merchant_name = ?, service_name = ?, default_kind = ?, enabled = ?, notes = ?,
+        user_modified = CASE WHEN source = 'community' THEN 1 ELSE user_modified END,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `,
+  DELETE_RULE: `DELETE FROM merchant_rules WHERE id = ? AND source = 'user'`,
+  DISABLE_RULE: `UPDATE merchant_rules SET enabled = 0, user_modified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  // Community reseed upsert: respects user edits via the user_modified guard
+  UPSERT_COMMUNITY_RULE: `
+    INSERT INTO merchant_rules (rule_key, source, pattern, match_type, priority, merchant_name, service_name, default_kind, enabled)
+    VALUES (?, 'community', ?, ?, ?, ?, ?, ?, 1)
+    ON CONFLICT(rule_key) DO UPDATE SET
+      pattern = excluded.pattern,
+      match_type = excluded.match_type,
+      priority = excluded.priority,
+      merchant_name = excluded.merchant_name,
+      service_name = excluded.service_name,
+      default_kind = excluded.default_kind,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE merchant_rules.user_modified = 0
+  `,
+  COUNT_RULES_BY_SOURCE: `SELECT source, COUNT(*) as count FROM merchant_rules GROUP BY source`,
+
+  // --- recurring_series ---
+  GET_SERIES_WITH_STATS: `
+    SELECT
+      rs.*,
+      comp.name as company_name,
+      COUNT(tsl.id) as transaction_count,
+      COALESCE(SUM(ABS(t.amount)), 0) as total_spent
+    FROM recurring_series rs
+    LEFT JOIN companies comp ON rs.company_id = comp.id
+    LEFT JOIN transaction_series_links tsl ON tsl.series_id = rs.id
+    LEFT JOIN transactions t ON t.id = tsl.transaction_id
+    GROUP BY rs.id
+    ORDER BY rs.status, rs.kind, rs.name
+  `,
+  GET_SERIES_BY_ID: `SELECT * FROM recurring_series WHERE id = ?`,
+  GET_SERIES_BY_MATCH_KEY: `SELECT * FROM recurring_series WHERE match_key = ?`,
+  CREATE_SERIES: `
+    INSERT INTO recurring_series (name, company_id, rule_id, kind, cadence, expected_amount, amount_is_variable, status, match_key, last_seen_date, next_expected_date, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+  `,
+  // Scan refresh: updates detection-derived fields only; never touches user-owned name/kind/status/notes
+  UPDATE_SERIES_DETECTION: `
+    UPDATE recurring_series
+    SET cadence = ?, expected_amount = ?, amount_is_variable = ?, last_seen_date = ?, next_expected_date = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `,
+  UPDATE_SERIES: `
+    UPDATE recurring_series
+    SET name = ?, kind = ?, cadence = ?, expected_amount = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `,
+  UPDATE_SERIES_STATUS: `UPDATE recurring_series SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  DELETE_SERIES: `DELETE FROM recurring_series WHERE id = ?`,
+
+  // --- transaction_series_links ---
+  LINK_TRANSACTION: `INSERT OR IGNORE INTO transaction_series_links (transaction_id, series_id, match_source) VALUES (?, ?, ?)`,
+  DELETE_LINKS_FOR_SERIES: `DELETE FROM transaction_series_links WHERE series_id = ?`,
+  DELETE_LINK_FOR_TRANSACTION: `DELETE FROM transaction_series_links WHERE transaction_id = ?`,
+  GET_SERIES_TRANSACTIONS: `
+    SELECT t.*, comp.name as company_name, a.name as account_name
+    FROM transaction_series_links tsl
+    JOIN transactions t ON t.id = tsl.transaction_id
+    LEFT JOIN companies comp ON t.company_id = comp.id
+    LEFT JOIN accounts a ON t.account_id = a.id
+    WHERE tsl.series_id = ?
+    ORDER BY t.date DESC
+  `,
+  GET_ALL_LINKED_TRANSACTION_IDS: `SELECT transaction_id, series_id FROM transaction_series_links`,
+
+  // --- scan inputs ---
+  GET_UNMATCHED_TRANSACTIONS: `SELECT id, description FROM transactions WHERE company_id IS NULL`,
+  GET_EXPENSE_TRANSACTIONS_FOR_SCAN: `
+    SELECT t.id, t.date, t.amount, t.description, t.company_id
+    FROM transactions t
+    WHERE t.type = 'expense'
+    ORDER BY t.date ASC
+  `,
+  UPDATE_TRANSACTION_COMPANY: `
+    UPDATE transactions SET company_id = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND company_id IS NULL
+  `,
+
+  // --- app_metadata ---
+  GET_METADATA: `SELECT value FROM app_metadata WHERE key = ?`,
+  SET_METADATA: `
+    INSERT INTO app_metadata (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+  `,
+};
+
 // Utility Queries
 export const UTILITY_QUERIES = {
   GET_TABLE_INFO: `PRAGMA table_info(?)`,
-  GET_DATABASE_VERSION: `PRAGMA user_version`,
-  SET_DATABASE_VERSION: `PRAGMA user_version = ?`,
   VACUUM: `VACUUM`,
   ANALYZE: `ANALYZE`,
 };

@@ -1,4 +1,4 @@
-import type { Category, Transaction } from './database';
+import type { Category, MerchantRuleKind, MerchantRuleMatchType, Transaction } from './database';
 
 export type AiWriteMode = 'review' | 'autoApply';
 
@@ -150,7 +150,22 @@ export interface AiChatRunResult {
   assistantMessage: string;
   toolCalls: AiToolCallRecord[];
   classificationSuggestions: TransactionClassificationSuggestion[];
+  merchantRuleSuggestions: MerchantRuleSuggestion[];
   tokenUsage: AiChatTokenUsage;
+}
+
+// A merchant rule proposed by the local model for an unmatched description
+// cluster. Always staged for user review; never written automatically.
+export interface MerchantRuleSuggestion {
+  pattern: string;
+  match_type: MerchantRuleMatchType;
+  merchant_name: string;
+  service_name?: string | null;
+  default_kind: MerchantRuleKind;
+  confidence?: number;
+  reason?: string;
+  occurrences?: number;
+  average_amount?: number;
 }
 
 export interface TransactionClassificationSuggestion {

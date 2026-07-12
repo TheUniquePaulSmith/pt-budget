@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx playwright *)",
+      "Bash(ls \"C:/Users/pauls/.claude/projects/c--source-budetApp-v2/memory/\" && cat \"C:/Users/pauls/.claude/projects/c--source-budetApp-v2/memory/MEMORY.md\" 2>/dev/null || echo \"no MEMORY.md yet\")",
+      "Read(//c/Users/pauls/.claude/projects/c--source-budetApp-v2/memory/**)"
+    ]
+  }
+}

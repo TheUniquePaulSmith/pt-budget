@@ -12,6 +12,7 @@ vi.mock('./DatabaseContext', () => ({
   useDatabaseLifecycle: vi.fn(),
   useDatabaseProjects: vi.fn(),
   useDatabaseStatus: vi.fn(),
+  useDatabaseSubscriptions: vi.fn(),
   useDatabaseTransactions: vi.fn(),
   useDatabaseTrips: vi.fn(),
   useDatabaseUsers: vi.fn(),
@@ -26,6 +27,7 @@ import {
   useDatabaseLifecycle,
   useDatabaseProjects,
   useDatabaseStatus,
+  useDatabaseSubscriptions,
   useDatabaseTransactions,
   useDatabaseTrips,
   useDatabaseUsers,
@@ -47,6 +49,7 @@ const mockedUseDatabaseDiagnostics = vi.mocked(useDatabaseDiagnostics);
 const mockedUseDatabaseLifecycle = vi.mocked(useDatabaseLifecycle);
 const mockedUseDatabaseProjects = vi.mocked(useDatabaseProjects);
 const mockedUseDatabaseStatus = vi.mocked(useDatabaseStatus);
+const mockedUseDatabaseSubscriptions = vi.mocked(useDatabaseSubscriptions);
 const mockedUseDatabaseTransactions = vi.mocked(useDatabaseTransactions);
 const mockedUseDatabaseTrips = vi.mocked(useDatabaseTrips);
 const mockedUseDatabaseUsers = vi.mocked(useDatabaseUsers);
@@ -88,6 +91,8 @@ function mockDatabaseHooks() {
       projects: [{ id: 5, name: 'Kitchen Remodel' }],
       users: [{ id: 6, display_name: 'Pat' }],
       trips: [{ id: 7, name: 'Seattle' }],
+      merchantRules: [],
+      recurringSeries: [],
     },
     lifecycle: {
       createOrOpenDatabase: vi.fn(),
@@ -151,6 +156,21 @@ function mockDatabaseHooks() {
     diagnostics: {
       executeCustomQuery: vi.fn(),
     },
+    subscriptions: {
+      runSubscriptionScan: vi.fn(),
+      addMerchantRule: vi.fn(),
+      updateMerchantRule: vi.fn(),
+      deleteMerchantRule: vi.fn(),
+      previewMerchantRuleMatches: vi.fn(),
+      updateRecurringSeries: vi.fn(),
+      updateRecurringSeriesStatus: vi.fn(),
+      deleteRecurringSeries: vi.fn(),
+      getSeriesTransactions: vi.fn(),
+      getUnmatchedRecurringClusters: vi.fn(),
+      reseedCommunityRules: vi.fn(),
+      getMerchantRuleCounts: vi.fn(),
+      getMerchantRulesSeedVersion: vi.fn(),
+    },
   } as const;
 
   mockedUseDatabaseStatus.mockReturnValue(slices.status as never);
@@ -164,6 +184,7 @@ function mockDatabaseHooks() {
   mockedUseDatabaseUsers.mockReturnValue(slices.users as never);
   mockedUseDatabaseTrips.mockReturnValue(slices.trips as never);
   mockedUseDatabaseDiagnostics.mockReturnValue(slices.diagnostics as never);
+  mockedUseDatabaseSubscriptions.mockReturnValue(slices.subscriptions as never);
 
   return slices;
 }
@@ -178,6 +199,7 @@ describe('useDatabaseSlices', () => {
     mockedUseDatabaseLifecycle.mockReset();
     mockedUseDatabaseProjects.mockReset();
     mockedUseDatabaseStatus.mockReset();
+    mockedUseDatabaseSubscriptions.mockReset();
     mockedUseDatabaseTransactions.mockReset();
     mockedUseDatabaseTrips.mockReset();
     mockedUseDatabaseUsers.mockReset();

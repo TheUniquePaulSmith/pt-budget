@@ -118,6 +118,79 @@ export interface Trip {
   updated_at: string;
 }
 
+export type MerchantRuleMatchType = 'exact' | 'prefix' | 'contains';
+export type MerchantRuleKind = 'subscription' | 'bill' | 'purchase' | 'unknown';
+
+export interface MerchantRule {
+  id: number;
+  rule_key: string; // Stable identity: 'community:<slug>' or 'user:<uuid>'
+  source: 'community' | 'user';
+  pattern: string; // Matched against the NORMALIZED description
+  match_type: MerchantRuleMatchType;
+  priority: number; // Lower wins: 50 user default, 100 service-level, 200 merchant catch-all
+  merchant_name: string;
+  service_name?: string | null;
+  default_kind: MerchantRuleKind;
+  enabled: number; // SQLite boolean (0/1)
+  user_modified: number; // SQLite boolean (0/1); guards community reseeds
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RecurringSeriesKind = 'subscription' | 'bill';
+export type RecurringSeriesCadence = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly' | 'irregular';
+export type RecurringSeriesStatus = 'candidate' | 'active' | 'inactive' | 'ignored';
+
+export interface RecurringSeries {
+  id: number;
+  name: string;
+  company_id: number | null;
+  rule_id: number | null;
+  kind: RecurringSeriesKind;
+  cadence: RecurringSeriesCadence;
+  expected_amount: number | null;
+  amount_is_variable: number; // SQLite boolean (0/1)
+  status: RecurringSeriesStatus;
+  match_key: string; // 'rule:<rule_key>' or 'desc:<normalized description>'
+  last_seen_date: string | null;
+  next_expected_date: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields from SQL queries
+  company_name?: string;
+  transaction_count?: number;
+  total_spent?: number;
+}
+
+export interface TransactionSeriesLink {
+  id: number;
+  transaction_id: number;
+  series_id: number;
+  match_source: 'rule' | 'heuristic' | 'ai' | 'manual';
+  created_at: string;
+}
+
+// A cluster of unmatched transactions sharing a normalized description,
+// surfaced on the Subscriptions page for manual/AI rule creation.
+export interface UnmatchedCluster {
+  normalized_description: string;
+  occurrences: number;
+  average_amount: number;
+  first_seen: string;
+  last_seen: string;
+  transaction_ids: number[];
+}
+
+export interface SubscriptionScanSummary {
+  scannedTransactions: number;
+  merchantsMatched: number;
+  seriesCreated: number;
+  seriesUpdated: number;
+  transactionsLinked: number;
+}
+
 export interface TransactionQueryParams {
   page: number;
   pageSize: number;

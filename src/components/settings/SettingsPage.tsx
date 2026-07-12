@@ -61,6 +61,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
   const {
     exportDatabase,
+    reseedCommunityRules,
+    getMerchantRuleCounts,
+    getMerchantRulesSeedVersion,
     connectCloudSource,
     migrateDatabaseToCloud,
     saveDatabaseToCurrentCloud,
@@ -69,6 +72,30 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     databaseSource,
     databaseSourceState,
   } = useSettingsSlice();
+  const [ruleCounts, setRuleCounts] = useState<{ community: number; user: number } | null>(null);
+  const [rulesSeedVersion, setRulesSeedVersion] = useState<number | null>(null);
+  const [reseeding, setReseeding] = useState(false);
+
+  React.useEffect(() => {
+    if (!isDatabaseLoaded) return;
+    getMerchantRuleCounts().then(setRuleCounts).catch(() => setRuleCounts(null));
+    getMerchantRulesSeedVersion().then(setRulesSeedVersion).catch(() => setRulesSeedVersion(null));
+  }, [isDatabaseLoaded, getMerchantRuleCounts, getMerchantRulesSeedVersion]);
+
+  const handleReseedCommunityRules = async () => {
+    setReseeding(true);
+    try {
+      await reseedCommunityRules();
+      const counts = await getMerchantRuleCounts();
+      setRuleCounts(counts);
+      const version = await getMerchantRulesSeedVersion();
+      setRulesSeedVersion(version);
+    } catch (err) {
+      console.error('Failed to re-apply community merchant rules:', err);
+    } finally {
+      setReseeding(false);
+    }
+  };
   const {
     availableThemes,
     selectedThemeId,
@@ -369,6 +396,37 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   </Button>
                   <Typography variant="body2" color="text.secondary">
                     Downloads a complete backup archive containing the VFS snapshot and dbstatus.json
+                  </Typography>
+                </Stack>
+              </Box>
+
+              <Divider />
+
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Merchant Rules
+                </Typography>
+                <Stack spacing={2}>
+                  <Typography variant="body2" color="text.secondary">
+                    Merchant rules match bank charge descriptions to merchants and subscriptions on
+                    the Subscriptions page.
+                    {ruleCounts &&
+                      ` Currently ${ruleCounts.community} community rules and ${ruleCounts.user} of your own.`}
+                    {rulesSeedVersion != null && rulesSeedVersion > 0 &&
+                      ` Community list version: ${rulesSeedVersion}.`}
+                  </Typography>
+                  <Box>
+                    <Button
+                      variant="outlined"
+                      onClick={handleReseedCommunityRules}
+                      disabled={!isDatabaseLoaded || reseeding}
+                    >
+                      {reseeding ? 'Re-applying…' : 'Re-apply Community Rules'}
+                    </Button>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Restores the bundled community rule list. Rules you have edited or disabled are
+                    left untouched.
                   </Typography>
                 </Stack>
               </Box>

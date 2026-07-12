@@ -9,6 +9,7 @@ import {
   useDatabaseLifecycle,
   useDatabaseProjects,
   useDatabaseStatus,
+  useDatabaseSubscriptions,
   useDatabaseTransactions,
   useDatabaseTrips,
   useDatabaseUsers,
@@ -108,6 +109,7 @@ export function useAiDatabaseToolsSlice() {
   const collections = useDatabaseCollections();
   const diagnostics = useDatabaseDiagnostics();
   const transactions = useDatabaseTransactions();
+  const subscriptions = useDatabaseSubscriptions();
 
   return {
     categories: collections.categories,
@@ -116,6 +118,9 @@ export function useAiDatabaseToolsSlice() {
     trips: collections.trips,
     executeCustomQuery: diagnostics.executeCustomQuery,
     applyTransactionClassifications: transactions.applyTransactionClassifications,
+    getUnmatchedRecurringClusters: subscriptions.getUnmatchedRecurringClusters,
+    addMerchantRule: subscriptions.addMerchantRule,
+    runSubscriptionScan: subscriptions.runSubscriptionScan,
   };
 }
 
@@ -123,6 +128,7 @@ export function useCsvImportSlice() {
   const collections = useDatabaseCollections();
   const transactions = useDatabaseTransactions();
   const accounts = useDatabaseAccounts();
+  const subscriptions = useDatabaseSubscriptions();
 
   return {
     accounts: collections.accounts,
@@ -135,6 +141,29 @@ export function useCsvImportSlice() {
     bulkInsertFromTempTable: transactions.bulkInsertFromTempTable,
     findAccountsByLastFour: accounts.findAccountsByLastFour,
     getAccountCards: accounts.getAccountCards,
+    runSubscriptionScan: subscriptions.runSubscriptionScan,
+  };
+}
+
+export function useSubscriptionsSlice() {
+  const collections = useDatabaseCollections();
+  const subscriptions = useDatabaseSubscriptions();
+
+  return {
+    transactionVersion: collections.transactionVersion,
+    companies: collections.companies,
+    merchantRules: collections.merchantRules,
+    recurringSeries: collections.recurringSeries,
+    runSubscriptionScan: subscriptions.runSubscriptionScan,
+    addMerchantRule: subscriptions.addMerchantRule,
+    updateMerchantRule: subscriptions.updateMerchantRule,
+    deleteMerchantRule: subscriptions.deleteMerchantRule,
+    previewMerchantRuleMatches: subscriptions.previewMerchantRuleMatches,
+    updateRecurringSeries: subscriptions.updateRecurringSeries,
+    updateRecurringSeriesStatus: subscriptions.updateRecurringSeriesStatus,
+    deleteRecurringSeries: subscriptions.deleteRecurringSeries,
+    getSeriesTransactions: subscriptions.getSeriesTransactions,
+    getUnmatchedRecurringClusters: subscriptions.getUnmatchedRecurringClusters,
   };
 }
 
@@ -190,9 +219,13 @@ export function useManageDataSlice() {
 export function useSettingsSlice() {
   const lifecycle = useDatabaseLifecycle();
   const status = useDatabaseStatus();
+  const subscriptions = useDatabaseSubscriptions();
 
   return {
     exportDatabase: lifecycle.exportDatabase,
+    reseedCommunityRules: subscriptions.reseedCommunityRules,
+    getMerchantRuleCounts: subscriptions.getMerchantRuleCounts,
+    getMerchantRulesSeedVersion: subscriptions.getMerchantRulesSeedVersion,
     connectCloudSource: lifecycle.connectCloudSource,
     migrateDatabaseToCloud: lifecycle.migrateDatabaseToCloud,
     saveDatabaseToCurrentCloud: lifecycle.saveDatabaseToCurrentCloud,

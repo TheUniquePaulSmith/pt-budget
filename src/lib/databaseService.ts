@@ -28,7 +28,8 @@ import {
   PROJECT_QUERIES,
   USER_QUERIES,
   TRIP_QUERIES,
-  ANALYTICS_QUERIES
+  ANALYTICS_QUERIES,
+  SUBSCRIPTION_QUERIES
 } from './sqlQueries';
 import {
   Transaction,
@@ -45,7 +46,29 @@ import {
   DashboardSummary,
   ChartData,
   ProjectCosts,
+  MerchantRule,
+  MerchantRuleKind,
+  MerchantRuleMatchType,
+  RecurringSeries,
+  RecurringSeriesStatus,
+  UnmatchedCluster,
+  SubscriptionScanSummary,
 } from '../types/database';
+import {
+  normalizeDescription,
+  sortRules,
+  matchRule,
+} from './merchantMatchingService';
+import {
+  analyzeRecurrence,
+  qualifiesAsSeries,
+  type RecurrenceInputTransaction,
+} from './recurrenceDetectionService';
+import {
+  seedMerchantRules,
+  SEED_VERSION_METADATA_KEY,
+  type SeedMerchantRulesResult,
+} from './merchantRulesSeedService';
 import type {
   ApplyTransactionClassificationInput,
   ApplyTransactionClassificationsResult,
@@ -1919,5 +1942,541 @@ export class DatabaseService {
         [update.newHash, update.variationSeed, update.tempId]
       );
     }
+  }
+
+  // ===========================================================================
+  // Merchant rules and recurring subscriptions
+  // ===========================================================================
+
+  // --- App metadata (key/value) ---
+
+  async getAppMetadata(key: string): Promise<string | null> {
+    const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_METADATA, [key]);
+    return rows.length > 0 ? String(rows[0].value) : null;
+  }
+
+  async setAppMetadata(key: string, value: string): Promise<void> {
+    await this.workerService.query(SUBSCRIPTION_QUERIES.SET_METADATA, [key, value]);
+  }
+
+  // --- Merchant rules ---
+
+  async getMerchantRules(): Promise<MerchantRule[]> {
+    try {
+      const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_ALL_RULES);
+      return rows.map(this.mapToMerchantRule);
+    } catch (error) {
+      console.error('Failed to get merchant rules:', error);
+      throw error;
+    }
+  }
+
+  async addMerchantRule(rule: {
+    pattern: string;
+    match_type: MerchantRuleMatchType;
+    merchant_name: string;
+    service_name?: string | null;
+    default_kind: MerchantRuleKind;
+    priority?: number;
+    notes?: string | null;
+  }): Promise<number> {
+    const pattern = normalizeDescription(rule.pattern);
+    if (!pattern) {
+      throw new Error('Merchant rule pattern cannot be empty after normalization');
+    }
+    try {
+      const result = await this.workerService.query(SUBSCRIPTION_QUERIES.CREATE_RULE, [
+        this.generateUserRuleKey(),
+        'user',
+        pattern,
+        rule.match_type,
+        rule.priority ?? 50, // user rules beat community rules by default
+        rule.merchant_name.trim(),
+        rule.service_name?.trim() || null,
+        rule.default_kind,
+        1,
+        1,
+        rule.notes ?? null,
+      ]);
+      return result[0].id;
+    } catch (error) {
+      console.error('Failed to add merchant rule:', error);
+      throw error;
+    }
+  }
+
+  async updateMerchantRule(
+    id: number,
+    updates: {
+      pattern: string;
+      match_type: MerchantRuleMatchType;
+      priority: number;
+      merchant_name: string;
+      service_name?: string | null;
+      default_kind: MerchantRuleKind;
+      enabled: boolean;
+      notes?: string | null;
+    }
+  ): Promise<void> {
+    const pattern = normalizeDescription(updates.pattern);
+    if (!pattern) {
+      throw new Error('Merchant rule pattern cannot be empty after normalization');
+    }
+    try {
+      await this.workerService.query(SUBSCRIPTION_QUERIES.UPDATE_RULE, [
+        pattern,
+        updates.match_type,
+        updates.priority,
+        updates.merchant_name.trim(),
+        updates.service_name?.trim() || null,
+        updates.default_kind,
+        updates.enabled ? 1 : 0,
+        updates.notes ?? null,
+        id,
+      ]);
+    } catch (error) {
+      console.error('Failed to update merchant rule:', error);
+      throw error;
+    }
+  }
+
+  // User rules are deleted; community rules are disabled instead so a
+  // reseed cannot resurrect them (user_modified guard).
+  async deleteMerchantRule(id: number): Promise<void> {
+    try {
+      const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_RULE_BY_ID, [id]);
+      if (rows.length === 0) return;
+      if (rows[0].source === 'user') {
+        await this.workerService.query(SUBSCRIPTION_QUERIES.DELETE_RULE, [id]);
+      } else {
+        await this.workerService.query(SUBSCRIPTION_QUERIES.DISABLE_RULE, [id]);
+      }
+    } catch (error) {
+      console.error('Failed to delete merchant rule:', error);
+      throw error;
+    }
+  }
+
+  async seedCommunityMerchantRules(force = false): Promise<SeedMerchantRulesResult> {
+    return seedMerchantRules(
+      { query: (sql, parameters) => this.workerService.query(sql, parameters as any[]) },
+      { force }
+    );
+  }
+
+  async getMerchantRuleCounts(): Promise<{ community: number; user: number }> {
+    const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.COUNT_RULES_BY_SOURCE);
+    const counts = { community: 0, user: 0 };
+    for (const row of rows) {
+      if (row.source === 'community') counts.community = Number(row.count) || 0;
+      if (row.source === 'user') counts.user = Number(row.count) || 0;
+    }
+    return counts;
+  }
+
+  async getMerchantRulesSeedVersion(): Promise<number> {
+    const value = await this.getAppMetadata(SEED_VERSION_METADATA_KEY);
+    return Number(value) || 0;
+  }
+
+  // --- Matching + scan pipeline ---
+
+  /**
+   * Assigns companies (merchants) to transactions that have none, using the
+   * enabled merchant rules. Never overwrites an existing company assignment.
+   */
+  async applyMerchantMatching(): Promise<{ scanned: number; matched: number }> {
+    const rules = await this.getEnabledSortedRules();
+    const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_UNMATCHED_TRANSACTIONS);
+    if (rows.length === 0 || rules.length === 0) {
+      return { scanned: rows.length, matched: 0 };
+    }
+
+    // Group hits by merchant so each company is resolved once
+    const hitsByMerchant = new Map<string, number[]>();
+    for (const row of rows) {
+      const rule = matchRule(normalizeDescription(row.description), rules);
+      if (!rule) continue;
+      const ids = hitsByMerchant.get(rule.merchant_name) ?? [];
+      ids.push(row.id);
+      hitsByMerchant.set(rule.merchant_name, ids);
+    }
+
+    let matched = 0;
+    await this.workerService.query('BEGIN TRANSACTION');
+    try {
+      for (const [merchantName, transactionIds] of hitsByMerchant) {
+        const companyId = await this.findOrCreateCompany(merchantName);
+        for (const transactionId of transactionIds) {
+          await this.workerService.query(SUBSCRIPTION_QUERIES.UPDATE_TRANSACTION_COMPANY, [
+            companyId,
+            transactionId,
+          ]);
+          matched++;
+        }
+      }
+      await this.workerService.query('COMMIT');
+    } catch (error) {
+      await this.workerService.query('ROLLBACK');
+      console.error('Failed to apply merchant matching:', error);
+      throw error;
+    }
+
+    return { scanned: rows.length, matched };
+  }
+
+  /**
+   * Full subscription scan: merchant matching, then recurrence detection over
+   * rule-backed groups (subscription/bill rules) and unmatched-description
+   * clusters, upserting recurring_series (by match_key) and transaction links.
+   * Idempotent: re-running against unchanged data creates nothing new.
+   * Never changes a series' user-owned fields (name, kind, status, notes).
+   */
+  async runSubscriptionScan(): Promise<SubscriptionScanSummary> {
+    const matching = await this.applyMerchantMatching();
+
+    const rules = await this.getEnabledSortedRules();
+    const ruleByKey = new Map(rules.map((rule) => [rule.rule_key, rule]));
+    const expenseRows = await this.workerService.query(
+      SUBSCRIPTION_QUERIES.GET_EXPENSE_TRANSACTIONS_FOR_SCAN
+    );
+
+    // Group expenses: recurring-kind rule hits by rule, unmatched by
+    // normalized description. 'purchase'/'unknown' rule hits are never
+    // analyzed (that is what keeps Amazon Marketplace off the page).
+    const groups = new Map<string, RecurrenceInputTransaction[]>();
+    for (const row of expenseRows) {
+      const normalized = normalizeDescription(row.description);
+      if (!normalized) continue;
+      const rule = matchRule(normalized, rules);
+
+      let key: string | null = null;
+      if (rule && (rule.default_kind === 'subscription' || rule.default_kind === 'bill')) {
+        key = `rule:${rule.rule_key}`;
+      } else if (!rule) {
+        key = `desc:${normalized}`;
+      }
+      if (!key) continue;
+
+      const group = groups.get(key) ?? [];
+      group.push({ id: row.id, date: row.date, amount: row.amount });
+      groups.set(key, group);
+    }
+
+    const linkedRows = await this.workerService.query(
+      SUBSCRIPTION_QUERIES.GET_ALL_LINKED_TRANSACTION_IDS
+    );
+    const alreadyLinked = new Set<number>(linkedRows.map((row: any) => Number(row.transaction_id)));
+
+    let seriesCreated = 0;
+    let seriesUpdated = 0;
+    let transactionsLinked = 0;
+
+    await this.workerService.query('BEGIN TRANSACTION');
+    try {
+      for (const [matchKey, groupTxns] of groups) {
+        const ruleBacked = matchKey.startsWith('rule:');
+        const rule = ruleBacked ? ruleByKey.get(matchKey.slice('rule:'.length)) : undefined;
+
+        const analysis = analyzeRecurrence(groupTxns);
+        const verdict = qualifiesAsSeries(analysis, { ruleBacked });
+        if (!analysis || !verdict.qualifies) continue;
+
+        const existingRows = await this.workerService.query(
+          SUBSCRIPTION_QUERIES.GET_SERIES_BY_MATCH_KEY,
+          [matchKey]
+        );
+
+        let seriesId: number;
+        if (existingRows.length > 0) {
+          seriesId = existingRows[0].id;
+          await this.workerService.query(SUBSCRIPTION_QUERIES.UPDATE_SERIES_DETECTION, [
+            analysis.cadence,
+            analysis.expectedAmount,
+            analysis.amountIsVariable ? 1 : 0,
+            analysis.lastSeenDate,
+            analysis.nextExpectedDate,
+            seriesId,
+          ]);
+          seriesUpdated++;
+        } else {
+          const name = rule
+            ? rule.service_name || rule.merchant_name
+            : this.titleCaseWords(matchKey.slice('desc:'.length));
+          const companyId = rule ? await this.findOrCreateCompany(rule.merchant_name) : null;
+          const kind =
+            rule && (rule.default_kind === 'subscription' || rule.default_kind === 'bill')
+              ? rule.default_kind
+              : analysis.amountIsVariable
+                ? 'bill'
+                : 'subscription';
+
+          const created = await this.workerService.query(SUBSCRIPTION_QUERIES.CREATE_SERIES, [
+            name,
+            companyId,
+            rule?.id ?? null,
+            kind,
+            analysis.cadence,
+            analysis.expectedAmount,
+            analysis.amountIsVariable ? 1 : 0,
+            verdict.status,
+            matchKey,
+            analysis.lastSeenDate,
+            analysis.nextExpectedDate,
+            null,
+          ]);
+          seriesId = created[0].id;
+          seriesCreated++;
+        }
+
+        const matchSource = ruleBacked ? 'rule' : 'heuristic';
+        for (const txn of groupTxns) {
+          if (alreadyLinked.has(txn.id)) continue;
+          await this.workerService.query(SUBSCRIPTION_QUERIES.LINK_TRANSACTION, [
+            txn.id,
+            seriesId,
+            matchSource,
+          ]);
+          alreadyLinked.add(txn.id);
+          transactionsLinked++;
+        }
+      }
+      await this.workerService.query('COMMIT');
+    } catch (error) {
+      await this.workerService.query('ROLLBACK');
+      console.error('Failed to run subscription scan:', error);
+      throw error;
+    }
+
+    return {
+      scannedTransactions: expenseRows.length,
+      merchantsMatched: matching.matched,
+      seriesCreated,
+      seriesUpdated,
+      transactionsLinked,
+    };
+  }
+
+  // --- Recurring series ---
+
+  async getRecurringSeriesWithStats(): Promise<RecurringSeries[]> {
+    try {
+      const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_SERIES_WITH_STATS);
+      return rows.map(this.mapToRecurringSeries);
+    } catch (error) {
+      console.error('Failed to get recurring series:', error);
+      throw error;
+    }
+  }
+
+  async getSeriesTransactions(seriesId: number): Promise<Transaction[]> {
+    try {
+      const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_SERIES_TRANSACTIONS, [
+        seriesId,
+      ]);
+      return rows.map((row) => this.mapToTransaction(row));
+    } catch (error) {
+      console.error('Failed to get series transactions:', error);
+      throw error;
+    }
+  }
+
+  async updateRecurringSeries(
+    id: number,
+    updates: {
+      name: string;
+      kind: RecurringSeries['kind'];
+      cadence: RecurringSeries['cadence'];
+      expected_amount: number | null;
+      status: RecurringSeriesStatus;
+      notes?: string | null;
+    }
+  ): Promise<void> {
+    try {
+      await this.workerService.query(SUBSCRIPTION_QUERIES.UPDATE_SERIES, [
+        updates.name.trim(),
+        updates.kind,
+        updates.cadence,
+        updates.expected_amount,
+        updates.status,
+        updates.notes ?? null,
+        id,
+      ]);
+    } catch (error) {
+      console.error('Failed to update recurring series:', error);
+      throw error;
+    }
+  }
+
+  async updateRecurringSeriesStatus(id: number, status: RecurringSeriesStatus): Promise<void> {
+    try {
+      await this.workerService.query(SUBSCRIPTION_QUERIES.UPDATE_SERIES_STATUS, [status, id]);
+    } catch (error) {
+      console.error('Failed to update recurring series status:', error);
+      throw error;
+    }
+  }
+
+  // Links are removed explicitly: PRAGMA foreign_keys is not enabled on
+  // databases created before this feature, so ON DELETE CASCADE cannot be
+  // relied upon.
+  async deleteRecurringSeries(id: number): Promise<void> {
+    await this.workerService.query('BEGIN TRANSACTION');
+    try {
+      await this.workerService.query(SUBSCRIPTION_QUERIES.DELETE_LINKS_FOR_SERIES, [id]);
+      await this.workerService.query(SUBSCRIPTION_QUERIES.DELETE_SERIES, [id]);
+      await this.workerService.query('COMMIT');
+    } catch (error) {
+      await this.workerService.query('ROLLBACK');
+      console.error('Failed to delete recurring series:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clusters of expense descriptions that match no rule and belong to no
+   * series — the "Unmatched recurring charges" section of the page and the
+   * input for AI rule suggestions.
+   */
+  async getUnmatchedRecurringClusters(minOccurrences = 3): Promise<UnmatchedCluster[]> {
+    const rules = await this.getEnabledSortedRules();
+    const expenseRows = await this.workerService.query(
+      SUBSCRIPTION_QUERIES.GET_EXPENSE_TRANSACTIONS_FOR_SCAN
+    );
+    const linkedRows = await this.workerService.query(
+      SUBSCRIPTION_QUERIES.GET_ALL_LINKED_TRANSACTION_IDS
+    );
+    const linked = new Set<number>(linkedRows.map((row: any) => Number(row.transaction_id)));
+
+    const clusters = new Map<
+      string,
+      { ids: number[]; totalAmount: number; firstSeen: string; lastSeen: string }
+    >();
+    for (const row of expenseRows) {
+      if (linked.has(row.id)) continue;
+      const normalized = normalizeDescription(row.description);
+      if (!normalized) continue;
+      if (matchRule(normalized, rules)) continue;
+
+      const cluster = clusters.get(normalized) ?? {
+        ids: [] as number[],
+        totalAmount: 0,
+        firstSeen: String(row.date),
+        lastSeen: String(row.date),
+      };
+      cluster.ids.push(row.id);
+      cluster.totalAmount += Math.abs(row.amount);
+      if (row.date < cluster.firstSeen) cluster.firstSeen = row.date;
+      if (row.date > cluster.lastSeen) cluster.lastSeen = row.date;
+      clusters.set(normalized, cluster);
+    }
+
+    return Array.from(clusters.entries())
+      .filter(([, cluster]) => cluster.ids.length >= minOccurrences)
+      .map(([normalized, cluster]) => ({
+        normalized_description: normalized,
+        occurrences: cluster.ids.length,
+        average_amount: cluster.totalAmount / cluster.ids.length,
+        first_seen: cluster.firstSeen,
+        last_seen: cluster.lastSeen,
+        transaction_ids: cluster.ids,
+      }))
+      .sort((a, b) => b.occurrences - a.occurrences);
+  }
+
+  /** Dry-run for the rule editor: how many transactions a pattern would match. */
+  async previewMerchantRuleMatches(rule: {
+    pattern: string;
+    match_type: MerchantRuleMatchType;
+  }): Promise<number> {
+    const pattern = normalizeDescription(rule.pattern);
+    if (!pattern) return 0;
+    const probe = {
+      id: -1,
+      rule_key: 'preview',
+      source: 'user',
+      pattern,
+      match_type: rule.match_type,
+      priority: 0,
+      merchant_name: '',
+      service_name: null,
+      default_kind: 'unknown',
+      enabled: 1,
+      user_modified: 0,
+      created_at: '',
+      updated_at: '',
+    } as MerchantRule;
+
+    const rows = await this.workerService.query(
+      'SELECT description FROM transactions'
+    );
+    let count = 0;
+    for (const row of rows) {
+      if (matchRule(normalizeDescription(row.description), [probe])) count++;
+    }
+    return count;
+  }
+
+  private async getEnabledSortedRules(): Promise<MerchantRule[]> {
+    const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_ENABLED_RULES);
+    return sortRules(rows.map(this.mapToMerchantRule));
+  }
+
+  private generateUserRuleKey(): string {
+    const uuid =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    return `user:${uuid}`;
+  }
+
+  private titleCaseWords(text: string): string {
+    return text
+      .toLowerCase()
+      .split(' ')
+      .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+      .join(' ');
+  }
+
+  private mapToMerchantRule(row: any): MerchantRule {
+    return {
+      id: row.id,
+      rule_key: row.rule_key,
+      source: row.source,
+      pattern: row.pattern,
+      match_type: row.match_type,
+      priority: Number(row.priority),
+      merchant_name: row.merchant_name,
+      service_name: row.service_name ?? null,
+      default_kind: row.default_kind,
+      enabled: Number(row.enabled),
+      user_modified: Number(row.user_modified),
+      notes: row.notes ?? null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
+  }
+
+  private mapToRecurringSeries(row: any): RecurringSeries {
+    return {
+      id: row.id,
+      name: row.name,
+      company_id: row.company_id ?? null,
+      rule_id: row.rule_id ?? null,
+      kind: row.kind,
+      cadence: row.cadence,
+      expected_amount: row.expected_amount != null ? Number(row.expected_amount) : null,
+      amount_is_variable: Number(row.amount_is_variable),
+      status: row.status,
+      match_key: row.match_key,
+      last_seen_date: row.last_seen_date ?? null,
+      next_expected_date: row.next_expected_date ?? null,
+      notes: row.notes ?? null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      company_name: row.company_name || undefined,
+      transaction_count: row.transaction_count != null ? Number(row.transaction_count) : undefined,
+      total_spent: row.total_spent != null ? Number(row.total_spent) : undefined,
+    };
   }
 }

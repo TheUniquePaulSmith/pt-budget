@@ -143,6 +143,67 @@ export const CREATE_TABLES = {
       transaction_hash TEXT,
       hash_variation_seed INTEGER DEFAULT 0
     )
+  `,
+
+  MERCHANT_RULES: `
+    CREATE TABLE IF NOT EXISTS merchant_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rule_key TEXT NOT NULL UNIQUE,
+      source TEXT CHECK(source IN ('community', 'user')) NOT NULL DEFAULT 'user',
+      pattern TEXT NOT NULL,
+      match_type TEXT CHECK(match_type IN ('exact', 'prefix', 'contains')) NOT NULL DEFAULT 'prefix',
+      priority INTEGER NOT NULL DEFAULT 100,
+      merchant_name TEXT NOT NULL,
+      service_name TEXT,
+      default_kind TEXT CHECK(default_kind IN ('subscription', 'bill', 'purchase', 'unknown')) NOT NULL DEFAULT 'unknown',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      user_modified INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `,
+
+  RECURRING_SERIES: `
+    CREATE TABLE IF NOT EXISTS recurring_series (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      company_id INTEGER,
+      rule_id INTEGER,
+      kind TEXT CHECK(kind IN ('subscription', 'bill')) NOT NULL DEFAULT 'subscription',
+      cadence TEXT CHECK(cadence IN ('weekly', 'biweekly', 'monthly', 'quarterly', 'yearly', 'irregular')) NOT NULL DEFAULT 'monthly',
+      expected_amount REAL,
+      amount_is_variable INTEGER NOT NULL DEFAULT 0,
+      status TEXT CHECK(status IN ('candidate', 'active', 'inactive', 'ignored')) NOT NULL DEFAULT 'candidate',
+      match_key TEXT NOT NULL UNIQUE,
+      last_seen_date DATE,
+      next_expected_date DATE,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL,
+      FOREIGN KEY (rule_id) REFERENCES merchant_rules (id) ON DELETE SET NULL
+    )
+  `,
+
+  TRANSACTION_SERIES_LINKS: `
+    CREATE TABLE IF NOT EXISTS transaction_series_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transaction_id INTEGER NOT NULL UNIQUE,
+      series_id INTEGER NOT NULL,
+      match_source TEXT CHECK(match_source IN ('rule', 'heuristic', 'ai', 'manual')) NOT NULL DEFAULT 'rule',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (transaction_id) REFERENCES transactions (id) ON DELETE CASCADE,
+      FOREIGN KEY (series_id) REFERENCES recurring_series (id) ON DELETE CASCADE
+    )
+  `,
+
+  APP_METADATA: `
+    CREATE TABLE IF NOT EXISTS app_metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
   `
 };
 
@@ -150,6 +211,26 @@ export const CREATE_TABLES = {
 export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_transactions_date_id ON transactions(date DESC, id DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_temp_import_transactions_hash ON temp_import_transactions(transaction_hash) WHERE transaction_hash IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_merchant_rules_enabled ON merchant_rules(enabled, priority)`,
+  `CREATE INDEX IF NOT EXISTS idx_recurring_series_status ON recurring_series(status, kind)`,
+  `CREATE INDEX IF NOT EXISTS idx_tsl_series ON transaction_series_links(series_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_transactions_company_null ON transactions(company_id) WHERE company_id IS NULL`,
+];
+
+// Schema versioning — applied by runMigrations() in database-worker.js.
+// Each migration's statements must be idempotent (IF NOT EXISTS) because a
+// fresh database may already have the tables from createTables().
+export const SCHEMA_VERSION = 1;
+export const MIGRATIONS = [
+  {
+    version: 1,
+    statements: [
+      CREATE_TABLES.MERCHANT_RULES,
+      CREATE_TABLES.RECURRING_SERIES,
+      CREATE_TABLES.TRANSACTION_SERIES_LINKS,
+      CREATE_TABLES.APP_METADATA,
+    ],
+  },
 ];
 
 // Default Data Inserts

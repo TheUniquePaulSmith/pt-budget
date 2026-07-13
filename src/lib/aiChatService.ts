@@ -16,11 +16,12 @@ import type {
   AiChatRunResult,
   AiChatTokenUsage,
   AiToolCallRecord,
+  MerchantRuleSuggestion,
   TransactionClassificationSuggestion,
 } from '@/types/ai';
 import { AI_OUTPUT_LIMIT_PRESETS } from '@/types/ai';
 
-const SYSTEM_PROMPT = `You are a local-only personal finance assistant running in the browser. Use tools to inspect the user's local SQLite budget database before making claims about transactions. Arbitrary database mutations are not allowed. For classification writes, call apply_transaction_classifications and respect the application's review mode.`;
+const SYSTEM_PROMPT = `You are a local-only personal finance assistant running in the browser. Use tools to inspect the user's local SQLite budget database before making claims about transactions. Arbitrary database mutations are not allowed. For classification writes, call apply_transaction_classifications and respect the application's review mode. To name unmatched recurring merchants, call get_unmatched_merchant_clusters and then propose_merchant_rules; proposed rules are always staged for user review.`;
 
 export interface RunAiChatOptions {
   messages: AiChatMessage[];
@@ -184,6 +185,7 @@ export async function runAiChatCompletion({
   const conversation = toWllamaMessages(messages);
   const toolCalls: AiToolCallRecord[] = [];
   const classificationSuggestions: TransactionClassificationSuggestion[] = [];
+  const merchantRuleSuggestions: MerchantRuleSuggestion[] = [];
   const tokenUsage: Required<AiChatTokenUsage> = {
     promptTokens: 0,
     completionTokens: 0,
@@ -206,6 +208,7 @@ export async function runAiChatCompletion({
           assistantMessage: assistantTurn.content,
           toolCalls,
           classificationSuggestions,
+          merchantRuleSuggestions,
           tokenUsage,
         };
       }
@@ -220,6 +223,7 @@ export async function runAiChatCompletion({
         const result = await executeAiDatabaseToolCall(toolCall, databaseToolContext);
         toolCalls.push(result.toolCall);
         classificationSuggestions.push(...result.classificationSuggestions);
+        merchantRuleSuggestions.push(...result.merchantRuleSuggestions);
         conversation.push({
           role: 'tool',
           tool_call_id: toolCall.id,
@@ -234,6 +238,7 @@ export async function runAiChatCompletion({
       assistantMessage: 'I reached the tool-call limit before producing a final answer. Try a narrower question.',
       toolCalls,
       classificationSuggestions,
+      merchantRuleSuggestions,
       tokenUsage,
     };
   }
@@ -255,6 +260,7 @@ export async function runAiChatCompletion({
         assistantMessage: 'The model did not return a response.',
         toolCalls,
         classificationSuggestions,
+        merchantRuleSuggestions,
         tokenUsage,
       };
     }
@@ -264,6 +270,7 @@ export async function runAiChatCompletion({
         assistantMessage: assistantMessage.content || '',
         toolCalls,
         classificationSuggestions,
+        merchantRuleSuggestions,
         tokenUsage,
       };
     }
@@ -278,6 +285,7 @@ export async function runAiChatCompletion({
       const result = await executeAiDatabaseToolCall(toolCall, databaseToolContext);
       toolCalls.push(result.toolCall);
       classificationSuggestions.push(...result.classificationSuggestions);
+      merchantRuleSuggestions.push(...result.merchantRuleSuggestions);
       conversation.push({
         role: 'tool',
         tool_call_id: toolCall.id,
@@ -292,6 +300,7 @@ export async function runAiChatCompletion({
     assistantMessage: 'I reached the tool-call limit before producing a final answer. Try a narrower question.',
     toolCalls,
     classificationSuggestions,
+    merchantRuleSuggestions,
     tokenUsage,
   };
 }

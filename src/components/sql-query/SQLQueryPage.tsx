@@ -7,17 +7,10 @@ import {
   Paper,
   TextField,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Alert,
   CircularProgress,
   Chip,
   Stack,
-  TablePagination,
   Card,
   CardContent,
   IconButton,
@@ -39,6 +32,9 @@ import {
   ContentCopy,
   History,
 } from '@mui/icons-material';
+import type { GridColDef } from '@mui/x-data-grid';
+
+import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { useSqlQuerySlice } from '@/contexts/useDatabaseSlices';
 
 interface QueryResult {
@@ -67,11 +63,7 @@ export default function SQLQueryPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [queryHistory, setQueryHistory] = useState<QueryHistory[]>([]);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
   const [queryTimeout, setQueryTimeout] = useState(10000);
-  const [rangeStartInput, setRangeStartInput] = useState('');
-  const [rangeEndInput, setRangeEndInput] = useState('');
 
   // Sample queries for reference
   const sampleQueries = [
@@ -147,7 +139,6 @@ ORDER BY m.name, p.cid;`
     setLoading(true);
     setError(null);
     setResult(null);
-    setPage(0);
 
     const startTime = performance.now();
     const historyEntry: QueryHistory = {
@@ -216,19 +207,6 @@ ORDER BY m.name, p.cid;`
     setQuery('');
     setResult(null);
     setError(null);
-    setPage(0);
-  };
-
-  const handleChangePage = (event: unknown, newPage: number) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const nextRowsPerPage = parseInt(event.target.value, 10);
-    const currentFirstRow = page * rowsPerPage + 1;
-
-    setRowsPerPage(nextRowsPerPage);
-    setPage(Math.floor((currentFirstRow - 1) / nextRowsPerPage));
   };
 
   const copyToClipboard = async (text: string) => {
@@ -247,73 +225,37 @@ ORDER BY m.name, p.cid;`
     return JSON.stringify(value);
   };
 
-  const totalRows = result?.rows.length ?? 0;
-  const currentRangeStart = totalRows === 0 ? 0 : page * rowsPerPage + 1;
-  const currentRangeEnd = totalRows === 0 ? 0 : Math.min(currentRangeStart + rowsPerPage - 1, totalRows);
-  const rangeInputCharacterCount = Math.max(
-    String(totalRows || rowsPerPage).length,
-    String(currentRangeStart || '').length,
-    String(currentRangeEnd || '').length,
-    4
-  );
-  const rangeInputWidth = `calc(${rangeInputCharacterCount}ch + 1.5rem)`;
+  const resultGridRows = result?.rows.map((row, rowIndex) => {
+    const gridRow: Record<string, any> = { __idx: rowIndex };
+    result.columns.forEach((column, columnIndex) => {
+      gridRow[column] = row[columnIndex];
+    });
+    return gridRow;
+  }) ?? [];
 
-  useEffect(() => {
-    if (totalRows === 0) {
-      setRangeStartInput('');
-      setRangeEndInput('');
-      return;
-    }
-
-    setRangeStartInput(String(currentRangeStart));
-    setRangeEndInput(String(currentRangeEnd));
-  }, [currentRangeEnd, currentRangeStart, totalRows]);
-
-  const resetRangeInputs = () => {
-    if (totalRows === 0) {
-      setRangeStartInput('');
-      setRangeEndInput('');
-      return;
-    }
-
-    setRangeStartInput(String(currentRangeStart));
-    setRangeEndInput(String(currentRangeEnd));
-  };
-
-  const jumpToRangeValue = (rawValue: string) => {
-    const parsedValue = Number.parseInt(rawValue.trim(), 10);
-
-    if (Number.isNaN(parsedValue) || totalRows === 0) {
-      resetRangeInputs();
-      return;
-    }
-
-    const clampedValue = Math.min(Math.max(parsedValue, 1), totalRows);
-    const nextPage = Math.floor((clampedValue - 1) / rowsPerPage);
-    const nextRangeStart = nextPage * rowsPerPage + 1;
-    const nextRangeEnd = Math.min(nextRangeStart + rowsPerPage - 1, totalRows);
-
-    setRangeStartInput(String(nextRangeStart));
-    setRangeEndInput(String(nextRangeEnd));
-    setPage(nextPage);
-  };
-
-  const handleRangeKeyDown = (
-    event: React.KeyboardEvent<HTMLInputElement>,
-    rawValue: string
-  ) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      jumpToRangeValue(rawValue);
-      event.currentTarget.blur();
-    }
-
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      resetRangeInputs();
-      event.currentTarget.blur();
-    }
-  };
+  const resultGridColumns: GridColDef[] = result?.columns.map((column) => ({
+    field: column,
+    headerName: column,
+    minWidth: 120,
+    flex: 1,
+    renderCell: (params) => (
+      <Tooltip title={formatValue(params.value)}>
+        <Typography
+          variant="body2"
+          sx={{
+            fontFamily: params.value == null ? 'inherit' : 'monospace',
+            fontStyle: params.value == null ? 'italic' : 'normal',
+            color: params.value == null ? 'text.secondary' : 'inherit',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {formatValue(params.value)}
+        </Typography>
+      </Tooltip>
+    ),
+  })) ?? [];
 
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
@@ -564,175 +506,17 @@ ORDER BY m.name, p.cid;`
           </Box>
 
           {result.rows.length > 0 ? (
-            <>
-              <TableContainer sx={{ maxHeight: isMobile ? 400 : 600, overflowX: 'auto' }}>
-                <Table stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      {result.columns.map((column, index) => (
-                        <TableCell 
-                          key={index}
-                          sx={{ 
-                            fontWeight: 'bold',
-                            minWidth: 100,
-                            bgcolor: 'grey.50'
-                          }}
-                        >
-                          {column}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {result.rows
-                      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                      .map((row, rowIndex) => (
-                        <TableRow key={page * rowsPerPage + rowIndex} hover>
-                          {row.map((cell, cellIndex) => (
-                            <TableCell 
-                              key={cellIndex}
-                              sx={{
-                                fontFamily: cell === null ? 'inherit' : 'monospace',
-                                fontSize: '0.875rem',
-                                fontStyle: cell === null ? 'italic' : 'normal',
-                                color: cell === null ? 'text.secondary' : 'inherit',
-                                maxWidth: 300,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                              }}
-                              title={formatValue(cell)}
-                            >
-                              {formatValue(cell)}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              <Box
-                sx={{
-                  borderTop: 1,
-                  borderColor: 'divider',
-                  display: 'flex',
-                  flexDirection: { xs: 'column', lg: 'row' },
-                  alignItems: { xs: 'stretch', lg: 'center' },
-                  justifyContent: 'space-between',
-                  gap: { xs: 2, lg: 0 },
-                  px: { xs: 2, sm: 3 },
-                  py: { xs: 2, lg: 0 },
-                }}
-              >
-                <TablePagination
-                  rowsPerPageOptions={[10, 25, 50, 100, 250, 500]}
-                  component="div"
-                  count={result.rows.length}
-                  rowsPerPage={rowsPerPage}
-                  page={page}
-                  onPageChange={handleChangePage}
-                  onRowsPerPageChange={handleChangeRowsPerPage}
-                  labelDisplayedRows={() => (
-                    <Box
-                      component="span"
-                      sx={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 0.75,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      <Box
-                        component="input"
-                        value={rangeStartInput}
-                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                          setRangeStartInput(event.target.value.replace(/[^0-9]/g, ''));
-                        }}
-                        onBlur={() => jumpToRangeValue(rangeStartInput)}
-                        onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
-                          event.currentTarget.select();
-                        }}
-                        onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
-                          handleRangeKeyDown(event, rangeStartInput);
-                        }}
-                        inputMode="numeric"
-                        aria-label="Start row"
-                        data-testid="sql-query-range-start"
-                        sx={{
-                          width: rangeInputWidth,
-                          boxSizing: 'content-box',
-                          px: 0.75,
-                          py: 0.35,
-                          border: 0,
-                          borderRadius: 1,
-                          bgcolor: 'action.hover',
-                          color: 'text.primary',
-                          font: 'inherit',
-                          fontVariantNumeric: 'tabular-nums',
-                          textAlign: 'right',
-                          outline: '1px solid transparent',
-                          transition: 'outline-color 0.2s ease, background-color 0.2s ease',
-                          '&:focus': {
-                            bgcolor: 'background.paper',
-                            outlineColor: 'primary.main',
-                          },
-                        }}
-                      />
-                      <Box component="span">-</Box>
-                      <Box
-                        component="input"
-                        value={rangeEndInput}
-                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                          setRangeEndInput(event.target.value.replace(/[^0-9]/g, ''));
-                        }}
-                        onBlur={() => jumpToRangeValue(rangeEndInput)}
-                        onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
-                          event.currentTarget.select();
-                        }}
-                        onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
-                          handleRangeKeyDown(event, rangeEndInput);
-                        }}
-                        inputMode="numeric"
-                        aria-label="End row"
-                        data-testid="sql-query-range-end"
-                        sx={{
-                          width: rangeInputWidth,
-                          boxSizing: 'content-box',
-                          px: 0.75,
-                          py: 0.35,
-                          border: 0,
-                          borderRadius: 1,
-                          bgcolor: 'action.hover',
-                          color: 'text.primary',
-                          font: 'inherit',
-                          fontVariantNumeric: 'tabular-nums',
-                          textAlign: 'right',
-                          outline: '1px solid transparent',
-                          transition: 'outline-color 0.2s ease, background-color 0.2s ease',
-                          '&:focus': {
-                            bgcolor: 'background.paper',
-                            outlineColor: 'primary.main',
-                          },
-                        }}
-                      />
-                      <Box component="span">of {totalRows}</Box>
-                    </Box>
-                  )}
-                  sx={{
-                    borderTop: 0,
-                    ml: { lg: 'auto' },
-                    '& .MuiToolbar-root': {
-                      px: 0,
-                      flexWrap: 'wrap',
-                      rowGap: 1,
-                    },
-                    '& .MuiTablePagination-displayedRows': {
-                      m: 0,
-                    },
-                  }}
-                />
-              </Box>
-            </>
+            <Box sx={{ p: 2 }}>
+              <AppDataGrid
+                rows={resultGridRows}
+                columns={resultGridColumns}
+                getRowId={(row) => row.__idx}
+                height={isMobile ? 420 : 620}
+                initialState={{ pagination: { paginationModel: { pageSize: 25, page: 0 } } }}
+                pageSizeOptions={[10, 25, 50, 100]}
+                disableVirtualization={process.env.NODE_ENV === 'test'}
+              />
+            </Box>
           ) : (
             <Box sx={{ p: 3, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">

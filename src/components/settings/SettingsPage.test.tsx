@@ -80,10 +80,15 @@ describe('SettingsPage theme presets', () => {
     installMatchMediaMock(true);
     mockedUseSettingsSlice.mockReturnValue({
       exportDatabase: vi.fn().mockResolvedValue(null),
+      reseedCommunityRules: vi.fn().mockResolvedValue({ skipped: false }),
+      getMerchantRuleCounts: vi.fn().mockResolvedValue({ community: 0, user: 0 }),
+      getMerchantRulesSeedVersion: vi.fn().mockResolvedValue(1),
       connectCloudSource: vi.fn().mockResolvedValue(undefined),
       migrateDatabaseToCloud: vi.fn().mockResolvedValue(undefined),
       saveDatabaseToCurrentCloud: vi.fn().mockResolvedValue(undefined),
       switchToLocalSource: vi.fn(),
+      setEncryptionPassword: vi.fn().mockResolvedValue(undefined),
+      clearEncryptionPassword: vi.fn().mockResolvedValue(undefined),
       isDatabaseLoaded: true,
       databaseSource: 'local',
       databaseSourceState: {

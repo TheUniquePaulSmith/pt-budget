@@ -28,6 +28,7 @@ import type {
   AiChatTokenUsage,
   AiToolCallRecord,
   AiWriteMode,
+  MerchantRuleSuggestion,
   TransactionClassificationSuggestion,
 } from '@/types/ai';
 
@@ -75,6 +76,7 @@ const examplePrompts = [
   'Look at my transaction history and flag likely recurring subscriptions.',
   'Suggest categories for my recent uncategorized transactions.',
   'Which merchants appear most often in my expenses?',
+  'Name the unmatched recurring merchants and propose merchant rules for them.',
 ];
 
 function TypingIndicatorIcon() {
@@ -162,6 +164,7 @@ interface AiChatProps {
   writeMode: AiWriteMode;
   onToolCallsChange: (toolCalls: AiToolCallRecord[]) => void;
   onClassificationSuggestions: (suggestions: TransactionClassificationSuggestion[]) => void;
+  onMerchantRuleSuggestions: (suggestions: MerchantRuleSuggestion[]) => void;
   onReviewableAutomation: () => void;
 }
 
@@ -169,6 +172,7 @@ export default function AiChat({
   writeMode,
   onToolCallsChange,
   onClassificationSuggestions,
+  onMerchantRuleSuggestions,
   onReviewableAutomation,
 }: AiChatProps) {
   const { isModelLoaded, loadedModel, showTokenUsage, maxOutputTokens, createChatCompletion, createChatCompletionStream } = useAiChatRuntimeSlice();
@@ -236,6 +240,10 @@ export default function AiChat({
       onToolCallsChange(result.toolCalls);
       if (result.classificationSuggestions.length > 0) {
         onClassificationSuggestions(result.classificationSuggestions);
+        onReviewableAutomation();
+      }
+      if (result.merchantRuleSuggestions.length > 0) {
+        onMerchantRuleSuggestions(result.merchantRuleSuggestions);
         onReviewableAutomation();
       }
       setMessages((current) => current.map((message) => {

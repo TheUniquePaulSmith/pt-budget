@@ -75,7 +75,7 @@ function renderDialog() {
 async function selectAccount(user: ReturnType<typeof userEvent.setup>, accountName: string) {
   const dialog = screen.getByRole('dialog');
   const comboboxes = Array.from(dialog.querySelectorAll('[role="combobox"]'));
-  const accountSelect = comboboxes.at(-1) as HTMLElement | undefined;
+  const accountSelect = comboboxes.at(-2) as HTMLElement | undefined;
 
   if (!accountSelect) {
     throw new Error('Account select was not rendered');
@@ -97,6 +97,7 @@ describe('AddTransaction', () => {
       addTransaction,
       addCategory: vi.fn(),
       addCompany: vi.fn(),
+      getAccountCards: vi.fn().mockResolvedValue([]),
       categories: [] as Category[],
       companies: [] as Company[],
       accounts: defaultAccounts,
@@ -124,6 +125,7 @@ describe('AddTransaction', () => {
         company_id: null,
         project_id: null,
         account_id: 1,
+        card_id: null,
         trip_id: null,
         date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       })
@@ -141,6 +143,7 @@ describe('AddTransaction', () => {
       addTransaction,
       addCategory,
       addCompany,
+      getAccountCards: vi.fn().mockResolvedValue([]),
       categories: [] as Category[],
       companies: [] as Company[],
       accounts: defaultAccounts,

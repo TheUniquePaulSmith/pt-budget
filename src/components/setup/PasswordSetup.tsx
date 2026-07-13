@@ -17,7 +17,7 @@ import {
 
 interface PasswordSetupProps {
   /** Called after the user confirms a valid password. */
-  onPasswordConfirmed: (password: string) => Promise<void>;
+  onPasswordConfirmed: (password: string, primaryUserName: string) => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
@@ -29,6 +29,7 @@ export function PasswordSetup({
   isLoading,
   error,
 }: PasswordSetupProps) {
+  const [primaryUserName, setPrimaryUserName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -37,6 +38,12 @@ export function PasswordSetup({
 
   const handleSubmit = useCallback(async () => {
     setValidationError(null);
+
+    const trimmedPrimaryUserName = primaryUserName.trim();
+    if (!trimmedPrimaryUserName) {
+      setValidationError('Primary user name is required.');
+      return;
+    }
 
     if (password.length < MIN_PASSWORD_LENGTH) {
       setValidationError(
@@ -51,15 +58,16 @@ export function PasswordSetup({
     }
 
     try {
-      await onPasswordConfirmed(password);
+      await onPasswordConfirmed(password, trimmedPrimaryUserName);
     } catch {
       // Error is surfaced via the `error` prop from the parent.
     }
-  }, [password, confirm, onPasswordConfirmed]);
+  }, [primaryUserName, password, confirm, onPasswordConfirmed]);
 
   const displayError = validationError ?? error;
   const canSubmit =
     !isLoading &&
+    primaryUserName.trim().length > 0 &&
     password.length >= MIN_PASSWORD_LENGTH &&
     password === confirm;
 
@@ -77,7 +85,7 @@ export function PasswordSetup({
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <LockOutlined sx={{ fontSize: 56, color: 'primary.main', mb: 1.5 }} />
           <Typography variant="h5" gutterBottom fontWeight="bold">
-            Protect Your Database
+            Set Up Your Database
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Your database is encrypted before it is saved or uploaded to cloud
@@ -92,13 +100,31 @@ export function PasswordSetup({
           </Alert>
         )}
 
+        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>
+          Primary user
+        </Typography>
+
+        <TextField
+          label="Primary User Name"
+          value={primaryUserName}
+          onChange={(e) => setPrimaryUserName(e.target.value)}
+          fullWidth
+          required
+          autoFocus
+          disabled={isLoading}
+          sx={{ mb: 3 }}
+        />
+
+        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>
+          Password
+        </Typography>
+
         <TextField
           label="Password"
           type={showPassword ? 'text' : 'password'}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           fullWidth
-          autoFocus
           disabled={isLoading}
           sx={{ mb: 2 }}
           slotProps={{

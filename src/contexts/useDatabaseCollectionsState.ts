@@ -7,19 +7,24 @@ import type {
   Account,
   Category,
   Company,
+  MerchantRule,
   Project,
+  RecurringSeries,
   Trip,
   User,
 } from '../types/database';
 
 export interface DatabaseCollectionsSlice {
   transactionVersion: number;
+  budgetVersion: number;
   categories: Category[];
   companies: Company[];
   accounts: Account[];
   projects: Project[];
   users: User[];
   trips: Trip[];
+  merchantRules: MerchantRule[];
+  recurringSeries: RecurringSeries[];
 }
 
 type CollectionDataService = Pick<
@@ -30,6 +35,9 @@ type CollectionDataService = Pick<
   | 'getProjects'
   | 'getUsers'
   | 'getTrips'
+  | 'getMerchantRules'
+  | 'getRecurringSeriesWithStats'
+  | 'seedCommunityMerchantRules'
 >;
 
 interface UseDatabaseCollectionsStateOptions {
@@ -40,26 +48,42 @@ interface UseDatabaseCollectionsStateResult {
   collections: DatabaseCollectionsSlice;
   loadAllData: (service: CollectionDataService) => Promise<void>;
   refreshTransactions: () => Promise<void>;
+  refreshBudgets: () => Promise<void>;
   refreshCategories: () => Promise<void>;
   refreshCompanies: () => Promise<void>;
   refreshAccounts: () => Promise<void>;
   refreshProjects: () => Promise<void>;
   refreshUsers: () => Promise<void>;
   refreshTrips: () => Promise<void>;
+  refreshMerchantRules: () => Promise<void>;
+  refreshRecurringSeries: () => Promise<void>;
 }
 
 export function useDatabaseCollectionsState({
   getDatabaseService,
 }: UseDatabaseCollectionsStateOptions): UseDatabaseCollectionsStateResult {
   const [transactionVersion, setTransactionVersion] = useState(0);
+  const [budgetVersion, setBudgetVersion] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [merchantRules, setMerchantRules] = useState<MerchantRule[]>([]);
+  const [recurringSeries, setRecurringSeries] = useState<RecurringSeries[]>([]);
 
   const loadAllData = useCallback(async (service: CollectionDataService) => {
+    // Seed/refresh the bundled community merchant rules before reading
+    // collections. loadAllData is the single choke point every open path
+    // (new, existing, cloud, source switch) passes through. Non-fatal: the
+    // app must still load if the bundled JSON cannot be fetched.
+    try {
+      await service.seedCommunityMerchantRules();
+    } catch (err) {
+      console.warn('Failed to seed community merchant rules:', err);
+    }
+
     try {
       const [
         categoriesData,
@@ -68,6 +92,8 @@ export function useDatabaseCollectionsState({
         projectsData,
         usersData,
         tripsData,
+        merchantRulesData,
+        recurringSeriesData,
       ] = await Promise.all([
         service.getCategories(),
         service.getCompanies(),
@@ -75,6 +101,8 @@ export function useDatabaseCollectionsState({
         service.getProjects(),
         service.getUsers(),
         service.getTrips(),
+        service.getMerchantRules(),
+        service.getRecurringSeriesWithStats(),
       ]);
 
       setCategories(categoriesData);
@@ -83,6 +111,8 @@ export function useDatabaseCollectionsState({
       setProjects(projectsData);
       setUsers(usersData);
       setTrips(tripsData);
+      setMerchantRules(merchantRulesData);
+      setRecurringSeries(recurringSeriesData);
     } catch (err) {
       console.error('Failed to load data:', err);
       throw err;
@@ -92,6 +122,10 @@ export function useDatabaseCollectionsState({
   // Incrementing transactionVersion signals components to re-fetch transaction data from the DB.
   const refreshTransactions = useCallback(async () => {
     setTransactionVersion(v => v + 1);
+  }, []);
+
+  const refreshBudgets = useCallback(async () => {
+    setBudgetVersion(v => v + 1);
   }, []);
 
   const refreshCategories = useCallback(async () => {
@@ -166,28 +200,58 @@ export function useDatabaseCollectionsState({
     }
   }, [getDatabaseService]);
 
+  const refreshMerchantRules = useCallback(async () => {
+    const databaseService = getDatabaseService();
+    if (!databaseService) return;
+
+    try {
+      const data = await databaseService.getMerchantRules();
+      setMerchantRules(data);
+    } catch (err) {
+      console.error('Failed to refresh merchant rules:', err);
+    }
+  }, [getDatabaseService]);
+
+  const refreshRecurringSeries = useCallback(async () => {
+    const databaseService = getDatabaseService();
+    if (!databaseService) return;
+
+    try {
+      const data = await databaseService.getRecurringSeriesWithStats();
+      setRecurringSeries(data);
+    } catch (err) {
+      console.error('Failed to refresh recurring series:', err);
+    }
+  }, [getDatabaseService]);
+
   const collections = useMemo(
     () => ({
       transactionVersion,
+      budgetVersion,
       categories,
       companies,
       accounts,
       projects,
       users,
       trips,
+      merchantRules,
+      recurringSeries,
     }),
-    [transactionVersion, categories, companies, accounts, projects, users, trips]
+    [transactionVersion, budgetVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries]
   );
 
   return {
     collections,
     loadAllData,
     refreshTransactions,
+    refreshBudgets,
     refreshCategories,
     refreshCompanies,
     refreshAccounts,
     refreshProjects,
     refreshUsers,
     refreshTrips,
+    refreshMerchantRules,
+    refreshRecurringSeries,
   };
 }

@@ -13,6 +13,7 @@ export interface DatabaseCategorySlice {
 
 export interface DatabaseCompanySlice {
   addCompany: (name: string) => Promise<number>;
+  updateCompany: (id: number, name: string) => Promise<void>;
 }
 
 export interface DatabaseProjectSlice {
@@ -41,6 +42,7 @@ type CatalogAndPlanningService = Pick<
   DatabaseService,
   | 'addCategory'
   | 'addCompany'
+  | 'updateCompany'
   | 'addProject'
   | 'updateProject'
   | 'deleteProject'
@@ -93,6 +95,14 @@ export function useDatabaseCatalogAndPlanningSlices({
       const id = await requireService().addCompany(name);
       await refreshCompanies();
       return id;
+    },
+    [refreshCompanies, requireService]
+  );
+
+  const updateCompany = useCallback(
+    async (id: number, name: string): Promise<void> => {
+      await requireService().updateCompany(id, name);
+      await refreshCompanies();
     },
     [refreshCompanies, requireService]
   );
@@ -167,8 +177,9 @@ export function useDatabaseCatalogAndPlanningSlices({
   const companiesSlice = useMemo(
     () => ({
       addCompany,
+      updateCompany,
     }),
-    [addCompany]
+    [addCompany, updateCompany]
   );
 
   const projectsSlice = useMemo(

@@ -10,17 +10,25 @@ import DateRangeSelector from './DateRangeSelector';
 import SummaryStats from './SummaryStats';
 import ChartsSection from './ChartsSection';
 import RecentTransactions from './RecentTransactions';
-import type { Transaction, DashboardSummary, ChartData } from '@/types/database';
+import { BudgetStatusCard } from './BudgetStatusCard';
+import type { Transaction, DashboardSummary, ChartData, BudgetStatus, TransactionScopeFilters } from '@/types/database';
 
-const Dashboard: React.FC = () => {
+interface DashboardProps {
+  onNavigateToBudget?: () => void;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
   const {
     transactionVersion,
+    budgetVersion,
     accounts,
     users,
     exportDatabase,
     getRecentTransactions,
     getDashboardSummary,
     getChartData,
+    setTransactionComment,
+    getBudgetStatus,
   } = useDashboardSlice();
 
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year' | 'custom'>('month');
@@ -29,10 +37,12 @@ const Dashboard: React.FC = () => {
   const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [scopeFilters, setScopeFilters] = useState<TransactionScopeFilters>({});
 
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [chartData, setChartData] = useState<ChartData | null>(null);
+  const [budgetStatus, setBudgetStatus] = useState<BudgetStatus | null>(null);
 
   const dateRanges = useMemo(() => {
     const now = new Date();
@@ -77,9 +87,9 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         const [recent, summary, charts] = await Promise.all([
-          getRecentTransactions(recentTransactionsLimit),
-          getDashboardSummary(dateRanges.start, dateRanges.end),
-          getChartData(dateRanges.start, dateRanges.end),
+          getRecentTransactions(recentTransactionsLimit, scopeFilters),
+          getDashboardSummary(dateRanges.start, dateRanges.end, scopeFilters),
+          getChartData(dateRanges.start, dateRanges.end, scopeFilters),
         ]);
         if (!cancelled) {
           setRecentTransactions(recent);
@@ -92,7 +102,17 @@ const Dashboard: React.FC = () => {
     };
     fetchData();
     return () => { cancelled = true; };
-  }, [transactionVersion, dateRanges, recentTransactionsLimit, getRecentTransactions, getDashboardSummary, getChartData]);
+  }, [transactionVersion, dateRanges, recentTransactionsLimit, scopeFilters, getRecentTransactions, getDashboardSummary, getChartData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getBudgetStatus({ type: 'month', key: format(new Date(), 'yyyy-MM') })
+      .then((nextStatus) => {
+        if (!cancelled) setBudgetStatus(nextStatus);
+      })
+      .catch((err) => console.error('Failed to load budget status:', err));
+    return () => { cancelled = true; };
+  }, [budgetVersion, transactionVersion, getBudgetStatus]);
 
   const handleExportDatabase = async () => {
     const dbData = await exportDatabase();
@@ -124,6 +144,13 @@ const Dashboard: React.FC = () => {
     setCustomEndDate(end);
   };
 
+  // Categories with a threshold in this month's effective budget plan —
+  // drives the Budget chip in the Recent Transactions indicators column.
+  const budgetedCategoryIds = useMemo(
+    () => new Set((budgetStatus?.categories ?? []).map((category) => category.category_id)),
+    [budgetStatus]
+  );
+
   return (
     <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
       <DateRangeSelector
@@ -135,6 +162,10 @@ const Dashboard: React.FC = () => {
         onExport={handleExportDatabase}
         onAddTransaction={() => setAddTransactionOpen(true)}
         onCsvImport={() => setCsvImportOpen(true)}
+        accounts={accounts}
+        users={users}
+        scopeFilters={scopeFilters}
+        onScopeFiltersChange={setScopeFilters}
       />
 
       <SummaryStats
@@ -142,6 +173,11 @@ const Dashboard: React.FC = () => {
         chartData={chartData}
         timeRangeLabel={getTimeRangeLabel()}
         dayCount={selectedRangeDayCount}
+      />
+
+      <BudgetStatusCard
+        status={budgetStatus}
+        onManageBudget={() => onNavigateToBudget?.()}
       />
 
       <ChartsSection
@@ -155,6 +191,8 @@ const Dashboard: React.FC = () => {
         transactions={recentTransactions}
         limit={recentTransactionsLimit}
         onLimitChange={setRecentTransactionsLimit}
+        onSetComment={setTransactionComment}
+        budgetedCategoryIds={budgetedCategoryIds}
       />
 
       <AddTransaction

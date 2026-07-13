@@ -26,6 +26,7 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -43,7 +44,7 @@ export default function ManageAccounts() {
   const { 
     accounts, 
     users, 
-    addAccount, 
+    addAccountWithCard, 
     deleteAccount, 
     addUser,
     updateUser,
@@ -74,6 +75,9 @@ export default function ManageAccounts() {
     name: '',
     type: 'checking' as 'checking' | 'savings' | 'credit' | 'joint',
     owner_user_id: null as number | null,
+    first_card_last_four: '',
+    first_card_nickname: '',
+    first_card_user_id: null as number | null,
   });
 
   const [cardFormData, setCardFormData] = useState({
@@ -151,6 +155,9 @@ export default function ManageAccounts() {
       name: '',
       type: 'checking',
       owner_user_id: selectedUserId ?? null,
+      first_card_last_four: '',
+      first_card_nickname: '',
+      first_card_user_id: selectedUserId ?? null,
     });
     setError(null);
     setAccountDialogOpen(true);
@@ -162,6 +169,9 @@ export default function ManageAccounts() {
       name: '',
       type: 'checking',
       owner_user_id: null,
+      first_card_last_four: '',
+      first_card_nickname: '',
+      first_card_user_id: null,
     });
     setError(null);
   };
@@ -174,11 +184,22 @@ export default function ManageAccounts() {
     try {
       if (!accountFormData.name.trim()) throw new Error('Account name is required');
       if (!accountFormData.owner_user_id) throw new Error('Owner is required');
+      if (!/^\d{4}$/.test(accountFormData.first_card_last_four)) {
+        throw new Error('First card last four digits must be exactly 4 numbers');
+      }
 
-      await addAccount({
-        name: accountFormData.name,
-        type: accountFormData.type,
-      }, accountFormData.owner_user_id);
+      await addAccountWithCard(
+        {
+          name: accountFormData.name,
+          type: accountFormData.type,
+        },
+        accountFormData.owner_user_id,
+        {
+          last_four: accountFormData.first_card_last_four,
+          nickname: accountFormData.first_card_nickname || null,
+          user_id: accountFormData.first_card_user_id || accountFormData.owner_user_id,
+        }
+      );
 
       handleCloseAccountDialog();
     } catch (error) {
@@ -258,7 +279,7 @@ export default function ManageAccounts() {
       setDeleteDialogOpen(false);
       setItemToDelete(null);
     } catch (err) {
-      setError('Failed to delete card');
+      setError(err instanceof Error ? err.message : 'Failed to delete card');
     } finally {
       setLoading(false);
     }
@@ -355,15 +376,22 @@ export default function ManageAccounts() {
                         <PersonIcon sx={{ mr: 2, color: 'primary.main' }} />
                         <Box sx={{ flexGrow: 1 }}>
                           <Typography variant="subtitle1" fontWeight="medium">{user.display_name}</Typography>
-                          <Chip label={`${ownedAccounts.length} owned • ${cardholderAccounts.length} cardholder`} size="small" variant="outlined" />
+                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            <Chip label={`${ownedAccounts.length} owned • ${cardholderAccounts.length} cardholder`} size="small" variant="outlined" />
+                            {user.is_primary === 1 && <Chip label="Primary" size="small" color="primary" />}
+                          </Box>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
                           <IconButton component="div" onClick={() => handleOpenUserDialog(user)} size="small" title="Edit User">
                             <EditIcon />
                           </IconButton>
-                          <IconButton component="div" onClick={() => handleDeleteClick('user', user)} color="error" size="small" title="Delete User">
-                            <DeleteIcon />
-                          </IconButton>
+                          <Tooltip title={user.is_primary === 1 ? 'The primary user cannot be deleted' : 'Delete User'}>
+                            <span>
+                              <IconButton component="div" onClick={() => handleDeleteClick('user', user)} color="error" size="small" disabled={user.is_primary === 1} title="Delete User">
+                                <DeleteIcon />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
                         </Box>
                       </Box>
                     </AccordionSummary>
@@ -561,6 +589,36 @@ export default function ManageAccounts() {
               <MenuItem value="joint">Joint Account</MenuItem>
             </Select>
           </FormControl>
+          <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>First Card</Typography>
+          <TextField
+            margin="dense"
+            label="Last Four Digits"
+            fullWidth
+            value={accountFormData.first_card_last_four}
+            onChange={(e) => setAccountFormData(prev => ({ ...prev, first_card_last_four: e.target.value }))}
+            inputProps={{ maxLength: 4, pattern: '[0-9]{4}' }}
+            required
+          />
+          <TextField
+            margin="dense"
+            label="Nickname (Optional)"
+            fullWidth
+            value={accountFormData.first_card_nickname}
+            onChange={(e) => setAccountFormData(prev => ({ ...prev, first_card_nickname: e.target.value }))}
+          />
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Cardholder</InputLabel>
+            <Select
+              value={accountFormData.first_card_user_id || ''}
+              label="Cardholder"
+              onChange={(e) => setAccountFormData(prev => ({ ...prev, first_card_user_id: e.target.value ? Number(e.target.value) : null }))}
+            >
+              <MenuItem value="">Account owner</MenuItem>
+              {users.map((user) => (
+                <MenuItem key={user.id} value={user.id}>{user.display_name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseAccountDialog}>Cancel</Button>
@@ -603,9 +661,13 @@ export default function ManageAccounts() {
                     }
                   />
                   <ListItemSecondaryAction>
-                    <IconButton onClick={() => handleDeleteClick('card', card)} size="small" color="error" disabled={loading}>
-                      <DeleteIcon />
-                    </IconButton>
+                    <Tooltip title={accountCards.length <= 1 ? 'An account must keep at least one card' : 'Delete card'}>
+                      <span>
+                        <IconButton onClick={() => handleDeleteClick('card', card)} size="small" color="error" disabled={loading || accountCards.length <= 1}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </ListItemSecondaryAction>
                 </ListItem>
               ))}

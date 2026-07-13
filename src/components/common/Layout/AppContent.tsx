@@ -31,12 +31,16 @@ import {
   Code as SQLIcon,
   AccountBalance as AccountIcon,
   FlightTakeoff as TripsIcon,
-  SmartToy as AiIcon
+  SmartToy as AiIcon,
+  Autorenew as SubscriptionsIcon,
+  Savings as BudgetIcon
 } from '@mui/icons-material';
 import Dashboard from '@/components/dashboard/Dashboard';
+import BudgetPage from '@/components/budget/BudgetPage';
 import ManageProjects from '@/components/projects/ManageProjects';
 import ManageTrips from '@/components/trips/ManageTrips';
 import ManageAccounts from '@/components/accounts/ManageAccounts';
+import SubscriptionsPage from '@/components/subscriptions/SubscriptionsPage';
 import TransactionReport from '@/components/transactions/TransactionReport';
 import SettingsPage from '@/components/settings/SettingsPage';
 import ManageData from '@/components/data-management/ManageData';
@@ -67,8 +71,10 @@ export default function AppContent() {
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon /> },
     { id: 'trips', label: 'Trips', icon: <TripsIcon /> },
+    { id: 'budget', label: 'Budget', icon: <BudgetIcon /> },
     { id: 'accounts', label: 'Accounts', icon: <AccountIcon /> },
     { id: 'transactions', label: 'Transactions', icon: <TransactionsIcon /> },
+    { id: 'subscriptions', label: 'Subscriptions', icon: <SubscriptionsIcon /> },
     { id: 'sql-query', label: 'SQL Query', icon: <SQLIcon /> },
   ];
 
@@ -277,7 +283,7 @@ export default function AppContent() {
       
       {/* Page Content */}
       {currentPage === 'dashboard' && (
-        <Dashboard />
+        <Dashboard onNavigateToBudget={() => setCurrentPage('budget')} />
       )}
       
       {currentPage === 'projects' && (
@@ -287,6 +293,10 @@ export default function AppContent() {
       {currentPage === 'trips' && (
         <ManageTrips />
       )}
+
+      {currentPage === 'budget' && (
+        <BudgetPage />
+      )}
       
       {currentPage === 'accounts' && (
         <ManageAccounts />
@@ -294,6 +304,10 @@ export default function AppContent() {
       
       {currentPage === 'transactions' && (
         <TransactionReport />
+      )}
+
+      {currentPage === 'subscriptions' && (
+        <SubscriptionsPage onOpenAiPanel={() => setAiPanelOpen(true)} />
       )}
 
       {currentPage === 'sql-query' && (

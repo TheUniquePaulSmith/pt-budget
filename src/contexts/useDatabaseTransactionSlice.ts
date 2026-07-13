@@ -10,6 +10,7 @@ import type {
 import type {
   Transaction,
   TransactionQueryParams,
+  TransactionScopeFilters,
   TransactionsPaginatedResult,
   DashboardSummary,
   ChartData,
@@ -17,12 +18,12 @@ import type {
 
 export interface DatabaseTransactionSlice {
   addTransaction: (
-    transaction: Omit<Transaction, "id" | "created_at" | "updated_at">
+    transaction: Omit<Transaction, "id" | "created_at" | "updated_at" | "card_id"> & { card_id?: number | null }
   ) => Promise<void>;
   getAllTransactionHashes: () => Promise<string[]>;
   truncateImportTable: () => Promise<void>;
   insertIntoTempTable: (
-    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>
+    transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at" | "card_id"> & { card_id?: number | null }>
   ) => Promise<number[]>;
   deleteFromTempTable: (tempIds: number[]) => Promise<void>;
   updateTempTransactionHashes: (
@@ -38,6 +39,11 @@ export interface DatabaseTransactionSlice {
   applyTransactionClassifications: (
     classifications: ApplyTransactionClassificationInput[]
   ) => Promise<ApplyTransactionClassificationsResult>;
+  setTransactionCategory: (txId: number, categoryId: number | null) => Promise<void>;
+  setTransactionCompany: (txId: number, input: { companyId?: number | null; companyName?: string | null }) => Promise<void>;
+  setTransactionComment: (txId: number, comment: string) => Promise<void>;
+  linkTransactionToSeries: (txId: number, seriesId: number) => Promise<void>;
+  unlinkTransactionFromSeries: (txId: number) => Promise<void>;
   generateTransactionHash: (
     accountId: string,
     date: string,
@@ -45,9 +51,9 @@ export interface DatabaseTransactionSlice {
     description: string,
     uniqueIdentifier?: string
   ) => string;
-  getRecentTransactions: (limit: number) => Promise<Transaction[]>;
-  getDashboardSummary: (startDate: string, endDate: string) => Promise<DashboardSummary>;
-  getChartData: (startDate: string, endDate: string) => Promise<ChartData>;
+  getRecentTransactions: (limit: number, filters?: TransactionScopeFilters) => Promise<Transaction[]>;
+  getDashboardSummary: (startDate: string, endDate: string, filters?: TransactionScopeFilters) => Promise<DashboardSummary>;
+  getChartData: (startDate: string, endDate: string, filters?: TransactionScopeFilters) => Promise<ChartData>;
   getTransactionsPaginated: (params: TransactionQueryParams) => Promise<TransactionsPaginatedResult>;
   getTransactionsForExport: (params: Omit<TransactionQueryParams, 'page' | 'pageSize'>) => Promise<Transaction[]>;
   getAllProjectCosts: () => Promise<import('../types/database').ProjectCosts[]>;
@@ -67,6 +73,11 @@ type TransactionService = Pick<
   | 'bulkInsertFromTempTable'
   | 'updateTransactionLabels'
   | 'applyTransactionClassifications'
+  | 'setTransactionCategory'
+  | 'setTransactionCompany'
+  | 'setTransactionComment'
+  | 'linkTransactionToSeries'
+  | 'unlinkTransactionFromSeries'
   | 'getRecentTransactions'
   | 'getDashboardSummary'
   | 'getChartData'
@@ -82,6 +93,7 @@ interface UseDatabaseTransactionSliceOptions {
   refreshTransactions: () => Promise<void>;
   refreshCategories?: () => Promise<void>;
   refreshCompanies?: () => Promise<void>;
+  refreshRecurringSeries?: () => Promise<void>;
 }
 
 export function useDatabaseTransactionSlice({
@@ -89,6 +101,7 @@ export function useDatabaseTransactionSlice({
   refreshTransactions,
   refreshCategories,
   refreshCompanies,
+  refreshRecurringSeries,
 }: UseDatabaseTransactionSliceOptions): DatabaseTransactionSlice {
   const requireService = useCallback(() => {
     if (!databaseService) {
@@ -98,7 +111,7 @@ export function useDatabaseTransactionSlice({
   }, [databaseService]);
 
   const addTransaction = useCallback(
-    async (transaction: Omit<Transaction, "id" | "created_at" | "updated_at">) => {
+    async (transaction: Omit<Transaction, "id" | "created_at" | "updated_at" | "card_id"> & { card_id?: number | null }) => {
       await requireService().addTransaction(transaction);
       await refreshTransactions();
     },
@@ -114,7 +127,7 @@ export function useDatabaseTransactionSlice({
   }, [requireService]);
 
   const insertIntoTempTable = useCallback(
-    async (transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at">>): Promise<number[]> => {
+    async (transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at" | "card_id"> & { card_id?: number | null }>): Promise<number[]> => {
       return requireService().insertIntoTempTable(transactions);
     },
     [requireService]
@@ -167,6 +180,49 @@ export function useDatabaseTransactionSlice({
     [refreshCategories, refreshCompanies, refreshTransactions, requireService]
   );
 
+  const setTransactionCategory = useCallback(
+    async (txId: number, categoryId: number | null): Promise<void> => {
+      await requireService().setTransactionCategory(txId, categoryId);
+      await refreshTransactions();
+    },
+    [refreshTransactions, requireService]
+  );
+
+  const setTransactionCompany = useCallback(
+    async (txId: number, input: { companyId?: number | null; companyName?: string | null }): Promise<void> => {
+      await requireService().setTransactionCompany(txId, input);
+      await Promise.all([
+        refreshTransactions(),
+        input.companyName ? (refreshCompanies?.() ?? Promise.resolve()) : Promise.resolve(),
+      ]);
+    },
+    [refreshCompanies, refreshTransactions, requireService]
+  );
+
+  const setTransactionComment = useCallback(
+    async (txId: number, comment: string): Promise<void> => {
+      await requireService().setTransactionComment(txId, comment);
+      await refreshTransactions();
+    },
+    [refreshTransactions, requireService]
+  );
+
+  const linkTransactionToSeries = useCallback(
+    async (txId: number, seriesId: number): Promise<void> => {
+      await requireService().linkTransactionToSeries(txId, seriesId);
+      await Promise.all([refreshTransactions(), refreshRecurringSeries?.() ?? Promise.resolve()]);
+    },
+    [refreshRecurringSeries, refreshTransactions, requireService]
+  );
+
+  const unlinkTransactionFromSeries = useCallback(
+    async (txId: number): Promise<void> => {
+      await requireService().unlinkTransactionFromSeries(txId);
+      await Promise.all([refreshTransactions(), refreshRecurringSeries?.() ?? Promise.resolve()]);
+    },
+    [refreshRecurringSeries, refreshTransactions, requireService]
+  );
+
   const generateTransactionHash = useCallback(
     (accountId: string, date: string, amount: number, description: string, uniqueIdentifier?: string): string => {
       return DatabaseService.generateTransactionHashFromFields(accountId, date, amount, description, uniqueIdentifier);
@@ -175,22 +231,22 @@ export function useDatabaseTransactionSlice({
   );
 
   const getRecentTransactions = useCallback(
-    async (limit: number): Promise<Transaction[]> => {
-      return requireService().getRecentTransactions(limit);
+    async (limit: number, filters?: TransactionScopeFilters): Promise<Transaction[]> => {
+      return requireService().getRecentTransactions(limit, filters);
     },
     [requireService]
   );
 
   const getDashboardSummary = useCallback(
-    async (startDate: string, endDate: string): Promise<DashboardSummary> => {
-      return requireService().getDashboardSummary(startDate, endDate);
+    async (startDate: string, endDate: string, filters?: TransactionScopeFilters): Promise<DashboardSummary> => {
+      return requireService().getDashboardSummary(startDate, endDate, filters);
     },
     [requireService]
   );
 
   const getChartData = useCallback(
-    async (startDate: string, endDate: string): Promise<ChartData> => {
-      return requireService().getChartData(startDate, endDate);
+    async (startDate: string, endDate: string, filters?: TransactionScopeFilters): Promise<ChartData> => {
+      return requireService().getChartData(startDate, endDate, filters);
     },
     [requireService]
   );
@@ -242,6 +298,11 @@ export function useDatabaseTransactionSlice({
       bulkInsertFromTempTable,
       updateTransactionLabels,
       applyTransactionClassifications,
+      setTransactionCategory,
+      setTransactionCompany,
+      setTransactionComment,
+      linkTransactionToSeries,
+      unlinkTransactionFromSeries,
       generateTransactionHash,
       getRecentTransactions,
       getDashboardSummary,
@@ -263,6 +324,11 @@ export function useDatabaseTransactionSlice({
       bulkInsertFromTempTable,
       updateTransactionLabels,
       applyTransactionClassifications,
+      setTransactionCategory,
+      setTransactionCompany,
+      setTransactionComment,
+      linkTransactionToSeries,
+      unlinkTransactionFromSeries,
       generateTransactionHash,
       getRecentTransactions,
       getDashboardSummary,

@@ -87,7 +87,7 @@ describe('sample data tools', () => {
     ]);
   });
 
-  it('detects runtime compatibility drift for projects and trips', async () => {
+  it('treats projects and trips as runtime-compatible managed fixtures', async () => {
     const context = await loadSampleDataContext(repoRoot);
     const projectsCompatibility = context.runtimeCompatibility.byTable.get('projects');
     const tripsCompatibility = context.runtimeCompatibility.byTable.get('trips');
@@ -99,13 +99,16 @@ describe('sample data tools', () => {
         'account_cards',
         'categories',
         'companies',
+        'projects',
+        'trips',
+        'budget_plans',
+        'budget_plan_categories',
+        'income_sources',
         'transactions',
       ])
     );
-    expect(projectsCompatibility?.compatible).toBe(false);
-    expect(projectsCompatibility?.issues.join(' ')).toContain('description, budget');
-    expect(tripsCompatibility?.compatible).toBe(false);
-    expect(tripsCompatibility?.issues.join(' ')).toContain('description');
+    expect(projectsCompatibility?.compatible).toBe(true);
+    expect(tripsCompatibility?.compatible).toBe(true);
   });
 
   it('builds five years of runtime-compatible suburban family fixtures', async () => {
@@ -136,6 +139,11 @@ describe('sample data tools', () => {
       'account_cards',
       'categories',
       'companies',
+      'projects',
+      'trips',
+      'budget_plans',
+      'budget_plan_categories',
+      'income_sources',
       'transactions',
     ]);
     expect(transactionsFixture?.data).toHaveLength(585);
@@ -412,12 +420,6 @@ describe('sample data tools', () => {
     );
 
     expect(runtimeCompatibleReport.ok).toBe(true);
-    expect(fullSchemaReport.ok).toBe(false);
-    expect(fullSchemaReport.issues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ tableName: 'projects', code: 'missing-file' }),
-        expect.objectContaining({ tableName: 'trips', code: 'missing-file' }),
-      ])
-    );
+    expect(fullSchemaReport.ok).toBe(true);
   });
 });

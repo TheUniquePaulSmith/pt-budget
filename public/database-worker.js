@@ -148,10 +148,16 @@ class DatabaseWorker {
           // ACCOUNT_USERS removed in favor of owner_user_id on accounts
           await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNT_CARDS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTIONS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGETS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.PROJECTS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRIPS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TEMP_IMPORT_TRANSACTIONS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.MERCHANT_RULES);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.RECURRING_SERIES);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTION_SERIES_LINKS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGET_PLANS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGET_PLAN_CATEGORIES);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.INCOME_SOURCES);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.APP_METADATA);
 
           // Insert default data
           await this.sqlite3.exec(this.db, DEFAULT_DATA.CATEGORIES);
@@ -180,6 +186,34 @@ class DatabaseWorker {
       await this.sqlite3.exec(this.db, sql);
     }
     console.info("[DB Worker] Indexes ready");
+  }
+
+  // Applies schema migrations gated by PRAGMA user_version. Must run before
+  // ensureIndexes() on existing databases so indexes on migrated tables succeed.
+  async runMigrations() {
+    const { MIGRATIONS } = await import('/database-schema.js');
+
+    let currentVersion = 0;
+    await this.sqlite3.exec(this.db, 'PRAGMA user_version', (row) => {
+      currentVersion = Number(row[0]) || 0;
+    });
+
+    const pending = MIGRATIONS.filter((migration) => migration.version > currentVersion)
+      .sort((a, b) => a.version - b.version);
+
+    for (const migration of pending) {
+      const targetVersion = Number(migration.version);
+      if (!Number.isInteger(targetVersion) || targetVersion <= 0) {
+        throw new Error(`[DB Worker] Invalid migration version: ${migration.version}`);
+      }
+      console.info(`[DB Worker] Applying schema migration ${targetVersion}...`);
+      for (const sql of migration.statements) {
+        await this.sqlite3.exec(this.db, sql);
+      }
+      // PRAGMA values cannot be parameter-bound; targetVersion is validated above.
+      await this.sqlite3.exec(this.db, `PRAGMA user_version = ${targetVersion}`);
+      console.info(`[DB Worker] Schema migration ${targetVersion} applied`);
+    }
   }
 
   // Queue management for sequential query processing
@@ -247,7 +281,13 @@ class DatabaseWorker {
 
         // Create database tables
         await this.createTables({ ensureIndexes: !deferIndexes });
+
+        // Stamp the schema version (tables already exist; statements are idempotent)
+        await this.runMigrations();
       } else {
+        // Migrations must run before indexes so indexes on new tables succeed
+        await this.runMigrations();
+
         // Ensure indexes exist on existing databases (idempotent)
         await this.ensureIndexes();
       }

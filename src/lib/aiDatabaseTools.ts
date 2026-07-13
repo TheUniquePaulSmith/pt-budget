@@ -7,9 +7,19 @@ import type {
   AiToolCallRecord,
   AiWriteMode,
   ApplyTransactionClassificationInput,
+  MerchantRuleSuggestion,
   TransactionClassificationSuggestion,
 } from '@/types/ai';
-import type { Category, Company, Project, Transaction, Trip } from '@/types/database';
+import type {
+  Category,
+  Company,
+  MerchantRuleKind,
+  MerchantRuleMatchType,
+  Project,
+  Transaction,
+  Trip,
+  UnmatchedCluster,
+} from '@/types/database';
 
 const DEFAULT_QUERY_LIMIT = 100;
 const MAX_QUERY_LIMIT = 500;
@@ -19,6 +29,7 @@ export interface AiDatabaseToolContext {
   applyTransactionClassifications: (
     classifications: ApplyTransactionClassificationInput[]
   ) => Promise<{ appliedCount: number; transactionIds: number[] }>;
+  getUnmatchedRecurringClusters?: (minOccurrences?: number) => Promise<UnmatchedCluster[]>;
   categories: Category[];
   companies: Company[];
   projects: Project[];
@@ -30,6 +41,7 @@ export interface AiDatabaseToolResult {
   content: string;
   toolCall: AiToolCallRecord;
   classificationSuggestions: TransactionClassificationSuggestion[];
+  merchantRuleSuggestions: MerchantRuleSuggestion[];
 }
 
 export const AI_DATABASE_TOOLS: ChatCompletionTool[] = [
@@ -90,6 +102,73 @@ export const AI_DATABASE_TOOLS: ChatCompletionTool[] = [
             description: 'Maximum uncategorized transactions to inspect.',
           },
         },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_unmatched_merchant_clusters',
+      description:
+        'List repeated expense descriptions that match no merchant rule yet. Use before propose_merchant_rules to see which charges need a merchant name.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          minOccurrences: {
+            type: 'number',
+            description: 'Minimum number of matching transactions required (default 3).',
+          },
+          maxRows: {
+            type: 'number',
+            description: 'Maximum clusters to return.',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_merchant_rules',
+      description:
+        'Stage merchant-rule suggestions (pattern -> merchant/service/kind) for user review. Rules are never created automatically; the user approves them in the review panel.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          rules: {
+            type: 'array',
+            description: 'Merchant rules to stage for the user to review.',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                pattern: {
+                  type: 'string',
+                  description: 'Normalized description pattern, e.g. "HIGH BANK DISTILL".',
+                },
+                match_type: { type: 'string', enum: ['exact', 'prefix', 'contains'] },
+                merchant_name: {
+                  type: 'string',
+                  description: 'Clean merchant/brand name, e.g. "High Bank Distillery".',
+                },
+                service_name: {
+                  type: ['string', 'null'] as unknown as string,
+                  description: 'Specific product/service under the merchant, if any.',
+                },
+                default_kind: {
+                  type: 'string',
+                  enum: ['subscription', 'bill', 'purchase', 'unknown'],
+                },
+                confidence: { type: 'number' },
+                reason: { type: 'string' },
+              },
+              required: ['pattern', 'match_type', 'merchant_name', 'default_kind'],
+            },
+          },
+        },
+        required: ['rules'],
       },
     },
   },
@@ -206,6 +285,45 @@ function normalizeClassifications(value: unknown): TransactionClassificationSugg
   });
 }
 
+const VALID_RULE_MATCH_TYPES: MerchantRuleMatchType[] = ['exact', 'prefix', 'contains'];
+const VALID_RULE_KINDS: MerchantRuleKind[] = ['subscription', 'bill', 'purchase', 'unknown'];
+
+function normalizeMerchantRuleSuggestions(value: unknown): MerchantRuleSuggestion[] {
+  if (!Array.isArray(value)) {
+    throw new Error('rules must be an array');
+  }
+
+  return value.map((item, index) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new Error(`Rule ${index + 1} must be an object`);
+    }
+
+    const record = item as Record<string, unknown>;
+    if (typeof record.pattern !== 'string' || !record.pattern.trim()) {
+      throw new Error(`Rule ${index + 1} is missing a pattern`);
+    }
+    if (!VALID_RULE_MATCH_TYPES.includes(record.match_type as MerchantRuleMatchType)) {
+      throw new Error(`Rule ${index + 1} has an invalid match_type`);
+    }
+    if (typeof record.merchant_name !== 'string' || !record.merchant_name.trim()) {
+      throw new Error(`Rule ${index + 1} is missing a merchant_name`);
+    }
+    if (!VALID_RULE_KINDS.includes(record.default_kind as MerchantRuleKind)) {
+      throw new Error(`Rule ${index + 1} has an invalid default_kind`);
+    }
+
+    return {
+      pattern: record.pattern.trim(),
+      match_type: record.match_type as MerchantRuleMatchType,
+      merchant_name: record.merchant_name.trim(),
+      service_name: typeof record.service_name === 'string' ? record.service_name.trim() : null,
+      default_kind: record.default_kind as MerchantRuleKind,
+      confidence: typeof record.confidence === 'number' ? record.confidence : undefined,
+      reason: typeof record.reason === 'string' ? record.reason : undefined,
+    };
+  });
+}
+
 function findNameMatch<T extends { name: string }>(description: string, values: T[]): T | null {
   const lowerDescription = description.toLowerCase();
   return values.find((value) => {
@@ -314,6 +432,43 @@ async function suggestTransactionClassifications(
   });
 }
 
+async function getUnmatchedMerchantClusters(
+  args: Record<string, unknown>,
+  context: AiDatabaseToolContext
+) {
+  if (!context.getUnmatchedRecurringClusters) {
+    throw new Error('Unmatched merchant clusters are not available in this context');
+  }
+
+  const minOccurrences = boundedLimit(args.minOccurrences, 3);
+  const maxRows = boundedLimit(args.maxRows, 25);
+  const clusters = await context.getUnmatchedRecurringClusters(minOccurrences);
+  const limited = clusters.slice(0, maxRows).map((cluster) => ({
+    normalized_description: cluster.normalized_description,
+    occurrences: cluster.occurrences,
+    average_amount: Math.round(cluster.average_amount * 100) / 100,
+    first_seen: cluster.first_seen,
+    last_seen: cluster.last_seen,
+  }));
+
+  return {
+    clusters: limited,
+    returnedRows: limited.length,
+    minOccurrences,
+  };
+}
+
+function proposeMerchantRules(args: Record<string, unknown>) {
+  const suggestions = normalizeMerchantRuleSuggestions(args.rules);
+
+  return {
+    requiresReview: true as const,
+    rules: suggestions,
+    message:
+      'Merchant rules are staged for user review and were not created. The user can approve them in the review panel.',
+  };
+}
+
 async function applyTransactionClassifications(
   args: Record<string, unknown>,
   context: AiDatabaseToolContext
@@ -351,6 +506,7 @@ export async function executeAiDatabaseToolCall(
     const args = parseToolArguments(toolCall);
     let result: unknown;
     let classificationSuggestions: TransactionClassificationSuggestion[] = [];
+    let merchantRuleSuggestions: MerchantRuleSuggestion[] = [];
 
     if (toolCall.function.name === 'query_transactions') {
       result = await queryTransactions(args, context);
@@ -359,6 +515,12 @@ export async function executeAiDatabaseToolCall(
     } else if (toolCall.function.name === 'suggest_transaction_classifications') {
       classificationSuggestions = await suggestTransactionClassifications(args, context);
       result = { classifications: classificationSuggestions };
+    } else if (toolCall.function.name === 'get_unmatched_merchant_clusters') {
+      result = await getUnmatchedMerchantClusters(args, context);
+    } else if (toolCall.function.name === 'propose_merchant_rules') {
+      const proposeResult = proposeMerchantRules(args);
+      result = proposeResult;
+      merchantRuleSuggestions = proposeResult.rules;
     } else if (toolCall.function.name === 'apply_transaction_classifications') {
       const applyResult = await applyTransactionClassifications(args, context);
       result = applyResult;
@@ -376,6 +538,7 @@ export async function executeAiDatabaseToolCall(
       content: JSON.stringify(result),
       toolCall: record,
       classificationSuggestions,
+      merchantRuleSuggestions,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'AI tool call failed';
@@ -386,6 +549,7 @@ export async function executeAiDatabaseToolCall(
       content: JSON.stringify({ error: message }),
       toolCall: record,
       classificationSuggestions: [],
+      merchantRuleSuggestions: [],
     };
   }
 }

@@ -67,6 +67,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     bulkInsertFromTempTable,
     findAccountsByLastFour,
     getAccountCards,
+    runSubscriptionScan,
   } = useCsvImportSlice();
   
   const [file, setFile] = useState<File | null>(null);
@@ -117,8 +118,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       return matchingAccounts;
     });
     
-    setAccountMatches(matches);
-  }, [accounts, findAccountsByLastFour]);
+    setAccountMatches(matches.map((match) => ({
+      ...match,
+      selectedCardId: match.selectedAccountId
+        ? accountCardsByAccountId[match.selectedAccountId]?.find((card) => card.last_four === match.lastFourValue)?.id ?? null
+        : null,
+    })));
+  }, [accounts, accountCardsByAccountId, findAccountsByLastFour]);
 
   // Preload all account cards when dialog opens
   useEffect(() => {
@@ -191,6 +197,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             lastFourValue: '',
             matchingAccounts: [selectedAccount],
             selectedAccountId: accountId,
+            selectedCardId: accountCardsByAccountId[accountId]?.[0]?.id ?? null,
           }]);
         }
       } else {
@@ -201,7 +208,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       // Clear account matches if no account column is selected
       setAccountMatches([]);
     }
-  }, [csvData, mapping.accountColumn, accounts, analyzeAccountColumn]);
+  }, [csvData, mapping.accountColumn, accounts, accountCardsByAccountId, analyzeAccountColumn]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -247,7 +254,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     setAccountMatches(prev => 
       prev.map(match => 
         match.csvAccountValue === csvValue 
-          ? { ...match, selectedAccountId: accountId }
+          ? {
+              ...match,
+              selectedAccountId: accountId,
+              selectedCardId: accountCardsByAccountId[accountId]?.find((card) => card.last_four === match.lastFourValue)?.id
+                ?? accountCardsByAccountId[accountId]?.[0]?.id
+                ?? null,
+            }
           : match
       )
     );
@@ -413,9 +426,20 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     try {
       // Bulk insert from temp table (excludes duplicates)
       const successCount = await bulkInsertFromTempTable();
-      
+
       // Clean up import table after successful import
       await truncateImportTable();
+
+      // Assign merchants and refresh recurring-subscription detection for the
+      // newly imported rows (they are exactly the company_id IS NULL set).
+      // Non-fatal: the import itself already succeeded.
+      if (successCount > 0) {
+        try {
+          await runSubscriptionScan();
+        } catch (scanError) {
+          console.warn('Post-import subscription scan failed:', scanError);
+        }
+      }
 
       const totalTransactions = csvData.length;
       const mappableTransactions = analysisResult.mappableRows;

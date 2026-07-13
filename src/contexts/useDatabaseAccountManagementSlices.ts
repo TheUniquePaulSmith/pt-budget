@@ -3,13 +3,14 @@
 import { useCallback, useMemo } from 'react';
 
 import type { DatabaseService } from '../lib/databaseService';
-import type { Account, User } from '../types/database';
+import type { Account, AccountCard, User } from '../types/database';
 
 export interface DatabaseAccountSlice {
-  addAccount: (
+  addAccountWithCard: (
     account: Omit<Account, "id" | "created_at" | "updated_at" | "owner_user_id">,
-    ownerUserId: number
-  ) => Promise<number>;
+    ownerUserId: number,
+    card: Omit<AccountCard, 'id' | 'created_at' | 'updated_at' | 'account_id'>
+  ) => Promise<{ accountId: number; cardId: number }>;
   deleteAccount: (id: number) => Promise<void>;
   getAccountCards: (accountId: number) => Promise<any[]>;
   addAccountCard: (card: {
@@ -24,7 +25,7 @@ export interface DatabaseAccountSlice {
 
 export interface DatabaseUserSlice {
   addUser: (
-    user: Omit<User, "id" | "created_at" | "updated_at">
+    user: Omit<User, "id" | "created_at" | "updated_at" | "is_primary"> & Partial<Pick<User, "is_primary">>
   ) => Promise<number>;
   updateUser: (
     id: number,
@@ -35,7 +36,7 @@ export interface DatabaseUserSlice {
 
 type AccountManagementService = Pick<
   DatabaseService,
-  | 'addAccount'
+  | 'addAccountWithCard'
   | 'deleteAccount'
   | 'getAccountCards'
   | 'addAccountCard'
@@ -68,14 +69,15 @@ export function useDatabaseAccountManagementSlices({
     return databaseService;
   }, [databaseService]);
 
-  const addAccount = useCallback(
+  const addAccountWithCard = useCallback(
     async (
       account: Omit<Account, "id" | "created_at" | "updated_at" | "owner_user_id">,
-      ownerUserId: number
-    ): Promise<number> => {
-      const id = await requireService().addAccount(account, ownerUserId);
+      ownerUserId: number,
+      card: Omit<AccountCard, 'id' | 'created_at' | 'updated_at' | 'account_id'>
+    ): Promise<{ accountId: number; cardId: number }> => {
+      const result = await requireService().addAccountWithCard(account, ownerUserId, card);
       await refreshAccounts();
-      return id;
+      return result;
     },
     [refreshAccounts, requireService]
   );
@@ -125,7 +127,7 @@ export function useDatabaseAccountManagementSlices({
   );
 
   const addUser = useCallback(
-    async (user: Omit<User, "id" | "created_at" | "updated_at">): Promise<number> => {
+    async (user: Omit<User, "id" | "created_at" | "updated_at" | "is_primary"> & Partial<Pick<User, "is_primary">>): Promise<number> => {
       const id = await requireService().addUser(user);
       await refreshUsers();
       return id;
@@ -154,7 +156,7 @@ export function useDatabaseAccountManagementSlices({
 
   const accountsSlice = useMemo(
     () => ({
-      addAccount,
+      addAccountWithCard,
       deleteAccount,
       getAccountCards,
       addAccountCard,
@@ -162,7 +164,7 @@ export function useDatabaseAccountManagementSlices({
       findAccountsByLastFour,
     }),
     [
-      addAccount,
+      addAccountWithCard,
       deleteAccount,
       getAccountCards,
       addAccountCard,

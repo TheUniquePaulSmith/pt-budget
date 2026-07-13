@@ -36,7 +36,7 @@ interface DatabaseInitializationGateProps {
   onSwitchToLocalSource: () => void;
   onCancelSampleDataImport: () => void;
   /** Called when the user confirms a new password on the setup screen. */
-  onPasswordSetupConfirmed: (password: string) => Promise<void>;
+  onPasswordSetupConfirmed: (password: string, primaryUserName: string) => Promise<void>;
   /** Called when the user enters a password to decrypt a loaded archive. */
   onPasswordEntrySubmitted: (password: string) => Promise<void>;
   /** Cancels the pending password-entry flow. */

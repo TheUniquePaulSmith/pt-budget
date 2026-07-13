@@ -1,77 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const browserCompatibilityResults = {
-  sharedWorkerSupport: true,
-  wasmSupport: true,
-  sqliteSupport: true,
-  vfsSupport: true,
-  overallCompatible: true,
-};
+import {
+  bootstrapDatabase as bootstrapDatabaseWithOptions,
+  runQueryAndReadFirstCell,
+} from './helpers/bootstrap';
 
 const DEFAULT_SAMPLE_DATA_EXPENSE_ACCOUNT_NAME = 'Household Checking';
 const SMOKE_SAMPLE_DATA_TRANSACTION_LIMIT = 1000;
 
-async function seedBrowserCompatibility(page: Page) {
-  await page.addInitScript((results) => {
-    window.localStorage.setItem(
-      'budgetApp_browserTestPassed',
-      JSON.stringify(results)
-    );
-  }, browserCompatibilityResults);
-}
-
 async function bootstrapDatabase(page: Page) {
-  await seedBrowserCompatibility(page);
-
-  await page.goto(
-    `/?loadSampleData&sampleDataTransactionLimit=${SMOKE_SAMPLE_DATA_TRANSACTION_LIMIT}`
-  );
-
-  const createDatabaseButton = page.getByRole('button', {
-    name: 'Create New Database',
+  await bootstrapDatabaseWithOptions(page, {
+    sampleDataTransactionLimit: SMOKE_SAMPLE_DATA_TRANSACTION_LIMIT,
   });
-  const sqlQueryButton = page.getByRole('button', { name: 'SQL Query' });
-
-  await Promise.race([
-    createDatabaseButton.waitFor({ state: 'visible', timeout: 120_000 }),
-    sqlQueryButton.waitFor({ state: 'visible', timeout: 120_000 }),
-  ]);
-
-  if (await createDatabaseButton.isVisible().catch(() => false)) {
-    await createDatabaseButton.click();
-
-    // New: the password setup screen appears after clicking Create New Database.
-    const passwordInput = page.getByLabel('Password');
-    const isPasswordScreen = await passwordInput
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .then(() => true)
-      .catch(() => false);
-
-    if (isPasswordScreen) {
-      await passwordInput.fill('TestPassword1!');
-      await page.getByLabel('Confirm Password').fill('TestPassword1!');
-      await page.getByRole('button', { name: 'Create Database' }).click();
-    }
-  }
-
-  await expect(sqlQueryButton).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByTestId('database-status-text')).toHaveText(
-    'Connected',
-    { timeout: 120_000 }
-  );
-}
-
-async function runQuery(page: Page, sql: string) {
-  await page.getByRole('button', { name: 'SQL Query' }).click();
-  await page.getByTestId('sql-query-input').fill(sql);
-  await page.getByRole('button', { name: 'Execute Query' }).click();
-  await expect(page.getByTestId('sql-query-results')).toBeVisible();
-}
-
-async function runQueryAndReadFirstCell(page: Page, sql: string) {
-  await runQuery(page, sql);
-
-  return (await page.locator('tbody td').first().textContent())?.trim() ?? '';
 }
 
 async function addTrip(page: Page, tripName: string) {
@@ -107,7 +47,10 @@ async function addTransactionFromDashboard(
     await page.getByRole('option', { name: new RegExp(projectName, 'i') }).click();
   }
 
-  await transactionDialog.locator('[role="combobox"]').last().click();
+  // The Account select now carries an InputLabel; the optional Card select
+  // sits after it (disabled until an account is chosen), so target by name
+  // rather than position.
+  await transactionDialog.getByRole('combobox', { name: 'Account' }).click();
   await page.getByRole('option', { name: new RegExp(accountName, 'i') }).click();
   await transactionDialog.getByRole('button', { name: 'Add Transaction' }).click();
 
@@ -224,7 +167,7 @@ test('updates a transaction label from the report and can clear it again', async
   await page.getByRole('button', { name: 'Transactions' }).click();
   await page.getByRole('textbox', { name: 'Search' }).fill(description);
 
-  let transactionRow = page.locator('tr').filter({
+  let transactionRow = page.getByRole('row').filter({
     has: page.getByText(description),
   }).first();
   await transactionRow.getByTitle('Label Transaction').click();
@@ -241,7 +184,7 @@ test('updates a transaction label from the report and can clear it again', async
     timeout: 120_000,
   });
 
-  transactionRow = page.locator('tr').filter({
+  transactionRow = page.getByRole('row').filter({
     has: page.getByText(description),
   }).first();
   await transactionRow.getByTitle('Label Transaction').click();

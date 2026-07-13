@@ -13,6 +13,7 @@ function createServiceMock() {
   return {
     addCategory: vi.fn().mockResolvedValue(3),
     addCompany: vi.fn().mockResolvedValue(5),
+    updateCompany: vi.fn().mockResolvedValue(undefined),
     addProject: vi.fn().mockResolvedValue(8),
     updateProject: vi.fn().mockResolvedValue(undefined),
     deleteProject: vi.fn().mockResolvedValue(undefined),

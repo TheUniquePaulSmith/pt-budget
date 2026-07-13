@@ -5,7 +5,9 @@ export interface Transaction {
   date: string;
   amount: number;
   description: string;
+  comment?: string | null;
   account_id: number;
+  card_id: number | null;
   category_id: number | null;
   company_id: number | null;
   project_id: number | null;
@@ -22,6 +24,14 @@ export interface Transaction {
   company_name?: string;
   account_name?: string;
   account_type?: string;
+  card_last_four?: string;
+  card_nickname?: string | null;
+  effective_user_id?: number | null;
+  effective_user_name?: string;
+  account_owner_name?: string;
+  series_id?: number | null;
+  series_name?: string;
+  service_name?: string;
   project_name?: string;
   trip_name?: string;
 }
@@ -45,6 +55,7 @@ export interface Company {
 export interface User {
   id: number;
   display_name: string;
+  is_primary: number;
   created_at: string;
   updated_at: string;
 }
@@ -75,15 +86,81 @@ export interface AccountCard {
 
 // AccountUser removed; ownership is represented by Account.owner_user_id
 
-export interface Budget {
+export interface BudgetPlan {
   id: number;
-  category_id: number;
-  amount: number;
-  period: 'weekly' | 'monthly' | 'quarterly' | 'yearly';
-  start_date: string;
-  end_date: string;
+  effective_month: string;
+  total_amount: number | null;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface BudgetPlanCategory {
+  id: number;
+  plan_id: number;
+  category_id: number;
+  amount: number;
+  created_at: string;
+  updated_at: string;
+  category_name?: string;
+  category_color?: string;
+}
+
+export interface BudgetPlanWithCategories extends BudgetPlan {
+  categories: BudgetPlanCategory[];
+}
+
+export interface IncomeSource {
+  id: number;
+  name: string;
+  kind: 'linked_account' | 'recurring_salary';
+  user_id: number | null;
+  account_id: number | null;
+  amount: number | null;
+  frequency: 'weekly' | 'biweekly' | 'semi_monthly' | 'monthly' | null;
+  start_date: string | null;
+  end_date: string | null;
+  is_active: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  account_name?: string;
+  user_display_name?: string;
+  owner_display_name?: string;
+}
+
+export interface BudgetPeriod {
+  type: 'month' | 'quarter' | 'year';
+  key: string;
+}
+
+export interface BudgetCategoryStatus {
+  category_id: number;
+  category_name?: string;
+  category_color?: string;
+  budgetedAmount: number;
+  actualExpenses: number;
+  remaining: number;
+  isOverBudget: boolean;
+}
+
+export interface BudgetStatus {
+  period: BudgetPeriod;
+  months: string[];
+  budgetedTotal: number | null;
+  actualExpenses: number;
+  remaining: number | null;
+  isOverBudget: boolean;
+  categories: BudgetCategoryStatus[];
+  unbudgetedSpend: number;
+  expectedIncome: number;
+  actualLinkedIncome: number;
+  monthsWithPlan: string[];
+}
+
+export interface TransactionScopeFilters {
+  accountIds?: number[];
+  userIds?: number[];
 }
 
 export interface Project {
@@ -118,6 +195,79 @@ export interface Trip {
   updated_at: string;
 }
 
+export type MerchantRuleMatchType = 'exact' | 'prefix' | 'contains';
+export type MerchantRuleKind = 'subscription' | 'bill' | 'purchase' | 'unknown';
+
+export interface MerchantRule {
+  id: number;
+  rule_key: string; // Stable identity: 'community:<slug>' or 'user:<uuid>'
+  source: 'community' | 'user';
+  pattern: string; // Matched against the NORMALIZED description
+  match_type: MerchantRuleMatchType;
+  priority: number; // Lower wins: 50 user default, 100 service-level, 200 merchant catch-all
+  merchant_name: string;
+  service_name?: string | null;
+  default_kind: MerchantRuleKind;
+  enabled: number; // SQLite boolean (0/1)
+  user_modified: number; // SQLite boolean (0/1); guards community reseeds
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RecurringSeriesKind = 'subscription' | 'bill';
+export type RecurringSeriesCadence = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly' | 'irregular';
+export type RecurringSeriesStatus = 'candidate' | 'active' | 'inactive' | 'ignored';
+
+export interface RecurringSeries {
+  id: number;
+  name: string;
+  company_id: number | null;
+  rule_id: number | null;
+  kind: RecurringSeriesKind;
+  cadence: RecurringSeriesCadence;
+  expected_amount: number | null;
+  amount_is_variable: number; // SQLite boolean (0/1)
+  status: RecurringSeriesStatus;
+  match_key: string; // 'rule:<rule_key>' or 'desc:<normalized description>'
+  last_seen_date: string | null;
+  next_expected_date: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields from SQL queries
+  company_name?: string;
+  transaction_count?: number;
+  total_spent?: number;
+}
+
+export interface TransactionSeriesLink {
+  id: number;
+  transaction_id: number;
+  series_id: number;
+  match_source: 'rule' | 'heuristic' | 'ai' | 'manual';
+  created_at: string;
+}
+
+// A cluster of unmatched transactions sharing a normalized description,
+// surfaced on the Subscriptions page for manual/AI rule creation.
+export interface UnmatchedCluster {
+  normalized_description: string;
+  occurrences: number;
+  average_amount: number;
+  first_seen: string;
+  last_seen: string;
+  transaction_ids: number[];
+}
+
+export interface SubscriptionScanSummary {
+  scannedTransactions: number;
+  merchantsMatched: number;
+  seriesCreated: number;
+  seriesUpdated: number;
+  transactionsLinked: number;
+}
+
 export interface TransactionQueryParams {
   page: number;
   pageSize: number;
@@ -129,6 +279,7 @@ export interface TransactionQueryParams {
   companyIds?: number[];
   projectIds?: number[];
   accountIds?: number[];
+  userIds?: number[];
   startDate?: string;
   endDate?: string;
   minAmount?: number;
@@ -163,13 +314,15 @@ export interface ChartTrendsData {
 }
 
 export interface ChartAccountData {
-  accountNames: string[];
+  accountNames: string[]; // User labels; kept for compatibility with existing chart consumers.
   income: number[];
   expenses: number[];
 }
 
 export interface ChartData {
   spendingByCategory: ChartCategoryData[];
+  spendingByCompany: ChartCategoryData[];
+  spendingByRecurring: ChartCategoryData[];
   incomeBySource: ChartCategoryData[];
   trends: ChartTrendsData;
   accountAnalysis: ChartAccountData;

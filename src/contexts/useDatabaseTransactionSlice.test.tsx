@@ -21,6 +21,11 @@ function createServiceMock() {
     bulkInsertFromTempTable: vi.fn().mockResolvedValue(3),
     updateTransactionLabels: vi.fn().mockResolvedValue(undefined),
     applyTransactionClassifications: vi.fn().mockResolvedValue({ appliedCount: 1, transactionIds: [8] }),
+    setTransactionCategory: vi.fn().mockResolvedValue(undefined),
+    setTransactionCompany: vi.fn().mockResolvedValue(undefined),
+    setTransactionComment: vi.fn().mockResolvedValue(undefined),
+    linkTransactionToSeries: vi.fn().mockResolvedValue(undefined),
+    unlinkTransactionFromSeries: vi.fn().mockResolvedValue(undefined),
     getRecentTransactions: vi.fn().mockResolvedValue([]),
     getDashboardSummary: vi.fn().mockResolvedValue({ totalIncome: 0, totalExpenses: 0, netIncome: 0, transactionCount: 0 }),
     getChartData: vi.fn().mockResolvedValue({ spendingByCategory: [], incomeBySource: [], trends: { months: [], income: [], expenses: [] }, accountAnalysis: { accountNames: [], income: [], expenses: [] } }),
@@ -40,6 +45,7 @@ describe('useDatabaseTransactionSlice', () => {
       date: '2026-01-02',
       amount: -45.5,
       description: 'Lunch',
+      card_id: null,
       type: 'expense',
       category_id: null,
       company_id: null,
@@ -69,6 +75,7 @@ describe('useDatabaseTransactionSlice', () => {
       date: '2026-01-15',
       amount: -99,
       description: 'Groceries',
+      card_id: null,
       type: 'expense',
       category_id: 4,
       company_id: 7,
@@ -177,5 +184,24 @@ describe('useDatabaseTransactionSlice', () => {
     expect(refreshTransactions).toHaveBeenCalledTimes(1);
     expect(refreshCategories).toHaveBeenCalledTimes(1);
     expect(refreshCompanies).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets a transaction comment and refreshes transactions', async () => {
+    const refreshTransactions = vi.fn().mockResolvedValue(undefined);
+    const service = createServiceMock();
+
+    const { result } = renderHook(() =>
+      useDatabaseTransactionSlice({
+        databaseService: service,
+        refreshTransactions,
+      })
+    );
+
+    await act(async () => {
+      await result.current.setTransactionComment(8, 'Updated memo');
+    });
+
+    expect(service.setTransactionComment).toHaveBeenCalledWith(8, 'Updated memo');
+    expect(refreshTransactions).toHaveBeenCalledTimes(1);
   });
 });

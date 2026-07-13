@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./DatabaseContext', () => ({
   useDatabaseAccounts: vi.fn(),
+  useDatabaseBudget: vi.fn(),
   useDatabaseCategories: vi.fn(),
   useDatabaseCollections: vi.fn(),
   useDatabaseCompanies: vi.fn(),
@@ -12,6 +13,7 @@ vi.mock('./DatabaseContext', () => ({
   useDatabaseLifecycle: vi.fn(),
   useDatabaseProjects: vi.fn(),
   useDatabaseStatus: vi.fn(),
+  useDatabaseSubscriptions: vi.fn(),
   useDatabaseTransactions: vi.fn(),
   useDatabaseTrips: vi.fn(),
   useDatabaseUsers: vi.fn(),
@@ -19,6 +21,7 @@ vi.mock('./DatabaseContext', () => ({
 
 import {
   useDatabaseAccounts,
+  useDatabaseBudget,
   useDatabaseCategories,
   useDatabaseCollections,
   useDatabaseCompanies,
@@ -26,6 +29,7 @@ import {
   useDatabaseLifecycle,
   useDatabaseProjects,
   useDatabaseStatus,
+  useDatabaseSubscriptions,
   useDatabaseTransactions,
   useDatabaseTrips,
   useDatabaseUsers,
@@ -36,10 +40,12 @@ import {
   useDashboardSlice,
   useManageDataSlice,
   useSettingsSlice,
+  useSubscriptionsSlice,
   useTransactionComposerSlice,
 } from './useDatabaseSlices';
 
 const mockedUseDatabaseAccounts = vi.mocked(useDatabaseAccounts);
+const mockedUseDatabaseBudget = vi.mocked(useDatabaseBudget);
 const mockedUseDatabaseCategories = vi.mocked(useDatabaseCategories);
 const mockedUseDatabaseCollections = vi.mocked(useDatabaseCollections);
 const mockedUseDatabaseCompanies = vi.mocked(useDatabaseCompanies);
@@ -47,6 +53,7 @@ const mockedUseDatabaseDiagnostics = vi.mocked(useDatabaseDiagnostics);
 const mockedUseDatabaseLifecycle = vi.mocked(useDatabaseLifecycle);
 const mockedUseDatabaseProjects = vi.mocked(useDatabaseProjects);
 const mockedUseDatabaseStatus = vi.mocked(useDatabaseStatus);
+const mockedUseDatabaseSubscriptions = vi.mocked(useDatabaseSubscriptions);
 const mockedUseDatabaseTransactions = vi.mocked(useDatabaseTransactions);
 const mockedUseDatabaseTrips = vi.mocked(useDatabaseTrips);
 const mockedUseDatabaseUsers = vi.mocked(useDatabaseUsers);
@@ -82,12 +89,15 @@ function mockDatabaseHooks() {
     },
     collections: {
       transactionVersion: 0,
+      budgetVersion: 0,
       categories: [{ id: 2, name: 'Housing' }],
       companies: [{ id: 3, name: 'Landlord LLC' }],
       accounts: [{ id: 4, name: 'Checking' }],
       projects: [{ id: 5, name: 'Kitchen Remodel' }],
       users: [{ id: 6, display_name: 'Pat' }],
       trips: [{ id: 7, name: 'Seattle' }],
+      merchantRules: [],
+      recurringSeries: [],
     },
     lifecycle: {
       createOrOpenDatabase: vi.fn(),
@@ -97,6 +107,8 @@ function mockDatabaseHooks() {
       migrateDatabaseToCloud: vi.fn(),
       saveDatabaseToCurrentCloud: vi.fn(),
       switchToLocalSource: vi.fn(),
+      setEncryptionPassword: vi.fn(),
+      clearEncryptionPassword: vi.fn(),
     },
     transactions: {
       addTransaction,
@@ -109,6 +121,11 @@ function mockDatabaseHooks() {
       bulkInsertFromTempTable: vi.fn(),
       updateTransactionLabels: vi.fn(),
       applyTransactionClassifications: vi.fn(),
+      setTransactionCategory: vi.fn(),
+      setTransactionCompany: vi.fn(),
+      setTransactionComment: vi.fn(),
+      linkTransactionToSeries: vi.fn(),
+      unlinkTransactionFromSeries: vi.fn(),
       generateTransactionHash: vi.fn(),
       getRecentTransactions: vi.fn(),
       getDashboardSummary: vi.fn(),
@@ -124,9 +141,10 @@ function mockDatabaseHooks() {
     },
     companies: {
       addCompany,
+      updateCompany: vi.fn(),
     },
     accounts: {
-      addAccount: vi.fn(),
+      addAccountWithCard: vi.fn(),
       deleteAccount: vi.fn(),
       getAccountCards: vi.fn(),
       addAccountCard: vi.fn(),
@@ -151,10 +169,39 @@ function mockDatabaseHooks() {
     diagnostics: {
       executeCustomQuery: vi.fn(),
     },
+    subscriptions: {
+      runSubscriptionScan: vi.fn(),
+      addMerchantRule: vi.fn(),
+      updateMerchantRule: vi.fn(),
+      deleteMerchantRule: vi.fn(),
+      previewMerchantRuleMatches: vi.fn(),
+      updateRecurringSeries: vi.fn(),
+      updateRecurringSeriesStatus: vi.fn(),
+      deleteRecurringSeries: vi.fn(),
+      getRecurringSeriesWithStats: vi.fn(),
+      getTransactionsByIds: vi.fn(),
+      getSeriesTransactions: vi.fn(),
+      getUnmatchedRecurringClusters: vi.fn(),
+      reseedCommunityRules: vi.fn(),
+      getMerchantRuleCounts: vi.fn(),
+      getMerchantRulesSeedVersion: vi.fn(),
+    },
+    budgets: {
+      getBudgetPlans: vi.fn(),
+      saveBudgetPlan: vi.fn(),
+      deleteBudgetPlan: vi.fn(),
+      getEffectiveBudgetPlan: vi.fn(),
+      getBudgetStatus: vi.fn(),
+      getIncomeSources: vi.fn(),
+      addIncomeSource: vi.fn(),
+      updateIncomeSource: vi.fn(),
+      deleteIncomeSource: vi.fn(),
+    },
   } as const;
 
   mockedUseDatabaseStatus.mockReturnValue(slices.status as never);
   mockedUseDatabaseCollections.mockReturnValue(slices.collections as never);
+  mockedUseDatabaseBudget.mockReturnValue(slices.budgets as never);
   mockedUseDatabaseLifecycle.mockReturnValue(slices.lifecycle as never);
   mockedUseDatabaseTransactions.mockReturnValue(slices.transactions as never);
   mockedUseDatabaseCategories.mockReturnValue(slices.categories as never);
@@ -164,6 +211,7 @@ function mockDatabaseHooks() {
   mockedUseDatabaseUsers.mockReturnValue(slices.users as never);
   mockedUseDatabaseTrips.mockReturnValue(slices.trips as never);
   mockedUseDatabaseDiagnostics.mockReturnValue(slices.diagnostics as never);
+  mockedUseDatabaseSubscriptions.mockReturnValue(slices.subscriptions as never);
 
   return slices;
 }
@@ -171,6 +219,7 @@ function mockDatabaseHooks() {
 describe('useDatabaseSlices', () => {
   beforeEach(() => {
     mockedUseDatabaseAccounts.mockReset();
+    mockedUseDatabaseBudget.mockReset();
     mockedUseDatabaseCategories.mockReset();
     mockedUseDatabaseCollections.mockReset();
     mockedUseDatabaseCompanies.mockReset();
@@ -178,6 +227,7 @@ describe('useDatabaseSlices', () => {
     mockedUseDatabaseLifecycle.mockReset();
     mockedUseDatabaseProjects.mockReset();
     mockedUseDatabaseStatus.mockReset();
+    mockedUseDatabaseSubscriptions.mockReset();
     mockedUseDatabaseTransactions.mockReset();
     mockedUseDatabaseTrips.mockReset();
     mockedUseDatabaseUsers.mockReset();
@@ -203,6 +253,7 @@ describe('useDatabaseSlices', () => {
     const { result } = renderHook(() => useDashboardSlice());
 
     expect(result.current.transactionVersion).toBe(slices.collections.transactionVersion);
+    expect(result.current.budgetVersion).toBe(slices.collections.budgetVersion);
     expect(result.current.categories).toBe(slices.collections.categories);
     expect(result.current.accounts).toBe(slices.collections.accounts);
     expect(result.current.users).toBe(slices.collections.users);
@@ -210,6 +261,7 @@ describe('useDatabaseSlices', () => {
     expect(result.current.getRecentTransactions).toBe(slices.transactions.getRecentTransactions);
     expect(result.current.getDashboardSummary).toBe(slices.transactions.getDashboardSummary);
     expect(result.current.getChartData).toBe(slices.transactions.getChartData);
+    expect(result.current.getBudgetStatus).toBe(slices.budgets.getBudgetStatus);
   });
 
   it('maps transaction composer actions from grouped transaction and catalog slices', () => {
@@ -245,6 +297,24 @@ describe('useDatabaseSlices', () => {
     expect(result.current.executeCustomQuery).toBe(slices.diagnostics.executeCustomQuery);
     expect(result.current.applyTransactionClassifications).toBe(
       slices.transactions.applyTransactionClassifications
+    );
+  });
+
+  it('maps subscriptions page data and actions from collection and subscription slices', () => {
+    const slices = mockDatabaseHooks();
+
+    const { result } = renderHook(() => useSubscriptionsSlice());
+
+    expect(result.current.transactionVersion).toBe(slices.collections.transactionVersion);
+    expect(result.current.companies).toBe(slices.collections.companies);
+    expect(result.current.merchantRules).toBe(slices.collections.merchantRules);
+    expect(result.current.recurringSeries).toBe(slices.collections.recurringSeries);
+    expect(result.current.getRecurringSeriesWithStats).toBe(
+      slices.subscriptions.getRecurringSeriesWithStats
+    );
+    expect(result.current.getTransactionsByIds).toBe(slices.subscriptions.getTransactionsByIds);
+    expect(result.current.getUnmatchedRecurringClusters).toBe(
+      slices.subscriptions.getUnmatchedRecurringClusters
     );
   });
 

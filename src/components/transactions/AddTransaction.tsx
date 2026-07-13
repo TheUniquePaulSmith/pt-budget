@@ -294,8 +294,9 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
               )}
 
               <FormControl fullWidth>
-                <InputLabel>Account</InputLabel>
+                <InputLabel id="add-transaction-account-label">Account</InputLabel>
                 <Select<number | ''>
+                  labelId="add-transaction-account-label"
                   value={formData.account_id}
                   label="Account"
                   onChange={(e) => {
@@ -320,8 +321,9 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
               </FormControl>
 
               <FormControl fullWidth disabled={!formData.account_id || accountCards.length === 0}>
-                <InputLabel>Card</InputLabel>
+                <InputLabel id="add-transaction-card-label">Card</InputLabel>
                 <Select<number | ''>
+                  labelId="add-transaction-card-label"
                   value={formData.card_id ?? ''}
                   label="Card"
                   onChange={(e) => {

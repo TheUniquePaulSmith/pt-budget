@@ -85,9 +85,11 @@ export function useTransactionComposerSlice() {
 export function useTransactionReportSlice() {
   const collections = useDatabaseCollections();
   const transactions = useDatabaseTransactions();
+  const budgets = useDatabaseBudget();
 
   return {
     transactionVersion: collections.transactionVersion,
+    budgetVersion: collections.budgetVersion,
     categories: collections.categories,
     companies: collections.companies,
     projects: collections.projects,
@@ -98,6 +100,7 @@ export function useTransactionReportSlice() {
     getTransactionsPaginated: transactions.getTransactionsPaginated,
     getTransactionsForExport: transactions.getTransactionsForExport,
     setTransactionComment: transactions.setTransactionComment,
+    getEffectiveBudgetPlan: budgets.getEffectiveBudgetPlan,
   };
 }
 

@@ -26,6 +26,9 @@ export function AppDataGrid<R extends GridValidRowModel = any>({
   emptyMessage = 'No rows to display',
   pageSizeOptions = [10, 25, 50, 100],
   disableRowSelectionOnClick = true,
+  // Wide buffer so moderate grids render every column: off-screen action
+  // buttons stay in the DOM (in-page find, tests) at a small rendering cost.
+  columnBufferPx = 2400,
   density,
   slots,
   slotProps,
@@ -36,9 +39,10 @@ export function AppDataGrid<R extends GridValidRowModel = any>({
   const resolvedDensity = density ?? (themePreferences?.selectedThemeId === 'compact' ? 'compact' : 'standard');
 
   return (
-    <Box sx={{ height, width: '100%', minHeight: 240 }}>
+    <Box sx={{ height, width: '100%', minHeight: typeof height === 'number' ? Math.min(height, 240) : 240 }}>
       <DataGrid
         {...props}
+        columnBufferPx={columnBufferPx}
         density={resolvedDensity}
         pageSizeOptions={pageSizeOptions}
         disableRowSelectionOnClick={disableRowSelectionOnClick}

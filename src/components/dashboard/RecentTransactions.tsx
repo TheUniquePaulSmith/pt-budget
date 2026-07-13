@@ -18,12 +18,14 @@ import {
   Select,
   MenuItem,
 } from '@mui/material';
-import { EditNote } from '@mui/icons-material';
+import { EditNote, MoreVert, Receipt } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { gridExpandedSortedRowIdsSelector, useGridApiContext, useGridSelector } from '@mui/x-data-grid';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
+import TransactionLabelDialog from '@/components/transactions/TransactionLabelDialog';
+import TransactionRowActionsMenu from '@/components/transactions/TransactionRowActionsMenu';
 import { Transaction } from '@/types/database';
 import { format, parseISO } from 'date-fns';
 
@@ -32,17 +34,27 @@ interface RecentTransactionsProps {
   limit?: number;
   onLimitChange?: (limit: number) => void;
   onSetComment?: (txId: number, comment: string) => Promise<void>;
+  budgetedCategoryIds?: Set<number>;
 }
+
+const EMPTY_BUDGETED_CATEGORY_IDS = new Set<number>();
 
 const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   transactions,
   limit = 10,
   onLimitChange,
   onSetComment,
+  budgetedCategoryIds = EMPTY_BUDGETED_CATEGORY_IDS,
 }) => {
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [commentTransaction, setCommentTransaction] = useState<Transaction | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [labelTransaction, setLabelTransaction] = useState<Transaction | null>(null);
+  const [quickActions, setQuickActions] = useState<{
+    anchorEl: HTMLElement;
+    transaction: Transaction;
+  } | null>(null);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -52,11 +64,15 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   };
 
   const rows = useMemo(() => transactions.slice(0, limit), [transactions, limit]);
-  const budgetedCategoryIds = useMemo(() => new Set<number>(), []);
   const handleOpenCommentDialog = (transaction: Transaction) => {
     setCommentTransaction(transaction);
     setCommentDraft(transaction.comment || '');
     setCommentDialogOpen(true);
+  };
+
+  const handleOpenLabelDialog = (transaction: Transaction) => {
+    setLabelTransaction(transaction);
+    setLabelDialogOpen(true);
   };
 
   const handleSaveComment = async () => {
@@ -81,24 +97,41 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     indicatorsColumn(budgetedCategoryIds),
     currencyColumn<Transaction>('amount'),
     {
-      field: 'commentAction',
-      headerName: 'Comment',
-      width: 120,
+      field: 'actions',
+      headerName: 'Actions',
+      width: 130,
       sortable: false,
       filterable: false,
-      renderCell: (params) => {
-        const hasComment = !!params.row.comment?.trim();
-        return (
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <IconButton size="small" onClick={() => handleOpenCommentDialog(params.row)} title="Edit Comment" disabled={!onSetComment}>
-              <EditNote fontSize="small" />
-            </IconButton>
-            <Typography variant="caption" color={hasComment ? 'success.main' : 'text.secondary'}>
-              {hasComment ? 'Yes' : 'No'}
-            </Typography>
-          </Stack>
-        );
-      },
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params) => (
+        <Stack direction="row" spacing={0.5} justifyContent="center">
+          <IconButton
+            size="small"
+            onClick={() => handleOpenCommentDialog(params.row)}
+            title="Edit Comment"
+            disabled={!onSetComment}
+          >
+            <EditNote fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={() => handleOpenLabelDialog(params.row)}
+            title="Label Transaction"
+          >
+            <Receipt fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={(event) =>
+              setQuickActions({ anchorEl: event.currentTarget, transaction: params.row })
+            }
+            title="More Actions"
+          >
+            <MoreVert fontSize="small" />
+          </IconButton>
+        </Stack>
+      ),
     },
   ], [budgetedCategoryIds, onSetComment]);
 
@@ -166,6 +199,17 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
           <Button variant="contained" onClick={() => { void handleSaveComment(); }} disabled={!onSetComment}>Save</Button>
         </DialogActions>
       </Dialog>
+      <TransactionLabelDialog
+        open={labelDialogOpen}
+        onClose={() => setLabelDialogOpen(false)}
+        transaction={labelTransaction}
+        onSuccess={() => setLabelDialogOpen(false)}
+      />
+      <TransactionRowActionsMenu
+        anchorEl={quickActions?.anchorEl ?? null}
+        transaction={quickActions?.transaction ?? null}
+        onClose={() => setQuickActions(null)}
+      />
     </Paper>
   );
 };

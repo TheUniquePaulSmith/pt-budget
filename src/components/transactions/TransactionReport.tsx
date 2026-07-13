@@ -34,6 +34,7 @@ import {
   ClearAll,
   Download,
   EditNote,
+  MoreVert,
   Receipt,
   ViewColumn,
 } from '@mui/icons-material';
@@ -46,6 +47,7 @@ import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
 import TransactionLabelDialog from './TransactionLabelDialog';
+import TransactionRowActionsMenu from './TransactionRowActionsMenu';
 import { Transaction, Category, Company, Account, TransactionsPaginatedResult, User } from '@/types/database';
 import { format, parseISO } from 'date-fns';
 
@@ -54,6 +56,7 @@ type Order = 'asc' | 'desc';
 export default function TransactionReport() {
   const {
     transactionVersion,
+    budgetVersion,
     categories,
     companies,
     projects,
@@ -63,6 +66,7 @@ export default function TransactionReport() {
     getTransactionsPaginated,
     getTransactionsForExport,
     setTransactionComment,
+    getEffectiveBudgetPlan,
   } = useTransactionReportSlice();
 
   // Filters
@@ -95,6 +99,10 @@ export default function TransactionReport() {
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [commentTransaction, setCommentTransaction] = useState<Transaction | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  const [quickActions, setQuickActions] = useState<{
+    anchorEl: HTMLElement;
+    transaction: Transaction;
+  } | null>(null);
 
   // Column visibility
   const [showColumnControls, setShowColumnControls] = useState(false);
@@ -295,7 +303,20 @@ export default function TransactionReport() {
     return null;
   };
 
-  const budgetedCategoryIds = React.useMemo(() => new Set<number>(), []);
+  // Categories with a threshold in the budget plan effective this month —
+  // drives the Budget chip in the indicators column.
+  const [budgetedCategoryIds, setBudgetedCategoryIds] = useState<Set<number>>(() => new Set());
+  useEffect(() => {
+    let cancelled = false;
+    getEffectiveBudgetPlan(format(new Date(), 'yyyy-MM'))
+      .then((plan) => {
+        if (!cancelled) {
+          setBudgetedCategoryIds(new Set((plan?.categories ?? []).map((c) => c.category_id)));
+        }
+      })
+      .catch((err) => console.error('Failed to load effective budget plan:', err));
+    return () => { cancelled = true; };
+  }, [budgetVersion, getEffectiveBudgetPlan]);
 
   const gridColumns = React.useMemo<GridColDef<Transaction>[]>(() => [
     {
@@ -365,7 +386,7 @@ export default function TransactionReport() {
     {
       field: 'actions',
       headerName: 'Actions',
-      minWidth: 90,
+      minWidth: 130,
       align: 'center',
       headerAlign: 'center',
       sortable: false,
@@ -377,6 +398,15 @@ export default function TransactionReport() {
           </IconButton>
           <IconButton size="small" onClick={() => handleLabelTransaction(params.row)} title="Label Transaction">
             <Receipt fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={(event) =>
+              setQuickActions({ anchorEl: event.currentTarget, transaction: params.row })
+            }
+            title="More Actions"
+          >
+            <MoreVert fontSize="small" />
           </IconButton>
         </Stack>
       ),
@@ -593,6 +623,11 @@ export default function TransactionReport() {
           onClose={() => { setLabelDialogOpen(false); setSelectedTransaction(null); }}
           transaction={selectedTransaction}
           onSuccess={() => console.log('Transaction labeled successfully')}
+        />
+        <TransactionRowActionsMenu
+          anchorEl={quickActions?.anchorEl ?? null}
+          transaction={quickActions?.transaction ?? null}
+          onClose={() => setQuickActions(null)}
         />
         <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)} maxWidth="sm" fullWidth>
           <DialogTitle>Edit Comment</DialogTitle>

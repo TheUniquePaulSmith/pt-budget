@@ -1,19 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Chip,
   Collapse,
   Button,
   IconButton,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -26,7 +19,9 @@ import {
   Restore as RestoreIcon,
   VisibilityOff as IgnoreIcon,
 } from '@mui/icons-material';
+import type { GridColDef } from '@mui/x-data-grid';
 
+import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import type { RecurringSeries } from '@/types/database';
 
 const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -78,6 +73,128 @@ const SeriesTable: React.FC<SeriesTableProps> = ({
 }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
+  const columns = useMemo<GridColDef<RecurringSeries>[]>(() => [
+    {
+      field: 'name',
+      headerName: 'Name',
+      flex: 1.2,
+      minWidth: 170,
+      renderCell: (params) => (
+        <Typography variant="body2" fontWeight={600} noWrap>
+          {params.row.name}
+        </Typography>
+      ),
+    },
+    {
+      field: 'company_name',
+      headerName: 'Merchant',
+      flex: 1,
+      minWidth: 140,
+      valueGetter: (_, row) => row.company_name || '—',
+    },
+    {
+      field: 'cadence',
+      headerName: 'Cadence',
+      width: 150,
+      renderCell: (params) => (
+        <Chip
+          label={CADENCE_LABELS[params.row.cadence]}
+          size="small"
+          color={params.row.cadence === 'irregular' ? 'default' : 'primary'}
+          variant="outlined"
+        />
+      ),
+    },
+    {
+      field: 'expected_amount',
+      headerName: 'Amount',
+      width: 150,
+      align: 'right',
+      headerAlign: 'right',
+      renderCell: (params) => formatAmount(params.row),
+    },
+    {
+      field: 'last_seen_date',
+      headerName: 'Last Paid',
+      width: 115,
+      valueGetter: (_, row) => row.last_seen_date || '—',
+    },
+    {
+      field: 'next_expected_date',
+      headerName: 'Next Expected',
+      width: 165,
+      renderCell: (params) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          {params.row.next_expected_date || '—'}
+          {isOverdue(params.row) && (
+            <Chip label="Overdue" size="small" color="warning" />
+          )}
+        </Box>
+      ),
+    },
+    {
+      field: 'transaction_count',
+      headerName: 'Charges',
+      width: 100,
+      align: 'right',
+      headerAlign: 'right',
+      valueGetter: (_, row) => row.transaction_count ?? 0,
+    },
+    {
+      field: 'total_spent',
+      headerName: 'Total Spent',
+      width: 130,
+      align: 'right',
+      headerAlign: 'right',
+      renderCell: (params) =>
+        params.row.total_spent != null ? CURRENCY.format(params.row.total_spent) : '—',
+    },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      width: 180,
+      align: 'right',
+      headerAlign: 'right',
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        <Box display="flex" justifyContent="flex-end">
+          {onConfirm && (
+            <Tooltip title="Confirm as active">
+              <IconButton size="small" color="success" onClick={() => onConfirm(params.row)}>
+                <ConfirmIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          {onIgnore && (
+            <Tooltip title="Ignore (hide from this page)">
+              <IconButton size="small" onClick={() => onIgnore(params.row)}>
+                <IgnoreIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          {onRestore && (
+            <Tooltip title="Restore to active">
+              <IconButton size="small" color="primary" onClick={() => onRestore(params.row)}>
+                <RestoreIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          <Tooltip title="Edit">
+            <IconButton size="small" onClick={() => onEdit(params.row)}>
+              <EditIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="View transactions">
+            <IconButton size="small" onClick={() => onViewTransactions(params.row)}>
+              <ViewIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      ),
+    },
+  ], [onConfirm, onIgnore, onRestore, onEdit, onViewTransactions]);
+
   if (series.length === 0 && !emptyMessage) {
     return null;
   }
@@ -110,92 +227,13 @@ const SeriesTable: React.FC<SeriesTableProps> = ({
             {emptyMessage}
           </Typography>
         ) : (
-        <TableContainer component={Paper} variant="outlined">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Merchant</TableCell>
-                <TableCell>Cadence</TableCell>
-                <TableCell align="right">Amount</TableCell>
-                <TableCell>Last Paid</TableCell>
-                <TableCell>Next Expected</TableCell>
-                <TableCell align="right">Charges</TableCell>
-                <TableCell align="right">Total Spent</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {series.map((item) => (
-                <TableRow key={item.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={600}>
-                      {item.name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{item.company_name || '—'}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={CADENCE_LABELS[item.cadence]}
-                      size="small"
-                      color={item.cadence === 'irregular' ? 'default' : 'primary'}
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell align="right">{formatAmount(item)}</TableCell>
-                  <TableCell>{item.last_seen_date || '—'}</TableCell>
-                  <TableCell>
-                    <Box display="flex" alignItems="center" gap={1}>
-                      {item.next_expected_date || '—'}
-                      {isOverdue(item) && (
-                        <Chip label="Overdue" size="small" color="warning" />
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell align="right">{item.transaction_count ?? 0}</TableCell>
-                  <TableCell align="right">
-                    {item.total_spent != null ? CURRENCY.format(item.total_spent) : '—'}
-                  </TableCell>
-                  <TableCell align="right">
-                    <Box display="flex" justifyContent="flex-end">
-                      {onConfirm && (
-                        <Tooltip title="Confirm as active">
-                          <IconButton size="small" color="success" onClick={() => onConfirm(item)}>
-                            <ConfirmIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {onIgnore && (
-                        <Tooltip title="Ignore (hide from this page)">
-                          <IconButton size="small" onClick={() => onIgnore(item)}>
-                            <IgnoreIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {onRestore && (
-                        <Tooltip title="Restore to active">
-                          <IconButton size="small" color="primary" onClick={() => onRestore(item)}>
-                            <RestoreIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      <Tooltip title="Edit">
-                        <IconButton size="small" onClick={() => onEdit(item)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="View transactions">
-                        <IconButton size="small" onClick={() => onViewTransactions(item)}>
-                          <ViewIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+          <AppDataGrid
+            rows={series}
+            columns={columns}
+            height={Math.min(series.length * 52 + 72, 560)}
+            hideFooter
+            disableVirtualization={process.env.NODE_ENV === 'test'}
+          />
         )}
       </Collapse>
     </Box>

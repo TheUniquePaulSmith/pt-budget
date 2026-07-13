@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -11,17 +11,13 @@ import {
   DialogContent,
   DialogTitle,
   MenuItem,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
 } from '@mui/material';
+import type { GridColDef } from '@mui/x-data-grid';
 
+import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
+import { accountColumn, cardColumn, userColumn } from '@/components/common/DataGrid/columns';
 import type {
   RecurringSeries,
   RecurringSeriesStatus,
@@ -58,6 +54,22 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const transactionColumns = useMemo<GridColDef<Transaction>[]>(() => [
+    { field: 'date', headerName: 'Date', width: 110 },
+    { field: 'description', headerName: 'Description', flex: 1.4, minWidth: 200 },
+    userColumn<Transaction>(),
+    accountColumn<Transaction>(),
+    cardColumn<Transaction>(),
+    {
+      field: 'amount',
+      headerName: 'Amount',
+      width: 120,
+      align: 'right',
+      headerAlign: 'right',
+      renderCell: (params) => CURRENCY.format(Math.abs(params.row.amount)),
+    },
+  ], []);
 
   useEffect(() => {
     if (!open || !series) return;
@@ -216,28 +228,13 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
             No transactions are linked to this series yet.
           </Typography>
         ) : (
-          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 320 }}>
-            <Table size="small" stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Description</TableCell>
-                  <TableCell>Account</TableCell>
-                  <TableCell align="right">Amount</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {transactions.map((txn) => (
-                  <TableRow key={txn.id} hover>
-                    <TableCell>{txn.date}</TableCell>
-                    <TableCell>{txn.description}</TableCell>
-                    <TableCell>{txn.account_name || '—'}</TableCell>
-                    <TableCell align="right">{CURRENCY.format(Math.abs(txn.amount))}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <AppDataGrid
+            rows={transactions}
+            columns={transactionColumns}
+            height={Math.min(transactions.length * 52 + 72, 340)}
+            hideFooter
+            disableVirtualization={process.env.NODE_ENV === 'test'}
+          />
         )}
       </DialogContent>
       <DialogActions>

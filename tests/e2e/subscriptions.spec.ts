@@ -1,72 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const browserCompatibilityResults = {
-  sharedWorkerSupport: true,
-  wasmSupport: true,
-  sqliteSupport: true,
-  vfsSupport: true,
-  overallCompatible: true,
-};
+import {
+  bootstrapDatabase as bootstrapDatabaseWithOptions,
+  runQueryAndReadFirstCell,
+} from './helpers/bootstrap';
 
 const SMOKE_SAMPLE_DATA_TRANSACTION_LIMIT = 500;
 
-async function seedBrowserCompatibility(page: Page) {
-  await page.addInitScript((results) => {
-    window.localStorage.setItem(
-      'budgetApp_browserTestPassed',
-      JSON.stringify(results)
-    );
-  }, browserCompatibilityResults);
-}
-
 async function bootstrapDatabase(page: Page) {
-  await seedBrowserCompatibility(page);
-
-  await page.goto(
-    `/?loadSampleData&sampleDataTransactionLimit=${SMOKE_SAMPLE_DATA_TRANSACTION_LIMIT}`
-  );
-
-  const createDatabaseButton = page.getByRole('button', {
-    name: 'Create New Database',
+  await bootstrapDatabaseWithOptions(page, {
+    sampleDataTransactionLimit: SMOKE_SAMPLE_DATA_TRANSACTION_LIMIT,
   });
-  const sqlQueryButton = page.getByRole('button', { name: 'SQL Query' });
-
-  await Promise.race([
-    createDatabaseButton.waitFor({ state: 'visible', timeout: 120_000 }),
-    sqlQueryButton.waitFor({ state: 'visible', timeout: 120_000 }),
-  ]);
-
-  if (await createDatabaseButton.isVisible().catch(() => false)) {
-    await createDatabaseButton.click();
-
-    // exact: true — a bare 'Password' label also matches 'Confirm Password'
-    const passwordInput = page.getByLabel('Password', { exact: true });
-    const isPasswordScreen = await passwordInput
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .then(() => true)
-      .catch(() => false);
-
-    if (isPasswordScreen) {
-      await passwordInput.fill('TestPassword1!');
-      await page.getByLabel('Confirm Password').fill('TestPassword1!');
-      await page.getByRole('button', { name: 'Create Database' }).click();
-    }
-  }
-
-  await expect(sqlQueryButton).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByTestId('database-status-text')).toHaveText(
-    'Connected',
-    { timeout: 120_000 }
-  );
-}
-
-async function runQueryAndReadFirstCell(page: Page, sql: string) {
-  await page.getByRole('button', { name: 'SQL Query' }).click();
-  await page.getByTestId('sql-query-input').fill(sql);
-  await page.getByRole('button', { name: 'Execute Query' }).click();
-  await expect(page.getByTestId('sql-query-results')).toBeVisible();
-
-  return (await page.locator('tbody td').first().textContent())?.trim() ?? '';
 }
 
 test('@smoke seeds community merchant rules and renders the Subscriptions page', async ({ page }) => {

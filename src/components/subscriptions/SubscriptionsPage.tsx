@@ -15,12 +15,6 @@ import {
   Paper,
   Snackbar,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
 } from '@mui/material';
@@ -34,8 +28,11 @@ import {
   Rule as RuleIcon,
   SmartToy as AiIcon,
 } from '@mui/icons-material';
+import type { GridColDef } from '@mui/x-data-grid';
 import { format, subDays, subMonths } from 'date-fns';
 
+import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
+import { accountColumn, cardColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useSubscriptionsSlice } from '@/contexts/useDatabaseSlices';
 import type {
   MerchantRule,
@@ -327,6 +324,118 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
     [updateMerchantRule, handleScan]
   );
 
+  const clusterColumns = useMemo<GridColDef<UnmatchedCluster>[]>(() => [
+    { field: 'normalized_description', headerName: 'Description', flex: 1.4, minWidth: 220 },
+    {
+      field: 'occurrences',
+      headerName: 'Occurrences',
+      width: 130,
+      align: 'right',
+      headerAlign: 'right',
+      renderCell: (params) => <Chip label={params.row.occurrences} size="small" />,
+    },
+    {
+      field: 'average_amount',
+      headerName: 'Avg Amount',
+      width: 130,
+      align: 'right',
+      headerAlign: 'right',
+      renderCell: (params) => CURRENCY.format(params.row.average_amount),
+    },
+    { field: 'first_seen', headerName: 'First Seen', width: 115 },
+    { field: 'last_seen', headerName: 'Last Seen', width: 115 },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      minWidth: 280,
+      align: 'right',
+      headerAlign: 'right',
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        <Stack direction="row" spacing={1} justifyContent="flex-end">
+          <Button size="small" startIcon={<ViewIcon />} onClick={() => setDetailCluster(params.row)}>
+            View Transactions
+          </Button>
+          <Button size="small" onClick={() => openCreateRuleFromCluster(params.row)}>
+            Create Rule
+          </Button>
+        </Stack>
+      ),
+    },
+  ], [openCreateRuleFromCluster]);
+
+  const ruleColumns = useMemo<GridColDef<MerchantRule>[]>(() => [
+    {
+      field: 'source',
+      headerName: 'Source',
+      width: 120,
+      renderCell: (params) => <Chip label={params.row.source} size="small" variant="outlined" />,
+    },
+    { field: 'pattern', headerName: 'Pattern', flex: 1.2, minWidth: 180 },
+    { field: 'match_type', headerName: 'Match', width: 100 },
+    { field: 'merchant_name', headerName: 'Merchant', flex: 1, minWidth: 150 },
+    {
+      field: 'service_name',
+      headerName: 'Service',
+      flex: 0.8,
+      minWidth: 130,
+      valueGetter: (_, row) => row.service_name || '—',
+    },
+    { field: 'default_kind', headerName: 'Kind', width: 110 },
+    { field: 'priority', headerName: 'Priority', width: 95, align: 'right', headerAlign: 'right' },
+    {
+      field: 'enabled',
+      headerName: 'Enabled',
+      width: 110,
+      renderCell: (params) => (
+        <Chip
+          label={params.row.enabled ? 'Enabled' : 'Disabled'}
+          size="small"
+          color={params.row.enabled ? 'success' : 'default'}
+        />
+      ),
+    },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      width: 100,
+      align: 'right',
+      headerAlign: 'right',
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        <Button
+          size="small"
+          onClick={() => {
+            setEditingRule(params.row);
+            setRuleEditorPrefill(null);
+            setRulesDialogOpen(false);
+            setRuleEditorOpen(true);
+          }}
+        >
+          Edit
+        </Button>
+      ),
+    },
+  ], []);
+
+  const clusterTransactionColumns = useMemo<GridColDef<Transaction>[]>(() => [
+    { field: 'date', headerName: 'Date', width: 110 },
+    { field: 'description', headerName: 'Description', flex: 1.4, minWidth: 200 },
+    userColumn<Transaction>(),
+    accountColumn<Transaction>(),
+    cardColumn<Transaction>(),
+    {
+      field: 'amount',
+      headerName: 'Amount',
+      width: 120,
+      align: 'right',
+      headerAlign: 'right',
+      renderCell: (params) => CURRENCY.format(Math.abs(params.row.amount)),
+    },
+  ], []);
+
   return (
     <Box sx={{ p: 3 }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
@@ -473,43 +582,14 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
                   These descriptions repeat but do not match any merchant rule yet. Create a rule to
                   name the merchant and track the charge.
                 </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Description</TableCell>
-                        <TableCell align="right">Occurrences</TableCell>
-                        <TableCell align="right">Avg Amount</TableCell>
-                        <TableCell>First Seen</TableCell>
-                        <TableCell>Last Seen</TableCell>
-                        <TableCell align="right">Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {clusters.map((cluster) => (
-                        <TableRow key={cluster.normalized_description} hover>
-                          <TableCell>{cluster.normalized_description}</TableCell>
-                          <TableCell align="right">
-                            <Chip label={cluster.occurrences} size="small" />
-                          </TableCell>
-                          <TableCell align="right">{CURRENCY.format(cluster.average_amount)}</TableCell>
-                          <TableCell>{cluster.first_seen}</TableCell>
-                          <TableCell>{cluster.last_seen}</TableCell>
-                          <TableCell align="right">
-                            <Stack direction="row" spacing={1} justifyContent="flex-end">
-                              <Button size="small" startIcon={<ViewIcon />} onClick={() => setDetailCluster(cluster)}>
-                                View Transactions
-                              </Button>
-                              <Button size="small" onClick={() => openCreateRuleFromCluster(cluster)}>
-                                Create Rule
-                              </Button>
-                            </Stack>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                <AppDataGrid
+                  rows={clusters}
+                  columns={clusterColumns}
+                  getRowId={(row) => row.normalized_description}
+                  height={Math.min(clusters.length * 52 + 130, 520)}
+                  hideFooter={clusters.length <= 25}
+                  disableVirtualization={process.env.NODE_ENV === 'test'}
+                />
               </Collapse>
             </Box>
           )}
@@ -549,54 +629,13 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
       <Dialog open={rulesDialogOpen} onClose={() => setRulesDialogOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle>Merchant Rules</DialogTitle>
         <DialogContent>
-          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 520 }}>
-            <Table size="small" stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Source</TableCell>
-                  <TableCell>Pattern</TableCell>
-                  <TableCell>Match</TableCell>
-                  <TableCell>Merchant</TableCell>
-                  <TableCell>Service</TableCell>
-                  <TableCell>Kind</TableCell>
-                  <TableCell align="right">Priority</TableCell>
-                  <TableCell>Enabled</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {merchantRules.map((rule) => (
-                  <TableRow key={rule.id} hover>
-                    <TableCell>
-                      <Chip label={rule.source} size="small" variant="outlined" />
-                    </TableCell>
-                    <TableCell>{rule.pattern}</TableCell>
-                    <TableCell>{rule.match_type}</TableCell>
-                    <TableCell>{rule.merchant_name}</TableCell>
-                    <TableCell>{rule.service_name || '—'}</TableCell>
-                    <TableCell>{rule.default_kind}</TableCell>
-                    <TableCell align="right">{rule.priority}</TableCell>
-                    <TableCell>
-                      <Chip label={rule.enabled ? 'Enabled' : 'Disabled'} size="small" color={rule.enabled ? 'success' : 'default'} />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Button
-                        size="small"
-                        onClick={() => {
-                          setEditingRule(rule);
-                          setRuleEditorPrefill(null);
-                          setRulesDialogOpen(false);
-                          setRuleEditorOpen(true);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <AppDataGrid
+            rows={merchantRules}
+            columns={ruleColumns}
+            height={520}
+            initialState={{ pagination: { paginationModel: { pageSize: 25, page: 0 } } }}
+            disableVirtualization={process.env.NODE_ENV === 'test'}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRulesDialogOpen(false)}>Close</Button>
@@ -615,28 +654,13 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
               No transactions found for this recurring charge.
             </Typography>
           ) : (
-            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 360 }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Description</TableCell>
-                    <TableCell>Account</TableCell>
-                    <TableCell align="right">Amount</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {clusterTransactions.map((txn) => (
-                    <TableRow key={txn.id} hover>
-                      <TableCell>{txn.date}</TableCell>
-                      <TableCell>{txn.description}</TableCell>
-                      <TableCell>{txn.account_name || '—'}</TableCell>
-                      <TableCell align="right">{CURRENCY.format(Math.abs(txn.amount))}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <AppDataGrid
+              rows={clusterTransactions}
+              columns={clusterTransactionColumns}
+              height={Math.min(clusterTransactions.length * 52 + 72, 380)}
+              hideFooter
+              disableVirtualization={process.env.NODE_ENV === 'test'}
+            />
           )}
         </DialogContent>
         <DialogActions>

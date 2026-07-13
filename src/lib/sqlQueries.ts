@@ -687,11 +687,19 @@ export const SUBSCRIPTION_QUERIES = {
   DELETE_LINKS_FOR_SERIES: `DELETE FROM transaction_series_links WHERE series_id = ?`,
   DELETE_LINK_FOR_TRANSACTION: `DELETE FROM transaction_series_links WHERE transaction_id = ?`,
   GET_SERIES_TRANSACTIONS: `
-    SELECT t.*, comp.name as company_name, a.name as account_name
+    SELECT t.*, comp.name as company_name, a.name as account_name,
+      card.last_four AS card_last_four,
+      card.nickname AS card_nickname,
+      COALESCE(card.user_id, a.owner_user_id) AS effective_user_id,
+      COALESCE(card_user.display_name, owner_user.display_name) AS effective_user_name,
+      owner_user.display_name AS account_owner_name
     FROM transaction_series_links tsl
     JOIN transactions t ON t.id = tsl.transaction_id
     LEFT JOIN companies comp ON t.company_id = comp.id
     LEFT JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN account_cards card ON t.card_id = card.id
+    LEFT JOIN users card_user ON card.user_id = card_user.id
+    LEFT JOIN users owner_user ON a.owner_user_id = owner_user.id
     WHERE tsl.series_id = ?
     ORDER BY t.date DESC
   `,

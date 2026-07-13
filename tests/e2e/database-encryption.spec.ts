@@ -12,25 +12,13 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-const browserCompatibilityResults = {
-  sharedWorkerSupport: true,
-  wasmSupport: true,
-  sqliteSupport: true,
-  vfsSupport: true,
-  overallCompatible: true,
-};
+import {
+  fillDatabaseSetupForm,
+  seedBrowserCompatibility,
+} from './helpers/bootstrap';
 
 const TEST_PASSWORD = 'EncryptTest99!';
 const WRONG_PASSWORD = 'WrongPassword1!';
-
-async function seedBrowserCompatibility(page: Page) {
-  await page.addInitScript((results) => {
-    window.localStorage.setItem(
-      'budgetApp_browserTestPassed',
-      JSON.stringify(results)
-    );
-  }, browserCompatibilityResults);
-}
 
 async function goToSetupPage(page: Page) {
   await seedBrowserCompatibility(page);
@@ -47,8 +35,8 @@ async function openPasswordSetupScreen(page: Page) {
   const createDatabaseButton = await goToSetupPage(page);
   await createDatabaseButton.click();
 
-  // After clicking, the password setup screen should appear.
-  await expect(page.getByText('Protect Your Database')).toBeVisible({
+  // After clicking, the database setup screen should appear.
+  await expect(page.getByText('Set Up Your Database')).toBeVisible({
     timeout: 10_000,
   });
 }
@@ -61,7 +49,8 @@ test.describe('Password setup screen', () => {
   test('is shown when clicking Create New Database', async ({ page }) => {
     await openPasswordSetupScreen(page);
 
-    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByLabel('Primary User Name')).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
     await expect(page.getByLabel('Confirm Password')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create Database' })).toBeVisible();
   });
@@ -77,7 +66,8 @@ test.describe('Password setup screen', () => {
   test('Create Database button is disabled when passwords do not match', async ({ page }) => {
     await openPasswordSetupScreen(page);
 
-    await page.getByLabel('Password').fill('PasswordOne1!');
+    await page.getByLabel('Primary User Name').fill('TestUser');
+    await page.getByLabel('Password', { exact: true }).fill('PasswordOne1!');
     await page.getByLabel('Confirm Password').fill('PasswordTwo2!');
 
     // Button should still be disabled because passwords differ.
@@ -89,7 +79,8 @@ test.describe('Password setup screen', () => {
   test('Create Database button is disabled for a short password', async ({ page }) => {
     await openPasswordSetupScreen(page);
 
-    await page.getByLabel('Password').fill('short');
+    await page.getByLabel('Primary User Name').fill('TestUser');
+    await page.getByLabel('Password', { exact: true }).fill('short');
     await page.getByLabel('Confirm Password').fill('short');
 
     await expect(
@@ -97,11 +88,22 @@ test.describe('Password setup screen', () => {
     ).toBeDisabled();
   });
 
-  test('creates the database after entering a valid matching password', async ({ page }) => {
+  test('Create Database button is disabled without a primary user name', async ({ page }) => {
     await openPasswordSetupScreen(page);
 
-    await page.getByLabel('Password').fill(TEST_PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
     await page.getByLabel('Confirm Password').fill(TEST_PASSWORD);
+
+    // Button should still be disabled because the primary user name is empty.
+    await expect(
+      page.getByRole('button', { name: 'Create Database' })
+    ).toBeDisabled();
+  });
+
+  test('creates the database after entering a name and a valid matching password', async ({ page }) => {
+    await openPasswordSetupScreen(page);
+
+    await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
     await page.getByRole('button', { name: 'Create Database' }).click();
 
     // After successful creation the main app shell should load.
@@ -130,6 +132,7 @@ test.describe('Loading an encrypted archive', () => {
    */
   test('shows password entry screen when loading an encrypted file', async ({
     page,
+    browser,
   }) => {
     await seedBrowserCompatibility(page);
     await page.goto('/');
@@ -139,11 +142,10 @@ test.describe('Loading an encrypted archive', () => {
     await expect(createButton).toBeVisible({ timeout: 30_000 });
     await createButton.click();
 
-    await expect(page.getByText('Protect Your Database')).toBeVisible({
+    await expect(page.getByText('Set Up Your Database')).toBeVisible({
       timeout: 10_000,
     });
-    await page.getByLabel('Password').fill(TEST_PASSWORD);
-    await page.getByLabel('Confirm Password').fill(TEST_PASSWORD);
+    await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
     await page.getByRole('button', { name: 'Create Database' }).click();
 
     await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({
@@ -151,13 +153,18 @@ test.describe('Loading an encrypted archive', () => {
     });
 
     // Step 2: Export the database and capture the downloaded file.
+    // The export button lives on the Data & Backup tab of the Settings page.
     const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      page.getByRole('button', { name: 'Settings' }).click().then(async () => {
+      page.waitForEvent('download', { timeout: 60_000 }),
+      (async () => {
+        await page.getByRole('button', { name: 'Settings' }).click();
+        await page
+          .getByRole('tab', { name: 'Data & Backup' })
+          .click({ timeout: 10_000 });
         await page
           .getByRole('button', { name: /Export Database/i })
-          .click();
-      }),
+          .click({ timeout: 10_000 });
+      })(),
     ]).catch(() => [null]);
 
     if (!download) {
@@ -172,29 +179,39 @@ test.describe('Loading an encrypted archive', () => {
       return;
     }
 
-    // Step 3: Clear browser storage and reload so we're back at setup.
-    await page.evaluate(() => {
-      window.localStorage.clear();
-      window.sessionStorage.clear();
-    });
-    await page.goto('/');
-    // Re-inject compatibility bypass.
-    await seedBrowserCompatibility(page);
-    await page.reload();
+    // Step 3: Open a fresh, isolated browser context. The original context
+    // keeps its IndexedDB database and SharedWorker (clearing localStorage
+    // does not remove them), so a clean context is the only way back to the
+    // setup screen.
+    const freshContext = await browser.newContext();
+    try {
+      const freshPage = await freshContext.newPage();
+      await seedBrowserCompatibility(freshPage);
+      await freshPage.goto('/');
 
-    await expect(
-      page.getByRole('button', { name: 'Load from File' })
-    ).toBeVisible({ timeout: 30_000 });
+      await expect(
+        freshPage.getByRole('button', { name: 'Load from File' })
+      ).toBeVisible({ timeout: 30_000 });
 
-    // Step 4: Load the exported encrypted file.
-    const fileInput = page.locator('input[type=file]');
-    await fileInput.setInputFiles(exportedPath);
+      // Step 4: Load the exported encrypted file. The app opens a native
+      // file picker from a detached input element, so intercept the
+      // file chooser rather than looking for an input in the DOM.
+      const [fileChooser] = await Promise.all([
+        freshPage.waitForEvent('filechooser', { timeout: 10_000 }),
+        freshPage.getByRole('button', { name: 'Load from File' }).click(),
+      ]);
+      await fileChooser.setFiles(exportedPath);
 
-    // Step 5: The password entry screen should appear.
-    await expect(
-      page.getByText('Enter Password')
-    ).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByLabel('Password')).toBeVisible();
+      // Step 5: The password entry screen should appear.
+      await expect(
+        freshPage.getByText('Enter Password')
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        freshPage.getByLabel('Password', { exact: true })
+      ).toBeVisible();
+    } finally {
+      await freshContext.close();
+    }
   });
 
   test('password entry screen shows error on wrong password', async ({
@@ -214,14 +231,13 @@ test.describe('Loading an encrypted archive', () => {
     await expect(createButton).toBeVisible({ timeout: 30_000 });
     await createButton.click();
 
-    await expect(page.getByText('Protect Your Database')).toBeVisible({
+    await expect(page.getByText('Set Up Your Database')).toBeVisible({
       timeout: 10_000,
     });
     // Fill with wrong password intentionally — just verify the button state.
-    await page.getByLabel('Password').fill(WRONG_PASSWORD);
-    await page.getByLabel('Confirm Password').fill(WRONG_PASSWORD);
+    await fillDatabaseSetupForm(page, { password: WRONG_PASSWORD });
 
-    // The button should be enabled (passwords match, length OK).
+    // The button should be enabled (name present, passwords match, length OK).
     await expect(
       page.getByRole('button', { name: 'Create Database' })
     ).toBeEnabled();

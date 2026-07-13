@@ -17,6 +17,7 @@ vi.mock('@mui/material', async () => {
 
 vi.mock('@/contexts/useDatabaseSlices', () => ({
   useTransactionReportSlice: vi.fn(),
+  useTransactionQuickActionsSlice: vi.fn(),
 }));
 
 vi.mock('@/components/common/DataGrid/AppDataGrid', () => ({
@@ -60,6 +61,7 @@ vi.mock('@mui/icons-material', () => {
     ClearAll: createIcon('clear-all-icon'),
     Download: createIcon('download-icon'),
     EditNote: createIcon('edit-note-icon'),
+    MoreVert: createIcon('more-vert-icon'),
     Receipt: createIcon('receipt-icon'),
     ViewColumn: createIcon('view-column-icon'),
     ExpandMore: createIcon('expand-more-icon'),
@@ -70,6 +72,10 @@ vi.mock('@mui/icons-material', () => {
     Flag: createIcon('flag-icon'),
     Savings: createIcon('savings-icon'),
     Work: createIcon('work-icon'),
+    Autorenew: createIcon('autorenew-icon'),
+    Business: createIcon('business-icon'),
+    Category: createIcon('category-icon'),
+    Clear: createIcon('clear-icon'),
   };
 });
 
@@ -93,10 +99,14 @@ vi.mock('./TransactionLabelDialog', () => ({
 }));
 
 import TransactionReport from './TransactionReport';
-import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
+import {
+  useTransactionQuickActionsSlice,
+  useTransactionReportSlice,
+} from '@/contexts/useDatabaseSlices';
 import type { Account, Category, Company, Project, Transaction, TransactionQueryParams } from '@/types/database';
 
 const mockedUseTransactionReportSlice = vi.mocked(useTransactionReportSlice);
+const mockedUseTransactionQuickActionsSlice = vi.mocked(useTransactionQuickActionsSlice);
 
 const categories: Category[] = [
   { id: 1, name: 'Salary', type: 'income', color: '#4caf50', created_at: '2026-04-25T00:00:00.000Z', updated_at: '2026-04-25T00:00:00.000Z' },
@@ -192,6 +202,7 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
 
   mockedUseTransactionReportSlice.mockReturnValue({
     transactionVersion: 0,
+    budgetVersion: 0,
     categories,
     companies,
     projects,
@@ -201,6 +212,21 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
     getTransactionsPaginated,
     getTransactionsForExport,
     setTransactionComment,
+    getEffectiveBudgetPlan: vi.fn().mockResolvedValue(null),
+  } as never);
+
+  mockedUseTransactionQuickActionsSlice.mockReturnValue({
+    categories,
+    companies,
+    trips: [],
+    recurringSeries: [],
+    setTransactionCategory: vi.fn().mockResolvedValue(undefined),
+    setTransactionCompany: vi.fn().mockResolvedValue(undefined),
+    linkTransactionToSeries: vi.fn().mockResolvedValue(undefined),
+    unlinkTransactionFromSeries: vi.fn().mockResolvedValue(undefined),
+    updateTransactionLabels: vi.fn().mockResolvedValue(undefined),
+    addCompany: vi.fn().mockResolvedValue(undefined),
+    updateCompany: vi.fn().mockResolvedValue(undefined),
   } as never);
 
   render(
@@ -216,6 +242,7 @@ describe('TransactionReport', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockedUseTransactionReportSlice.mockReset();
+    mockedUseTransactionQuickActionsSlice.mockReset();
   });
 
   afterEach(() => {

@@ -144,6 +144,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
     setCustomEndDate(end);
   };
 
+  // Categories with a threshold in this month's effective budget plan —
+  // drives the Budget chip in the Recent Transactions indicators column.
+  const budgetedCategoryIds = useMemo(
+    () => new Set((budgetStatus?.categories ?? []).map((category) => category.category_id)),
+    [budgetStatus]
+  );
+
   return (
     <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
       <DateRangeSelector
@@ -185,6 +192,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
         limit={recentTransactionsLimit}
         onLimitChange={setRecentTransactionsLimit}
         onSetComment={setTransactionComment}
+        budgetedCategoryIds={budgetedCategoryIds}
       />
 
       <AddTransaction

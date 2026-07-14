@@ -19,6 +19,8 @@ import {
   ListItemText,
   Paper,
   Chip,
+  Collapse,
+  IconButton,
 } from "@mui/material";
 import {
   CheckCircle,
@@ -29,6 +31,7 @@ import {
   Code,
   BugReport,
   SkipNext,
+  ExpandMore,
 } from "@mui/icons-material";
 
 export interface TestResults {
@@ -38,6 +41,7 @@ export interface TestResults {
   vfsSupport: boolean | null;
   databaseOperationsSupport: boolean | null;
   overallCompatible: boolean | null;
+  errorDetails?: string | null;
 }
 
 interface TestBrowserProps {
@@ -66,6 +70,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
   const [isTestingInProgress, setIsTestingInProgress] = useState(true);
   const [testResults, setTestResults] = useState<TestResults | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const workerRef = useRef<SharedWorker | null>(null);
   const hasStartedTest = useRef(false);
 
@@ -297,6 +302,8 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
     },
   ];
 
+  const errorDetailsText = testResults?.errorDetails ?? error;
+
   return (
     <Box sx={{ width: "100%", maxWidth: 600 }}>
       <Paper sx={{ p: 3 }}>
@@ -370,6 +377,53 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
                 unavailable.
               </Alert>
             )}
+          </Box>
+        )}
+
+        {errorDetailsText && !isTestingInProgress && (
+          <Box sx={{ mt: 2 }}>
+            <Box
+              onClick={() => setDetailsExpanded((prev) => !prev)}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
+                Error details
+              </Typography>
+              <IconButton
+                size="small"
+                aria-label={detailsExpanded ? "Hide error details" : "Show error details"}
+                sx={{
+                  transform: detailsExpanded ? "rotate(180deg)" : "none",
+                  transition: "transform 0.2s",
+                }}
+              >
+                <ExpandMore fontSize="small" />
+              </IconButton>
+            </Box>
+            <Collapse in={detailsExpanded}>
+              <Paper
+                variant="outlined"
+                sx={{ p: 2, mt: 1, maxHeight: 240, overflow: "auto" }}
+              >
+                <Typography
+                  component="pre"
+                  variant="caption"
+                  sx={{
+                    m: 0,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {errorDetailsText}
+                </Typography>
+              </Paper>
+            </Collapse>
           </Box>
         )}
       </Paper>

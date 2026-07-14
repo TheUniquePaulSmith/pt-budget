@@ -14,10 +14,17 @@ class DatabaseTester {
       sqliteSupport: false,
       vfsSupport: false,
       databaseOperationsSupport: false,
-      overallCompatible: false
+      overallCompatible: false,
+      errorDetails: null
     };
 
     return this.testResults;
+  }
+
+  formatError(error) {
+    if (!error) return 'Unknown error';
+    const message = error.message || String(error);
+    return error.stack ? `${message}\n\n${error.stack}` : message;
   }
 
   async performCompatibilityTest() {
@@ -110,6 +117,7 @@ class DatabaseTester {
       console.error('[DB Tester] Compatibility test failed:', error);
       this.testResults.databaseOperationsSupport = false;
       this.testResults.overallCompatible = false;
+      this.testResults.errorDetails = this.formatError(error);
     }
 
     return this.testResults;

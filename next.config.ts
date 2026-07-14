@@ -1,6 +1,20 @@
 import type { NextConfig } from "next";
+import { execSync } from "node:child_process";
+
+function getAppVersion(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return 'dev';
+  }
+}
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: getAppVersion(),
+  },
   output: 'export',
   trailingSlash: true,
   skipTrailingSlashRedirect: true,

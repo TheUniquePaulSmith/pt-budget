@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import {
   Alert,
   Box,
-  Chip,
   FormControlLabel,
   Stack,
   Switch,
@@ -13,7 +12,6 @@ import {
 
 import { useAiDatabaseToolsSlice } from '@/contexts/useDatabaseSlices';
 import type {
-  AiToolCallRecord,
   AiWriteMode,
   ApplyTransactionClassificationInput,
   MerchantRuleSuggestion,
@@ -25,7 +23,6 @@ import AiMerchantRuleReview from './AiMerchantRuleReview';
 interface AiAutomationPanelProps {
   writeMode: AiWriteMode;
   onWriteModeChange: (mode: AiWriteMode) => void;
-  toolCalls: AiToolCallRecord[];
   classificationSuggestions: TransactionClassificationSuggestion[];
   onClearClassifications: () => void;
   merchantRuleSuggestions: MerchantRuleSuggestion[];
@@ -35,7 +32,6 @@ interface AiAutomationPanelProps {
 export default function AiAutomationPanel({
   writeMode,
   onWriteModeChange,
-  toolCalls,
   classificationSuggestions,
   onClearClassifications,
   merchantRuleSuggestions,
@@ -66,7 +62,6 @@ export default function AiAutomationPanel({
     setStatusMessage(`Created ${rules.length} merchant rule${rules.length === 1 ? '' : 's'} and re-ran the subscription scan.`);
   };
 
-  const hasToolCalls = toolCalls.length > 0;
   const hasSuggestions = classificationSuggestions.length > 0 || merchantRuleSuggestions.length > 0;
 
   return (
@@ -97,29 +92,10 @@ export default function AiAutomationPanel({
           </Alert>
         )}
 
-        {!hasToolCalls && !hasSuggestions && (
+        {!hasSuggestions && (
           <Alert severity="info">
-            Tool calls and reviewable actions will appear here when the model creates them.
+            Reviewable classification and merchant rule suggestions will appear here when the model proposes them. Tool calls the model makes are shown inline in the Chat tab.
           </Alert>
-        )}
-
-        {hasToolCalls && (
-          <Box>
-            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-              Recent Tool Calls
-            </Typography>
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-              {toolCalls.map((toolCall) => (
-                <Chip
-                  key={toolCall.id}
-                  size="small"
-                  label={`${toolCall.name}: ${toolCall.status}`}
-                  color={toolCall.status === 'failed' ? 'error' : 'default'}
-                  variant="outlined"
-                />
-              ))}
-            </Stack>
-          </Box>
         )}
 
         <AiClassificationReview

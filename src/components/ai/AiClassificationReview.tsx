@@ -93,7 +93,7 @@ export default function AiClassificationReview({
         </Alert>
       )}
 
-      <Stack spacing={1} divider={<Divider flexItem />} sx={{ maxHeight: 260, overflow: 'auto', mb: 2 }}>
+      <Stack spacing={1} divider={<Divider flexItem />} sx={{ mb: 2 }}>
         {suggestions.map((suggestion) => (
           <Box key={suggestion.transactionId}>
             <FormControlLabel

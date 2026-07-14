@@ -129,6 +129,8 @@ export interface AiChatMessage {
   content: string;
   createdAt: string;
   tokenUsage?: AiChatTokenUsage;
+  isError?: boolean;
+  toolCalls?: AiToolCallRecord[];
 }
 
 export interface AiChatTokenUsage {

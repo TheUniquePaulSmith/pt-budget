@@ -5,7 +5,17 @@ import { Box, Paper, Typography, Tabs, Tab, Chip, Stack, Divider } from '@mui/ma
 import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { BarChart } from '@mui/x-charts/BarChart';
-import type { ChartData, Account, User } from '@/types/database';
+import type { ChartData, ChartCategoryData, Account, User } from '@/types/database';
+
+const PIE_CHART_TOP_N = 10;
+const OTHER_SLICE_COLOR = '#9e9e9e';
+
+function topNWithOther(data: ChartCategoryData[], limit = PIE_CHART_TOP_N): ChartCategoryData[] {
+  if (data.length <= limit) return data;
+  const top = data.slice(0, limit - 1);
+  const otherValue = data.slice(limit - 1).reduce((sum, item) => sum + item.value, 0);
+  return [...top, { id: 'other', label: 'Other', value: otherValue, color: OTHER_SLICE_COLOR }];
+}
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -35,6 +45,11 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
   const companySpendingData = chartData?.spendingByCompany ?? [];
   const recurringSpendingData = chartData?.spendingByRecurring ?? [];
   const incomeData = chartData?.incomeBySource ?? [];
+
+  const spendingPieData = topNWithOther(spendingData);
+  const companySpendingPieData = topNWithOther(companySpendingData);
+  const recurringSpendingPieData = topNWithOther(recurringSpendingData);
+  const incomePieData = topNWithOther(incomeData);
   const trendsData = chartData?.trends ?? { months: [], income: [], expenses: [] };
   const accountData = chartData?.accountAnalysis ?? { accountNames: [], income: [], expenses: [] };
   const totalSpending = spendingData.reduce((sum, category) => sum + category.value, 0);
@@ -128,9 +143,9 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
             Spending Breakdown - {timeRangeLabel}
           </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
-            {renderPiePanel('Categories', spendingData, 'No category spending for this period')}
-            {renderPiePanel('Companies / Services', companySpendingData, 'No company spending for this period')}
-            {renderPiePanel('Subscriptions & Recurring Bills', recurringSpendingData, 'No recurring spending for this period')}
+            {renderPiePanel('Categories', spendingPieData, 'No category spending for this period')}
+            {renderPiePanel('Companies / Services', companySpendingPieData, 'No company spending for this period')}
+            {renderPiePanel('Subscriptions & Recurring Bills', recurringSpendingPieData, 'No recurring spending for this period')}
           </Box>
 
           {spendingData.length > 0 && (
@@ -158,12 +173,12 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
           <Typography variant="h6" gutterBottom>
             Income by Source - {timeRangeLabel}
           </Typography>
-          {incomeData.length > 0 ? (
+          {incomePieData.length > 0 ? (
             <Box height={400} display="flex" justifyContent="center">
               <PieChart
                 series={[{
-                  data: incomeData,
-                  arcLabel: (item) => percentLabel(Number(item.value || 0), incomeData.reduce((sum, row) => sum + row.value, 0)),
+                  data: incomePieData,
+                  arcLabel: (item) => percentLabel(Number(item.value || 0), incomePieData.reduce((sum, row) => sum + row.value, 0)),
                   arcLabelMinAngle: 12,
                   outerRadius: 140,
                   arcLabelRadius: 168,

@@ -25,6 +25,9 @@ import {
   FormControlLabel,
   FormGroup,
   Collapse,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   useMediaQuery,
   useTheme,
   CircularProgress,
@@ -34,6 +37,7 @@ import {
   ClearAll,
   Download,
   EditNote,
+  ExpandMore,
   MoreVert,
   Receipt,
   ViewColumn,
@@ -41,7 +45,7 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
+import type { GridColDef, GridColumnVisibilityModel, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
@@ -52,6 +56,24 @@ import { Transaction, Category, Company, Account, TransactionsPaginatedResult, U
 import { format, parseISO } from 'date-fns';
 
 type Order = 'asc' | 'desc';
+
+const GRID_FIELD_TO_VISIBLE_COLUMN_KEY = {
+  date: 'date',
+  description: 'description',
+  comment: 'comment',
+  commentIndicator: 'commentIndicator',
+  category_name: 'category',
+  company_name: 'company',
+  service_name: 'service',
+  project_name: 'project',
+  label: 'label',
+  effective_user_name: 'user',
+  account_name: 'account',
+  card_last_four: 'card',
+  indicators: 'indicators',
+  amount: 'amount',
+  actions: 'actions',
+} as const;
 
 export default function TransactionReport() {
   const {
@@ -106,6 +128,11 @@ export default function TransactionReport() {
 
   // Column visibility
   const [showColumnControls, setShowColumnControls] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(true);
+
+  // Grid fills remaining viewport height below the filters/summary sections
+  const gridWrapperRef = useRef<HTMLDivElement | null>(null);
+  const [gridHeight, setGridHeight] = useState(640);
   const [visibleColumns, setVisibleColumns] = useState({
     date: true,
     description: true,
@@ -132,6 +159,24 @@ export default function TransactionReport() {
       setVisibleColumns(prev => ({ ...prev, category: false, company: false, service: false, project: false, label: false, account: false, user: false, card: false, indicators: false }));
     }
   }, [isMobile]);
+
+  useEffect(() => {
+    const updateGridHeight = () => {
+      const node = gridWrapperRef.current;
+      if (!node) return;
+      const top = node.getBoundingClientRect().top;
+      const available = window.innerHeight - top - 24;
+      setGridHeight(Math.max(available, 400));
+    };
+    updateGridHeight();
+    // Re-measure after the filters/column-controls collapse animation settles.
+    const timeout = setTimeout(updateGridHeight, 350);
+    window.addEventListener('resize', updateGridHeight);
+    return () => {
+      window.removeEventListener('resize', updateGridHeight);
+      clearTimeout(timeout);
+    };
+  }, [filtersExpanded, showColumnControls, isMobile, loading]);
 
   // Debounce search input
   useEffect(() => {
@@ -431,6 +476,22 @@ export default function TransactionReport() {
     actions: visibleColumns.actions,
   }), [visibleColumns]);
 
+  const handleColumnVisibilityModelChange = useCallback((model: GridColumnVisibilityModel) => {
+    setVisibleColumns((prev) => {
+      const next = { ...prev };
+      for (const [field, key] of Object.entries(GRID_FIELD_TO_VISIBLE_COLUMN_KEY)) {
+        next[key] = model[field] !== false;
+      }
+      return next;
+    });
+  }, []);
+
+  // MUI DataGrid syncs controlled sortModel/paginationModel props by reference
+  // equality, so a fresh literal on every render is treated as a real change
+  // and re-applies sorting/pagination, resetting the grid's scroll to the top.
+  const sortModel = React.useMemo<GridSortModel>(() => [{ field: orderBy, sort: order }], [orderBy, order]);
+  const paginationModel = React.useMemo<GridPaginationModel>(() => ({ page, pageSize: rowsPerPage }), [page, rowsPerPage]);
+
   const handleSortModelChange = (model: GridSortModel) => {
     const sort = model[0];
     setOrderBy(sort?.field || 'date');
@@ -526,11 +587,18 @@ export default function TransactionReport() {
         </Box>
 
         {/* Filters */}
-        <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-            <FilterList />
-            <Typography variant="h6">Filters</Typography>
-          </Box>
+        <Accordion
+          expanded={filtersExpanded}
+          onChange={(_, expanded) => setFiltersExpanded(expanded)}
+          sx={{ mb: 3 }}
+        >
+          <AccordionSummary expandIcon={<ExpandMore />}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <FilterList />
+              <Typography variant="h6">Filters</Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' }, gap: 2 }}>
               <TextField fullWidth label="Search" placeholder="Description, category, company..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -578,7 +646,8 @@ export default function TransactionReport() {
                 renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.display_name} size="small" {...cp} />; })} />
             </Box>
           </Box>
-        </Paper>
+          </AccordionDetails>
+        </Accordion>
 
         {/* Results Grid */}
         <Paper>
@@ -587,28 +656,33 @@ export default function TransactionReport() {
               <CircularProgress size={24} />
             </Box>
           )}
-          <AppDataGrid
-            rows={transactions}
-            columns={gridColumns}
-            rowCount={totalCount}
-            loading={loading}
-            paginationMode="server"
-            sortingMode="server"
-            paginationModel={{ page, pageSize: rowsPerPage }}
-            onPaginationModelChange={handlePaginationModelChange}
-            sortModel={[{ field: orderBy, sort: order }]}
-            onSortModelChange={handleSortModelChange}
-            columnVisibilityModel={columnVisibilityModel}
-            pageSizeOptions={isMobile ? [10, 25] : [10, 25, 50, 100]}
-            height={640}
-            footerSummary={
-              <Typography variant="body2" color="text.secondary">
-                Income {formatCurrency(totalIncome)} • Expenses {formatCurrency(totalExpenses)} • Net {formatCurrency(netIncome)}
-              </Typography>
-            }
-            emptyMessage="No transactions found matching your filters"
-            disableVirtualization={process.env.NODE_ENV === 'test'}
-          />
+          <Box ref={gridWrapperRef}>
+            <AppDataGrid
+              rows={transactions}
+              columns={gridColumns}
+              rowCount={totalCount}
+              loading={loading}
+              paginationMode="server"
+              sortingMode="server"
+              paginationModel={paginationModel}
+              onPaginationModelChange={handlePaginationModelChange}
+              sortModel={sortModel}
+              onSortModelChange={handleSortModelChange}
+              columnVisibilityModel={columnVisibilityModel}
+              onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
+              pageSizeOptions={isMobile ? [10, 25] : [10, 25, 50, 100]}
+              height={gridHeight}
+              footerSummary={
+                <Typography variant="body2" color="text.secondary">
+                  Income <Typography component="span" variant="body2" color="success.main">{formatCurrency(totalIncome)}</Typography>
+                  {' • '}Expenses <Typography component="span" variant="body2" color="error.main">{formatCurrency(totalExpenses)}</Typography>
+                  {' • '}Net <Typography component="span" variant="body2" color={netIncome >= 0 ? 'success.main' : 'error.main'}>{formatCurrency(netIncome)}</Typography>
+                </Typography>
+              }
+              emptyMessage="No transactions found matching your filters"
+              disableVirtualization={process.env.NODE_ENV === 'test'}
+            />
+          </Box>
         </Paper>
 
         {!loading && totalCount === 0 && (

@@ -23,10 +23,11 @@ import {
 import { useAiDatabaseToolsSlice } from '@/contexts/useDatabaseSlices';
 import { useAiChatRuntimeSlice } from '@/contexts/useWllamaSlices';
 import { runAiChatCompletion } from '@/lib/aiChatService';
+import AiMarkdownMessage from './AiMarkdownMessage';
+import AiToolCallBadge from './AiToolCallBadge';
 import type {
   AiChatMessage,
   AiChatTokenUsage,
-  AiToolCallRecord,
   AiWriteMode,
   MerchantRuleSuggestion,
   TransactionClassificationSuggestion,
@@ -39,7 +40,8 @@ function createMessageId(): string {
 function createMessage(
   role: AiChatMessage['role'],
   content: string,
-  tokenUsage?: AiChatTokenUsage
+  tokenUsage?: AiChatTokenUsage,
+  isError?: boolean
 ): AiChatMessage {
   return {
     id: createMessageId(),
@@ -47,6 +49,7 @@ function createMessage(
     content,
     createdAt: new Date().toISOString(),
     tokenUsage,
+    isError,
   };
 }
 
@@ -162,7 +165,6 @@ function AnimatedStopIcon() {
 
 interface AiChatProps {
   writeMode: AiWriteMode;
-  onToolCallsChange: (toolCalls: AiToolCallRecord[]) => void;
   onClassificationSuggestions: (suggestions: TransactionClassificationSuggestion[]) => void;
   onMerchantRuleSuggestions: (suggestions: MerchantRuleSuggestion[]) => void;
   onReviewableAutomation: () => void;
@@ -170,7 +172,6 @@ interface AiChatProps {
 
 export default function AiChat({
   writeMode,
-  onToolCallsChange,
   onClassificationSuggestions,
   onMerchantRuleSuggestions,
   onReviewableAutomation,
@@ -199,7 +200,7 @@ export default function AiChat({
     if (!isModelLoaded) {
       setMessages((current) => [
         ...current,
-        createMessage('assistant', 'Load an AI model before asking questions.'),
+        createMessage('assistant', 'Load an AI model before asking questions.', undefined, true),
       ]);
       return;
     }
@@ -210,7 +211,6 @@ export default function AiChat({
     setMessages([...requestMessages, pendingAssistantMessage]);
     setInput('');
     setRunning(true);
-    onToolCallsChange([]);
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -237,7 +237,6 @@ export default function AiChat({
         },
       });
 
-      onToolCallsChange(result.toolCalls);
       if (result.classificationSuggestions.length > 0) {
         onClassificationSuggestions(result.classificationSuggestions);
         onReviewableAutomation();
@@ -261,6 +260,7 @@ export default function AiChat({
           return {
             ...message,
             content: result.assistantMessage || message.content || 'Done.',
+            toolCalls: result.toolCalls,
             tokenUsage: {
               completionTokens: result.tokenUsage.completionTokens,
               totalTokens: result.tokenUsage.totalTokens,
@@ -274,7 +274,7 @@ export default function AiChat({
       if (!abortController.signal.aborted) {
         const errorMessage = err instanceof Error ? err.message : 'AI request failed';
         setMessages((current) => current.map((message) => message.id === pendingAssistantMessage.id
-          ? { ...message, content: `Error: ${errorMessage}` }
+          ? { ...message, content: `Error: ${errorMessage}`, isError: true }
           : message));
       } else {
         setMessages((current) => current.map((message) => message.id === pendingAssistantMessage.id && message.content === '...'
@@ -307,7 +307,7 @@ export default function AiChat({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
-      <Box ref={chatScrollRef} sx={{ p: 2, overflowY: 'auto', flex: 1, minHeight: 0 }}>
+      <Box ref={chatScrollRef} sx={{ p: 2, overflowY: 'auto', overflowX: 'hidden', flex: 1, minHeight: 0 }}>
         {!isModelLoaded && (
           <Alert severity="info" sx={{ mb: 2 }}>
             Load a model from the Enable AI section to start chatting.
@@ -325,6 +325,7 @@ export default function AiChat({
                 sx={{
                   alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
                   maxWidth: '88%',
+                  minWidth: 0,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: message.role === 'user' ? 'flex-end' : 'flex-start',
@@ -332,15 +333,30 @@ export default function AiChat({
               >
                 <Box
                   sx={{
-                  bgcolor: message.role === 'user' ? 'primary.main' : 'background.paper',
-                  color: message.role === 'user' ? 'primary.contrastText' : 'text.primary',
+                  bgcolor: message.isError
+                    ? 'error.main'
+                    : message.role === 'user' ? 'primary.main' : 'background.paper',
+                  color: message.isError
+                    ? 'error.contrastText'
+                    : message.role === 'user' ? 'primary.contrastText' : 'text.primary',
                   border: 1,
-                  borderColor: message.role === 'user' ? 'primary.main' : 'divider',
+                  borderColor: message.isError
+                    ? 'error.main'
+                    : message.role === 'user' ? 'primary.main' : 'divider',
                   borderRadius: 1,
                   px: 1.5,
                   py: 1,
+                  minWidth: 0,
+                  maxWidth: '100%',
                 }}
               >
+                {message.toolCalls && message.toolCalls.length > 0 && (
+                  <Stack spacing={0.5} sx={{ mb: 1 }}>
+                    {message.toolCalls.map((toolCall) => (
+                      <AiToolCallBadge key={toolCall.id} toolCall={toolCall} />
+                    ))}
+                  </Stack>
+                )}
                 {isPendingAssistant ? (
                   <Box
                     sx={{
@@ -352,6 +368,8 @@ export default function AiChat({
                   >
                     <TypingIndicatorIcon />
                   </Box>
+                ) : message.role === 'assistant' ? (
+                  <AiMarkdownMessage content={message.content} />
                 ) : (
                   <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                     {message.content}

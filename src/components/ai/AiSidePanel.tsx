@@ -2,9 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Badge,
   Box,
-  Chip,
   Drawer,
   IconButton,
   Stack,
@@ -21,12 +19,10 @@ import {
 
 import { useAiChatRuntimeSlice } from '@/contexts/useWllamaSlices';
 import type {
-  AiToolCallRecord,
   AiWriteMode,
   MerchantRuleSuggestion,
   TransactionClassificationSuggestion,
 } from '@/types/ai';
-import { AI_CONTEXT_SIZE_PRESETS } from '@/types/ai';
 import AiAutomationPanel from './AiAutomationPanel';
 import AiChat from './AiChat';
 import AiModelSelector from './AiModelSelector';
@@ -41,10 +37,9 @@ type AiPanelTab = 'chat' | 'automation' | 'model';
 export default function AiSidePanel({ open, onClose }: AiSidePanelProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { isModelLoaded, loadedModel, contextSizePreset, contextSizeTokens } = useAiChatRuntimeSlice();
+  const { isModelLoaded, loadedModel, contextSizeTokens, maxOutputTokens } = useAiChatRuntimeSlice();
   const [writeMode, setWriteMode] = useState<AiWriteMode>('review');
   const [activeTab, setActiveTab] = useState<AiPanelTab>('model');
-  const [toolCalls, setToolCalls] = useState<AiToolCallRecord[]>([]);
   const [classificationSuggestions, setClassificationSuggestions] = useState<TransactionClassificationSuggestion[]>([]);
   const [merchantRuleSuggestions, setMerchantRuleSuggestions] = useState<MerchantRuleSuggestion[]>([]);
   const loadedModelIdRef = useRef(loadedModel?.id ?? null);
@@ -61,11 +56,10 @@ export default function AiSidePanel({ open, onClose }: AiSidePanelProps) {
     loadedModelIdRef.current = loadedModelId;
   }, [isModelLoaded, loadedModel?.id]);
 
-  const automationCount = toolCalls.length + classificationSuggestions.length + merchantRuleSuggestions.length;
-  const contextPreset = AI_CONTEXT_SIZE_PRESETS[contextSizePreset];
-  const headerBadgeLabel = isModelLoaded && loadedModel
-    ? `${loadedModel.name} · ${contextPreset.label} ${new Intl.NumberFormat('en-US').format(loadedModel.contextLength ?? contextSizeTokens)} ctx`
-    : 'No model loaded';
+  const automationCount = classificationSuggestions.length + merchantRuleSuggestions.length;
+  const numberFormatter = new Intl.NumberFormat('en-US');
+  const inputTokens = numberFormatter.format(loadedModel?.contextLength ?? contextSizeTokens);
+  const outputTokens = numberFormatter.format(maxOutputTokens);
 
   return (
     <Drawer
@@ -88,26 +82,50 @@ export default function AiSidePanel({ open, onClose }: AiSidePanelProps) {
           justifyContent="space-between"
           sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}
         >
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
             <SmartToy color="primary" />
-            <Box>
+            <Box sx={{ minWidth: 0 }}>
               <Typography variant="h6" fontWeight={600}>
                 Local AI
               </Typography>
-              <Chip
-                size="small"
-                variant="outlined"
-                label={headerBadgeLabel}
-                title={headerBadgeLabel}
-                sx={{
-                  maxWidth: 300,
-                  '& .MuiChip-label': {
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  },
-                }}
-              />
+              {isModelLoaded && loadedModel ? (
+                <>
+                  <Typography
+                    variant="caption"
+                    title={loadedModel.name}
+                    sx={{
+                      display: 'block',
+                      color: 'text.secondary',
+                      fontSize: '0.7rem',
+                      lineHeight: 1.3,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      maxWidth: 260,
+                    }}
+                  >
+                    {loadedModel.name}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      color: 'text.secondary',
+                      fontSize: '0.7rem',
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    Input {inputTokens} · Output {outputTokens} tokens
+                  </Typography>
+                </>
+              ) : (
+                <Typography
+                  variant="caption"
+                  sx={{ display: 'block', color: 'text.secondary', fontSize: '0.7rem' }}
+                >
+                  No model loaded
+                </Typography>
+              )}
             </Box>
           </Stack>
           <IconButton onClick={onClose} aria-label="Close AI panel">
@@ -126,9 +144,30 @@ export default function AiSidePanel({ open, onClose }: AiSidePanelProps) {
             <Tab
               value="automation"
               label={
-                <Badge color="primary" badgeContent={automationCount} max={99} invisible={automationCount === 0}>
-                  Automation
-                </Badge>
+                <Stack direction="row" spacing={0.75} alignItems="center">
+                  <span>Automation</span>
+                  {automationCount > 0 && (
+                    <Box
+                      component="span"
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 18,
+                        height: 18,
+                        px: 0.5,
+                        borderRadius: '9px',
+                        bgcolor: 'primary.main',
+                        color: 'primary.contrastText',
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {automationCount > 99 ? '99+' : automationCount}
+                    </Box>
+                  )}
+                </Stack>
               }
               sx={{ minHeight: 44 }}
             />
@@ -143,7 +182,6 @@ export default function AiSidePanel({ open, onClose }: AiSidePanelProps) {
             <Box sx={{ display: activeTab === 'chat' ? 'flex' : 'none', flex: 1, minHeight: 0 }}>
               <AiChat
                 writeMode={writeMode}
-                onToolCallsChange={setToolCalls}
                 onClassificationSuggestions={(suggestions) => {
                   setClassificationSuggestions((current) => [...current, ...suggestions]);
                 }}
@@ -158,7 +196,6 @@ export default function AiSidePanel({ open, onClose }: AiSidePanelProps) {
               <AiAutomationPanel
                 writeMode={writeMode}
                 onWriteModeChange={setWriteMode}
-                toolCalls={toolCalls}
                 classificationSuggestions={classificationSuggestions}
                 onClearClassifications={() => setClassificationSuggestions([])}
                 merchantRuleSuggestions={merchantRuleSuggestions}

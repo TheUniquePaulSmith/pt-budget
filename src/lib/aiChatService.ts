@@ -21,7 +21,54 @@ import type {
 } from '@/types/ai';
 import { AI_OUTPUT_LIMIT_PRESETS } from '@/types/ai';
 
-const SYSTEM_PROMPT = `You are a local-only personal finance assistant running in the browser. Use tools to inspect the user's local SQLite budget database before making claims about transactions. Arbitrary database mutations are not allowed. For classification writes, call apply_transaction_classifications and respect the application's review mode. To name unmatched recurring merchants, call get_unmatched_merchant_clusters and then propose_merchant_rules; proposed rules are always staged for user review.`;
+const SYSTEM_PROMPT = `You are a local-only personal finance assistant running in the browser. Use tools to inspect the user's local SQLite budget database before making claims about transactions. Arbitrary database mutations are not allowed. For classification writes, call apply_transaction_classifications and respect the application's review mode. To name unmatched recurring merchants, call get_unmatched_merchant_clusters and then propose_merchant_rules; proposed rules are always staged for user review.
+
+When you call suggest_transaction_classifications or propose_merchant_rules, the results are automatically staged in the app's Automation tab for the user to review and apply — do not repeat the full list or a table of the suggestions in your reply. Just briefly state how many suggestions you staged and tell the user to check the Automation tab to review and apply them.`;
+const DATABASE_SCHEMA_TIMEOUT_MS = 10000;
+
+const DATABASE_SCHEMA_COLUMNS_QUERY = `
+SELECT
+  m.name AS table_name,
+  p.cid AS column_position,
+  p.name AS column_name,
+  p.type AS data_type,
+  p.[notnull] AS not_null,
+  p.pk AS primary_key
+FROM sqlite_master m
+JOIN pragma_table_info(m.name) p
+WHERE m.type = 'table'
+  AND m.name NOT LIKE 'sqlite_%'
+ORDER BY m.name, p.cid
+`;
+
+const DATABASE_SCHEMA_FOREIGN_KEYS_QUERY = `
+SELECT
+  m.name AS table_name,
+  fk.[from] AS from_column,
+  fk.[table] AS referenced_table,
+  fk.[to] AS referenced_column
+FROM sqlite_master m
+JOIN pragma_foreign_key_list(m.name) fk
+WHERE m.type = 'table'
+  AND m.name NOT LIKE 'sqlite_%'
+ORDER BY m.name, fk.id, fk.seq
+`;
+
+interface DatabaseSchemaColumnRow {
+  table_name?: unknown;
+  column_position?: unknown;
+  column_name?: unknown;
+  data_type?: unknown;
+  not_null?: unknown;
+  primary_key?: unknown;
+}
+
+interface DatabaseSchemaForeignKeyRow {
+  table_name?: unknown;
+  from_column?: unknown;
+  referenced_table?: unknown;
+  referenced_column?: unknown;
+}
 
 export interface RunAiChatOptions {
   messages: AiChatMessage[];
@@ -34,9 +81,81 @@ export interface RunAiChatOptions {
   onAssistantDelta?: (delta: string) => void;
 }
 
-function toWllamaMessages(messages: AiChatMessage[]): ChatCompletionMessage[] {
+function isTruthySqlFlag(value: unknown): boolean {
+  return value === 1 || value === true || value === '1';
+}
+
+function formatDatabaseSchemaForPrompt(
+  columnRows: DatabaseSchemaColumnRow[],
+  foreignKeyRows: DatabaseSchemaForeignKeyRow[]
+): string {
+  const tables = new Map<string, { columns: string[]; foreignKeys: string[] }>();
+
+  for (const row of columnRows) {
+    if (typeof row.table_name !== 'string' || typeof row.column_name !== 'string') {
+      continue;
+    }
+
+    const table = tables.get(row.table_name) ?? { columns: [], foreignKeys: [] };
+    const dataType = typeof row.data_type === 'string' && row.data_type.trim()
+      ? ` ${row.data_type.trim()}`
+      : '';
+    const primaryKey = isTruthySqlFlag(row.primary_key) ? ' PRIMARY KEY' : '';
+    const notNull = isTruthySqlFlag(row.not_null) ? ' NOT NULL' : '';
+    table.columns.push(`${row.column_name}${dataType}${primaryKey}${notNull}`);
+    tables.set(row.table_name, table);
+  }
+
+  for (const row of foreignKeyRows) {
+    if (
+      typeof row.table_name !== 'string' ||
+      typeof row.from_column !== 'string' ||
+      typeof row.referenced_table !== 'string' ||
+      typeof row.referenced_column !== 'string'
+    ) {
+      continue;
+    }
+
+    const table = tables.get(row.table_name) ?? { columns: [], foreignKeys: [] };
+    table.foreignKeys.push(`${row.from_column} -> ${row.referenced_table}.${row.referenced_column}`);
+    tables.set(row.table_name, table);
+  }
+
+  if (tables.size === 0) {
+    return 'Current SQLite database schema: no application tables were found.';
+  }
+
+  const tableLines = Array.from(tables.entries()).map(([tableName, table]) => {
+    const foreignKeys = table.foreignKeys.length > 0
+      ? ` Foreign keys: ${table.foreignKeys.join('; ')}.`
+      : '';
+    return `- ${tableName}: ${table.columns.join(', ')}.${foreignKeys}`;
+  });
+
   return [
-    { role: 'system', content: SYSTEM_PROMPT },
+    'Current SQLite database schema. Use these exact table and column names when writing SQL:',
+    ...tableLines,
+  ].join('\n');
+}
+
+async function buildSystemPrompt(databaseToolContext: AiDatabaseToolContext): Promise<string> {
+  try {
+    const [columnRows, foreignKeyRows] = await Promise.all([
+      databaseToolContext.executeCustomQuery(DATABASE_SCHEMA_COLUMNS_QUERY, DATABASE_SCHEMA_TIMEOUT_MS),
+      databaseToolContext.executeCustomQuery(DATABASE_SCHEMA_FOREIGN_KEYS_QUERY, DATABASE_SCHEMA_TIMEOUT_MS),
+    ]);
+
+    return `${SYSTEM_PROMPT}\n\n${formatDatabaseSchemaForPrompt(columnRows, foreignKeyRows)}`;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'unknown error';
+
+    return `${SYSTEM_PROMPT}\n\nCurrent SQLite database schema could not be loaded for this prompt (${message}). Use query_transactions to inspect sqlite_master before answering schema-sensitive questions.`;
+  }
+}
+
+function toWllamaMessages(messages: AiChatMessage[], systemPrompt: string): ChatCompletionMessage[] {
+  return [
+    { role: 'system', content: systemPrompt },
     ...messages
       .filter((message) => message.role === 'user' || message.role === 'assistant')
       .map((message) => ({
@@ -182,7 +301,8 @@ export async function runAiChatCompletion({
   maxOutputTokens = AI_OUTPUT_LIMIT_PRESETS.medium.tokens,
   onAssistantDelta,
 }: RunAiChatOptions): Promise<AiChatRunResult> {
-  const conversation = toWllamaMessages(messages);
+  const systemPrompt = await buildSystemPrompt(databaseToolContext);
+  const conversation = toWllamaMessages(messages, systemPrompt);
   const toolCalls: AiToolCallRecord[] = [];
   const classificationSuggestions: TransactionClassificationSuggestion[] = [];
   const merchantRuleSuggestions: MerchantRuleSuggestion[] = [];

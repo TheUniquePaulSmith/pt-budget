@@ -14,6 +14,8 @@ import {
 } from '@mui/icons-material';
 import { databaseWorkerService, WorkerStatus } from '@/lib/databaseWorkerService';
 
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || 'dev';
+
 interface DatabaseStatusBarProps {
   status: WorkerStatus;
 }
@@ -48,19 +50,31 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
   };
 
   const getTooltipText = () => {
-    const timeSinceHeartbeat = status.lastHeartbeat ? currentTime - status.lastHeartbeat : 0;
-    const heartbeatText = status.lastHeartbeat 
+    const timeSinceHeartbeat = status.lastHeartbeat
+      ? Math.max(0, currentTime - status.lastHeartbeat)
+      : 0;
+    const heartbeatText = status.lastHeartbeat
       ? `Heartbeat: ${Math.floor(timeSinceHeartbeat / 1000)}s ago`
       : 'No heartbeat received';
-    
-    return `Worker Status: ${status.isWorkerAlive ? 'Alive' : 'Dead'}
+
+    return `App Version: ${APP_VERSION}
+      Worker Status: ${status.isWorkerAlive ? 'Alive' : 'Dead'}
       Database Status: ${status.dbStatus}
       ${heartbeatText}
     `;
   };
 
+  // Keep currentTime in sync with the freshest heartbeat immediately, rather than
+  // waiting for the next 1s interval tick — otherwise a heartbeat received just
+  // after mount/open can be newer than the last-known currentTime, producing a
+  // negative (and floor-rounded to -1) "seconds ago" reading.
+  useEffect(() => {
+    setCurrentTime(Date.now());
+  }, [status.lastHeartbeat]);
+
   useEffect(() => {
     if (tooltipOpen) {
+      setCurrentTime(Date.now());
       intervalRef.current = setInterval(() => {
         setCurrentTime(Date.now());
       }, 1000);
@@ -122,8 +136,8 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
         
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Typography variant="caption" color="text.secondary">
-            v{status.version}
-          </Typography>   
+            v{APP_VERSION}
+          </Typography>
             <Box
               sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
               data-testid="database-status"

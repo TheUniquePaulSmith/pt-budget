@@ -21,16 +21,36 @@ class DatabaseTester {
     return this.testResults;
   }
 
-  formatError(error) {
+  formatError(error, vfs) {
     if (!error) return 'Unknown error';
     const message = error.message || String(error);
-    return error.stack ? `${message}\n\n${error.stack}` : message;
+    let details = error.stack ? `${message}\n\n${error.stack}` : message;
+
+    // The VFS catches its own IndexedDB exceptions and remaps them to
+    // generic SQLite IOERR codes, so the SQLiteError above (e.g. "disk I/O
+    // error") loses the real browser-level exception. Pull it back out of
+    // the VFS so Safari/WebKit-specific errors (QuotaExceededError,
+    // TransactionInactiveError, etc.) are visible instead of just "disk I/O
+    // error".
+    const vfsError = vfs?.lastError;
+    if (vfsError && vfsError !== error) {
+      const vfsMessage = vfsError.name
+        ? `${vfsError.name}: ${vfsError.message || vfsError}`
+        : (vfsError.message || String(vfsError));
+      details += `\n\nUnderlying storage error: ${vfsMessage}`;
+      if (vfsError.stack) {
+        details += `\n${vfsError.stack}`;
+      }
+    }
+
+    return details;
   }
 
   async performCompatibilityTest() {
     console.log('[DB Tester] Starting browser compatibility test...');
     this.testResults = this.createInitialResults();
-    
+    let vfs = null;
+
     try {
       // Test 1: WASM Support (basic check)
       this.testResults.wasmSupport = typeof WebAssembly === 'object' && 
@@ -65,7 +85,7 @@ class DatabaseTester {
       console.log('[DB Tester] SQLite WASM initialized, testing VFS...');
 
       // Test 4: Create and test VFS
-      const vfs = await IDBBatchAtomicVFS.create('test-db-compatibility', wasmModule);
+      vfs = await IDBBatchAtomicVFS.create('test-db-compatibility', wasmModule);
       sqlite3.vfs_register(vfs, true);
       this.testResults.vfsSupport = true;
 
@@ -117,7 +137,7 @@ class DatabaseTester {
       console.error('[DB Tester] Compatibility test failed:', error);
       this.testResults.databaseOperationsSupport = false;
       this.testResults.overallCompatible = false;
-      this.testResults.errorDetails = this.formatError(error);
+      this.testResults.errorDetails = this.formatError(error, vfs);
     }
 
     return this.testResults;

@@ -52,6 +52,7 @@ Budget Tracker is designed to manage day-to-day finances and longer-running spen
 
 - **Create New Database / Load Existing Database** flows through the initialization gate
 - **SQLite Export** from the dashboard and settings UI
+- **Optional Cloud Sync** to Google Drive or OneDrive, with automatic debounced upload, etag-based conflict detection, and a manual resolve dialog — see [Cloud Sync Setup](#-cloud-sync-setup)
 - **Cross-Tab Synchronization** through a shared worker-backed database session
 - **Storage Quota Monitoring** in the settings page
 - **Browser Compatibility Gate** before database setup
@@ -70,7 +71,7 @@ The app serves wllama's wasm asset locally from `public/wllama/wllama.wasm`; no 
 - **100% Local Processing**: all application logic and database work run in the browser
 - **Local AI Inference**: GGUF models are loaded by the browser with wllama after explicit user selection
 - **No Backend Required**: there is no application server or remote database
-- **No Required Cloud Services**: the app does not depend on external data services to function
+- **No Required Cloud Services**: the app does not depend on external data services to function — Google Drive/OneDrive sync is opt-in (see [Cloud Sync Setup](#-cloud-sync-setup)) and the database, encrypted the same way as a manual export, is the only thing ever sent there
 - **Offline-Friendly Runtime**: once loaded, the app can continue working with local browser storage
 
 ### 🔐 User Control
@@ -113,6 +114,49 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in a compatible browser.
+
+## ☁️ Cloud Sync Setup
+
+Cloud sync (OneDrive / Google Drive) is optional. Without any configuration the app works entirely
+local-only — the Google Drive / OneDrive options simply don't appear. To enable them, copy
+[.env.example](./.env.example) to `.env.local` and fill in the client IDs below. There are no
+secrets here: this is a static-export SPA with no server, so auth uses public client IDs only,
+never a client secret.
+
+Both providers use a small popup window (`/auth/start` → `/auth/complete`) to complete sign-in
+without a full-page redirect, so the main app window and its `SharedArrayBuffer`-backed local AI
+side panel are never interrupted. This requires the popup's redirect URI to be registered exactly
+as shown below, **including the trailing slash**.
+
+### Google Drive
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create (or reuse) a project and enable the **Google Drive API**.
+2. Under **APIs & Services → Credentials**, create an **OAuth client ID** of type **Web application**.
+3. Add Authorized JavaScript origins: `http://localhost:3000` and your production origin.
+4. Add an Authorized redirect URI: `http://localhost:3000/auth/complete/` and the equivalent on your production origin.
+5. Set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` to the resulting client ID.
+
+The app requests only the `drive.file` scope (access to files the app itself creates/opens, not
+the whole Drive), which is a non-sensitive scope and does not require Google's app-verification
+review.
+
+### OneDrive
+
+1. In the [Azure Portal](https://portal.azure.com/), go to **App registrations** and create a new registration.
+2. Under **Authentication**, add a platform of type **Single-page application**.
+3. Add a redirect URI: `http://localhost:3000/auth/complete/` and the equivalent on your production origin.
+4. Under **API permissions**, add the delegated Microsoft Graph permissions `User.Read` and `Files.ReadWrite`.
+5. Do **not** create a client secret — SPA app registrations authenticate without one.
+6. Set `NEXT_PUBLIC_MICROSOFT_CLIENT_ID` to the Application (client) ID, and `NEXT_PUBLIC_MICROSOFT_TENANT_ID` if you need to restrict sign-in to a specific tenant (defaults to `common`).
+
+### Static hosting
+
+`next.config.ts` sends `Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp` in dev/`next start`, required for the local AI panel's
+multi-threaded wasm. Static export hosts must send the same two headers for **every** route,
+including `/auth/start/` and `/auth/complete/` — those pages load no cross-origin subresources, so
+`require-corp` doesn't block them, but they still need `same-origin` set for the popup handoff
+(via `BroadcastChannel`) to work correctly.
 
 ## 🧪 Testing
 

@@ -38,12 +38,18 @@ export interface WorkerStatus {
   lastHeartbeat: number;
 }
 
+export interface DatabaseChangeEvent {
+  changedAt: string;
+  writeCount: number;
+}
+
 export class DatabaseWorkerService {
   private worker: SharedWorker | null = null;
   private port: MessagePort | null = null;
   private messageId = 0;
   private pendingMessages = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timeout: NodeJS.Timeout | null }>();
   private statusCallbacks = new Set<(status: WorkerStatus) => void>();
+  private changeCallbacks = new Set<(event: DatabaseChangeEvent) => void>();
   private heartbeatTimeout: NodeJS.Timeout | null = null;
   private status: WorkerStatus = {
     isWorkerAlive: false,
@@ -137,6 +143,22 @@ export class DatabaseWorkerService {
       return;
     }
 
+    // Handle database-changed broadcasts (fired by the worker after a
+    // write-classified statement succeeds — see notifyDatabaseChanged in
+    // database-worker.js). Broadcast-only: no id, so it never reaches the
+    // pending-message correlation below.
+    if (response.type === 'database_changed') {
+      const changeEvent = response.sqlResponse as DatabaseChangeEvent;
+      this.changeCallbacks.forEach((callback) => {
+        try {
+          callback(changeEvent);
+        } catch (error) {
+          console.error('[DB Service] Change callback error:', error);
+        }
+      });
+      return;
+    }
+
     // Handle initialization and database status updates
     if (response.type === 'init_complete' || response.type === 'database_opened') {
       this.updateStatus({
@@ -219,6 +241,18 @@ export class DatabaseWorkerService {
 
   public getStatus(): WorkerStatus {
     return { ...this.status };
+  }
+
+  /**
+   * Subscribes to database-changed broadcasts. Unlike onStatusChange, this
+   * does not fire immediately on subscription — there is no "current" change
+   * event to replay. Returns an unsubscribe function.
+   */
+  public onDatabaseChanged(callback: (event: DatabaseChangeEvent) => void) {
+    this.changeCallbacks.add(callback);
+    return () => {
+      this.changeCallbacks.delete(callback);
+    };
   }
 
   private generateMessageId(): string {
@@ -417,6 +451,7 @@ export class DatabaseWorkerService {
 
     // Clear status callbacks
     this.statusCallbacks.clear();
+    this.changeCallbacks.clear();
 
     if (this.port) {
       this.port.close();

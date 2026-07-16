@@ -106,6 +106,9 @@ test.describe('Password setup screen', () => {
     await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
     await page.getByRole('button', { name: 'Create Database' }).click();
 
+    // Password setup always lands on the storage-choice screen next.
+    await page.getByTestId('storage-choice-local').click();
+
     // After successful creation the main app shell should load.
     await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({
       timeout: 60_000,
@@ -147,6 +150,9 @@ test.describe('Loading an encrypted archive', () => {
     });
     await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
     await page.getByRole('button', { name: 'Create Database' }).click();
+
+    // Password setup always lands on the storage-choice screen next.
+    await page.getByTestId('storage-choice-local').click();
 
     await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({
       timeout: 60_000,

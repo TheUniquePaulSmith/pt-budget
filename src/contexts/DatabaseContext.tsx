@@ -8,15 +8,25 @@
 
 "use client";
 
-import React, { createContext, useCallback, useContext, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
 
 import { DatabaseInitializationGate } from '../components/setup/DatabaseInitializationGate';
+import type { CloudFilePickerState } from './useDatabaseInitialization';
 import type { WorkerStatus } from '../lib/databaseWorkerService';
 import type {
+  CloudLinkedFile,
   CloudProvider,
   DatabaseSource,
   PersistedDatabaseSourceState,
 } from '../lib/databaseSourceStorage';
+import type { AutoSyncSnapshot } from '../lib/cloudAutoSyncScheduler';
+import {
+  disconnectCloudProvider as disconnectCloudProviderAction,
+  type ConflictResolutionChoice,
+  type SyncStage,
+} from '../lib/cloudSyncService';
+import { GOOGLE_SCOPE, storeGoogleToken } from '../lib/cloudAuthGoogle';
+import { useCloudAutoSync } from './useCloudAutoSync';
 import {
   useDatabaseAccountManagementSlices,
   type DatabaseAccountSlice,
@@ -48,6 +58,20 @@ import {
 import { useDatabaseInitialization } from './useDatabaseInitialization';
 //import { appLogger } from '../lib/logger';
 
+declare global {
+  interface Window {
+    __budgetTrackerTestApi?: {
+      disconnectWorker: () => void;
+      cancelSampleDataImport?: () => void;
+      cloudSync?: {
+        getSchedulerState: () => string;
+        syncNow: () => Promise<void>;
+        injectGoogleToken: (token: string, expiresAtMs: number) => void;
+      };
+    };
+  }
+}
+
 interface DatabaseStatusSlice {
   isInitialized: boolean;
   isDatabaseLoaded: boolean;
@@ -56,6 +80,11 @@ interface DatabaseStatusSlice {
   workerStatus: WorkerStatus | null;
   databaseSource: DatabaseSource;
   databaseSourceState: PersistedDatabaseSourceState;
+  syncStatus: AutoSyncSnapshot;
+  /** Fine-grained progress within a single sync attempt, null when not actively syncing. */
+  syncStage: SyncStage | null;
+  /** Shared with the pre-init gate — Settings also needs it for "Open from Google Drive/OneDrive" once the app is already running. */
+  cloudFilePicker: CloudFilePickerState;
 }
 
 interface DatabaseLifecycleSlice {
@@ -68,6 +97,13 @@ interface DatabaseLifecycleSlice {
   switchToLocalSource: () => void;
   setEncryptionPassword: (password: string) => Promise<void>;
   clearEncryptionPassword: () => Promise<void>;
+  syncNow: () => Promise<void>;
+  setAutoSyncEnabled: (enabled: boolean) => void;
+  reconnectCloudSource: () => Promise<void>;
+  resolveCloudConflict: (choice: ConflictResolutionChoice) => Promise<void>;
+  disconnectCloudProvider: (provider: CloudProvider) => void;
+  closeCloudFilePicker: () => void;
+  handleCloudFileSelected: (file: CloudLinkedFile) => Promise<void>;
 }
 
 interface DatabaseDiagnosticsSlice {
@@ -208,25 +244,80 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     databaseService,
     databaseSource,
     databaseSourceState,
+    setDatabaseSourceState,
     initializationState,
     isLoading,
     error,
     workerStatus,
     sampleDataImportProgress,
-    cloudAuthProvider,
+    disconnectWorker,
+    storageMigrationStage,
+    cloudFilePicker,
     setError,
     handleBrowserTestComplete,
     handlePasswordSetupConfirmed,
     handlePasswordEntrySubmitted,
     cancelPasswordEntry,
+    handleStorageChoiceSelected,
+    handleCloudPasswordSubmitted,
+    skipCloudUnlock,
     createOrOpenDatabase,
     loadDatabaseFromFile,
     connectCloudSource,
+    closeCloudFilePicker,
+    handleCloudFileSelected,
     migrateDatabaseToCloud,
     saveDatabaseToCurrentCloud,
     switchToLocalSource,
     cancelSampleDataImport,
   } = useDatabaseInitialization({ loadAllData });
+
+  const {
+    syncStatus,
+    syncStage,
+    syncNow,
+    setAutoSyncEnabled,
+    reconnect: reconnectCloudSource,
+    resolveConflict: resolveCloudConflict,
+  } = useCloudAutoSync({
+    databaseService,
+    databaseSourceState,
+    setDatabaseSourceState,
+    initializationState,
+  });
+
+  // Dev-only test hooks, consolidated here (rather than split across the
+  // hooks that own each piece) so there's a single owner of this global —
+  // two independent effects racing to set/merge the same window property
+  // would be fragile.
+  useEffect(() => {
+    if (typeof window === 'undefined' || process.env.NODE_ENV === 'production') {
+      return;
+    }
+
+    window.__budgetTrackerTestApi = {
+      disconnectWorker,
+      cancelSampleDataImport,
+      cloudSync: {
+        getSchedulerState: () => syncStatus.state,
+        syncNow,
+        injectGoogleToken: (token: string, expiresAtMs: number) => {
+          storeGoogleToken({ accessToken: token, expiresAtMs, scope: GOOGLE_SCOPE });
+        },
+      },
+    };
+
+    return () => {
+      delete window.__budgetTrackerTestApi;
+    };
+  }, [disconnectWorker, cancelSampleDataImport, syncStatus.state, syncNow]);
+
+  const disconnectCloudProvider = useCallback(
+    (provider: CloudProvider) => {
+      setDatabaseSourceState(disconnectCloudProviderAction(provider));
+    },
+    [setDatabaseSourceState]
+  );
 
   const exportDatabase = useCallback(async (): Promise<Uint8Array | null> => {
     if (!databaseService) {
@@ -327,6 +418,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       workerStatus,
       databaseSource,
       databaseSourceState,
+      syncStatus,
+      syncStage,
+      cloudFilePicker,
     }),
     [
       initializationState,
@@ -335,6 +429,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       workerStatus,
       databaseSource,
       databaseSourceState,
+      syncStatus,
+      syncStage,
+      cloudFilePicker,
     ]
   );
 
@@ -349,6 +446,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       switchToLocalSource,
       setEncryptionPassword,
       clearEncryptionPassword,
+      syncNow,
+      setAutoSyncEnabled,
+      reconnectCloudSource,
+      resolveCloudConflict,
+      disconnectCloudProvider,
+      closeCloudFilePicker,
+      handleCloudFileSelected,
     }),
     [
       createOrOpenDatabase,
@@ -360,6 +464,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       switchToLocalSource,
       setEncryptionPassword,
       clearEncryptionPassword,
+      syncNow,
+      setAutoSyncEnabled,
+      reconnectCloudSource,
+      resolveCloudConflict,
+      disconnectCloudProvider,
+      closeCloudFilePicker,
+      handleCloudFileSelected,
     ]
   );
 
@@ -374,20 +485,26 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     return (
       <DatabaseInitializationGate
         databaseSource={databaseSource}
-        cloudAuthProvider={cloudAuthProvider}
         initializationState={initializationState}
         isLoading={isLoading}
         error={error}
         sampleDataImportProgress={sampleDataImportProgress}
+        storageMigrationStage={storageMigrationStage}
+        cloudFilePicker={cloudFilePicker}
         onBrowserTestComplete={handleBrowserTestComplete}
         onCreateOrOpenDatabase={createOrOpenDatabase}
         onLoadDatabaseFromFile={loadDatabaseFromFile}
-        onConnectCloudSource={() => connectCloudSource()}
+        onConnectCloudSource={connectCloudSource}
+        onCloseCloudFilePicker={closeCloudFilePicker}
+        onCloudFileSelected={handleCloudFileSelected}
         onSwitchToLocalSource={switchToLocalSource}
         onCancelSampleDataImport={cancelSampleDataImport}
         onPasswordSetupConfirmed={handlePasswordSetupConfirmed}
         onPasswordEntrySubmitted={handlePasswordEntrySubmitted}
         onCancelPasswordEntry={cancelPasswordEntry}
+        onStorageChoiceSelected={handleStorageChoiceSelected}
+        onCloudPasswordSubmitted={handleCloudPasswordSubmitted}
+        onSkipCloudUnlock={skipCloudUnlock}
       />
     );
   }

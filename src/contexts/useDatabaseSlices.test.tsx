@@ -78,6 +78,17 @@ function mockDatabaseHooks() {
         lastCloudSyncTimestamp: null,
         lastCloudFileTimestamp: null,
         lastSyncError: null,
+        autoSyncEnabled: true,
+        pendingChangesSince: null,
+        lastSyncAttemptAt: null,
+        conflict: null,
+      },
+      syncStatus: {
+        state: 'disabled',
+        pauseReason: null,
+        pendingSince: null,
+        lastSyncAt: null,
+        lastError: null,
       },
       workerStatus: {
         isWorkerAlive: true,
@@ -109,6 +120,10 @@ function mockDatabaseHooks() {
       switchToLocalSource: vi.fn(),
       setEncryptionPassword: vi.fn(),
       clearEncryptionPassword: vi.fn(),
+      syncNow: vi.fn(),
+      setAutoSyncEnabled: vi.fn(),
+      reconnectCloudSource: vi.fn(),
+      resolveCloudConflict: vi.fn(),
     },
     transactions: {
       addTransaction,
@@ -234,16 +249,21 @@ describe('useDatabaseSlices', () => {
   });
 
   it('maps the app shell slice from grouped status state', () => {
-    mockDatabaseHooks();
+    const slices = mockDatabaseHooks();
 
     const { result } = renderHook(() => useAppShellSlice());
 
     expect(result.current).toEqual({
       isDatabaseLoaded: true,
+      databaseSource: 'local',
       workerStatus: expect.objectContaining({
         isWorkerAlive: true,
         dbStatus: 'connected',
       }),
+      syncStatus: slices.status.syncStatus,
+      syncNow: slices.lifecycle.syncNow,
+      reconnectCloudSource: slices.lifecycle.reconnectCloudSource,
+      resolveCloudConflict: slices.lifecycle.resolveCloudConflict,
     });
   });
 

@@ -562,6 +562,72 @@ describe('DatabaseService file operations', () => {
     expect(parsed.status.tableStats).toEqual({ accounts: 2, transactions: 7 });
     expect(parsed.status.lastWriteTimestamp).toBeTruthy();
   });
+
+  it('invokes onStage with exporting then encrypting, around the corresponding steps', async () => {
+    const events: string[] = [];
+    const exportDatabaseSnapshot = vi.fn().mockImplementation(async () => {
+      events.push('exportDatabaseSnapshot:called');
+      return {
+        format: 'wa-sqlite-idb-batch-atomic-v1',
+        idbName: 'ptbudgetapp',
+        exportedAt: '2026-05-27T12:00:00.000Z',
+        metadata: [{ name: '/budget-app.db', fileSize: 12, version: 2 }],
+        blocks: [],
+      };
+    });
+    const encryptArchive = vi.fn().mockImplementation(async () => {
+      events.push('encryptArchive:called');
+      return new Uint8Array([0xfe, 0xed]);
+    });
+
+    const service = new DatabaseService(
+      createWorkerTransportStub({
+        query: vi
+          .fn()
+          .mockResolvedValueOnce([{ name: 'accounts' }, { name: 'transactions' }])
+          .mockResolvedValueOnce([{ count: 2 }])
+          .mockResolvedValueOnce([{ count: 7 }]),
+        exportDatabaseSnapshot,
+        encryptArchive,
+      })
+    );
+
+    const onStage = vi.fn((stage: string) => {
+      events.push(`onStage:${stage}`);
+    });
+
+    await service.exportDatabase({ onStage });
+
+    expect(onStage).toHaveBeenNthCalledWith(1, 'exporting');
+    expect(onStage).toHaveBeenNthCalledWith(2, 'encrypting');
+    expect(events).toEqual([
+      'onStage:exporting',
+      'exportDatabaseSnapshot:called',
+      'onStage:encrypting',
+      'encryptArchive:called',
+    ]);
+  });
+
+  it('exports successfully when no onStage callback is provided', async () => {
+    const service = new DatabaseService(
+      createWorkerTransportStub({
+        query: vi
+          .fn()
+          .mockResolvedValueOnce([{ name: 'accounts' }, { name: 'transactions' }])
+          .mockResolvedValueOnce([{ count: 2 }])
+          .mockResolvedValueOnce([{ count: 7 }]),
+        exportDatabaseSnapshot: vi.fn().mockResolvedValue({
+          format: 'wa-sqlite-idb-batch-atomic-v1',
+          idbName: 'ptbudgetapp',
+          exportedAt: '2026-05-27T12:00:00.000Z',
+          metadata: [],
+          blocks: [],
+        }),
+      })
+    );
+
+    await expect(service.exportDatabase()).resolves.toBeInstanceOf(Uint8Array);
+  });
 });
 
 describe('DatabaseService batch and import helpers', () => {

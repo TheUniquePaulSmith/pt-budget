@@ -109,6 +109,18 @@ export interface DatabaseStatusSummary {
   tableStats: Record<string, number>;
 }
 
+/**
+ * Stages exportDatabase() progresses through. A local, minimal type rather
+ * than importing the UI's EncryptionProgressStage union, so this file
+ * doesn't depend on a component — callers map these onto their own UI stage
+ * type (which may have additional stages like 'flushing'/'uploading').
+ */
+export type DatabaseExportStage = 'exporting' | 'encrypting';
+
+export interface ExportDatabaseOptions {
+  onStage?: (stage: DatabaseExportStage) => void;
+}
+
 export class DatabaseService {
   private isInitialized = false;
   public dbExistsBeforeInit = false;
@@ -203,12 +215,14 @@ export class DatabaseService {
     }
   }
 
-  async exportDatabase(): Promise<Uint8Array> {
+  async exportDatabase(options?: ExportDatabaseOptions): Promise<Uint8Array> {
     try {
       console.info("Exporting database through worker...");
       const databaseStatus = await this.getDatabaseStatus();
       const lastWriteTimestamp =
         databaseStatus.lastWriteTimestamp ?? new Date().toISOString();
+
+      options?.onStage?.('exporting');
       const snapshot = await this.workerService.exportDatabaseSnapshot();
       const exportedAt = new Date().toISOString();
 
@@ -224,6 +238,7 @@ export class DatabaseService {
       });
 
       // Wrap in the encrypted envelope using the worker's stored key.
+      options?.onStage?.('encrypting');
       const encryptedBytes = await this.workerService.encryptArchive(
         innerArchiveBytes,
         lastWriteTimestamp
@@ -294,6 +309,26 @@ export class DatabaseService {
   async isEncryptionReady(): Promise<boolean> {
     try {
       return await this.workerService.isEncryptionReady();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Verifies that the currently-set encryption password can decrypt
+   * `archiveBytes`, WITHOUT importing/applying the result to the live
+   * database. Used to validate a password against a cloud copy before
+   * trusting it for future syncs — a wrong password must never silently
+   * proceed to encrypt local writes with a key that can't decrypt what's
+   * already in the cloud.
+   */
+  async verifyEncryptionPassword(archiveBytes: Uint8Array): Promise<boolean> {
+    if (!isEncryptedArchive(archiveBytes)) {
+      return false;
+    }
+    try {
+      await this.workerService.decryptArchive(archiveBytes);
+      return true;
     } catch {
       return false;
     }

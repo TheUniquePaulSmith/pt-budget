@@ -8,6 +8,21 @@ export interface CloudLinkedFile {
   modifiedAt: string | null;
   size: number | null;
   webUrl: string | null;
+  /** OneDrive/Graph item eTag, used for If-Match conditional uploads. */
+  etag: string | null;
+  /** OneDrive/Graph item cTag (content-only tag). */
+  cTag: string | null;
+  /** Google Drive file `version`, used as a pre-upload conflict check. */
+  version: string | null;
+  /** Google Drive file `md5Checksum`. */
+  md5Checksum: string | null;
+}
+
+export interface DatabaseSourceConflict {
+  provider: CloudProvider;
+  detectedAt: string;
+  remoteModifiedAt: string | null;
+  remoteEtag: string | null;
 }
 
 export interface PersistedDatabaseSourceState {
@@ -17,6 +32,13 @@ export interface PersistedDatabaseSourceState {
   lastCloudSyncTimestamp: string | null;
   lastCloudFileTimestamp: string | null;
   lastSyncError: string | null;
+  /** Whether changes should be uploaded automatically once they settle. Defaults to true. */
+  autoSyncEnabled: boolean;
+  /** ISO timestamp of the *first* unsynced local change — the persisted "dirty" flag. Cleared on a successful sync. */
+  pendingChangesSince: string | null;
+  lastSyncAttemptAt: string | null;
+  /** Set when the linked cloud file changed remotely while local changes were also pending. */
+  conflict: DatabaseSourceConflict | null;
 }
 
 export const DATABASE_SOURCE_COOKIE_KEY = 'budgetTrackerDatabaseSource';
@@ -31,11 +53,43 @@ export function createDefaultDatabaseSourceState(): PersistedDatabaseSourceState
     lastCloudSyncTimestamp: null,
     lastCloudFileTimestamp: null,
     lastSyncError: null,
+    autoSyncEnabled: true,
+    pendingChangesSince: null,
+    lastSyncAttemptAt: null,
+    conflict: null,
   };
 }
 
 function isDatabaseSource(value: string | null | undefined): value is DatabaseSource {
   return value === 'local' || value === 'onedrive' || value === 'gdrive';
+}
+
+/** Fills in the conflict-detection fields with `null` for JSON persisted before they existed. */
+function normalizeLinkedFile(file: CloudLinkedFile): CloudLinkedFile {
+  return {
+    ...file,
+    etag: file.etag ?? null,
+    cTag: file.cTag ?? null,
+    version: file.version ?? null,
+    md5Checksum: file.md5Checksum ?? null,
+  };
+}
+
+function normalizeLinkedFiles(
+  linkedFiles: Partial<Record<CloudProvider, CloudLinkedFile>> | undefined
+): Partial<Record<CloudProvider, CloudLinkedFile>> {
+  if (!linkedFiles) {
+    return {};
+  }
+
+  const normalized: Partial<Record<CloudProvider, CloudLinkedFile>> = {};
+  for (const provider of Object.keys(linkedFiles) as CloudProvider[]) {
+    const file = linkedFiles[provider];
+    if (file) {
+      normalized[provider] = normalizeLinkedFile(file);
+    }
+  }
+  return normalized;
 }
 
 export function getDatabaseSourceCookie(): DatabaseSource {
@@ -82,7 +136,7 @@ export function loadPersistedDatabaseSourceState(): PersistedDatabaseSourceState
       ...fallbackState,
       ...parsedState,
       source: getDatabaseSourceCookie(),
-      linkedFiles: parsedState.linkedFiles ?? {},
+      linkedFiles: normalizeLinkedFiles(parsedState.linkedFiles),
     };
   } catch (error) {
     console.warn('Failed to load persisted database source state', error);
@@ -122,4 +176,38 @@ export function getLinkedCloudFile(
   provider: CloudProvider
 ): CloudLinkedFile | null {
   return state.linkedFiles[provider] ?? null;
+}
+
+/**
+ * Marks the database dirty as of `changedAt`, but only if it isn't already
+ * dirty — the *first* unsynced change wins the pending-since timestamp, so
+ * a burst of edits doesn't keep pushing it forward.
+ */
+export function markPendingChanges(changedAt: string): PersistedDatabaseSourceState {
+  return persistDatabaseSourceState((state) =>
+    state.pendingChangesSince ? state : { ...state, pendingChangesSince: changedAt }
+  );
+}
+
+export function clearPendingChanges(): PersistedDatabaseSourceState {
+  return persistDatabaseSourceState((state) => ({
+    ...state,
+    pendingChangesSince: null,
+  }));
+}
+
+export function setConflict(
+  conflict: DatabaseSourceConflict
+): PersistedDatabaseSourceState {
+  return persistDatabaseSourceState((state) => ({
+    ...state,
+    conflict,
+  }));
+}
+
+export function clearConflict(): PersistedDatabaseSourceState {
+  return persistDatabaseSourceState((state) => ({
+    ...state,
+    conflict: null,
+  }));
 }

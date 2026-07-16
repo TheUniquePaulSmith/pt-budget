@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { CustomThemeProvider } from "../theme/theme";
-import { DatabaseProvider } from "../contexts/DatabaseContext";
 import { LoggingProvider } from "../contexts/LoggingContext";
 import { WllamaProvider } from "../contexts/WllamaContext";
 
@@ -37,9 +36,7 @@ export default function RootLayout({
         <LoggingProvider>
           <CustomThemeProvider>
             <WllamaProvider>
-              <DatabaseProvider>
-                {children}
-              </DatabaseProvider>
+              {children}
             </WllamaProvider>
           </CustomThemeProvider>
         </LoggingProvider>

@@ -5,14 +5,14 @@ import dynamic from 'next/dynamic';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
 // Dynamically import the main app content to prevent SSR issues
-const AppContent = dynamic(() => import('../components/common/Layout/AppContent'), {
+const AppContent = dynamic(() => import('../../components/common/Layout/AppContent'), {
   ssr: false,
   loading: () => (
-    <Box 
-      sx={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
         flexDirection: 'column',
         gap: 2

@@ -364,4 +364,83 @@ describe('useDatabaseInitialization', () => {
     );
     expect(result.current.error).toBe('Cloud authentication is required');
   });
+
+  it('tracks the attempted provider through a failed connectCloudSource call so the retry reconnects the same provider', async () => {
+    const service = createServiceMock({ dbExistsBeforeInit: false });
+    mockedDatabaseService.mockImplementation(
+      () => service as unknown as DatabaseService
+    );
+    const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useDatabaseInitialization({ loadAllData })
+    );
+
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('testing-browser');
+    });
+
+    await act(async () => {
+      await result.current.handleBrowserTestComplete(
+        true,
+        compatibleBrowserResults
+      );
+    });
+
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('needs-setup');
+    });
+
+    // Fresh session: the persisted source is still 'local', never touched
+    // Google Drive before.
+    expect(result.current.databaseSourceState.source).toBe('local');
+
+    // Connecting to Google Drive fails before any file is downloaded (e.g.
+    // listing files errors out), so openDatabaseFromCloud rejects instead of
+    // resolving to a needs-user-action result.
+    mockedOpenDatabaseFromCloud.mockRejectedValueOnce(
+      new Error('Failed to list Google Drive files')
+    );
+
+    await act(async () => {
+      await expect(
+        result.current.connectCloudSource('gdrive')
+      ).rejects.toThrow('Failed to list Google Drive files');
+    });
+
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('needs-cloud-auth');
+    });
+
+    // The failed call never persisted a source change...
+    expect(result.current.databaseSourceState.source).toBe('local');
+    // ...but the screen must still know Google Drive was the one attempted.
+    expect(result.current.cloudAuthProvider).toBe('gdrive');
+    expect(result.current.error).toBe('Failed to list Google Drive files');
+
+    // Retry, exactly as the Gate's "Connect" button does: no explicit
+    // provider argument. It must reconnect Google Drive, not silently
+    // fall back to OneDrive or throw "Select a cloud provider to continue".
+    mockedOpenDatabaseFromCloud.mockResolvedValueOnce({
+      action: 'imported-cloud',
+      linkedFile: null,
+      state: {
+        source: 'gdrive',
+        linkedFiles: {},
+        lastLocalWriteTimestamp: null,
+        lastCloudSyncTimestamp: new Date().toISOString(),
+        lastCloudFileTimestamp: null,
+        lastSyncError: null,
+      },
+    });
+
+    await act(async () => {
+      await result.current.connectCloudSource();
+    });
+
+    expect(mockedOpenDatabaseFromCloud).toHaveBeenLastCalledWith(
+      expect.objectContaining({ provider: 'gdrive' })
+    );
+    expect(result.current.initializationState).toBe('initialized');
+  });
 });

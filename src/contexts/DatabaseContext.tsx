@@ -213,6 +213,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     error,
     workerStatus,
     sampleDataImportProgress,
+    cloudAuthProvider,
     setError,
     handleBrowserTestComplete,
     handlePasswordSetupConfirmed,
@@ -373,6 +374,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     return (
       <DatabaseInitializationGate
         databaseSource={databaseSource}
+        cloudAuthProvider={cloudAuthProvider}
         initializationState={initializationState}
         isLoading={isLoading}
         error={error}

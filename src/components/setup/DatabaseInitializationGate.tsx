@@ -18,10 +18,12 @@ import { PasswordEntry } from './PasswordEntry';
 import { TestBrowser, type TestResults } from './TestBrowser';
 import type { InitializationState } from '../../contexts/useDatabaseInitialization';
 import type { SampleDataImportProgress } from '../../lib/sampleDataService';
-import type { DatabaseSource } from '@/lib/databaseSourceStorage';
+import type { CloudProvider, DatabaseSource } from '@/lib/databaseSourceStorage';
 
 interface DatabaseInitializationGateProps {
   databaseSource: DatabaseSource;
+  /** The provider actually being attempted on the needs-cloud-auth screen. */
+  cloudAuthProvider: CloudProvider | null;
   initializationState: InitializationState;
   isLoading: boolean;
   error: string | null;
@@ -53,6 +55,7 @@ const centeredBoxSx = {
 
 export function DatabaseInitializationGate({
   databaseSource,
+  cloudAuthProvider,
   initializationState,
   isLoading,
   error,
@@ -255,7 +258,7 @@ export function DatabaseInitializationGate({
 
   if (initializationState === 'needs-cloud-auth') {
     const providerLabel =
-      databaseSource === 'gdrive' ? 'Google Drive' : 'OneDrive';
+      (cloudAuthProvider ?? databaseSource) === 'gdrive' ? 'Google Drive' : 'OneDrive';
 
     return (
       <Box sx={centeredBoxSx}>

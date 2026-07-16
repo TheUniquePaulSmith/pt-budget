@@ -45,6 +45,13 @@ interface UseDatabaseInitializationResult {
   error: string | null;
   workerStatus: WorkerStatus | null;
   sampleDataImportProgress: SampleDataImportProgress | null;
+  /**
+   * The cloud provider actually being connected/retried on the
+   * needs-cloud-auth screen. Tracked separately from
+   * databaseSourceState.source because a failed connectCloudSource() call
+   * can throw before that persisted state is ever updated.
+   */
+  cloudAuthProvider: CloudProvider | null;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   handleBrowserTestComplete: (
     isCompatible: boolean,
@@ -95,6 +102,10 @@ export function useDatabaseInitialization({
   const [databaseSourceState, setDatabaseSourceState] = useState<PersistedDatabaseSourceState>(() =>
     loadPersistedDatabaseSourceState()
   );
+  // The provider actually being attempted for the needs-cloud-auth screen.
+  // Set before any call that might throw without updating databaseSourceState,
+  // so the screen's label and retry always target the right provider.
+  const [cloudAuthProvider, setCloudAuthProvider] = useState<CloudProvider | null>(null);
   const [initializationState, setInitializationState] =
     useState<InitializationState>('checking');
   const [isLoading, setIsLoading] = useState(false);
@@ -134,6 +145,8 @@ export function useDatabaseInitialization({
         setDatabaseSourceState(persistedSourceState);
 
         if (persistedSourceState.source !== 'local') {
+          setCloudAuthProvider(persistedSourceState.source);
+
           if (service.dbExistsBeforeInit) {
             console.info('[DB Context] Found existing local working copy, opening...');
             await service.openExistingDatabase();
@@ -414,11 +427,16 @@ export function useDatabaseInitialization({
         provider ??
         (databaseSourceState.source === 'local'
           ? null
-          : databaseSourceState.source);
+          : databaseSourceState.source) ??
+        cloudAuthProvider;
 
       if (!targetProvider) {
         throw new Error('Select a cloud provider to continue');
       }
+
+      // Record the attempt before the call below, which can throw before
+      // ever returning a state that would otherwise update databaseSourceState.
+      setCloudAuthProvider(targetProvider);
 
       setIsLoading(true);
       setError(null);
@@ -457,7 +475,7 @@ export function useDatabaseInitialization({
         setIsLoading(false);
       }
     },
-    [databaseService, databaseSourceState.source, initializationState, loadAllData]
+    [databaseService, databaseSourceState.source, cloudAuthProvider, initializationState, loadAllData]
   );
 
   const migrateDatabaseToCloud = useCallback(
@@ -525,6 +543,7 @@ export function useDatabaseInitialization({
   const switchToLocalSource = useCallback(() => {
     const nextState = persistDatabaseSourceSelection('local');
     setDatabaseSourceState(nextState);
+    setCloudAuthProvider(null);
     setError(null);
 
     if (initializationState !== 'initialized') {
@@ -663,6 +682,7 @@ export function useDatabaseInitialization({
     error,
     workerStatus,
     sampleDataImportProgress,
+    cloudAuthProvider,
     setError,
     handleBrowserTestComplete,
     handlePasswordSetupConfirmed,

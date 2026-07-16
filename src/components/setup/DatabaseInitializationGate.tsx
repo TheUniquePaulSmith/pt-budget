@@ -368,8 +368,13 @@ export function DatabaseInitializationGate({
   }
 
   if (initializationState === 'needs-cloud-auth') {
+    // Falls back to databaseSource (the persisted source) only when no
+    // connect attempt has been made yet this session — cloudFilePicker.provider
+    // tracks whichever provider was actually attempted, which matters because
+    // a failed attempt from a fresh local session never persists
+    // databaseSource away from 'local'.
     const providerLabel =
-      databaseSource === 'gdrive' ? 'Google Drive' : 'OneDrive';
+      (cloudFilePicker.provider ?? databaseSource) === 'gdrive' ? 'Google Drive' : 'OneDrive';
 
     return (
       <Box sx={centeredBoxSx}>

@@ -515,6 +515,64 @@ describe('useDatabaseInitialization', () => {
     });
   });
 
+  it('tracks the attempted provider through a failed connect so the label and retry target the same provider', async () => {
+    // Fresh local session (the default beforeEach cookie): databaseSourceState.source
+    // stays 'local' for both this failed attempt and the retry below, since neither
+    // ever persists a source change.
+    const service = createServiceMock({ dbExistsBeforeInit: false });
+    mockedDatabaseService.mockImplementation(
+      () => service as unknown as DatabaseService
+    );
+    const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useDatabaseInitialization({ loadAllData })
+    );
+    await completeBrowserTest(result);
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('needs-setup');
+    });
+
+    // Mirrors the needs-setup screen's "Open from Google Drive" button, which
+    // always passes an explicit provider. The list call fails before anything
+    // is persisted (e.g. popup blocked, or the request itself errors).
+    mockedListCloudFiles.mockRejectedValueOnce(new Error('Failed to list Google Drive files'));
+
+    await act(async () => {
+      await result.current.connectCloudSource('gdrive');
+    });
+
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('needs-cloud-auth');
+    });
+    expect(result.current.databaseSourceState.source).toBe('local');
+    // The failed attempt must still be remembered so the needs-cloud-auth
+    // screen's label reads "Connect Google Drive", not "Connect OneDrive".
+    expect(result.current.cloudFilePicker.provider).toBe('gdrive');
+    expect(result.current.error).toBe('Failed to list Google Drive files');
+
+    // Retry, exactly as the needs-cloud-auth screen's "Connect" button does:
+    // no explicit provider argument. It must re-target Google Drive, not
+    // throw "Select a cloud provider to continue".
+    const file = createCloudFile();
+    mockedListCloudFiles.mockResolvedValueOnce([file] as any);
+
+    await act(async () => {
+      await result.current.connectCloudSource();
+    });
+
+    expect(mockedListCloudFiles).toHaveBeenLastCalledWith(
+      expect.objectContaining({ provider: 'gdrive', interactive: true })
+    );
+    expect(result.current.cloudFilePicker).toEqual({
+      isOpen: true,
+      provider: 'gdrive',
+      files: [file],
+      isLoading: false,
+      error: null,
+    });
+  });
+
   it('selecting a cloud file that needs a password parks the bytes, then persists the link once the password is confirmed', async () => {
     document.cookie = 'budgetTrackerDatabaseSource=gdrive; path=/';
     const service = createServiceMock({

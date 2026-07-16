@@ -485,7 +485,8 @@ export function useDatabaseInitialization({
         provider ??
         (databaseSourceState.source === 'local'
           ? null
-          : databaseSourceState.source);
+          : databaseSourceState.source) ??
+        cloudFilePicker.provider;
 
       if (!targetProvider) {
         throw new Error('Select a cloud provider to continue');
@@ -525,7 +526,7 @@ export function useDatabaseInitialization({
         }
       }
     },
-    [databaseSourceState.source, initializationState]
+    [databaseSourceState.source, initializationState, cloudFilePicker.provider]
   );
 
   const handleCloudFileSelected = useCallback(

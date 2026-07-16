@@ -30,7 +30,14 @@ class DatabaseWorker {
 
     // Lazy-loaded encryption module (public/database-encryption.js)
     this._encryptionModule = null;
-    
+
+    // Change-notification debounce state (see notifyDatabaseChanged)
+    this.changeNotifyTimer = null;
+    this.pendingWriteCount = 0;
+
+    // Lazily-loaded SQL write/read classifier (public/database-sql-classifier.js)
+    this._sqlClassifierModule = null;
+
     // Start heartbeat
     this.startHeartbeat();
   }
@@ -77,6 +84,41 @@ class DatabaseWorker {
     }
     const enc = await this.getEncryptionModule();
     return enc.decryptArchive(encryptedBytes, this.encryptionPassword);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Change notification
+  // ---------------------------------------------------------------------------
+
+  async getSqlClassifier() {
+    if (!this._sqlClassifierModule) {
+      this._sqlClassifierModule = await import('/database-sql-classifier.js');
+    }
+    return this._sqlClassifierModule;
+  }
+
+  // Broadcasts a 'database_changed' event to all connected tabs, coalescing
+  // bursts of writes into a single notification instead of one per statement.
+  notifyDatabaseChanged() {
+    this.pendingWriteCount += 1;
+
+    if (this.changeNotifyTimer) {
+      return;
+    }
+
+    this.changeNotifyTimer = setTimeout(() => {
+      const writeCount = this.pendingWriteCount;
+      this.pendingWriteCount = 0;
+      this.changeNotifyTimer = null;
+
+      this.broadcastMessage({
+        type: 'database_changed',
+        isSuccessful: true,
+        dbStatus: this.isConnected ? 'connected' : 'disconnected',
+        version: this.dbVersion,
+        sqlResponse: { changedAt: new Date().toISOString(), writeCount }
+      });
+    }, 500);
   }
 
   // Initialize WA-SQLite in the worker
@@ -314,18 +356,21 @@ class DatabaseWorker {
   }
 
   async executeQuery(sql, parameters = []) {
-    if (!this.isConnected || !this.db) {
-      return {
-        type: 'query_error',
-        isSuccessful: false,
-        dbStatus: 'disconnected',
-        version: this.dbVersion,
-        sqlResponse: { error: 'Database not connected' }
-      };
-    }
-
-    // Queue the query operation to prevent concurrent access
+    // Queue the query operation to prevent concurrent access. The
+    // connectivity check happens inside the queued task (not before
+    // enqueueing) so a query that arrives while an export/import is
+    // mid-flight waits its turn instead of failing immediately.
     return await this.enqueueQuery(async () => {
+      if (!this.isConnected || !this.db) {
+        return {
+          type: 'query_error',
+          isSuccessful: false,
+          dbStatus: 'disconnected',
+          version: this.dbVersion,
+          sqlResponse: { error: 'Database not connected' }
+        };
+      }
+
       try {
         const results = [];
 
@@ -347,7 +392,12 @@ class DatabaseWorker {
             results.push(rowObj);
           });
         }
-        
+
+        const { isWriteSql } = await this.getSqlClassifier();
+        if (isWriteSql(sql)) {
+          this.notifyDatabaseChanged();
+        }
+
         return {
           type: 'query_success',
           isSuccessful: true,
@@ -376,17 +426,17 @@ class DatabaseWorker {
   }
 
   async executeBatchQuery(sql, parameterSets = [], options = {}) {
-    if (!this.isConnected || !this.db) {
-      return {
-        type: 'batch_query_error',
-        isSuccessful: false,
-        dbStatus: 'disconnected',
-        version: this.dbVersion,
-        sqlResponse: { error: 'Database not connected' }
-      };
-    }
-
     return await this.enqueueQuery(async () => {
+      if (!this.isConnected || !this.db) {
+        return {
+          type: 'batch_query_error',
+          isSuccessful: false,
+          dbStatus: 'disconnected',
+          version: this.dbVersion,
+          sqlResponse: { error: 'Database not connected' }
+        };
+      }
+
       const useTransaction = options.useTransaction !== false;
 
       try {
@@ -422,6 +472,11 @@ class DatabaseWorker {
           }
 
           throw error;
+        }
+
+        const { isWriteSql } = await this.getSqlClassifier();
+        if (isWriteSql(sql)) {
+          this.notifyDatabaseChanged();
         }
 
         return {
@@ -512,20 +567,28 @@ class DatabaseWorker {
   }
 
   async executeCommand(sql) {
-    if (!this.isConnected || !this.db) {
-      return {
-        type: 'command_error',
-        isSuccessful: false,
-        dbStatus: 'disconnected',
-        version: this.dbVersion,
-        sqlResponse: { error: 'Database not connected' }
-      };
-    }
-
-    // Queue the command operation to prevent concurrent access
+    // Queue the command operation to prevent concurrent access. The
+    // connectivity check happens inside the queued task, matching
+    // executeQuery/executeBatchQuery.
     return await this.enqueueQuery(async () => {
+      if (!this.isConnected || !this.db) {
+        return {
+          type: 'command_error',
+          isSuccessful: false,
+          dbStatus: 'disconnected',
+          version: this.dbVersion,
+          sqlResponse: { error: 'Database not connected' }
+        };
+      }
+
       try {
         await this.sqlite3.exec(this.db, sql);
+
+        const { isWriteSql } = await this.getSqlClassifier();
+        if (isWriteSql(sql)) {
+          this.notifyDatabaseChanged();
+        }
+
         return {
           type: 'command_success',
           isSuccessful: true,
@@ -547,35 +610,41 @@ class DatabaseWorker {
   }
 
   async exportDatabase() {
-    if (!this.isConnected || !this.db) {
-      throw new Error('Database not connected');
-    }
+    // Routed through the query queue so a concurrent query/command can't
+    // interleave with the close/read/reopen sequence below (previously this
+    // ran outside the queue, so a query arriving mid-export would fail with
+    // "Database not connected" instead of waiting its turn).
+    return await this.enqueueQuery(async () => {
+      if (!this.isConnected || !this.db) {
+        throw new Error('Database not connected');
+      }
 
-    try {
-      console.log('[DB Worker] Exporting database snapshot...');
+      try {
+        console.log('[DB Worker] Exporting database snapshot...');
 
-      await this.closeDatabaseConnection();
-      const snapshot = await this.readVfsSnapshot();
-      await this.reopenCurrentDatabase();
+        await this.closeDatabaseConnection();
+        const snapshot = await this.readVfsSnapshot();
+        await this.reopenCurrentDatabase();
 
-      console.log('[DB Worker] Database snapshot exported successfully');
-      return {
-        type: 'database_snapshot_exported',
-        isSuccessful: true,
-        dbStatus: 'connected',
-        version: this.dbVersion,
-        sqlResponse: { snapshot }
-      };
-    } catch (error) {
-      console.error('[DB Worker] Failed to export database snapshot:', error);
-      return {
-        type: 'export_error',
-        isSuccessful: false,
-        dbStatus: this.isConnected ? 'connected' : 'disconnected',
-        version: this.dbVersion,
-        sqlResponse: { error: error.message }
-      };
-    }
+        console.log('[DB Worker] Database snapshot exported successfully');
+        return {
+          type: 'database_snapshot_exported',
+          isSuccessful: true,
+          dbStatus: 'connected',
+          version: this.dbVersion,
+          sqlResponse: { snapshot }
+        };
+      } catch (error) {
+        console.error('[DB Worker] Failed to export database snapshot:', error);
+        return {
+          type: 'export_error',
+          isSuccessful: false,
+          dbStatus: this.isConnected ? 'connected' : 'disconnected',
+          version: this.dbVersion,
+          sqlResponse: { error: error.message }
+        };
+      }
+    });
   }
 
   async importDatabaseSnapshot(snapshot) {
@@ -583,32 +652,36 @@ class DatabaseWorker {
       await this.initialize();
     }
 
-    try {
-      console.log('[DB Worker] Importing database snapshot...');
+    // Routed through the query queue for the same reason as exportDatabase:
+    // serializes the close/write/reopen sequence against concurrent queries.
+    return await this.enqueueQuery(async () => {
+      try {
+        console.log('[DB Worker] Importing database snapshot...');
 
-      await this.closeDatabaseConnection();
-      await this.writeVfsSnapshot(snapshot);
-      await this.reopenCurrentDatabase();
+        await this.closeDatabaseConnection();
+        await this.writeVfsSnapshot(snapshot);
+        await this.reopenCurrentDatabase();
 
-      console.log('[DB Worker] Database snapshot imported successfully');
-      return {
-        type: 'database_snapshot_imported',
-        isSuccessful: true,
-        dbStatus: 'connected',
-        version: this.dbVersion,
-        sqlResponse: { message: 'Database imported successfully' }
-      };
-    } catch (error) {
-      console.error('[DB Worker] Failed to import database snapshot:', error);
-      this.isConnected = false;
-      return {
-        type: 'import_error',
-        isSuccessful: false,
-        dbStatus: 'disconnected',
-        version: this.dbVersion,
-        sqlResponse: { error: error.message }
-      };
-    }
+        console.log('[DB Worker] Database snapshot imported successfully');
+        return {
+          type: 'database_snapshot_imported',
+          isSuccessful: true,
+          dbStatus: 'connected',
+          version: this.dbVersion,
+          sqlResponse: { message: 'Database imported successfully' }
+        };
+      } catch (error) {
+        console.error('[DB Worker] Failed to import database snapshot:', error);
+        this.isConnected = false;
+        return {
+          type: 'import_error',
+          isSuccessful: false,
+          dbStatus: 'disconnected',
+          version: this.dbVersion,
+          sqlResponse: { error: error.message }
+        };
+      }
+    });
   }
 
   async closeDatabaseConnection() {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
 import { buildGoogleAuthorizeUrl } from '@/lib/cloudAuthGoogle';
+import { postAuthResult } from '@/lib/cloudAuthBroadcast';
 import {
   clearStaleMsalInteractionStatus,
   getMsalInstance,
@@ -36,8 +37,28 @@ export default function AuthStartPage() {
   useEffect(() => {
     const { provider, state } = parseParams();
 
+    // The opener is blocked on waitForAuthResult(state) until either a
+    // matching broadcast arrives or its own timeout fires (five minutes).
+    // Every error path below must postAuthResult before closing so the
+    // opener stops spinning immediately instead of waiting on the timeout.
+    const fail = (currentProvider: CloudProvider, text: string) => {
+      if (state) {
+        postAuthResult({
+          kind: 'auth-complete',
+          provider: currentProvider,
+          state,
+          ok: false,
+          errorCode: 'config',
+          errorMessage: text,
+        });
+      }
+      setError(text);
+      window.setTimeout(() => window.close(), 2000);
+    };
+
     if (!provider || !state) {
       setError('Missing sign-in parameters. You can close this window.');
+      window.setTimeout(() => window.close(), 2000);
       return;
     }
 
@@ -45,7 +66,7 @@ export default function AuthStartPage() {
       try {
         window.location.replace(buildGoogleAuthorizeUrl(state));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to start Google sign-in');
+        fail(provider, err instanceof Error ? err.message : 'Failed to start Google sign-in');
       }
       return;
     }
@@ -61,7 +82,7 @@ export default function AuthStartPage() {
           prompt: 'select_account',
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to start Microsoft sign-in');
+        fail(provider, err instanceof Error ? err.message : 'Failed to start Microsoft sign-in');
       }
     })();
   }, []);

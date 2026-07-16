@@ -27,6 +27,8 @@ export interface BootstrapDatabaseOptions {
   sampleDataTransactionLimit?: number;
   primaryUserName?: string;
   password?: string;
+  /** Extra raw query string (e.g. 'syncDebounceMs=1000') appended to the initial navigation. */
+  extraQueryParams?: string;
 }
 
 /**
@@ -57,15 +59,18 @@ export async function bootstrapDatabase(
   page: Page,
   options: BootstrapDatabaseOptions = {}
 ) {
-  const { loadSampleData = true, sampleDataTransactionLimit = 500 } = options;
+  const { loadSampleData = true, sampleDataTransactionLimit = 500, extraQueryParams } = options;
 
   await seedBrowserCompatibility(page);
 
-  await page.goto(
-    loadSampleData
-      ? `/?loadSampleData&sampleDataTransactionLimit=${sampleDataTransactionLimit}`
-      : '/'
-  );
+  const baseUrl = loadSampleData
+    ? `/?loadSampleData&sampleDataTransactionLimit=${sampleDataTransactionLimit}`
+    : '/';
+  const url = extraQueryParams
+    ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${extraQueryParams}`
+    : baseUrl;
+
+  await page.goto(url);
 
   const createDatabaseButton = page.getByRole('button', {
     name: 'Create New Database',
@@ -92,6 +97,11 @@ export async function bootstrapDatabase(
     if (isSetupScreen) {
       await fillDatabaseSetupForm(page, options);
       await page.getByRole('button', { name: 'Create Database' }).click();
+
+      // Password setup always lands on the storage-choice screen next;
+      // default e2e runs to a local database unless a test explicitly
+      // drives the cloud-storage flow itself.
+      await page.getByTestId('storage-choice-local').click();
     }
   }
 

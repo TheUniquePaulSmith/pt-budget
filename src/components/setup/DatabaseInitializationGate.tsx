@@ -8,17 +8,27 @@ import {
   Box,
   Button,
   CircularProgress,
+  Divider,
   LinearProgress,
   Paper,
+  Tooltip,
   Typography,
 } from '@mui/material';
 
 import { PasswordSetup } from './PasswordSetup';
 import { PasswordEntry } from './PasswordEntry';
+import { StorageChoice } from './StorageChoice';
+import { CloudFilePickerDialog } from './CloudFilePickerDialog';
+import { EncryptionProgress } from './EncryptionProgress';
 import { TestBrowser, type TestResults } from './TestBrowser';
-import type { InitializationState } from '../../contexts/useDatabaseInitialization';
+import type {
+  CloudFilePickerState,
+  InitializationState,
+} from '../../contexts/useDatabaseInitialization';
 import type { SampleDataImportProgress } from '../../lib/sampleDataService';
-import type { DatabaseSource } from '@/lib/databaseSourceStorage';
+import { createCloudProviderClient } from '@/lib/cloudProviderClients';
+import type { SyncStage } from '@/lib/cloudSyncService';
+import type { CloudLinkedFile, CloudProvider, DatabaseSource } from '@/lib/databaseSourceStorage';
 
 interface DatabaseInitializationGateProps {
   databaseSource: DatabaseSource;
@@ -26,13 +36,17 @@ interface DatabaseInitializationGateProps {
   isLoading: boolean;
   error: string | null;
   sampleDataImportProgress: SampleDataImportProgress | null;
+  storageMigrationStage: SyncStage | null;
+  cloudFilePicker: CloudFilePickerState;
   onBrowserTestComplete: (
     isCompatible: boolean,
     results: TestResults
   ) => Promise<void>;
   onCreateOrOpenDatabase: (isNew: boolean) => Promise<void>;
   onLoadDatabaseFromFile: (file: File) => Promise<void>;
-  onConnectCloudSource: () => Promise<void>;
+  onConnectCloudSource: (provider?: CloudProvider) => Promise<void>;
+  onCloseCloudFilePicker: () => void;
+  onCloudFileSelected: (file: CloudLinkedFile) => Promise<void>;
   onSwitchToLocalSource: () => void;
   onCancelSampleDataImport: () => void;
   /** Called when the user confirms a new password on the setup screen. */
@@ -41,6 +55,12 @@ interface DatabaseInitializationGateProps {
   onPasswordEntrySubmitted: (password: string) => Promise<void>;
   /** Cancels the pending password-entry flow. */
   onCancelPasswordEntry: () => void;
+  /** Called from the storage-choice screen right after password setup. */
+  onStorageChoiceSelected: (choice: 'local' | CloudProvider) => Promise<void>;
+  /** Called from the needs-cloud-password screen. */
+  onCloudPasswordSubmitted: (password: string) => Promise<void>;
+  /** Continues into the app without unlocking cloud sync this session. */
+  onSkipCloudUnlock: () => Promise<void>;
 }
 
 const centeredBoxSx = {
@@ -57,15 +77,22 @@ export function DatabaseInitializationGate({
   isLoading,
   error,
   sampleDataImportProgress,
+  storageMigrationStage,
+  cloudFilePicker,
   onBrowserTestComplete,
   onCreateOrOpenDatabase,
   onLoadDatabaseFromFile,
   onConnectCloudSource,
+  onCloseCloudFilePicker,
+  onCloudFileSelected,
   onSwitchToLocalSource,
   onCancelSampleDataImport,
   onPasswordSetupConfirmed,
   onPasswordEntrySubmitted,
   onCancelPasswordEntry,
+  onStorageChoiceSelected,
+  onCloudPasswordSubmitted,
+  onSkipCloudUnlock,
 }: DatabaseInitializationGateProps) {
   const handleCreateNew = useCallback(async () => {
     try {
@@ -95,6 +122,15 @@ export function DatabaseInitializationGate({
 
     input.click();
   }, [onLoadDatabaseFromFile]);
+
+  const handleOpenFromCloud = useCallback(
+    (provider: CloudProvider) => {
+      void onConnectCloudSource(provider).catch(() => {
+        // Error is handled by the initialization hook.
+      });
+    },
+    [onConnectCloudSource]
+  );
 
   const sampleDataProgressValue =
     sampleDataImportProgress?.expectedRows && sampleDataImportProgress.expectedRows > 0
@@ -157,10 +193,41 @@ export function DatabaseInitializationGate({
     );
   }
 
+  if (initializationState === 'needs-storage-choice') {
+    if (storageMigrationStage) {
+      return <EncryptionProgress stage={storageMigrationStage} />;
+    }
+
+    return (
+      <StorageChoice
+        onChoiceSelected={onStorageChoiceSelected}
+        isLoading={isLoading}
+        error={error}
+      />
+    );
+  }
+
+  if (initializationState === 'needs-cloud-password') {
+    return (
+      <PasswordEntry
+        description="Enter your database password to enable cloud sync on this device."
+        onPasswordSubmitted={onCloudPasswordSubmitted}
+        onCancel={() => {
+          void onSkipCloudUnlock();
+        }}
+        isLoading={isLoading}
+        error={error}
+      />
+    );
+  }
+
   if (initializationState === 'needs-setup') {
+    const googleConfigured = createCloudProviderClient('gdrive').isConfigured();
+    const oneDriveConfigured = createCloudProviderClient('onedrive').isConfigured();
+
     return (
       <Box sx={centeredBoxSx}>
-        <Paper sx={{ p: 4, maxWidth: 500, textAlign: 'center' }}>
+        <Paper sx={{ p: 4, maxWidth: 560, textAlign: 'center' }}>
           <DatasetOutlined sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
           <Typography variant="h4" gutterBottom>
             Welcome to Budget Tracker
@@ -175,7 +242,7 @@ export function DatabaseInitializationGate({
             </Alert>
           )}
 
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Button
               variant="contained"
               startIcon={<CreateNewFolder />}
@@ -197,6 +264,43 @@ export function DatabaseInitializationGate({
             >
               Load from File
             </Button>
+          </Box>
+
+          <Divider sx={{ my: 3 }}>
+            <Typography variant="caption" color="text.secondary">
+              or open an existing cloud backup
+            </Typography>
+          </Divider>
+
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Tooltip
+              title={googleConfigured ? '' : 'Google Drive is not configured for this deployment.'}
+            >
+              <span>
+                <Button
+                  variant="outlined"
+                  startIcon={<CloudSync />}
+                  onClick={() => handleOpenFromCloud('gdrive')}
+                  disabled={isLoading || !googleConfigured}
+                >
+                  Open from Google Drive
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip
+              title={oneDriveConfigured ? '' : 'OneDrive is not configured for this deployment.'}
+            >
+              <span>
+                <Button
+                  variant="outlined"
+                  startIcon={<CloudSync />}
+                  onClick={() => handleOpenFromCloud('onedrive')}
+                  disabled={isLoading || !oneDriveConfigured}
+                >
+                  Open from OneDrive
+                </Button>
+              </span>
+            </Tooltip>
           </Box>
 
           {isLoading && (
@@ -249,6 +353,16 @@ export function DatabaseInitializationGate({
             </Box>
           )}
         </Paper>
+
+        <CloudFilePickerDialog
+          open={cloudFilePicker.isOpen}
+          provider={cloudFilePicker.provider}
+          files={cloudFilePicker.files}
+          isLoading={cloudFilePicker.isLoading}
+          error={cloudFilePicker.error}
+          onSelect={onCloudFileSelected}
+          onClose={onCloseCloudFilePicker}
+        />
       </Box>
     );
   }
@@ -303,6 +417,16 @@ export function DatabaseInitializationGate({
             </Box>
           )}
         </Paper>
+
+        <CloudFilePickerDialog
+          open={cloudFilePicker.isOpen}
+          provider={cloudFilePicker.provider}
+          files={cloudFilePicker.files}
+          isLoading={cloudFilePicker.isLoading}
+          error={cloudFilePicker.error}
+          onSelect={onCloudFileSelected}
+          onClose={onCloseCloudFilePicker}
+        />
       </Box>
     );
   }

@@ -18,10 +18,16 @@ import {
 
 export function useAppShellSlice() {
   const status = useDatabaseStatus();
+  const lifecycle = useDatabaseLifecycle();
 
   return {
     isDatabaseLoaded: status.isDatabaseLoaded,
     workerStatus: status.workerStatus,
+    databaseSource: status.databaseSource,
+    syncStatus: status.syncStatus,
+    syncNow: lifecycle.syncNow,
+    reconnectCloudSource: lifecycle.reconnectCloudSource,
+    resolveCloudConflict: lifecycle.resolveCloudConflict,
   };
 }
 
@@ -291,9 +297,19 @@ export function useSettingsSlice() {
     switchToLocalSource: lifecycle.switchToLocalSource,
     setEncryptionPassword: lifecycle.setEncryptionPassword,
     clearEncryptionPassword: lifecycle.clearEncryptionPassword,
+    syncNow: lifecycle.syncNow,
+    setAutoSyncEnabled: lifecycle.setAutoSyncEnabled,
+    reconnectCloudSource: lifecycle.reconnectCloudSource,
+    resolveCloudConflict: lifecycle.resolveCloudConflict,
+    disconnectCloudProvider: lifecycle.disconnectCloudProvider,
+    closeCloudFilePicker: lifecycle.closeCloudFilePicker,
+    handleCloudFileSelected: lifecycle.handleCloudFileSelected,
     isDatabaseLoaded: status.isDatabaseLoaded,
     databaseSource: status.databaseSource,
     databaseSourceState: status.databaseSourceState,
+    syncStatus: status.syncStatus,
+    syncStage: status.syncStage,
+    cloudFilePicker: status.cloudFilePicker,
     error: status.error,
   };
 }

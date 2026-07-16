@@ -1,22 +1,31 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 
 import type { TestResults } from '../components/setup/TestBrowser';
 import { DatabaseService } from '../lib/databaseService';
 import type { WorkerStatus } from '../lib/databaseWorkerService';
 import {
-  openDatabaseFromCloud,
-  saveDatabaseToCloud,
+  applyDownloadedArchive,
+  downloadCloudArchive,
+  listCloudFiles,
+  persistCloudLink,
+  reconcileOnOpen,
   switchDatabaseSource as persistDatabaseSourceSelection,
+  syncToCloud,
+  type ReconcileOutcome,
+  type SyncStage,
 } from '@/lib/cloudSyncService';
+import { createCloudProviderClient } from '@/lib/cloudProviderClients';
 import { isEncryptedArchive } from '@/lib/databaseEncryption';
-import type {
-  CloudProvider,
-  DatabaseSource,
-  PersistedDatabaseSourceState,
+import {
+  getLinkedCloudFile,
+  loadPersistedDatabaseSourceState,
+  type CloudLinkedFile,
+  type CloudProvider,
+  type DatabaseSource,
+  type PersistedDatabaseSourceState,
 } from '@/lib/databaseSourceStorage';
-import { loadPersistedDatabaseSourceState } from '@/lib/databaseSourceStorage';
 import { SampleDataService } from '@/lib/sampleDataService';
 import type { SampleDataImportProgress } from '@/lib/sampleDataService';
 
@@ -28,9 +37,29 @@ export type InitializationState =
   | 'needs-password-setup'
   /** Loading an encrypted archive: user must enter the password to decrypt. */
   | 'needs-password-entry'
+  /** New database, password just set: user chooses local vs. cloud storage. */
+  | 'needs-storage-choice'
   | 'needs-cloud-auth'
+  /** Cloud source with a local working copy, but no key yet this session: gate cloud sync on the password. */
+  | 'needs-cloud-password'
   | 'initialized'
   | 'error';
+
+export interface CloudFilePickerState {
+  isOpen: boolean;
+  provider: CloudProvider | null;
+  files: CloudLinkedFile[];
+  isLoading: boolean;
+  error: string | null;
+}
+
+const CLOSED_CLOUD_FILE_PICKER: CloudFilePickerState = {
+  isOpen: false,
+  provider: null,
+  files: [],
+  isLoading: false,
+  error: null,
+};
 
 interface UseDatabaseInitializationOptions {
   loadAllData: (service: DatabaseService) => Promise<void>;
@@ -40,11 +69,18 @@ interface UseDatabaseInitializationResult {
   databaseService: DatabaseService | null;
   databaseSource: DatabaseSource;
   databaseSourceState: PersistedDatabaseSourceState;
+  /** Pushes an externally-persisted source-state change (e.g. from the auto-sync scheduler) into this hook's cached copy. */
+  setDatabaseSourceState: Dispatch<SetStateAction<PersistedDatabaseSourceState>>;
   initializationState: InitializationState;
   isLoading: boolean;
   error: string | null;
   workerStatus: WorkerStatus | null;
   sampleDataImportProgress: SampleDataImportProgress | null;
+  /** Dev-only: forcibly disconnects the worker, for the __budgetTrackerTestApi hook. */
+  disconnectWorker: () => void;
+  /** Live progress while migrating a brand-new database to cloud storage (needs-storage-choice) or manually syncing. */
+  storageMigrationStage: SyncStage | null;
+  cloudFilePicker: CloudFilePickerState;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   handleBrowserTestComplete: (
     isCompatible: boolean,
@@ -62,22 +98,23 @@ interface UseDatabaseInitializationResult {
   handlePasswordEntrySubmitted: (password: string) => Promise<void>;
   /** Cancels a pending password-entry flow and returns to the setup screen. */
   cancelPasswordEntry: () => void;
+  /** Called from the needs-storage-choice screen right after password setup. */
+  handleStorageChoiceSelected: (choice: 'local' | CloudProvider) => Promise<void>;
+  /** Called from the needs-cloud-password screen. */
+  handleCloudPasswordSubmitted: (password: string) => Promise<void>;
+  /** Continues into the app without unlocking cloud sync this session. */
+  skipCloudUnlock: () => Promise<void>;
   createOrOpenDatabase: (isNew: boolean) => Promise<void>;
   loadDatabaseFromFile: (file: File) => Promise<void>;
+  /** Opens the cloud file picker for `provider` (or the persisted source if omitted). */
   connectCloudSource: (provider?: CloudProvider) => Promise<void>;
+  closeCloudFilePicker: () => void;
+  /** Called once the user picks a file from the cloud file picker dialog. */
+  handleCloudFileSelected: (file: CloudLinkedFile) => Promise<void>;
   migrateDatabaseToCloud: (provider: CloudProvider) => Promise<void>;
   saveDatabaseToCurrentCloud: () => Promise<void>;
   switchToLocalSource: () => void;
   cancelSampleDataImport: () => void;
-}
-
-declare global {
-  interface Window {
-    __budgetTrackerTestApi?: {
-      disconnectWorker: () => void;
-      cancelSampleDataImport?: () => void;
-    };
-  }
 }
 
 const BROWSER_TEST_STORAGE_KEY = 'budgetApp_browserTestPassed';
@@ -98,10 +135,20 @@ export function useDatabaseInitialization({
   const [initializationState, setInitializationState] =
     useState<InitializationState>('checking');
   const [isLoading, setIsLoading] = useState(false);
+  const [storageMigrationStage, setStorageMigrationStage] = useState<SyncStage | null>(null);
+  const [cloudFilePicker, setCloudFilePicker] = useState<CloudFilePickerState>(
+    CLOSED_CLOUD_FILE_PICKER
+  );
 
   // Bytes of an encrypted archive that is waiting to be decrypted (e.g. after
   // the user selects a file we detect is encrypted and need the password).
   const pendingEncryptedBytesRef = useRef<Uint8Array | null>(null);
+  // Set alongside pendingEncryptedBytesRef when the pending bytes came from
+  // the cloud file picker (rather than a local file), so
+  // handlePasswordEntrySubmitted knows to also persist the cloud link.
+  const pendingCloudContextRef = useRef<{ provider: CloudProvider; file: CloudLinkedFile } | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [workerStatus, setWorkerStatus] = useState<WorkerStatus | null>(null);
   const [sampleDataImportProgress, setSampleDataImportProgress] =
@@ -111,6 +158,10 @@ export function useDatabaseInitialization({
 
   const cancelSampleDataImport = useCallback(() => {
     sampleDataImportAbortControllerRef.current?.abort();
+  }, []);
+
+  const closeCloudFilePicker = useCallback(() => {
+    setCloudFilePicker(CLOSED_CLOUD_FILE_PICKER);
   }, []);
 
   const handleBrowserTestComplete = useCallback(
@@ -134,39 +185,72 @@ export function useDatabaseInitialization({
         setDatabaseSourceState(persistedSourceState);
 
         if (persistedSourceState.source !== 'local') {
+          const provider = persistedSourceState.source;
+
           if (service.dbExistsBeforeInit) {
             console.info('[DB Context] Found existing local working copy, opening...');
             await service.openExistingDatabase();
           }
 
-          const cloudResult = await openDatabaseFromCloud({
-            databaseService: service,
-            provider: persistedSourceState.source,
-            interactive: false,
-            allowFilePrompt: false,
-          });
+          const encryptionReady = await service.isEncryptionReady().catch(() => false);
 
-          setDatabaseSourceState(cloudResult.state);
-
-          if (cloudResult.action === 'needs-user-action') {
-            if (service.dbExistsBeforeInit) {
-              await loadAllData(service);
-              setInitializationState('initialized');
-            } else {
-              setInitializationState('needs-cloud-auth');
-            }
-
-            if (cloudResult.state.lastSyncError) {
-              setError(cloudResult.state.lastSyncError);
-            }
-
+          if (!encryptionReady) {
+            // The live database is plaintext and needs no password to open,
+            // but cloud sync needs the password to encrypt/decrypt archives.
+            // With a local copy already open we can gate just cloud sync on
+            // it (needs-cloud-password); without one, reconcileOnOpen can't
+            // safely decide anything without a key, so fall through to the
+            // normal connect flow.
+            setInitializationState(
+              service.dbExistsBeforeInit ? 'needs-cloud-password' : 'needs-cloud-auth'
+            );
             hasCheckedDatabase.current = true;
             return;
           }
 
-          await loadAllData(service);
-          setInitializationState('initialized');
-        } else if (service.dbExistsBeforeInit) {
+          let outcome: ReconcileOutcome;
+          try {
+            outcome = await reconcileOnOpen({ provider });
+          } catch (err) {
+            console.error('[DB Context] Failed to reconcile cloud state:', err);
+            outcome = 'auth-required';
+          }
+
+          if (outcome === 'remote-newer') {
+            const linkedFile = getLinkedCloudFile(persistedSourceState, provider);
+            if (linkedFile) {
+              try {
+                const { bytes, freshMeta } = await downloadCloudArchive({ provider, file: linkedFile });
+                await applyDownloadedArchive({ databaseService: service, provider, file: freshMeta, bytes });
+              } catch (err) {
+                console.error('[DB Context] Failed to pull the newer cloud copy:', err);
+                setError(err instanceof Error ? err.message : 'Failed to sync from the cloud');
+              }
+            }
+          }
+
+          setDatabaseSourceState(loadPersistedDatabaseSourceState());
+
+          const needsUserAction =
+            (outcome === 'auth-required' || outcome === 'no-link') && !service.dbExistsBeforeInit;
+
+          if (needsUserAction) {
+            setInitializationState('needs-cloud-auth');
+          } else {
+            // remote-newer (pulled above), in-sync, local-newer, both-changed
+            // (the conflict is now persisted and surfaced via the status
+            // chip), or auth-required-but-we-still-have-a-local-copy: in
+            // every case there's something to show. The auto-sync scheduler
+            // takes it from here.
+            await loadAllData(service);
+            setInitializationState('initialized');
+          }
+
+          hasCheckedDatabase.current = true;
+          return;
+        }
+
+        if (service.dbExistsBeforeInit) {
           console.info('[DB Context] Found existing database, opening...');
           await service.openExistingDatabase();
           await loadAllData(service);
@@ -226,29 +310,20 @@ export function useDatabaseInitialization({
     void initializeAndCheck();
   }, [handleBrowserTestComplete]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || process.env.NODE_ENV === 'production') {
-      return;
-    }
-
-    window.__budgetTrackerTestApi = {
-      disconnectWorker: () => {
-        databaseService?.getWorkerService().destroy?.();
-        setWorkerStatus((currentStatus) => ({
-          isWorkerAlive: false,
-          isConnected: false,
-          dbStatus: 'disconnected',
-          version: currentStatus?.version || '1.0.0',
-          lastHeartbeat: currentStatus?.lastHeartbeat || 0,
-        }));
-      },
-      cancelSampleDataImport,
-    };
-
-    return () => {
-      delete window.__budgetTrackerTestApi;
-    };
-  }, [cancelSampleDataImport, databaseService]);
+  // Exposed for the dev-only window.__budgetTrackerTestApi, which
+  // DatabaseContext.tsx registers — consolidated there (rather than in an
+  // effect here) so it can be combined with the auto-sync test hooks
+  // without two independent effects racing to set the same global.
+  const disconnectWorker = useCallback(() => {
+    databaseService?.getWorkerService().destroy?.();
+    setWorkerStatus((currentStatus) => ({
+      isWorkerAlive: false,
+      isConnected: false,
+      dbStatus: 'disconnected',
+      version: currentStatus?.version || '1.0.0',
+      lastHeartbeat: currentStatus?.lastHeartbeat || 0,
+    }));
+  }, [databaseService]);
 
   const createOrOpenDatabase = useCallback(
     async (isNew: boolean) => {
@@ -406,10 +481,6 @@ export function useDatabaseInitialization({
 
   const connectCloudSource = useCallback(
     async (provider?: CloudProvider) => {
-      if (!databaseService) {
-        throw new Error('Database service not initialized');
-      }
-
       const targetProvider =
         provider ??
         (databaseSourceState.source === 'local'
@@ -420,44 +491,86 @@ export function useDatabaseInitialization({
         throw new Error('Select a cloud provider to continue');
       }
 
-      setIsLoading(true);
+      setCloudFilePicker({
+        isOpen: true,
+        provider: targetProvider,
+        files: [],
+        isLoading: true,
+        error: null,
+      });
       setError(null);
 
       try {
-        const cloudResult = await openDatabaseFromCloud({
-          databaseService,
+        const files = await listCloudFiles({ provider: targetProvider, interactive: true });
+        setCloudFilePicker({
+          isOpen: true,
           provider: targetProvider,
-          interactive: true,
-          allowFilePrompt: true,
-          preferStoredFile: false,
+          files,
+          isLoading: false,
+          error: null,
         });
-
-        setDatabaseSourceState(cloudResult.state);
-
-        if (cloudResult.action === 'needs-user-action') {
-          throw new Error(
-            cloudResult.state.lastSyncError ||
-              'Cloud authentication is required to continue'
-          );
-        }
-
-        await loadAllData(databaseService);
-        setInitializationState('initialized');
       } catch (err) {
         const message =
-          err instanceof Error
-            ? err.message
-            : 'Failed to connect cloud database';
+          err instanceof Error ? err.message : 'Failed to connect cloud database';
+        setCloudFilePicker({
+          isOpen: true,
+          provider: targetProvider,
+          files: [],
+          isLoading: false,
+          error: message,
+        });
         setError(message);
         if (initializationState !== 'initialized') {
           setInitializationState('needs-cloud-auth');
         }
-        throw err;
+      }
+    },
+    [databaseSourceState.source, initializationState]
+  );
+
+  const handleCloudFileSelected = useCallback(
+    async (file: CloudLinkedFile) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      const provider = file.provider;
+      setCloudFilePicker((current) => ({ ...current, isLoading: true, error: null }));
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const { bytes, freshMeta } = await downloadCloudArchive({ provider, file });
+
+        const encryptionAlreadyReady = await databaseService
+          .isEncryptionReady()
+          .catch(() => false);
+
+        if (!encryptionAlreadyReady) {
+          // Park the bytes and ask for the password — handlePasswordEntrySubmitted
+          // persists the cloud link once the password is confirmed to work.
+          pendingEncryptedBytesRef.current = bytes;
+          pendingCloudContextRef.current = { provider, file: freshMeta };
+          closeCloudFilePicker();
+          setInitializationState('needs-password-entry');
+          return;
+        }
+
+        await applyDownloadedArchive({ databaseService, provider, file: freshMeta, bytes });
+        setDatabaseSourceState(loadPersistedDatabaseSourceState());
+        await loadAllData(databaseService);
+        closeCloudFilePicker();
+        setInitializationState('initialized');
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to open the selected database';
+        setError(message);
+        setCloudFilePicker((current) => ({ ...current, isLoading: false, error: message }));
       } finally {
         setIsLoading(false);
       }
     },
-    [databaseService, databaseSourceState.source, initializationState, loadAllData]
+    [databaseService, loadAllData, closeCloudFilePicker]
   );
 
   const migrateDatabaseToCloud = useCallback(
@@ -470,13 +583,15 @@ export function useDatabaseInitialization({
       setError(null);
 
       try {
-        const cloudResult = await saveDatabaseToCloud({
-          databaseService,
-          provider,
-          interactive: true,
-          createNewFile: true,
-        });
-        setDatabaseSourceState(cloudResult.state);
+        const client = createCloudProviderClient(provider);
+        await client.authenticate(true);
+
+        const outcome = await syncToCloud({ databaseService, provider, force: true });
+        if (outcome !== 'saved') {
+          throw new Error('Failed to migrate database to cloud storage');
+        }
+
+        setDatabaseSourceState(loadPersistedDatabaseSourceState());
       } catch (err) {
         const message =
           err instanceof Error
@@ -496,7 +611,8 @@ export function useDatabaseInitialization({
       throw new Error('Database service not initialized');
     }
 
-    if (databaseSourceState.source === 'local') {
+    const provider = databaseSourceState.source;
+    if (provider === 'local') {
       throw new Error('The current database source is local');
     }
 
@@ -504,12 +620,20 @@ export function useDatabaseInitialization({
     setError(null);
 
     try {
-      const cloudResult = await saveDatabaseToCloud({
-        databaseService,
-        provider: databaseSourceState.source,
-        interactive: true,
-      });
-      setDatabaseSourceState(cloudResult.state);
+      const client = createCloudProviderClient(provider);
+      await client.authenticate(true);
+
+      const outcome = await syncToCloud({ databaseService, provider });
+      if (outcome === 'conflict') {
+        throw new Error(
+          'The cloud copy has changed since it was last synced. Resolve the conflict before saving again.'
+        );
+      }
+      if (outcome !== 'saved' && outcome !== 'no-changes') {
+        throw new Error('Failed to save database to cloud storage');
+      }
+
+      setDatabaseSourceState(loadPersistedDatabaseSourceState());
     } catch (err) {
       const message =
         err instanceof Error
@@ -594,7 +718,9 @@ export function useDatabaseInitialization({
         await databaseService.ensurePrimaryUser(primaryUserName.trim());
 
         await loadAllData(databaseService);
-        setInitializationState('initialized');
+        // The next step is choosing local vs. cloud storage, not diving
+        // straight into the app.
+        setInitializationState('needs-storage-choice');
       } catch (err) {
         console.error('Failed to create database with password:', err);
         setError(err instanceof Error ? err.message : 'Failed to create database');
@@ -606,6 +732,118 @@ export function useDatabaseInitialization({
     },
     [databaseService, loadAllData]
   );
+
+  // ---------------------------------------------------------------------------
+  // Storage choice (right after password setup on a brand-new database)
+  // ---------------------------------------------------------------------------
+
+  const handleStorageChoiceSelected = useCallback(
+    async (choice: 'local' | CloudProvider) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      if (choice === 'local') {
+        setInitializationState('initialized');
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      setStorageMigrationStage('flushing');
+
+      try {
+        const client = createCloudProviderClient(choice);
+        await client.authenticate(true);
+
+        const outcome = await syncToCloud({
+          databaseService,
+          provider: choice,
+          force: true,
+          onStage: setStorageMigrationStage,
+        });
+
+        if (outcome !== 'saved') {
+          throw new Error('Failed to save the database to cloud storage');
+        }
+
+        setDatabaseSourceState(loadPersistedDatabaseSourceState());
+        setInitializationState('initialized');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to set up cloud storage';
+        setError(message);
+        // Stay on the storage-choice screen so the user can retry or pick local instead.
+      } finally {
+        setStorageMigrationStage(null);
+        setIsLoading(false);
+      }
+    },
+    [databaseService]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Cloud password gate (returning to a cloud-linked database this session)
+  // ---------------------------------------------------------------------------
+
+  const handleCloudPasswordSubmitted = useCallback(
+    async (password: string) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      const provider = databaseSourceState.source;
+      if (provider === 'local') {
+        throw new Error('The current database source is local');
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        await databaseService.setEncryptionPassword(password);
+
+        const currentState = loadPersistedDatabaseSourceState();
+        const linkedFile = getLinkedCloudFile(currentState, provider);
+
+        if (linkedFile) {
+          // Verify against the cloud copy WITHOUT importing it — the local
+          // database (already open, always plaintext) must not be silently
+          // overwritten just to check a password.
+          const { bytes } = await downloadCloudArchive({ provider, file: linkedFile });
+          const passwordIsValid = await databaseService.verifyEncryptionPassword(bytes);
+
+          if (!passwordIsValid) {
+            await databaseService.clearEncryptionPassword().catch(() => undefined);
+            throw new Error('Incorrect password for this database');
+          }
+        }
+
+        await loadAllData(databaseService);
+        setInitializationState('initialized');
+      } catch (err) {
+        console.error('[DB Context] Failed to unlock cloud sync:', err);
+        setError(err instanceof Error ? err.message : 'Failed to unlock cloud sync');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [databaseService, databaseSourceState.source, loadAllData]
+  );
+
+  const skipCloudUnlock = useCallback(async () => {
+    if (!databaseService) {
+      setInitializationState('needs-setup');
+      return;
+    }
+
+    setError(null);
+    try {
+      await loadAllData(databaseService);
+    } catch (err) {
+      console.error('[DB Context] Failed to load data after skipping cloud unlock:', err);
+    }
+    setInitializationState('initialized');
+  }, [databaseService, loadAllData]);
 
   // ---------------------------------------------------------------------------
   // Password entry (loading an encrypted archive)
@@ -631,6 +869,16 @@ export function useDatabaseInitialization({
 
         // Delegate to importDatabaseArchiveData which will decrypt and import.
         await databaseService.importDatabaseArchiveData(pendingBytes);
+
+        const cloudContext = pendingCloudContextRef.current;
+        if (cloudContext) {
+          pendingCloudContextRef.current = null;
+          const cloudTimestamp = databaseService.getEncryptedArchiveTimestamp(pendingBytes);
+          setDatabaseSourceState(
+            persistCloudLink({ provider: cloudContext.provider, file: cloudContext.file, cloudTimestamp })
+          );
+        }
+
         pendingEncryptedBytesRef.current = null;
 
         await loadAllData(databaseService);
@@ -650,6 +898,7 @@ export function useDatabaseInitialization({
 
   const cancelPasswordEntry = useCallback(() => {
     pendingEncryptedBytesRef.current = null;
+    pendingCloudContextRef.current = null;
     setError(null);
     setInitializationState('needs-setup');
   }, []);
@@ -658,23 +907,31 @@ export function useDatabaseInitialization({
     databaseService,
     databaseSource: databaseSourceState.source,
     databaseSourceState,
+    setDatabaseSourceState,
     initializationState,
     isLoading,
     error,
     workerStatus,
     sampleDataImportProgress,
+    disconnectWorker,
+    storageMigrationStage,
+    cloudFilePicker,
     setError,
     handleBrowserTestComplete,
     handlePasswordSetupConfirmed,
     handlePasswordEntrySubmitted,
     cancelPasswordEntry,
+    handleStorageChoiceSelected,
+    handleCloudPasswordSubmitted,
+    skipCloudUnlock,
     createOrOpenDatabase,
     loadDatabaseFromFile,
     connectCloudSource,
+    closeCloudFilePicker,
+    handleCloudFileSelected,
     migrateDatabaseToCloud,
     saveDatabaseToCurrentCloud,
     switchToLocalSource,
     cancelSampleDataImport,
   };
 }
-

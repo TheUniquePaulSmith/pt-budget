@@ -89,3 +89,7 @@ Shared entity contracts live in `src/types/database.ts`. The `@/` import alias m
 - Coverage enforcement centers on `src/lib/databaseService.ts` (HTML report at `coverage/index.html`).
 - **E2E notes**: use the shared helpers in `tests/e2e/helpers/bootstrap.ts` (`bootstrapDatabase` fills the Primary User Name + password setup screen; `runQueryAndReadFirstCell` reads the SQL page's DataGrid via `gridcell` roles — there is no `<tbody>`); the Add Transaction dialog Account/Card selects are labeled (`getByRole('combobox', { name: 'Account' })`); worker-recovery tests use `window.__budgetTrackerTestApi.disconnectWorker()` plus a full page reload.
 - **Sample data**: `?loadSampleData` query param triggers sample-data bootstrap during new-database creation (`src/lib/sampleDataService.ts`, `public/sample-data/`); `?dev=true` enables developer-only sample-data export tooling. Regenerate fixtures with the sample-data scripts when the schema changes rather than hand-editing JSON.
+
+## GitHub Strategy
+- **Branches**: `main` is the production branch; `devel/latest` is the latest integration branch for feature work. Feature branches are named `feature/<short-description>`.
+- All PR merges must be squashed and rebased onto `devel/latest` (or `main` for hotfixes). Do not merge `main` into feature branches; rebase instead.

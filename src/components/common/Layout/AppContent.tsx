@@ -56,7 +56,14 @@ import { useAppShellSlice } from '@/contexts/useDatabaseSlices';
  * This is separated from the page.tsx to prevent SSR issues
  */
 export default function AppContent() {
-  const { isDatabaseLoaded, workerStatus } = useAppShellSlice();
+  const {
+    isDatabaseLoaded,
+    workerStatus,
+    syncStatus,
+    syncNow,
+    reconnectCloudSource,
+    resolveCloudConflict,
+  } = useAppShellSlice();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showSettings, setShowSettings] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -326,13 +333,19 @@ export default function AppContent() {
       />
 
       {/* Database Status Bar */}
-      <DatabaseStatusBar status={workerStatus || {
-        isWorkerAlive: false,
-        isConnected: false,
-        dbStatus: 'disconnected',
-        version: '1.0.0',
-        lastHeartbeat: 0
-      }} />
+      <DatabaseStatusBar
+        status={workerStatus || {
+          isWorkerAlive: false,
+          isConnected: false,
+          dbStatus: 'disconnected',
+          version: '1.0.0',
+          lastHeartbeat: 0
+        }}
+        syncStatus={syncStatus}
+        onSyncNow={() => void syncNow()}
+        onReconnectCloudSource={() => void reconnectCloudSource()}
+        onResolveCloudConflict={() => setShowSettings(true)}
+      />
     </Box>
   );
 }

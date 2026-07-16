@@ -31,11 +31,47 @@ import {
   ArrowBack,
   Save,
   SwapHoriz,
+  Refresh,
+  LinkOff,
 } from '@mui/icons-material';
 import StorageQuota from '@/components/common/Storage/StorageQuota';
+import { CloudConflictDialog } from './CloudConflictDialog';
+import { CloudFilePickerDialog } from '@/components/setup/CloudFilePickerDialog';
+import { EncryptionProgress } from '@/components/setup/EncryptionProgress';
 import { useSettingsSlice } from '@/contexts/useDatabaseSlices';
 import { ThemePresetId, useThemePreferences } from '@/theme/theme';
-import type { CloudProvider } from '@/lib/databaseSourceStorage';
+import type { AutoSyncSnapshot } from '@/lib/cloudAutoSyncScheduler';
+import type { CloudProvider, DatabaseSource } from '@/lib/databaseSourceStorage';
+
+function providerLabel(source: DatabaseSource): string {
+  if (source === 'gdrive') return 'Google Drive';
+  if (source === 'onedrive') return 'OneDrive';
+  return 'Local';
+}
+
+function syncStateLabel(status: AutoSyncSnapshot): string {
+  switch (status.state) {
+    case 'idle':
+      return 'Synced';
+    case 'pending':
+      return 'Pending changes';
+    case 'syncing':
+      return 'Syncing…';
+    case 'paused-auth':
+      return status.pauseReason === 'encryption-locked'
+        ? 'Locked — needs password'
+        : 'Needs reconnect';
+    case 'paused-conflict':
+      return 'Conflict — needs resolution';
+    case 'offline':
+      return 'Offline';
+    case 'error':
+      return status.lastError ? `Error: ${status.lastError}` : 'Sync error';
+    case 'disabled':
+    default:
+      return 'Disabled';
+  }
+}
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -68,13 +104,25 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     migrateDatabaseToCloud,
     saveDatabaseToCurrentCloud,
     switchToLocalSource,
+    syncNow,
+    setAutoSyncEnabled,
+    reconnectCloudSource,
+    resolveCloudConflict,
+    disconnectCloudProvider,
+    closeCloudFilePicker,
+    handleCloudFileSelected,
     isDatabaseLoaded,
     databaseSource,
     databaseSourceState,
+    syncStatus,
+    syncStage,
+    cloudFilePicker,
   } = useSettingsSlice();
   const [ruleCounts, setRuleCounts] = useState<{ community: number; user: number } | null>(null);
   const [rulesSeedVersion, setRulesSeedVersion] = useState<number | null>(null);
   const [reseeding, setReseeding] = useState(false);
+  const [migratingProvider, setMigratingProvider] = useState<CloudProvider | null>(null);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
 
   React.useEffect(() => {
     if (!isDatabaseLoaded) return;
@@ -126,11 +174,31 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   };
 
   const handleMigrateToCloud = async (provider: CloudProvider) => {
+    setMigratingProvider(provider);
     try {
       await migrateDatabaseToCloud(provider);
     } catch {
       // Error is surfaced through the provider state.
+    } finally {
+      setMigratingProvider(null);
     }
+  };
+
+  const handleReconnect = async () => {
+    try {
+      await reconnectCloudSource();
+    } catch {
+      // Error is surfaced through the provider state.
+    }
+  };
+
+  const handleDisconnect = (provider: CloudProvider) => {
+    disconnectCloudProvider(provider);
+  };
+
+  const handleResolveConflict = async (choice: Parameters<typeof resolveCloudConflict>[0]) => {
+    await resolveCloudConflict(choice);
+    setConflictDialogOpen(false);
   };
 
   const linkedGoogleFile = databaseSourceState.linkedFiles.gdrive ?? null;
@@ -144,6 +212,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           <IconButton
             edge="start"
             onClick={onClose}
+            aria-label="Close settings"
             sx={{ mr: 2 }}
           >
             <ArrowBack />
@@ -227,7 +296,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
             </Stack>
           </TabPanel>
 
-          {/* Data & Backup Tab */}
+          {/* Database Source Tab */}
           <TabPanel value={tabValue} index={1}>
             <Stack spacing={3}>
               <Box>
@@ -235,8 +304,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   Database Source
                 </Typography>
                 <Typography variant="body2" color="text.secondary" paragraph>
-                  Choose whether the working copy is local, Google Drive, or OneDrive.
-                  Cloud sources keep using the browser database as the working copy and let you sync that copy manually.
+                  Choose whether the working copy is local, Google Drive, or OneDrive. Cloud
+                  sources sync automatically about 15 seconds after changes settle, or on demand.
                 </Typography>
               </Box>
 
@@ -244,28 +313,92 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Current Source
+                  Sync Status
                 </Typography>
                 <Stack spacing={1.5}>
                   <Typography variant="body2">
-                    <strong>Active source:</strong> {databaseSource}
+                    <strong>Active source:</strong> {providerLabel(databaseSource)}
                   </Typography>
-                  <Typography variant="body2">
-                    <strong>Last local write:</strong>{' '}
-                    {databaseSourceState.lastLocalWriteTimestamp ?? 'Not recorded yet'}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Last cloud file timestamp:</strong>{' '}
-                    {databaseSourceState.lastCloudFileTimestamp ?? 'Not recorded yet'}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Last cloud sync:</strong>{' '}
-                    {databaseSourceState.lastCloudSyncTimestamp ?? 'Not synced yet'}
-                  </Typography>
+                  {databaseSource !== 'local' && (
+                    <>
+                      <Typography variant="body2">
+                        <strong>Status:</strong> {syncStateLabel(syncStatus)}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Last synced:</strong>{' '}
+                        {syncStatus.lastSyncAt
+                          ? new Date(syncStatus.lastSyncAt).toLocaleString()
+                          : 'Not synced yet'}
+                      </Typography>
+                      {syncStatus.pendingSince && (
+                        <Typography variant="body2">
+                          <strong>Unsynced changes since:</strong>{' '}
+                          {new Date(syncStatus.pendingSince).toLocaleString()}
+                        </Typography>
+                      )}
+                    </>
+                  )}
                 </Stack>
+
+                {syncStage && (
+                  <Box sx={{ mt: 2 }}>
+                    <EncryptionProgress stage={syncStage} variant="inline" />
+                  </Box>
+                )}
               </Box>
 
-              {(databaseSourceState.lastSyncError || linkedGoogleFile || linkedOneDriveFile) && (
+              {databaseSourceState.conflict && (
+                <Alert
+                  severity="warning"
+                  action={
+                    <Button color="inherit" size="small" onClick={() => setConflictDialogOpen(true)}>
+                      Resolve…
+                    </Button>
+                  }
+                >
+                  The cloud copy changed while this device also had unsynced changes.
+                </Alert>
+              )}
+
+              {syncStatus.state === 'paused-auth' && (
+                <Alert
+                  severity="warning"
+                  action={
+                    <Button color="inherit" size="small" onClick={() => void handleReconnect()}>
+                      Reconnect
+                    </Button>
+                  }
+                >
+                  {syncStatus.pauseReason === 'encryption-locked'
+                    ? 'Enter your database password to resume cloud sync.'
+                    : `Reconnect to ${providerLabel(databaseSource)} to resume syncing.`}
+                </Alert>
+              )}
+
+              {databaseSourceState.lastSyncError && (
+                <Alert severity="error">{databaseSourceState.lastSyncError}</Alert>
+              )}
+
+              <Divider />
+
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={databaseSourceState.autoSyncEnabled}
+                      onChange={(e) => setAutoSyncEnabled(e.target.checked)}
+                      disabled={databaseSource === 'local'}
+                    />
+                  }
+                  label="Automatically sync changes"
+                />
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  When enabled, edits upload automatically shortly after you stop editing. Turn
+                  this off to only sync when you click &quot;Sync Now&quot;.
+                </Typography>
+              </Box>
+
+              {(linkedGoogleFile || linkedOneDriveFile) && (
                 <>
                   <Divider />
                   <Box>
@@ -273,25 +406,45 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                       Linked Cloud Files
                     </Typography>
                     <Stack spacing={1.5}>
-                      <Typography variant="body2">
-                        <strong>Google Drive:</strong>{' '}
-                        {linkedGoogleFile
-                          ? `${linkedGoogleFile.fileName}${linkedGoogleFile.modifiedAt ? ` (${linkedGoogleFile.modifiedAt})` : ''}`
-                          : 'No file linked'}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>OneDrive:</strong>{' '}
-                        {linkedOneDriveFile
-                          ? `${linkedOneDriveFile.fileName}${linkedOneDriveFile.modifiedAt ? ` (${linkedOneDriveFile.modifiedAt})` : ''}`
-                          : 'No file linked'}
-                      </Typography>
+                      {linkedGoogleFile && (
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                          <Typography variant="body2">
+                            <strong>Google Drive:</strong> {linkedGoogleFile.fileName}
+                            {linkedGoogleFile.modifiedAt
+                              ? ` (${new Date(linkedGoogleFile.modifiedAt).toLocaleString()})`
+                              : ''}
+                          </Typography>
+                          <Button
+                            size="small"
+                            color="inherit"
+                            startIcon={<LinkOff />}
+                            onClick={() => handleDisconnect('gdrive')}
+                          >
+                            Disconnect
+                          </Button>
+                        </Stack>
+                      )}
+                      {linkedOneDriveFile && (
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                          <Typography variant="body2">
+                            <strong>OneDrive:</strong> {linkedOneDriveFile.fileName}
+                            {linkedOneDriveFile.modifiedAt
+                              ? ` (${new Date(linkedOneDriveFile.modifiedAt).toLocaleString()})`
+                              : ''}
+                          </Typography>
+                          <Button
+                            size="small"
+                            color="inherit"
+                            startIcon={<LinkOff />}
+                            onClick={() => handleDisconnect('onedrive')}
+                          >
+                            Disconnect
+                          </Button>
+                        </Stack>
+                      )}
                     </Stack>
                   </Box>
                 </>
-              )}
-
-              {databaseSourceState.lastSyncError && (
-                <Alert severity="warning">{databaseSourceState.lastSyncError}</Alert>
               )}
 
               <Divider />
@@ -325,9 +478,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     onClick={() => {
                       void handleMigrateToCloud('gdrive');
                     }}
-                    disabled={!isDatabaseLoaded}
+                    disabled={!isDatabaseLoaded || migratingProvider !== null}
                   >
-                    Convert Local to Google Drive
+                    {migratingProvider === 'gdrive' ? 'Converting…' : 'Convert Local to Google Drive'}
                   </Button>
                   <Button
                     variant="outlined"
@@ -335,9 +488,29 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     onClick={() => {
                       void handleMigrateToCloud('onedrive');
                     }}
-                    disabled={!isDatabaseLoaded}
+                    disabled={!isDatabaseLoaded || migratingProvider !== null}
                   >
-                    Convert Local to OneDrive
+                    {migratingProvider === 'onedrive' ? 'Converting…' : 'Convert Local to OneDrive'}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<Refresh />}
+                    onClick={() => {
+                      if (syncStatus.state === 'paused-auth') {
+                        void handleReconnect();
+                      } else {
+                        void syncNow();
+                      }
+                    }}
+                    disabled={
+                      !isDatabaseLoaded || databaseSource === 'local' || syncStatus.state === 'syncing'
+                    }
+                  >
+                    {syncStatus.state === 'syncing'
+                      ? 'Syncing…'
+                      : syncStatus.state === 'paused-auth'
+                        ? 'Reconnect'
+                        : 'Sync Now'}
                   </Button>
                   <Button
                     variant="outlined"
@@ -366,6 +539,23 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                 NEXT_PUBLIC_MICROSOFT_CLIENT_ID, and optionally NEXT_PUBLIC_MICROSOFT_TENANT_ID.
               </Alert>
             </Stack>
+
+            <CloudFilePickerDialog
+              open={cloudFilePicker.isOpen}
+              provider={cloudFilePicker.provider}
+              files={cloudFilePicker.files}
+              isLoading={cloudFilePicker.isLoading}
+              error={cloudFilePicker.error}
+              onSelect={handleCloudFileSelected}
+              onClose={closeCloudFilePicker}
+            />
+            <CloudConflictDialog
+              open={conflictDialogOpen}
+              conflict={databaseSourceState.conflict}
+              pendingChangesSince={databaseSourceState.pendingChangesSince}
+              onResolve={handleResolveConflict}
+              onClose={() => setConflictDialogOpen(false)}
+            />
           </TabPanel>
 
           <TabPanel value={tabValue} index={2}>

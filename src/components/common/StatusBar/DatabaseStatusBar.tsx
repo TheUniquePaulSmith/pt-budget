@@ -11,16 +11,92 @@ import {
   Storage,
   Computer,
   Warning,
+  CloudDone,
+  CloudQueue,
+  CloudSync,
+  CloudOff,
 } from '@mui/icons-material';
 import { databaseWorkerService, WorkerStatus } from '@/lib/databaseWorkerService';
+import type { AutoSyncSnapshot } from '@/lib/cloudAutoSyncScheduler';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || 'dev';
 
 interface DatabaseStatusBarProps {
   status: WorkerStatus;
+  syncStatus?: AutoSyncSnapshot;
+  onSyncNow?: () => void;
+  onReconnectCloudSource?: () => void;
+  onResolveCloudConflict?: () => void;
 }
 
-const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
+interface SyncChipConfig {
+  label: string;
+  icon: React.ReactElement;
+  color: string;
+  onClick?: () => void;
+}
+
+function getSyncChipConfig(
+  syncStatus: AutoSyncSnapshot,
+  handlers: { onSyncNow?: () => void; onReconnect?: () => void; onResolveConflict?: () => void }
+): SyncChipConfig | null {
+  switch (syncStatus.state) {
+    case 'idle':
+      return { label: 'Synced', icon: <CloudDone fontSize="small" />, color: '#4caf50' };
+    case 'pending':
+      return { label: 'Pending changes', icon: <CloudQueue fontSize="small" />, color: '#ff9800' };
+    case 'syncing':
+      return { label: 'Syncing…', icon: <CloudSync fontSize="small" />, color: '#2196f3' };
+    case 'paused-auth':
+      return {
+        label: 'Reconnect',
+        icon: <CloudOff fontSize="small" />,
+        color: '#f44336',
+        onClick: handlers.onReconnect,
+      };
+    case 'paused-conflict':
+      return {
+        label: 'Resolve conflict',
+        icon: <Warning fontSize="small" />,
+        color: '#f44336',
+        onClick: handlers.onResolveConflict,
+      };
+    case 'offline':
+      return { label: 'Offline', icon: <CloudOff fontSize="small" />, color: '#9e9e9e' };
+    case 'error':
+      return {
+        label: 'Sync error',
+        icon: <Warning fontSize="small" />,
+        color: '#f44336',
+        onClick: handlers.onSyncNow,
+      };
+    case 'disabled':
+    default:
+      return null;
+  }
+}
+
+function getSyncTooltipText(syncStatus: AutoSyncSnapshot): string {
+  const lines: string[] = [];
+  if (syncStatus.lastSyncAt) {
+    lines.push(`Last synced: ${new Date(syncStatus.lastSyncAt).toLocaleString()}`);
+  }
+  if (syncStatus.pendingSince) {
+    lines.push(`Unsynced changes since: ${new Date(syncStatus.pendingSince).toLocaleString()}`);
+  }
+  if (syncStatus.lastError) {
+    lines.push(`Last error: ${syncStatus.lastError}`);
+  }
+  return lines.join('\n') || 'Cloud sync status';
+}
+
+const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({
+  status,
+  syncStatus,
+  onSyncNow,
+  onReconnectCloudSource,
+  onResolveCloudConflict,
+}) => {
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -64,6 +140,14 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
     `;
   };
 
+  const syncChipConfig = syncStatus
+    ? getSyncChipConfig(syncStatus, {
+        onSyncNow,
+        onReconnect: onReconnectCloudSource,
+        onResolveConflict: onResolveCloudConflict,
+      })
+    : null;
+
   // Keep currentTime in sync with the freshest heartbeat immediately, rather than
   // waiting for the next 1s interval tick — otherwise a heartbeat received just
   // after mount/open can be newer than the last-known currentTime, producing a
@@ -91,9 +175,9 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
 
 
   return (
-    <Paper 
-      elevation={1} 
-      sx={{ 
+    <Paper
+      elevation={1}
+      sx={{
         position: 'fixed',
         bottom: 0,
         left: 0,
@@ -106,9 +190,9 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
         px: 2
       }}
     >
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
+      <Box sx={{
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'space-between',
         minHeight: 32
       }}>
@@ -133,8 +217,37 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
             />
           </Tooltip>
         </Box> */}
-        
+
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {syncChipConfig && (
+            <Tooltip
+              title={syncStatus ? getSyncTooltipText(syncStatus) : ''}
+              arrow
+              componentsProps={{
+                tooltip: {
+                  sx: { whiteSpace: 'pre-line', wordBreak: 'break-word' },
+                },
+              }}
+            >
+              <Chip
+                data-testid="cloud-sync-chip"
+                icon={syncChipConfig.icon}
+                label={syncChipConfig.label}
+                size="small"
+                onClick={syncChipConfig.onClick}
+                clickable={Boolean(syncChipConfig.onClick)}
+                sx={{
+                  backgroundColor: syncChipConfig.color,
+                  color: 'white',
+                  '& .MuiChip-icon': {
+                    color: 'white',
+                  },
+                  fontSize: '0.75rem',
+                  height: 24,
+                }}
+              />
+            </Tooltip>
+          )}
           <Typography variant="caption" color="text.secondary">
             v{APP_VERSION}
           </Typography>
@@ -142,9 +255,9 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
               sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
               data-testid="database-status"
             >
-              <Circle 
-                sx={{ 
-                  fontSize: 8, 
+              <Circle
+                sx={{
+                  fontSize: 8,
                   color: getStatusColor(),
                   animation: status.dbStatus === 'connected' ? 'pulse 2s infinite' : 'none',
                   '@keyframes pulse': {
@@ -153,9 +266,9 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
                     '100%': { opacity: 1 },
                   }
                 }} />
-              <Tooltip 
-              title={getTooltipText()} 
-              arrow 
+              <Tooltip
+              title={getTooltipText()}
+              arrow
               onOpen={() => setTooltipOpen(true)}
               onClose={() => setTooltipOpen(false)}
               componentsProps={{
@@ -177,7 +290,7 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({ status }) => {
                 </Typography>
               </Tooltip>
             </Box>
-          
+
         </Box>
       </Box>
     </Paper>

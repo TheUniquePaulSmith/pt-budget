@@ -44,26 +44,49 @@ function createFileName(suffix?: string) {
   return suffix ? `budget-tracker-${timestamp}-${suffix}.zip` : `budget-tracker-${timestamp}.zip`;
 }
 
-/** The conflict-detection baseline for a provider: Drive `version`, Graph `eTag`. */
-function conflictBaseline(provider: CloudProvider, file: CloudLinkedFile): string | null {
+/** Content fingerprint: changes only when the file's BYTES change (Drive `md5Checksum`, Graph `cTag`). */
+function contentToken(provider: CloudProvider, file: CloudLinkedFile): string | null {
+  return provider === 'gdrive' ? file.md5Checksum : file.cTag;
+}
+
+/**
+ * Concurrency token: advances on ANY server-side change, including ones
+ * invisible to the user (Drive `version`, Graph `eTag`). Only safe for
+ * guarding the narrow metadata-read → upload window — never as a
+ * long-lived "has it changed since last sync" baseline.
+ */
+function concurrencyToken(provider: CloudProvider, file: CloudLinkedFile): string | null {
   return provider === 'gdrive' ? file.version : file.etag;
 }
 
 /**
- * Pure decision logic for whether a linked cloud file changed since we last
- * saw it. Prefers the etag/version baseline; when neither side has one yet
- * (a link created before conflict detection existed), falls back to
- * comparing the provider's own modified-time, and if even that's
- * unavailable, conservatively assumes it changed rather than trusting a
- * possibly-stale local copy.
+ * Pure decision logic for whether a linked cloud file's CONTENT changed
+ * since we last saw it. Compares the provider's content fingerprint first
+ * (Drive `md5Checksum`, Graph `cTag`) because the concurrency tokens
+ * (Drive `version`, Graph `eTag`) advance on server-side activity that
+ * never touched the bytes — Drive bumps `version` for changes "not visible
+ * to the user", and Graph re-tags items during post-upload processing — so
+ * a baseline captured from an upload response would falsely mismatch a
+ * later metadata read and flag every purely-local edit as a conflict.
+ * Falls back to the concurrency token when either side lacks a fingerprint
+ * (links persisted before these fields were captured), then to the
+ * provider's modified-time, and finally conservatively assumes "changed"
+ * rather than trusting a possibly-stale local copy.
  */
 export function hasFileChangedRemotely(
   provider: CloudProvider,
   linkedFile: CloudLinkedFile,
   current: CloudLinkedFile
 ): boolean {
-  const baseline = conflictBaseline(provider, linkedFile);
-  const currentValue = conflictBaseline(provider, current);
+  const baselineContent = contentToken(provider, linkedFile);
+  const currentContent = contentToken(provider, current);
+
+  if (baselineContent && currentContent) {
+    return currentContent !== baselineContent;
+  }
+
+  const baseline = concurrencyToken(provider, linkedFile);
+  const currentValue = concurrencyToken(provider, current);
 
   if (baseline && currentValue) {
     return currentValue !== baseline;
@@ -104,9 +127,29 @@ function recordConflict(provider: CloudProvider, remote: CloudLinkedFile) {
       provider,
       detectedAt: new Date().toISOString(),
       remoteModifiedAt: remote.modifiedAt,
-      remoteEtag: conflictBaseline(provider, remote),
+      // Diagnostic bookkeeping only — nothing compares this; the dialog shows remoteModifiedAt.
+      remoteEtag: concurrencyToken(provider, remote),
     },
   }));
+}
+
+/**
+ * The persisted baseline must carry a content fingerprint, or the next
+ * hasFileChangedRemotely falls back to the drift-prone concurrency token —
+ * the exact failure mode this module exists to avoid. Some upload responses
+ * omit md5Checksum/cTag, so compensate with one metadata read; if that read
+ * fails, keep the response rather than failing a sync whose upload already
+ * succeeded.
+ */
+async function ensureContentToken(
+  client: CloudProviderClient,
+  provider: CloudProvider,
+  uploaded: CloudLinkedFile
+): Promise<CloudLinkedFile> {
+  if (contentToken(provider, uploaded)) {
+    return uploaded;
+  }
+  return client.getFileMetadata(uploaded.fileId).catch(() => uploaded);
 }
 
 function recordSyncError(error: unknown) {
@@ -231,10 +274,12 @@ export async function applyDownloadedArchive({
 
 /**
  * Exports the current database and uploads it to `provider`, with
- * etag/version-based conflict detection. Never prompts interactively —
- * callers (manual "Sync now", or the auto-sync scheduler) that get
- * 'auth-required' back are expected to offer a "Reconnect" affordance that
- * re-runs authentication from a user gesture instead.
+ * content-fingerprint-based conflict detection (md5Checksum/cTag); the
+ * version/eTag concurrency token only guards the metadata-read → upload
+ * window. Never prompts interactively — callers (manual "Sync now", or the
+ * auto-sync scheduler) that get 'auth-required' back are expected to offer
+ * a "Reconnect" affordance that re-runs authentication from a user gesture
+ * instead.
  */
 export async function syncToCloud({
   databaseService,
@@ -271,8 +316,9 @@ export async function syncToCloud({
     throw error;
   }
 
+  let current: CloudLinkedFile | null = null;
+
   if (linkedFile && !force) {
-    let current: CloudLinkedFile;
     try {
       current = await client.getFileMetadata(linkedFile.fileId);
     } catch (error) {
@@ -304,14 +350,18 @@ export async function syncToCloud({
   onStage?.('uploading', 0);
 
   try {
-    const uploaded = await client.uploadFile({
+    let uploaded = await client.uploadFile({
       fileId: linkedFile?.fileId,
       fileName: linkedFile?.fileName ?? createFileName(),
       bytes: archiveBytes,
-      ifMatch: linkedFile ? conflictBaseline(provider, linkedFile) : null,
+      // The token from the metadata read above — NOT the stored baseline,
+      // which the provider may have drifted past server-side since the
+      // last upload persisted it.
+      ifMatch: current ? concurrencyToken(provider, current) : null,
       force,
       onProgress: (fraction) => onStage?.('uploading', fraction),
     });
+    uploaded = await ensureContentToken(client, provider, uploaded);
 
     persistDatabaseSourceState((state) => ({
       ...state,
@@ -434,11 +484,15 @@ export async function resolveConflict({
   await client.authenticate(true);
   const status = await databaseService.getDatabaseStatus();
   const archiveBytes = await databaseService.exportDatabase();
-  const uploaded = await client.uploadFile({
-    fileName: createFileName('conflict'),
-    bytes: archiveBytes,
-    force: true,
-  });
+  const uploaded = await ensureContentToken(
+    client,
+    provider,
+    await client.uploadFile({
+      fileName: createFileName('conflict'),
+      bytes: archiveBytes,
+      force: true,
+    })
+  );
 
   persistDatabaseSourceState((prevState) => ({
     ...prevState,

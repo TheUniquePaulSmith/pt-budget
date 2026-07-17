@@ -8,7 +8,12 @@ interface UploadCloudFileOptions {
   fileId?: string;
   fileName: string;
   bytes: Uint8Array;
-  /** Conflict baseline (Drive `version` or Graph `eTag`) to check before overwriting an existing file. */
+  /**
+   * Concurrency token (Drive `version` or Graph `eTag`) to check before
+   * overwriting an existing file. Pass a freshly-read value — these tokens
+   * drift server-side after uploads, so they only guard the window between
+   * that read and this upload, not "since the last sync".
+   */
   ifMatch?: string | null;
   /** Skips the conflict check — used for "overwrite" conflict resolution and brand-new-file migrations. */
   force?: boolean;

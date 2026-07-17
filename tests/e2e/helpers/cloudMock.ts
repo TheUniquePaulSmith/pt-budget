@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { Page, Route } from '@playwright/test';
 
 /**
@@ -8,10 +10,22 @@ import type { Page, Route } from '@playwright/test';
  * files, simulate a remote edit (conflict), and assert on what got
  * uploaded — all without any real network access or Google credentials.
  *
+ * Mirrors two real Drive metadata behaviors that matter to conflict
+ * detection: `md5Checksum` is derived from the file's bytes (stable for
+ * identical content, changes iff the content changes), and `version`
+ * keeps advancing server-side after an upload response has been sent —
+ * so a later metadata GET reports a version the upload response never
+ * carried (see recordUpload).
+ *
  * OneDrive is intentionally not mocked here: MSAL's redirect/silent-token
  * machinery isn't cheap to fake convincingly, so the OneDrive provider path
  * is covered by unit tests only (see cloudProviderClients.test.ts).
  */
+
+/** Content-derived checksum, like Drive's md5Checksum: stable for identical bytes, changes iff the bytes change. */
+function contentChecksum(bytes: Uint8Array): string {
+  return createHash('md5').update(Buffer.from(bytes)).digest('hex');
+}
 
 export interface MockDriveFile {
   id: string;
@@ -45,7 +59,7 @@ export class MockGoogleDriveStore {
       modifiedTime: new Date().toISOString(),
       size: params.bytes.byteLength,
       version: String(++mockVersionCounter),
-      md5Checksum: `mock-checksum-${mockVersionCounter}`,
+      md5Checksum: contentChecksum(params.bytes),
       bytes: params.bytes,
     };
     this.files.set(file.id, file);
@@ -60,7 +74,7 @@ export class MockGoogleDriveStore {
     return Array.from(this.files.values());
   }
 
-  /** Simulates the file changing on another device: new version/bytes, no upload recorded. */
+  /** Simulates the file changing on another device: new version/bytes/checksum, no upload recorded. */
   simulateRemoteEdit(fileId: string, bytes: Uint8Array): void {
     const file = this.files.get(fileId);
     if (!file) {
@@ -70,23 +84,32 @@ export class MockGoogleDriveStore {
     file.size = bytes.byteLength;
     file.modifiedTime = new Date().toISOString();
     file.version = String(++mockVersionCounter);
+    file.md5Checksum = contentChecksum(bytes);
   }
 
-  /** Records an upload (create when fileId is null, replace otherwise) and returns the resulting file resource. */
+  /**
+   * Records an upload (create when fileId is null, replace otherwise) and
+   * returns the file resource for the upload response. Like real Drive, the
+   * stored file's `version` keeps advancing after the response is sent (the
+   * server applies changes "not visible to the user"), so later metadata
+   * GETs return a version the upload response never carried; `md5Checksum`
+   * is content-derived and therefore stays stable until the bytes change.
+   */
   recordUpload(fileId: string | null, name: string, bytes: Uint8Array): MockDriveFile {
     const existing = fileId ? this.files.get(fileId) : undefined;
+    const responseVersion = String(++mockVersionCounter);
     const file: MockDriveFile = {
       id: fileId ?? `mock-drive-file-${++mockFileCounter}`,
       name: existing?.name ?? name,
       modifiedTime: new Date().toISOString(),
       size: bytes.byteLength,
       version: String(++mockVersionCounter),
-      md5Checksum: `mock-checksum-${mockVersionCounter}`,
+      md5Checksum: contentChecksum(bytes),
       bytes,
     };
     this.files.set(file.id, file);
     this.uploads.push({ fileId, fileName: name, bytes });
-    return file;
+    return { ...file, version: responseVersion };
   }
 }
 

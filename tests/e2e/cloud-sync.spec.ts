@@ -1,8 +1,10 @@
 /**
  * E2E test for the cloud auto-sync lifecycle against a mocked Google Drive
  * (see helpers/cloudMock.ts): converting a local database to cloud storage,
- * an automatic debounced upload after an edit, and a version-conflict
- * detected mid-sync that gets resolved through the real Settings UI.
+ * an automatic debounced upload after an edit — tolerating the server-side
+ * `version` drift the mock simulates after every upload — and a genuine
+ * content conflict detected mid-sync that gets resolved through the real
+ * Settings UI.
  *
  * Auth itself is short-circuited via window.__budgetTrackerTestApi's
  * injectGoogleToken seam (see DatabaseContext.tsx) rather than a real popup
@@ -96,9 +98,10 @@ test('@smoke syncs edits to Google Drive automatically and resolves a conflict',
   await expect(syncChip).toHaveText('Synced', { timeout: 30_000 });
   expect(store.uploads.length).toBeGreaterThanOrEqual(2);
 
-  // Simulate the file changing on another device — conflict detection is
-  // purely version-based, so reusing the pre-edit bytes under a bumped
-  // version is enough to trigger it — then make another local edit so the
+  // Simulate the file changing on another device — conflict detection
+  // compares the content checksum, and the pre-edit bytes differ from the
+  // latest upload (every export re-encrypts freshly), so restoring them
+  // remotely changes the checksum — then make another local edit so the
   // next auto-sync attempt collides with it.
   store.simulateRemoteEdit(linkedFileId, preEditBytes);
   const secondDescription = `${description} v2`;
@@ -131,4 +134,11 @@ test('@smoke syncs edits to Google Drive automatically and resolves a conflict',
     )
   );
   expect(remainingCount).toBe(0);
+
+  // Boot-time reconcile drift tolerance (reconcileOnOpen → in-sync when
+  // only `version` drifted) is covered by unit tests in
+  // cloudSyncService.test.ts: reloading here would hit the cloud-password
+  // gate (the SharedWorker loses the encryption key with the page), which
+  // re-downloads the archive as part of unlocking and so can't observe the
+  // no-download path.
 });

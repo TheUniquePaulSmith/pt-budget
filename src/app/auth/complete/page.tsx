@@ -7,6 +7,7 @@ import { postAuthResult } from '@/lib/cloudAuthBroadcast';
 import { getMsalInstance } from '@/lib/cloudAuthMicrosoft';
 
 const MSAL_STATE_STORAGE_KEY = 'bt.auth.msal.state';
+const AUTH_PROVIDER_STORAGE_KEY = 'bt.auth.provider';
 
 function parseGoogleHash(hash: string) {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
@@ -40,12 +41,19 @@ export default function AuthCompletePage() {
       window.setTimeout(() => window.close(), 600);
     };
 
-    const hash = window.location.hash;
+    // Set by auth/start right before it redirected here — read (and clear)
+    // it to tell Google from Microsoft. Sniffing the hash for
+    // `access_token=` doesn't work: Google's implicit-grant fragment omits
+    // it on a denied/error response too, so that check previously
+    // misrouted a denied Google sign-in into the Microsoft branch below,
+    // which found no MSAL state (this wasn't an MSAL flow) and closed the
+    // popup without ever calling postAuthResult — leaving the opener
+    // waiting on its full timeout instead of surfacing the error.
+    const provider = window.sessionStorage.getItem(AUTH_PROVIDER_STORAGE_KEY);
+    window.sessionStorage.removeItem(AUTH_PROVIDER_STORAGE_KEY);
 
-    // Google's implicit grant always returns access_token in the fragment;
-    // MSAL's authorization-code flow never does, so this check is
-    // unambiguous between the two providers.
-    if (hash.includes('access_token=')) {
+    if (provider === 'gdrive') {
+      const hash = window.location.hash;
       const parsed = parseGoogleHash(hash);
       // Clear the token out of the URL/history immediately so it never
       // lingers there.

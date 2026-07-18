@@ -13,6 +13,7 @@ import {
 import type { CloudProvider } from '@/lib/databaseSourceStorage';
 
 const MSAL_STATE_STORAGE_KEY = 'bt.auth.msal.state';
+const AUTH_PROVIDER_STORAGE_KEY = 'bt.auth.provider';
 
 function parseParams(): { provider: CloudProvider | null; state: string | null } {
   if (typeof window === 'undefined') {
@@ -61,6 +62,13 @@ export default function AuthStartPage() {
       window.setTimeout(() => window.close(), 2000);
       return;
     }
+
+    // /auth/complete/ can't tell Google's and Microsoft's redirect responses
+    // apart from URL contents alone once Google's response is an *error* —
+    // its implicit-grant fragment then has no access_token to key off of.
+    // Stamping the provider here (read back and cleared in auth/complete)
+    // removes the ambiguity for that case.
+    window.sessionStorage.setItem(AUTH_PROVIDER_STORAGE_KEY, provider);
 
     if (provider === 'gdrive') {
       try {

@@ -236,7 +236,10 @@ export function DatabaseInitializationGate({
             To get started, you can create a new database or load an existing one from a file.
           </Typography>
 
-          {error && (
+          {/* Suppressed while the picker dialog is open — connectCloudSource
+              and handleCloudFileSelected always mirror the same message into
+              cloudFilePicker.error, so the dialog below already shows it. */}
+          {error && !cloudFilePicker.isOpen && (
             <Alert severity="error" sx={{ mb: 3 }}>
               {error}
             </Alert>
@@ -388,7 +391,8 @@ export function DatabaseInitializationGate({
             Authenticate and choose a backup archive to continue.
           </Typography>
 
-          {error && (
+          {/* Suppressed while the picker dialog is open — see the matching comment above. */}
+          {error && !cloudFilePicker.isOpen && (
             <Alert severity="error" sx={{ mb: 3 }}>
               {error}
             </Alert>

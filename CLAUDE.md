@@ -81,7 +81,7 @@ Shared entity contracts live in `src/types/database.ts`. The `@/` import alias m
 
 ## Conventions and Gotchas
 
-- **Client-only app**: check for browser-only APIs and SSR boundaries before adding runtime logic. SharedWorker support is required for the primary experience. COOP/COEP headers are set in `next.config.ts` for multi-threaded wasm; static-export hosts must send equivalent headers.
+- **Client-only app**: check for browser-only APIs and SSR boundaries before adding runtime logic. SharedWorker support is required for the primary experience. A `Document-Isolation-Policy: isolate-and-require-corp` header is set in `next.config.ts` for multi-threaded wasm (crossOriginIsolated on Chromium 137+; other browsers fall back to single-threaded wllama). COOP/COEP is deliberately **not** used — COOP: same-origin severs the cloud-auth popup's window references (see `src/lib/cloudAuthPopup.ts`). Static-export hosts must send the equivalent header.
 - **Amount sign convention**: negative = expense, positive = income.
 - **Duplicate detection** is hash-based from account, date, amount, and description data.
 - **The SQL Query page is intentionally read-only** (`SELECT` only). Mutations in tests or manual validation must go through real UI flows (transactions, trips, projects, accounts, data-management dialogs).

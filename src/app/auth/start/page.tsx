@@ -38,10 +38,11 @@ export default function AuthStartPage() {
   useEffect(() => {
     const { provider, state } = parseParams();
 
-    // The opener is blocked on waitForAuthResult(state) until either a
-    // matching broadcast arrives or its own timeout fires (five minutes).
-    // Every error path below must postAuthResult before closing so the
-    // opener stops spinning immediately instead of waiting on the timeout.
+    // The opener is blocked on awaitPopupAuthResult(state) until a matching
+    // broadcast arrives, it observes this popup closing, or its timeout
+    // backstop fires. Every error path below must still postAuthResult
+    // before closing so the opener surfaces the specific error rather than
+    // a generic "sign-in window was closed".
     const fail = (currentProvider: CloudProvider, text: string) => {
       if (state) {
         postAuthResult({

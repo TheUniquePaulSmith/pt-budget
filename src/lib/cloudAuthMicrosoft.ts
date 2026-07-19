@@ -1,18 +1,19 @@
 // Microsoft auth via MSAL, but with loginPopup replaced by our own
 // popup + BroadcastChannel handoff: MSAL's loginPopup polls the popup
-// window's .location directly from the main window, which this app's
-// COOP: same-origin header breaks (the popup's browsing-context group
-// switches once it navigates cross-origin, severing that live reference).
+// window's .location directly from the main window, which couples sign-in
+// to whichever cross-origin-isolation headers the app ships (an earlier
+// COOP: same-origin phase of this app severed that reference outright).
 // Instead, the popup itself runs loginRedirect + handleRedirectPromise
 // against MSAL's shared localStorage cache; once it reports success over
-// BroadcastChannel, the main window's acquireTokenSilent picks up the
-// token that the popup just wrote to that shared cache.
+// BroadcastChannel — which needs no window references at all — the main
+// window's acquireTokenSilent picks up the token that the popup just wrote
+// to that shared cache. The live popup reference is used only to detect
+// the user closing the window (see awaitPopupAuthResult).
 
 import { PublicClientApplication, type AccountInfo } from '@azure/msal-browser';
 
-import { CloudAuthRequiredError } from './cloudSyncErrors';
-import { openAuthPopup } from './cloudAuthPopup';
-import { waitForAuthResult } from './cloudAuthBroadcast';
+import { CloudAuthCancelledError, CloudAuthRequiredError } from './cloudSyncErrors';
+import { awaitPopupAuthResult, openAuthPopup } from './cloudAuthPopup';
 
 // Files.ReadWrite (not .All): the app only ever needs to read/write its own
 // backup file(s), not the user's whole OneDrive.
@@ -120,12 +121,13 @@ export async function ensureMicrosoftToken(interactive: boolean): Promise<string
   const state = crypto.randomUUID();
   const popup = openAuthPopup('onedrive', state);
   if (!popup) {
-    throw new Error(
-      'The sign-in popup was blocked. Please allow popups for this site and try again.'
+    throw new CloudAuthCancelledError(
+      'The sign-in popup was blocked. Please allow popups for this site and try again.',
+      'popup_blocked'
     );
   }
 
-  const result = await waitForAuthResult(state);
+  const result = await awaitPopupAuthResult(popup, state);
   if (!result.ok) {
     throw new Error(result.errorMessage);
   }

@@ -5,6 +5,7 @@ import type { CloudLinkedFile } from './databaseSourceStorage';
 export type CloudAuthErrorCode =
   | 'access_denied'
   | 'popup_blocked'
+  | 'popup_closed'
   | 'timeout'
   | 'state_mismatch'
   | 'config'

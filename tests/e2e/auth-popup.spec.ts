@@ -104,6 +104,47 @@ test('@smoke opens a Google Drive backup through the popup OAuth + file picker f
   }
 });
 
+test('reports a cancelled sign-in when the user closes the popup mid-flow', async ({ browser }) => {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    const store = new MockGoogleDriveStore();
+    await installGoogleDriveRoutes(page, store);
+
+    // Park the popup on a mock consent screen that never redirects, so the
+    // only way this flow can end is the user closing the window — the case
+    // the opener-side popup watchdog (cloudAuthPopup.ts) exists to catch.
+    await context.route('https://accounts.google.com/o/oauth2/v2/auth**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<html><body>Mock Google consent screen</body></html>',
+      });
+    });
+
+    await seedBrowserCompatibility(page);
+    await page.goto('/');
+
+    const openFromGoogleDriveButton = page.getByRole('button', { name: 'Open from Google Drive' });
+    await expect(openFromGoogleDriveButton).toBeEnabled({ timeout: 30_000 });
+
+    const [popup] = await Promise.all([
+      context.waitForEvent('page'),
+      openFromGoogleDriveButton.click(),
+    ]);
+
+    await popup.waitForURL(/accounts\.google\.com/, { timeout: 30_000 });
+    await popup.close();
+
+    // The watchdog polls .closed every 500ms plus a 1.5s late-broadcast
+    // grace period, so this must surface in seconds — not the five-minute
+    // broadcast timeout that was the only backstop under COOP severing.
+    await expect(page.getByText(/sign-in window was closed/i)).toBeVisible({ timeout: 15_000 });
+  } finally {
+    await context.close();
+  }
+});
+
 test('shows a clear error when Google sign-in is denied', async ({ browser }) => {
   const context = await browser.newContext();
   try {

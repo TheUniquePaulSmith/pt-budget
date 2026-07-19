@@ -1,13 +1,16 @@
-// Hand-rolled Google OAuth implicit grant (response_type=token). This
-// deliberately does not use Google Identity Services: GIS's token-client
-// popup calls window.opener.postMessage(...) internally, which this app's
-// COOP: same-origin header breaks by nulling out window.opener in a popup
-// that navigates cross-origin. Instead, our own popup (see cloudAuthPopup)
-// does the redirect and hands the token back over BroadcastChannel.
+// Hand-rolled Google OAuth implicit grant (response_type=token) hosted in
+// our own popup (see cloudAuthPopup): the popup does the redirect round
+// trip and hands the token back over BroadcastChannel. This deliberately
+// does not use Google Identity Services: GIS's token-client popup relies on
+// window.opener.postMessage(...) internally, coupling sign-in to whichever
+// cross-origin-isolation headers the app ships (an earlier COOP:
+// same-origin phase of this app broke it outright). The BroadcastChannel
+// handoff has no window-reference dependency at all, so it survives any
+// future isolation-header change; the live popup reference is used only to
+// detect the user closing the window (see awaitPopupAuthResult).
 
-import { CloudAuthRequiredError } from './cloudSyncErrors';
-import { openAuthPopup } from './cloudAuthPopup';
-import { waitForAuthResult } from './cloudAuthBroadcast';
+import { CloudAuthCancelledError, CloudAuthRequiredError } from './cloudSyncErrors';
+import { awaitPopupAuthResult, openAuthPopup } from './cloudAuthPopup';
 
 // drive.file (not the full `drive` scope): the app only ever needs to see
 // files it created/opened itself, which keeps the OAuth consent screen
@@ -116,12 +119,13 @@ export async function ensureGoogleToken(interactive: boolean): Promise<string> {
 
   const popup = openAuthPopup('gdrive', state);
   if (!popup) {
-    throw new Error(
-      'The sign-in popup was blocked. Please allow popups for this site and try again.'
+    throw new CloudAuthCancelledError(
+      'The sign-in popup was blocked. Please allow popups for this site and try again.',
+      'popup_blocked'
     );
   }
 
-  const result = await waitForAuthResult(state);
+  const result = await awaitPopupAuthResult(popup, state);
 
   if (!result.ok) {
     throw new Error(result.errorMessage);

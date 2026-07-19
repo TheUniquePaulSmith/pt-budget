@@ -33,20 +33,24 @@ const nextConfig: NextConfig = {
       os: {browser: './empty.js'},
     }
   },
-  // Headers for SharedArrayBuffer support in Next-served environments.
-  // Static export hosts must be configured to send equivalent headers.
+  // Document-Isolation-Policy makes pages crossOriginIsolated — unlocking
+  // SharedArrayBuffer and with it wllama's multithreaded wasm — on
+  // Chromium 137+ without the COOP: same-origin / COEP: require-corp pair
+  // this app previously sent. COOP severed the cloud-auth popup's
+  // window.opener/.closed references the moment it navigated to
+  // Google/Microsoft; DIP isolates the document via out-of-process frames
+  // instead, so auth popups stay fully scriptable (see cloudAuthPopup.ts).
+  // Browsers without DIP (Firefox/Safari today) get no isolation and run
+  // wllama single-threaded, but sign-in popups work everywhere.
+  // Static export hosts must be configured to send this same header.
   async headers() {
     return [
       {
         source: '/(.*)',
         headers: [
           {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
-          },
-          {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
+            key: 'Document-Isolation-Policy',
+            value: 'isolate-and-require-corp',
           },
         ],
       },

@@ -1,10 +1,11 @@
 // BroadcastChannel-based handoff between the main app window and the small
-// popup window that hosts the OAuth round trip. COOP: same-origin (required
-// for wllama's multithreaded wasm) severs window.opener/window-reference
-// access between the popup and its opener once the popup navigates
-// cross-origin, so the two windows cannot script each other directly.
-// BroadcastChannel is scoped by origin + channel name rather than by a
-// window reference, so it keeps working regardless.
+// popup window that hosts the OAuth round trip. BroadcastChannel is scoped
+// by origin + channel name rather than by a window reference, so it works
+// no matter what happens to window.opener across the popup's cross-origin
+// redirects — it survived this app's earlier COOP: same-origin phase
+// unchanged, and under today's Document-Isolation-Policy headers (see
+// next.config.ts) it remains the result channel while the live popup
+// reference is used only for lifecycle tracking (see cloudAuthPopup.ts).
 
 import type { CloudProvider } from './databaseSourceStorage';
 import type { CloudAuthErrorCode } from './cloudSyncErrors';
@@ -39,7 +40,7 @@ export type AuthChannelMessage =
       state: string;
     };
 
-type AuthCompleteMessage = Extract<AuthChannelMessage, { kind: 'auth-complete' }>;
+export type AuthCompleteMessage = Extract<AuthChannelMessage, { kind: 'auth-complete' }>;
 
 function createChannel(): BroadcastChannel {
   return new BroadcastChannel(AUTH_CHANNEL_NAME);

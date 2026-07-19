@@ -226,10 +226,10 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
       </Box>
 
       {/* Custom Date Range Dialog */}
-      <Dialog open={customDialogOpen} onClose={() => setCustomDialogOpen(false)}>
+      <Dialog open={customDialogOpen} onClose={() => setCustomDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>Select Custom Date Range</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2, minWidth: 300 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             <TextField
               label="Start Date"
               type="date"

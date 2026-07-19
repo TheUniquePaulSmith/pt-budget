@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Box, Paper, Typography, Tabs, Tab, Chip, Stack, Divider } from '@mui/material';
+import { Box, Paper, Typography, Tabs, Tab, Chip, Stack, Divider, useMediaQuery, useTheme } from '@mui/material';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { BarChart } from '@mui/x-charts/BarChart';
@@ -25,11 +25,21 @@ interface TabPanelProps {
 
 function TabPanel({ children, value, index }: TabPanelProps) {
   return (
-    <div role="tabpanel" hidden={value !== index}>
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`charts-tabpanel-${index}`}
+      aria-labelledby={`charts-tab-${index}`}
+    >
       {value === index && children}
     </div>
   );
 }
+
+const tabA11yProps = (index: number) => ({
+  id: `charts-tab-${index}`,
+  'aria-controls': `charts-tabpanel-${index}`,
+});
 
 interface ChartsSectionProps {
   chartData: ChartData | null;
@@ -40,6 +50,10 @@ interface ChartsSectionProps {
 
 const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel }) => {
   const [tabValue, setTabValue] = useState(0);
+  const theme = useTheme();
+  // Charts drop their side legends below the sm breakpoint; the colored
+  // value chips underneath each pie take over that role.
+  const isCompact = useMediaQuery(theme.breakpoints.down('sm'));
 
   const spendingData = chartData?.spendingByCategory ?? [];
   const companySpendingData = chartData?.spendingByCompany ?? [];
@@ -90,21 +104,21 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
       <Typography variant="subtitle1" fontWeight={700} gutterBottom>{title}</Typography>
       {data.length > 0 ? (
         <>
-          <Box height={320} display="flex" justifyContent="center">
+          <Box sx={{ height: 320, width: '100%' }}>
             <PieChart
               series={[{
                 data,
                 arcLabel: (item) => percentLabel(Number(item.value || 0), data.reduce((sum, row) => sum + row.value, 0)),
                 arcLabelMinAngle: 14,
-                outerRadius: 98,
-                arcLabelRadius: 122,
+                outerRadius: '80%',
+                arcLabelRadius: '100%',
                 paddingAngle: 1,
                 highlightScope: { fade: 'global', highlight: 'item' },
                 faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
               }]}
-              width={380}
               height={320}
-              margin={{ top: 38, bottom: 38, left: 38, right: 38 }}
+              hideLegend={isCompact}
+              margin={{ top: 28, bottom: 28, left: 24, right: 24 }}
             />
           </Box>
           <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
@@ -129,16 +143,23 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
   return (
     <Paper sx={{ width: '100%', mb: 4 }}>
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-          <Tab label="Spending Breakdown" />
-          <Tab label="Income Sources" />
-          <Tab label="Trends" />
-          <Tab label="User Analysis" />
+        <Tabs
+          value={tabValue}
+          onChange={(_, newValue) => setTabValue(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          aria-label="Dashboard chart sections"
+        >
+          <Tab label="Spending Breakdown" {...tabA11yProps(0)} />
+          <Tab label="Income Sources" {...tabA11yProps(1)} />
+          <Tab label="Trends" {...tabA11yProps(2)} />
+          <Tab label="User Analysis" {...tabA11yProps(3)} />
         </Tabs>
       </Box>
 
       <TabPanel value={tabValue} index={0}>
-        <Box p={3}>
+        <Box sx={{ p: { xs: 2, sm: 3 } }}>
           <Typography variant="h6" gutterBottom>
             Spending Breakdown - {timeRangeLabel}
           </Typography>
@@ -169,28 +190,42 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
-        <Box p={3}>
+        <Box sx={{ p: { xs: 2, sm: 3 } }}>
           <Typography variant="h6" gutterBottom>
             Income by Source - {timeRangeLabel}
           </Typography>
           {incomePieData.length > 0 ? (
-            <Box height={400} display="flex" justifyContent="center">
-              <PieChart
-                series={[{
-                  data: incomePieData,
-                  arcLabel: (item) => percentLabel(Number(item.value || 0), incomePieData.reduce((sum, row) => sum + row.value, 0)),
-                  arcLabelMinAngle: 12,
-                  outerRadius: 140,
-                  arcLabelRadius: 168,
-                  paddingAngle: 1,
-                  highlightScope: { fade: 'global', highlight: 'item' },
-                  faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
-                }]}
-                width={600}
-                height={400}
-                margin={{ top: 44, bottom: 44, left: 56, right: 56 }}
-              />
-            </Box>
+            <>
+              <Box sx={{ height: { xs: 320, sm: 400 }, width: '100%' }}>
+                <PieChart
+                  series={[{
+                    data: incomePieData,
+                    arcLabel: (item) => percentLabel(Number(item.value || 0), incomePieData.reduce((sum, row) => sum + row.value, 0)),
+                    arcLabelMinAngle: 12,
+                    outerRadius: '90%',
+                    arcLabelRadius: '108%',
+                    paddingAngle: 1,
+                    highlightScope: { fade: 'global', highlight: 'item' },
+                    faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
+                  }]}
+                  height={isCompact ? 320 : 400}
+                  hideLegend={isCompact}
+                  margin={isCompact
+                    ? { top: 32, bottom: 32, left: 32, right: 32 }
+                    : { top: 44, bottom: 44, left: 56, right: 56 }}
+                />
+              </Box>
+              <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
+                {incomePieData.slice(0, 5).map((item) => (
+                  <Chip
+                    key={String(item.id)}
+                    label={`${item.label}: ${formatCurrency(item.value)} (${percentLabel(item.value, incomePieData.reduce((sum, row) => sum + row.value, 0))})`}
+                    size="small"
+                    sx={{ borderLeft: `4px solid ${item.color}`, backgroundColor: 'background.default' }}
+                  />
+                ))}
+              </Stack>
+            </>
           ) : (
             <Box display="flex" justifyContent="center" alignItems="center" height={200}>
               <Typography color="text.secondary">No income data for this period</Typography>
@@ -200,7 +235,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
       </TabPanel>
 
       <TabPanel value={tabValue} index={2}>
-        <Box p={3}>
+        <Box sx={{ p: { xs: 2, sm: 3 } }}>
           <Typography variant="h6" gutterBottom>Income vs Expenses Trend</Typography>
           {trendsData.months.length > 0 ? (
             <Box>
@@ -253,7 +288,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
       </TabPanel>
 
       <TabPanel value={tabValue} index={3}>
-        <Box p={3}>
+        <Box sx={{ p: { xs: 2, sm: 3 } }}>
           <Typography variant="h6" gutterBottom>
             Income and Expenses by User - {timeRangeLabel}
           </Typography>

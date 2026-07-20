@@ -12,6 +12,7 @@ import {
 import {
   resolveConflict as resolveConflictSync,
   setAutoSyncEnabled as persistAutoSyncEnabled,
+  setSyncIntervalMinutes as persistSyncIntervalMinutes,
   syncToCloud,
   type ConflictResolutionChoice,
   type SyncStage,
@@ -122,6 +123,7 @@ export function useCloudAutoSync({
         }
       },
       debounceMs: getDebounceOverrideMs(),
+      maxWaitMs: loadPersistedDatabaseSourceState().syncIntervalMinutes * 60_000,
     });
     schedulerRef.current = scheduler;
 
@@ -144,6 +146,16 @@ export function useCloudAutoSync({
     // regardless.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive]);
+
+  // Keeps the scheduler's hard-cap wait time in sync with the persisted
+  // setting even when it changes without a full isActive remount (e.g. the
+  // user picks a different Sync frequency in Settings).
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+    schedulerRef.current?.setMaxWaitMs(databaseSourceState.syncIntervalMinutes * 60_000);
+  }, [isActive, databaseSourceState.syncIntervalMinutes]);
 
   useEffect(() => {
     if (!isActive) {
@@ -214,6 +226,15 @@ export function useCloudAutoSync({
     [refreshDatabaseSourceState]
   );
 
+  const setSyncIntervalMinutes = useCallback(
+    (minutes: number) => {
+      const nextState = persistSyncIntervalMinutes(minutes);
+      refreshDatabaseSourceState();
+      schedulerRef.current?.setMaxWaitMs(nextState.syncIntervalMinutes * 60_000);
+    },
+    [refreshDatabaseSourceState]
+  );
+
   /** Re-authenticates interactively (must be called from a user gesture) and resumes a paused sync. */
   const reconnect = useCallback(async () => {
     const { databaseService: service, source: currentSource } = latestRef.current;
@@ -246,6 +267,7 @@ export function useCloudAutoSync({
     syncStage,
     syncNow,
     setAutoSyncEnabled,
+    setSyncIntervalMinutes,
     reconnect,
     resolveConflict,
   };

@@ -98,6 +98,7 @@ export interface DatabaseWorkerTransport {
   setEncryptionPassword(password: string): Promise<void>;
   clearEncryptionPassword(): Promise<void>;
   isEncryptionReady(): Promise<boolean>;
+  verifyCurrentPassword(password: string): Promise<boolean>;
   encryptArchive(archiveBytes: Uint8Array, lastSaveTimestamp: string): Promise<Uint8Array>;
   decryptArchive(encryptedBytes: Uint8Array): Promise<Uint8Array>;
   onStatusChange(callback: (status: WorkerStatus) => void): () => void;
@@ -329,6 +330,19 @@ export class DatabaseService {
     try {
       await this.workerService.decryptArchive(archiveBytes);
       return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Checks `password` against the password currently held in worker memory,
+   * without changing it. Used to confirm a "current password" before
+   * accepting a password change.
+   */
+  async verifyCurrentPassword(password: string): Promise<boolean> {
+    try {
+      return await this.workerService.verifyCurrentPassword(password);
     } catch {
       return false;
     }

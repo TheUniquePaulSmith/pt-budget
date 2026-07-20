@@ -70,6 +70,11 @@ class DatabaseWorker {
     return this.encryptionPassword !== null;
   }
 
+  /** Compares a candidate password against the one currently held in memory, without changing it. */
+  verifyPassword(password) {
+    return this.encryptionPassword !== null && password === this.encryptionPassword;
+  }
+
   async encryptArchiveBytes(plainArchiveBytes, lastSaveTimestamp) {
     if (!this.encryptionPassword) {
       throw new Error('Encryption password is not set — call set_password first');
@@ -973,6 +978,17 @@ class DatabaseWorker {
             dbStatus: this.isConnected ? 'connected' : 'disconnected',
             version: this.dbVersion,
             sqlResponse: { isReady: this.isEncryptionReady() }
+          };
+          break;
+        }
+
+        case 'verify_password': {
+          response = {
+            type: 'verify_password_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: { isMatch: this.verifyPassword(payload?.password) }
           };
           break;
         }

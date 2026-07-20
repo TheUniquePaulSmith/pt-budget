@@ -23,11 +23,13 @@ vi.mock('../lib/databaseWorkerService', () => ({
 const mockSyncToCloud = vi.fn();
 const mockResolveConflict = vi.fn();
 const mockSetAutoSyncEnabled = vi.fn();
+const mockSetSyncIntervalMinutes = vi.fn();
 
 vi.mock('../lib/cloudSyncService', () => ({
   syncToCloud: (...args: unknown[]) => mockSyncToCloud(...args),
   resolveConflict: (...args: unknown[]) => mockResolveConflict(...args),
   setAutoSyncEnabled: (...args: unknown[]) => mockSetAutoSyncEnabled(...args),
+  setSyncIntervalMinutes: (...args: unknown[]) => mockSetSyncIntervalMinutes(...args),
 }));
 
 const mockAuthenticate = vi.fn().mockResolvedValue(undefined);
@@ -64,6 +66,7 @@ describe('useCloudAutoSync', () => {
     mockSyncToCloud.mockReset().mockResolvedValue('saved');
     mockResolveConflict.mockReset().mockResolvedValue(undefined);
     mockSetAutoSyncEnabled.mockReset();
+    mockSetSyncIntervalMinutes.mockReset();
     mockAuthenticate.mockClear();
     stubNavigatorLocks();
   });
@@ -214,5 +217,25 @@ describe('useCloudAutoSync', () => {
     expect(mockAuthenticate).toHaveBeenCalledWith(true);
     expect(mockSyncToCloud).toHaveBeenCalledTimes(2);
     expect(result.current.syncStatus.state).toBe('idle');
+  });
+
+  it('setSyncIntervalMinutes persists the new interval and updates the scheduler', async () => {
+    persistDatabaseSourceState(makeCloudState());
+    mockSetSyncIntervalMinutes.mockReturnValue(makeCloudState({ syncIntervalMinutes: 240 }));
+
+    const { result } = renderHook(() =>
+      useCloudAutoSync({
+        databaseService: {} as unknown as DatabaseService,
+        databaseSourceState: makeCloudState(),
+        setDatabaseSourceState: vi.fn(),
+        initializationState: 'initialized',
+      })
+    );
+
+    act(() => {
+      result.current.setSyncIntervalMinutes(240);
+    });
+
+    expect(mockSetSyncIntervalMinutes).toHaveBeenCalledWith(240);
   });
 });

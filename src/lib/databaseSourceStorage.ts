@@ -34,6 +34,8 @@ export interface PersistedDatabaseSourceState {
   lastSyncError: string | null;
   /** Whether changes should be uploaded automatically once they settle. Defaults to true. */
   autoSyncEnabled: boolean;
+  /** How long to wait after a local change before auto-syncing, in minutes. Range [15, 720], default 60. */
+  syncIntervalMinutes: number;
   /** ISO timestamp of the *first* unsynced local change — the persisted "dirty" flag. Cleared on a successful sync. */
   pendingChangesSince: string | null;
   lastSyncAttemptAt: string | null;
@@ -45,6 +47,17 @@ export const DATABASE_SOURCE_COOKIE_KEY = 'budgetTrackerDatabaseSource';
 export const DATABASE_SOURCE_STATE_STORAGE_KEY =
   'budgetTrackerDatabaseSourceState';
 
+export const MIN_SYNC_INTERVAL_MINUTES = 15;
+export const MAX_SYNC_INTERVAL_MINUTES = 720;
+export const DEFAULT_SYNC_INTERVAL_MINUTES = 60;
+
+export function clampSyncIntervalMinutes(minutes: number): number {
+  if (!Number.isFinite(minutes)) {
+    return DEFAULT_SYNC_INTERVAL_MINUTES;
+  }
+  return Math.min(MAX_SYNC_INTERVAL_MINUTES, Math.max(MIN_SYNC_INTERVAL_MINUTES, minutes));
+}
+
 export function createDefaultDatabaseSourceState(): PersistedDatabaseSourceState {
   return {
     source: 'local',
@@ -54,6 +67,7 @@ export function createDefaultDatabaseSourceState(): PersistedDatabaseSourceState
     lastCloudFileTimestamp: null,
     lastSyncError: null,
     autoSyncEnabled: true,
+    syncIntervalMinutes: DEFAULT_SYNC_INTERVAL_MINUTES,
     pendingChangesSince: null,
     lastSyncAttemptAt: null,
     conflict: null,
@@ -137,6 +151,9 @@ export function loadPersistedDatabaseSourceState(): PersistedDatabaseSourceState
       ...parsedState,
       source: getDatabaseSourceCookie(),
       linkedFiles: normalizeLinkedFiles(parsedState.linkedFiles),
+      syncIntervalMinutes: clampSyncIntervalMinutes(
+        parsedState.syncIntervalMinutes ?? DEFAULT_SYNC_INTERVAL_MINUTES
+      ),
     };
   } catch (error) {
     console.warn('Failed to load persisted database source state', error);

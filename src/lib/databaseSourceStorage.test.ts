@@ -57,6 +57,8 @@ describe('loadPersistedDatabaseSourceState', () => {
       version: null,
       md5Checksum: null,
     });
+    // syncIntervalMinutes didn't exist on this older persisted shape either.
+    expect(loaded.syncIntervalMinutes).toBe(60);
   });
 
   it('preserves conflict-detection fields already present in persisted JSON', () => {
@@ -82,6 +84,7 @@ describe('loadPersistedDatabaseSourceState', () => {
       lastCloudFileTimestamp: null,
       lastSyncError: null,
       autoSyncEnabled: true,
+      syncIntervalMinutes: 60,
       pendingChangesSince: null,
       lastSyncAttemptAt: null,
       conflict: null,
@@ -118,6 +121,7 @@ describe('loadPersistedDatabaseSourceState', () => {
       lastCloudFileTimestamp: '2026-03-01T00:00:00.000Z',
       lastSyncError: null,
       autoSyncEnabled: true,
+      syncIntervalMinutes: 60,
       pendingChangesSince: null,
       lastSyncAttemptAt: null,
       conflict: null,

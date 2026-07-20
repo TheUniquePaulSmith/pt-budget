@@ -58,7 +58,7 @@ export class AutoSyncScheduler {
   private readonly loadDirtySince: () => string | null;
   private readonly persistDirtySince: (value: string | null) => void;
   private readonly debounceMs: number;
-  private readonly maxWaitMs: number;
+  private maxWaitMs: number;
   private readonly retryBackoffMs: number[];
   private readonly now: () => number;
 
@@ -231,6 +231,11 @@ export class AutoSyncScheduler {
     if (this.pendingSince && this.state === 'pending') {
       void this.syncNow();
     }
+  }
+
+  /** Updates the hard-cap wait time for future pending cycles; a cycle already in flight keeps its existing deadline. */
+  setMaxWaitMs(ms: number): void {
+    this.maxWaitMs = ms;
   }
 
   setEnabled(enabled: boolean): void {

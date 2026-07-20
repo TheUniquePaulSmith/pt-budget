@@ -264,6 +264,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     setError,
     handleBrowserTestComplete,
     handlePasswordSetupConfirmed,
+    handleInitialAccountConfirmed,
+    skipInitialAccount,
     handlePasswordEntrySubmitted,
     cancelPasswordEntry,
     handleStorageChoiceSelected,
@@ -568,6 +570,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         onSwitchToLocalSource={switchToLocalSource}
         onCancelSampleDataImport={cancelSampleDataImport}
         onPasswordSetupConfirmed={handlePasswordSetupConfirmed}
+        onInitialAccountConfirmed={handleInitialAccountConfirmed}
+        onSkipInitialAccount={skipInitialAccount}
         onPasswordEntrySubmitted={handlePasswordEntrySubmitted}
         onCancelPasswordEntry={cancelPasswordEntry}
         onStorageChoiceSelected={handleStorageChoiceSelected}

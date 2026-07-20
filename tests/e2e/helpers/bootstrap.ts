@@ -98,9 +98,12 @@ export async function bootstrapDatabase(
       await fillDatabaseSetupForm(page, options);
       await page.getByRole('button', { name: 'Create Database' }).click();
 
-      // Password setup always lands on the storage-choice screen next;
-      // default e2e runs to a local database unless a test explicitly
-      // drives the cloud-storage flow itself.
+      // Password setup always lands on the initial-account screen next;
+      // default e2e runs skip it unless a test explicitly wants an account.
+      await page.getByTestId('skip-initial-account').click();
+
+      // Then the storage-choice screen; default e2e runs to a local
+      // database unless a test explicitly drives the cloud-storage flow.
       await page.getByTestId('storage-choice-local').click();
     }
   }

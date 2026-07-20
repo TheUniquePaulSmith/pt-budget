@@ -28,6 +28,7 @@ import {
 } from '@/lib/databaseSourceStorage';
 import { SampleDataService } from '@/lib/sampleDataService';
 import type { SampleDataImportProgress } from '@/lib/sampleDataService';
+import type { Account } from '@/types/database';
 
 export type InitializationState =
   | 'checking'
@@ -35,6 +36,8 @@ export type InitializationState =
   | 'needs-setup'
   /** New database: user must choose a password before creation proceeds. */
   | 'needs-password-setup'
+  /** New database, password just set: user is prompted to add their first account/card. */
+  | 'needs-initial-account'
   /** Loading an encrypted archive: user must enter the password to decrypt. */
   | 'needs-password-entry'
   /** New database, password just set: user chooses local vs. cloud storage. */
@@ -93,6 +96,17 @@ interface UseDatabaseInitializationResult {
    * Sets the password in the worker and then creates the new database.
    */
   handlePasswordSetupConfirmed: (password: string, primaryUserName: string) => Promise<void>;
+  /**
+   * Called by the initial-account screen once the user confirms their first
+   * account and card, right after password setup on a brand-new database.
+   */
+  handleInitialAccountConfirmed: (
+    name: string,
+    type: Account['type'],
+    lastFour: string
+  ) => Promise<void>;
+  /** Skips adding an initial account and continues to the next setup step. */
+  skipInitialAccount: () => Promise<void>;
   /**
    * Called by the password entry screen when the user enters a password to
    * decrypt a file they are loading.
@@ -155,6 +169,10 @@ export function useDatabaseInitialization({
   const pendingCloudContextRef = useRef<{ provider: CloudProvider; file: CloudLinkedFile } | null>(
     null
   );
+  // Primary user id created during password setup, held here so the
+  // initial-account step (a separate screen/handler) knows who owns the
+  // account it creates.
+  const primaryUserIdRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [workerStatus, setWorkerStatus] = useState<WorkerStatus | null>(null);
   const [sampleDataImportProgress, setSampleDataImportProgress] =
@@ -722,12 +740,13 @@ export function useDatabaseInitialization({
           await databaseService.ensureIndexes();
         }
 
-        await databaseService.ensurePrimaryUser(primaryUserName.trim());
+        const primaryUserId = await databaseService.ensurePrimaryUser(primaryUserName.trim());
+        primaryUserIdRef.current = primaryUserId;
 
-        await loadAllData(databaseService);
-        // The next step is choosing local vs. cloud storage, not diving
-        // straight into the app.
-        setInitializationState('needs-storage-choice');
+        // The next step is adding a first account/card, not diving straight
+        // into the app. loadAllData runs once that step completes (or is
+        // skipped) so the freshly-created account is picked up too.
+        setInitializationState('needs-initial-account');
       } catch (err) {
         console.error('Failed to create database with password:', err);
         setError(err instanceof Error ? err.message : 'Failed to create database');
@@ -737,8 +756,59 @@ export function useDatabaseInitialization({
         setIsLoading(false);
       }
     },
+    [databaseService]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Initial account (right after password setup on a brand-new database)
+  // ---------------------------------------------------------------------------
+
+  const handleInitialAccountConfirmed = useCallback(
+    async (name: string, type: Account['type'], lastFour: string) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const ownerUserId = primaryUserIdRef.current;
+        if (ownerUserId != null) {
+          await databaseService.addAccountWithCard(
+            { name, type },
+            ownerUserId,
+            { last_four: lastFour, nickname: null, user_id: ownerUserId }
+          );
+        }
+
+        await loadAllData(databaseService);
+        setInitializationState('needs-storage-choice');
+      } catch (err) {
+        console.error('Failed to create initial account:', err);
+        setError(err instanceof Error ? err.message : 'Failed to create account');
+        // Stay on the initial-account screen so the user can retry.
+      } finally {
+        setIsLoading(false);
+      }
+    },
     [databaseService, loadAllData]
   );
+
+  const skipInitialAccount = useCallback(async () => {
+    if (!databaseService) {
+      setInitializationState('needs-storage-choice');
+      return;
+    }
+
+    setError(null);
+    try {
+      await loadAllData(databaseService);
+    } catch (err) {
+      console.error('[DB Context] Failed to load data after skipping initial account:', err);
+    }
+    setInitializationState('needs-storage-choice');
+  }, [databaseService, loadAllData]);
 
   // ---------------------------------------------------------------------------
   // Storage choice (right after password setup on a brand-new database)
@@ -957,6 +1027,8 @@ export function useDatabaseInitialization({
     setError,
     handleBrowserTestComplete,
     handlePasswordSetupConfirmed,
+    handleInitialAccountConfirmed,
+    skipInitialAccount,
     handlePasswordEntrySubmitted,
     cancelPasswordEntry,
     handleStorageChoiceSelected,

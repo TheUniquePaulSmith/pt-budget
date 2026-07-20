@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 
 import { PasswordSetup } from './PasswordSetup';
+import { InitialAccount } from './InitialAccount';
 import { PasswordEntry } from './PasswordEntry';
 import { StorageChoice } from './StorageChoice';
 import { CloudFilePickerDialog } from './CloudFilePickerDialog';
@@ -29,6 +30,7 @@ import type { SampleDataImportProgress } from '../../lib/sampleDataService';
 import { createCloudProviderClient } from '@/lib/cloudProviderClients';
 import type { SyncStage } from '@/lib/cloudSyncService';
 import type { CloudLinkedFile, CloudProvider, DatabaseSource } from '@/lib/databaseSourceStorage';
+import type { Account } from '@/types/database';
 
 interface DatabaseInitializationGateProps {
   databaseSource: DatabaseSource;
@@ -51,6 +53,14 @@ interface DatabaseInitializationGateProps {
   onCancelSampleDataImport: () => void;
   /** Called when the user confirms a new password on the setup screen. */
   onPasswordSetupConfirmed: (password: string, primaryUserName: string) => Promise<void>;
+  /** Called when the user confirms their first account on the initial-account screen. */
+  onInitialAccountConfirmed: (
+    name: string,
+    type: Account['type'],
+    lastFour: string
+  ) => Promise<void>;
+  /** Skips the initial-account screen and continues setup. */
+  onSkipInitialAccount: () => Promise<void>;
   /** Called when the user enters a password to decrypt a loaded archive. */
   onPasswordEntrySubmitted: (password: string) => Promise<void>;
   /** Cancels the pending password-entry flow. */
@@ -90,6 +100,8 @@ export function DatabaseInitializationGate({
   onSwitchToLocalSource,
   onCancelSampleDataImport,
   onPasswordSetupConfirmed,
+  onInitialAccountConfirmed,
+  onSkipInitialAccount,
   onPasswordEntrySubmitted,
   onCancelPasswordEntry,
   onStorageChoiceSelected,
@@ -178,6 +190,17 @@ export function DatabaseInitializationGate({
     return (
       <PasswordSetup
         onPasswordConfirmed={onPasswordSetupConfirmed}
+        isLoading={isLoading}
+        error={error}
+      />
+    );
+  }
+
+  if (initializationState === 'needs-initial-account') {
+    return (
+      <InitialAccount
+        onAccountConfirmed={onInitialAccountConfirmed}
+        onSkip={onSkipInitialAccount}
         isLoading={isLoading}
         error={error}
       />

@@ -14,6 +14,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import {
   fillDatabaseSetupForm,
+  runQueryAndReadFirstCell,
   seedBrowserCompatibility,
 } from './helpers/bootstrap';
 
@@ -106,7 +107,10 @@ test.describe('Password setup screen', () => {
     await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
     await page.getByRole('button', { name: 'Create Database' }).click();
 
-    // Password setup always lands on the storage-choice screen next.
+    // Password setup always lands on the initial-account screen next.
+    await page.getByTestId('skip-initial-account').click();
+
+    // Then the storage-choice screen next.
     await page.getByTestId('storage-choice-local').click();
 
     // After successful creation the main app shell should load.
@@ -117,6 +121,57 @@ test.describe('Password setup screen', () => {
       'Connected',
       { timeout: 60_000 }
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Initial account screen
+// ---------------------------------------------------------------------------
+
+test.describe('Initial account screen', () => {
+  test('is shown after password setup and can be skipped', async ({ page }) => {
+    await openPasswordSetupScreen(page);
+    await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
+    await page.getByRole('button', { name: 'Create Database' }).click();
+
+    await expect(page.getByText('Add Your First Account')).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.getByTestId('skip-initial-account').click();
+    await page.getByTestId('storage-choice-local').click();
+
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({
+      timeout: 60_000,
+    });
+  });
+
+  test('creates the account and card tied to the primary user', async ({ page }) => {
+    await openPasswordSetupScreen(page);
+    await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
+    await page.getByRole('button', { name: 'Create Database' }).click();
+
+    await expect(page.getByText('Add Your First Account')).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.getByLabel('Account Name').fill('My Checking');
+    await page.getByLabel('Last Four Digits').fill('4242');
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    await page.getByTestId('storage-choice-local').click();
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({
+      timeout: 60_000,
+    });
+
+    const accountName = await runQueryAndReadFirstCell(
+      page,
+      `SELECT a.name FROM accounts a
+       JOIN account_cards c ON c.account_id = a.id
+       JOIN users u ON u.id = a.owner_user_id
+       WHERE c.last_four = '4242' AND u.is_primary = 1`
+    );
+    expect(accountName).toBe('My Checking');
   });
 });
 
@@ -151,7 +206,10 @@ test.describe('Loading an encrypted archive', () => {
     await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
     await page.getByRole('button', { name: 'Create Database' }).click();
 
-    // Password setup always lands on the storage-choice screen next.
+    // Password setup always lands on the initial-account screen next.
+    await page.getByTestId('skip-initial-account').click();
+
+    // Then the storage-choice screen next.
     await page.getByTestId('storage-choice-local').click();
 
     await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({

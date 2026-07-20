@@ -7,6 +7,7 @@ import {
 import { clearGoogleToken } from './cloudAuthGoogle';
 import { CloudAuthRequiredError, CloudConflictError } from './cloudSyncErrors';
 import {
+  clampSyncIntervalMinutes,
   createDefaultDatabaseSourceState,
   getLinkedCloudFile,
   loadPersistedDatabaseSourceState,
@@ -522,6 +523,13 @@ export function setAutoSyncEnabled(enabled: boolean) {
   return persistDatabaseSourceState((state) => ({
     ...state,
     autoSyncEnabled: enabled,
+  }));
+}
+
+export function setSyncIntervalMinutes(minutes: number) {
+  return persistDatabaseSourceState((state) => ({
+    ...state,
+    syncIntervalMinutes: clampSyncIntervalMinutes(minutes),
   }));
 }
 

@@ -13,6 +13,10 @@ import {
   FormControlLabel,
   FormControl,
   FormLabel,
+  InputLabel,
+  MenuItem,
+  Select,
+  type SelectChangeEvent,
   Radio,
   RadioGroup,
   Button,
@@ -21,6 +25,10 @@ import {
   AppBar,
   Toolbar,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Storage,
@@ -28,6 +36,8 @@ import {
   CloudSync,
   Notifications,
   Palette,
+  Security,
+  Lock,
   ArrowBack,
   Save,
   SwapHoriz,
@@ -36,12 +46,23 @@ import {
 } from '@mui/icons-material';
 import StorageQuota from '@/components/common/Storage/StorageQuota';
 import { CloudConflictDialog } from './CloudConflictDialog';
+import { ChangePasswordSection } from './ChangePasswordSection';
 import { CloudFilePickerDialog } from '@/components/setup/CloudFilePickerDialog';
 import { EncryptionProgress } from '@/components/setup/EncryptionProgress';
 import { useSettingsSlice } from '@/contexts/useDatabaseSlices';
 import { ThemePresetId, useThemePreferences } from '@/theme/theme';
 import type { AutoSyncSnapshot } from '@/lib/cloudAutoSyncScheduler';
 import type { CloudProvider, DatabaseSource } from '@/lib/databaseSourceStorage';
+
+const SYNC_INTERVAL_OPTIONS: Array<{ minutes: number; label: string }> = [
+  { minutes: 15, label: '15 minutes' },
+  { minutes: 30, label: '30 minutes' },
+  { minutes: 60, label: '1 hour' },
+  { minutes: 120, label: '2 hours' },
+  { minutes: 240, label: '4 hours' },
+  { minutes: 360, label: '6 hours' },
+  { minutes: 720, label: '12 hours' },
+];
 
 function providerLabel(source: DatabaseSource): string {
   if (source === 'gdrive') return 'Google Drive';
@@ -104,8 +125,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     migrateDatabaseToCloud,
     saveDatabaseToCurrentCloud,
     switchToLocalSource,
+    changePassword,
+    lockDatabase,
     syncNow,
     setAutoSyncEnabled,
+    setSyncIntervalMinutes,
     reconnectCloudSource,
     resolveCloudConflict,
     disconnectCloudProvider,
@@ -123,6 +147,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const [reseeding, setReseeding] = useState(false);
   const [migratingProvider, setMigratingProvider] = useState<CloudProvider | null>(null);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [isLocking, setIsLocking] = useState(false);
+  const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
+  const [lockSyncError, setLockSyncError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (!isDatabaseLoaded) return;
@@ -201,6 +228,26 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     setConflictDialogOpen(false);
   };
 
+  const handleSyncIntervalChange = (event: SelectChangeEvent<number>) => {
+    setSyncIntervalMinutes(Number(event.target.value));
+  };
+
+  const handleLockDatabase = async (options?: { skipSync?: boolean }) => {
+    setIsLocking(true);
+    try {
+      const result = await lockDatabase(options);
+      if (!result.locked && result.syncError) {
+        setLockSyncError(result.syncError);
+        setLockConfirmOpen(true);
+      } else {
+        setLockConfirmOpen(false);
+        setLockSyncError(null);
+      }
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
   const linkedGoogleFile = databaseSourceState.linkedFiles.gdrive ?? null;
   const linkedOneDriveFile = databaseSourceState.linkedFiles.onedrive ?? null;
 
@@ -242,6 +289,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
             >
               <Tab icon={<Storage />} label="Storage" />
               <Tab icon={<CloudSync />} label="Database Source" />
+              <Tab icon={<Security />} label="Security" />
               <Tab icon={<Backup />} label="Data & Backup" />
               <Tab icon={<Palette />} label="Display" />
               <Tab icon={<Notifications />} label="Notifications" />
@@ -396,6 +444,26 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   When enabled, edits upload automatically shortly after you stop editing. Turn
                   this off to only sync when you click &quot;Sync Now&quot;.
                 </Typography>
+
+                <FormControl size="small" sx={{ mt: 2, minWidth: 200 }}>
+                  <InputLabel id="sync-frequency-label">Sync frequency</InputLabel>
+                  <Select
+                    labelId="sync-frequency-label"
+                    label="Sync frequency"
+                    value={databaseSourceState.syncIntervalMinutes}
+                    onChange={handleSyncIntervalChange}
+                    disabled={databaseSource === 'local'}
+                  >
+                    {SYNC_INTERVAL_OPTIONS.map((option) => (
+                      <MenuItem key={option.minutes} value={option.minutes}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  How long to wait after a local change before syncing automatically.
+                </Typography>
               </Box>
 
               {(linkedGoogleFile || linkedOneDriveFile) && (
@@ -453,7 +521,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                 <Typography variant="h6" gutterBottom>
                   Source Actions
                 </Typography>
-                <Stack spacing={2} direction={{ xs: 'column', md: 'row' }} flexWrap="wrap">
+
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Connect
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                    gap: 1.5,
+                    mb: 2,
+                  }}
+                >
                   <Button
                     variant="contained"
                     startIcon={<CloudSync />}
@@ -472,6 +551,19 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   >
                     Open from OneDrive
                   </Button>
+                </Box>
+
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Convert
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                    gap: 1.5,
+                    mb: 2,
+                  }}
+                >
                   <Button
                     variant="outlined"
                     startIcon={<SwapHoriz />}
@@ -492,6 +584,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   >
                     {migratingProvider === 'onedrive' ? 'Converting…' : 'Convert Local to OneDrive'}
                   </Button>
+                </Box>
+
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Sync
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                    gap: 1.5,
+                  }}
+                >
                   <Button
                     variant="outlined"
                     startIcon={<Refresh />}
@@ -522,6 +626,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   >
                     Save Current Cloud Copy
                   </Button>
+                </Box>
+
+                <Divider sx={{ my: 2 }} />
+
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <Button
                     variant="text"
                     onClick={switchToLocalSource}
@@ -529,15 +638,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   >
                     Switch Back to Local
                   </Button>
-                </Stack>
+                </Box>
               </Box>
-
-              <Divider />
-
-              <Alert severity="info">
-                Configure client-side cloud auth with NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-                NEXT_PUBLIC_MICROSOFT_CLIENT_ID, and optionally NEXT_PUBLIC_MICROSOFT_TENANT_ID.
-              </Alert>
             </Stack>
 
             <CloudFilePickerDialog
@@ -558,7 +660,72 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
             />
           </TabPanel>
 
+          {/* Security Tab */}
           <TabPanel value={tabValue} index={2}>
+            <Stack spacing={3}>
+              <Box>
+                <Typography variant="h5" gutterBottom>
+                  Security
+                </Typography>
+                <Typography variant="body2" color="text.secondary" paragraph>
+                  Manage the password that protects your exports and cloud backups.
+                </Typography>
+              </Box>
+
+              <Divider />
+
+              <ChangePasswordSection
+                changePassword={changePassword}
+                databaseSource={databaseSource}
+                syncStage={syncStage}
+              />
+
+              <Divider />
+
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Lock Database
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Syncs your database to the cloud (if connected), then locks it — you&apos;ll need
+                  your password to continue.
+                </Typography>
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  startIcon={isLocking ? undefined : <Lock />}
+                  onClick={() => void handleLockDatabase()}
+                  disabled={!isDatabaseLoaded || isLocking}
+                >
+                  {isLocking ? 'Locking…' : 'Lock Database'}
+                </Button>
+              </Box>
+            </Stack>
+
+            <Dialog open={lockConfirmOpen} onClose={() => setLockConfirmOpen(false)}>
+              <DialogTitle>Lock without syncing?</DialogTitle>
+              <DialogContent>
+                <Typography variant="body2">
+                  Your database couldn&apos;t be fully synced{lockSyncError ? ` (${lockSyncError})` : ''}.
+                  Locking now leaves those changes unsynced until you unlock and reconnect. Lock
+                  anyway?
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setLockConfirmOpen(false)}>Cancel</Button>
+                <Button
+                  variant="contained"
+                  color="warning"
+                  onClick={() => void handleLockDatabase({ skipSync: true })}
+                >
+                  Lock Anyway
+                </Button>
+              </DialogActions>
+            </Dialog>
+          </TabPanel>
+
+          {/* Data & Backup Tab */}
+          <TabPanel value={tabValue} index={3}>
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>
@@ -627,7 +794,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           </TabPanel>
 
           {/* Display Tab */}
-          <TabPanel value={tabValue} index={3}>
+          <TabPanel value={tabValue} index={4}>
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>
@@ -733,7 +900,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           </TabPanel>
 
           {/* Notifications Tab */}
-          <TabPanel value={tabValue} index={4}>
+          <TabPanel value={tabValue} index={5}>
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>

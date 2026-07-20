@@ -61,6 +61,8 @@ interface DatabaseInitializationGateProps {
   onCloudPasswordSubmitted: (password: string) => Promise<void>;
   /** Continues into the app without unlocking cloud sync this session. */
   onSkipCloudUnlock: () => Promise<void>;
+  /** Called from the locked-database screen (Settings → Lock Database) to resume the app. */
+  onUnlockDatabase: (password: string) => Promise<void>;
 }
 
 const centeredBoxSx = {
@@ -93,6 +95,7 @@ export function DatabaseInitializationGate({
   onStorageChoiceSelected,
   onCloudPasswordSubmitted,
   onSkipCloudUnlock,
+  onUnlockDatabase,
 }: DatabaseInitializationGateProps) {
   const handleCreateNew = useCallback(async () => {
     try {
@@ -215,6 +218,17 @@ export function DatabaseInitializationGate({
         onCancel={() => {
           void onSkipCloudUnlock();
         }}
+        isLoading={isLoading}
+        error={error}
+      />
+    );
+  }
+
+  if (initializationState === 'locked') {
+    return (
+      <PasswordEntry
+        description="Your database is locked. Enter your password to unlock it."
+        onPasswordSubmitted={onUnlockDatabase}
         isLoading={isLoading}
         error={error}
       />

@@ -273,6 +273,7 @@ export class DatabaseWorkerService {
     set_password: 30000,           // 30s for password derivation
     clear_password: 5000,
     check_encryption_ready: 5000,
+    verify_password: 5000,
     encrypt_archive: 120000,       // 2min for large archive encryption
     decrypt_archive: 120000,       // 2min for large archive decryption
     default: 30000       // 30s default for other operations
@@ -404,6 +405,12 @@ export class DatabaseWorkerService {
   public async isEncryptionReady(): Promise<boolean> {
     const response = await this.sendMessage('check_encryption_ready');
     return response.sqlResponse?.isReady === true;
+  }
+
+  /** Returns `true` if `password` matches the password currently held in worker memory. */
+  public async verifyCurrentPassword(password: string): Promise<boolean> {
+    const response = await this.sendMessage('verify_password', { password });
+    return response.sqlResponse?.isMatch === true;
   }
 
   /**

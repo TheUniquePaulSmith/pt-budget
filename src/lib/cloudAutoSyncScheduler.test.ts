@@ -67,6 +67,25 @@ describe('AutoSyncScheduler', () => {
     expect(performSync).toHaveBeenCalledTimes(1);
   });
 
+  it('setMaxWaitMs changes the hard-cap wait time for the next pending cycle', async () => {
+    const store = createDirtyStore();
+    const performSync = vi.fn().mockResolvedValue('saved');
+    const scheduler = new AutoSyncScheduler({
+      performSync,
+      loadDirtySince: store.load,
+      persistDirtySince: store.persist,
+    });
+
+    scheduler.setMaxWaitMs(5_000);
+    scheduler.notifyChange('t0');
+
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(performSync).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(performSync).toHaveBeenCalledTimes(1);
+  });
+
   it('syncNow bypasses the debounce and runs immediately', async () => {
     const store = createDirtyStore();
     const performSync = vi.fn().mockResolvedValue('saved');

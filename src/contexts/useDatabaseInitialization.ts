@@ -42,6 +42,8 @@ export type InitializationState =
   | 'needs-cloud-auth'
   /** Cloud source with a local working copy, but no key yet this session: gate cloud sync on the password. */
   | 'needs-cloud-password'
+  /** User manually locked the database (Settings): the working copy is untouched, but the password has been forgotten and the app is gated until it's re-entered. */
+  | 'locked'
   | 'initialized'
   | 'error';
 
@@ -115,6 +117,10 @@ interface UseDatabaseInitializationResult {
   saveDatabaseToCurrentCloud: () => Promise<void>;
   switchToLocalSource: () => void;
   cancelSampleDataImport: () => void;
+  /** Puts the app into the locked gate. Call only after the password has already been cleared from the worker. */
+  lockDatabaseState: () => void;
+  /** Called by the locked-database gate: re-sets the password and resumes the app. The working copy was never touched, so no reimport is needed. */
+  unlockDatabase: (password: string) => Promise<void>;
 }
 
 const BROWSER_TEST_STORAGE_KEY = 'budgetApp_browserTestPassed';
@@ -904,6 +910,37 @@ export function useDatabaseInitialization({
     setInitializationState('needs-setup');
   }, []);
 
+  // ---------------------------------------------------------------------------
+  // Manual lock (Settings → Security → Lock Database)
+  // ---------------------------------------------------------------------------
+
+  const lockDatabaseState = useCallback(() => {
+    setError(null);
+    setInitializationState('locked');
+  }, []);
+
+  const unlockDatabase = useCallback(
+    async (password: string) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        await databaseService.setEncryptionPassword(password);
+        setInitializationState('initialized');
+      } catch (err) {
+        console.error('[DB Context] Failed to unlock database:', err);
+        setError(err instanceof Error ? err.message : 'Failed to unlock database');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [databaseService]
+  );
+
   return {
     databaseService,
     databaseSource: databaseSourceState.source,
@@ -934,5 +971,7 @@ export function useDatabaseInitialization({
     saveDatabaseToCurrentCloud,
     switchToLocalSource,
     cancelSampleDataImport,
+    lockDatabaseState,
+    unlockDatabase,
   };
 }

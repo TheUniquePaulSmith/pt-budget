@@ -17,6 +17,7 @@ import {
   COMPANY_QUERIES,
   INCOME_SOURCE_QUERIES,
   PROJECT_QUERIES,
+  SUBSCRIPTION_QUERIES,
   TRANSACTION_QUERIES,
   TRIP_QUERIES,
   USER_QUERIES,
@@ -1485,6 +1486,38 @@ describe('DatabaseService transaction report aggregates', () => {
 
     expect(result).toEqual({ data: [], total: 0, totalIncome: 5000, totalExpenses: 200 });
   });
+
+  it('filters for transactions missing category, company, or project', async () => {
+    let countSql = '';
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*) as total')) {
+        countSql = sql;
+        return [{ total: 0, total_income: 0, total_expenses: 0 }];
+      }
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
+        return [];
+      }
+      if (sql.includes('SELECT') && sql.includes('FROM transactions t')) {
+        return [];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.getTransactionsPaginated({
+      page: 0,
+      pageSize: 25,
+      sortBy: 'date',
+      sortOrder: 'desc',
+      missingCategory: true,
+      missingCompany: true,
+      missingProject: true,
+    });
+
+    expect(countSql).toContain('t.category_id IS NULL');
+    expect(countSql).toContain('t.company_id IS NULL');
+    expect(countSql).toContain('t.project_id IS NULL');
+  });
 });
 
 describe('DatabaseService company and project helpers', () => {
@@ -1773,5 +1806,43 @@ describe('DatabaseService trip helpers', () => {
 
     expect(query).toHaveBeenNthCalledWith(1, 'BEGIN TRANSACTION');
     expect(query).toHaveBeenLastCalledWith('ROLLBACK');
+  });
+
+  it('bulk links transactions to a series inside a database transaction', async () => {
+    const query = vi.fn().mockResolvedValue([]);
+    const worker = createWorkerTransportStub({ query });
+    const service = new DatabaseService(worker);
+
+    await expect(
+      service.bulkLinkTransactionsToSeries([11, 12], 3)
+    ).resolves.toEqual({ appliedCount: 2 });
+
+    expect(query).toHaveBeenNthCalledWith(1, 'BEGIN TRANSACTION');
+    expect(query).toHaveBeenNthCalledWith(2, SUBSCRIPTION_QUERIES.LINK_TRANSACTION_MANUAL, [11, 3]);
+    expect(query).toHaveBeenNthCalledWith(3, SUBSCRIPTION_QUERIES.LINK_TRANSACTION_MANUAL, [12, 3]);
+    expect(query).toHaveBeenNthCalledWith(4, 'COMMIT');
+  });
+
+  it('rolls back bulk series linking when a query fails', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('constraint failed'));
+    const worker = createWorkerTransportStub({ query });
+    const service = new DatabaseService(worker);
+
+    await expect(service.bulkLinkTransactionsToSeries([11, 12], 3)).rejects.toThrow('constraint failed');
+
+    expect(query).toHaveBeenNthCalledWith(1, 'BEGIN TRANSACTION');
+    expect(query).toHaveBeenLastCalledWith('ROLLBACK');
+  });
+
+  it('returns immediately without opening a transaction when no ids are given', async () => {
+    const query = vi.fn().mockResolvedValue([]);
+    const worker = createWorkerTransportStub({ query });
+    const service = new DatabaseService(worker);
+
+    await expect(service.bulkLinkTransactionsToSeries([], 3)).resolves.toEqual({ appliedCount: 0 });
+    expect(query).not.toHaveBeenCalled();
   });
 });

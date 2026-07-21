@@ -45,13 +45,18 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import type { GridColDef, GridColumnVisibilityModel, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
+import type { GridColDef, GridColumnVisibilityModel, GridPaginationModel, GridRowSelectionModel, GridSortModel } from '@mui/x-data-grid';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
 import TransactionLabelDialog from './TransactionLabelDialog';
 import TransactionRowActionsMenu from './TransactionRowActionsMenu';
+import TransactionBulkActionsBar, { BulkActionKind } from './TransactionBulkActionsBar';
+import BulkSetCategoryDialog from './BulkSetCategoryDialog';
+import BulkSetCompanyDialog from './BulkSetCompanyDialog';
+import BulkSetProjectDialog from './BulkSetProjectDialog';
+import BulkSubscriptionLinkDialog from './BulkSubscriptionLinkDialog';
 import { Transaction, Category, Company, Account, TransactionsPaginatedResult, User } from '@/types/database';
 import { format, parseISO } from 'date-fns';
 
@@ -104,6 +109,9 @@ export default function TransactionReport() {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [minAmount, setMinAmount] = useState<string>('');
   const [maxAmount, setMaxAmount] = useState<string>('');
+  const [missingCategory, setMissingCategory] = useState(false);
+  const [missingCompany, setMissingCompany] = useState(false);
+  const [missingProject, setMissingProject] = useState(false);
 
   // Table state
   const [page, setPage] = useState(0);
@@ -125,6 +133,14 @@ export default function TransactionReport() {
     anchorEl: HTMLElement;
     transaction: Transaction;
   } | null>(null);
+
+  // Bulk selection + actions
+  const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>({
+    type: 'include',
+    ids: new Set(),
+  });
+  const selectedIds = React.useMemo(() => Array.from(rowSelectionModel.ids) as number[], [rowSelectionModel]);
+  const [bulkAction, setBulkAction] = useState<BulkActionKind | null>(null);
 
   // Column visibility
   const [showColumnControls, setShowColumnControls] = useState(false);
@@ -189,7 +205,7 @@ export default function TransactionReport() {
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     setPage(0);
-  }, [debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, rowsPerPage]);
+  }, [debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, rowsPerPage]);
 
   // Fetch from DB whenever page/filters/sort/version change
   useEffect(() => {
@@ -213,6 +229,9 @@ export default function TransactionReport() {
           endDate: endDate ? format(endDate, 'yyyy-MM-dd') : undefined,
           minAmount: minAmount ? parseFloat(minAmount) : undefined,
           maxAmount: maxAmount ? parseFloat(maxAmount) : undefined,
+          missingCategory: missingCategory || undefined,
+          missingCompany: missingCompany || undefined,
+          missingProject: missingProject || undefined,
         });
         if (!cancelled) setResult(data);
       } catch (err) {
@@ -223,7 +242,7 @@ export default function TransactionReport() {
     };
     fetch();
     return () => { cancelled = true; };
-  }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, getTransactionsPaginated]);
+  }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, getTransactionsPaginated]);
 
   const columnLabels = {
     date: 'Date', description: 'Description', comment: 'Comment', category: 'Category',
@@ -255,6 +274,9 @@ export default function TransactionReport() {
     setEndDate(null);
     setMinAmount('');
     setMaxAmount('');
+    setMissingCategory(false);
+    setMissingCompany(false);
+    setMissingProject(false);
     setPage(0);
   };
 
@@ -293,6 +315,9 @@ export default function TransactionReport() {
         endDate: endDate ? format(endDate, 'yyyy-MM-dd') : undefined,
         minAmount: minAmount ? parseFloat(minAmount) : undefined,
         maxAmount: maxAmount ? parseFloat(maxAmount) : undefined,
+        missingCategory: missingCategory || undefined,
+        missingCompany: missingCompany || undefined,
+        missingProject: missingProject || undefined,
       });
 
       const headers = Object.entries(columnLabels)
@@ -645,9 +670,30 @@ export default function TransactionReport() {
                 renderInput={(p) => <TextField {...p} label="Users" />}
                 renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.display_name} size="small" {...cp} />; })} />
             </Box>
+            <FormGroup row>
+              <FormControlLabel
+                control={<Checkbox checked={missingCategory} onChange={(e) => setMissingCategory(e.target.checked)} size="small" />}
+                label="Missing Category"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={missingCompany} onChange={(e) => setMissingCompany(e.target.checked)} size="small" />}
+                label="Missing Company"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={missingProject} onChange={(e) => setMissingProject(e.target.checked)} size="small" />}
+                label="Missing Project"
+              />
+            </FormGroup>
           </Box>
           </AccordionDetails>
         </Accordion>
+
+        {/* Bulk Actions */}
+        <TransactionBulkActionsBar
+          selectedCount={selectedIds.length}
+          onOpenAction={(kind) => setBulkAction(kind)}
+          onClearSelection={() => setRowSelectionModel({ type: 'include', ids: new Set() })}
+        />
 
         {/* Results Grid */}
         <Paper>
@@ -670,6 +716,10 @@ export default function TransactionReport() {
               onSortModelChange={handleSortModelChange}
               columnVisibilityModel={columnVisibilityModel}
               onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
+              checkboxSelection
+              keepNonExistentRowsSelected
+              rowSelectionModel={rowSelectionModel}
+              onRowSelectionModelChange={setRowSelectionModel}
               pageSizeOptions={isMobile ? [10, 25] : [10, 25, 50, 100]}
               height={gridHeight}
               footerSummary={
@@ -702,6 +752,26 @@ export default function TransactionReport() {
           anchorEl={quickActions?.anchorEl ?? null}
           transaction={quickActions?.transaction ?? null}
           onClose={() => setQuickActions(null)}
+        />
+        <BulkSetCategoryDialog
+          open={bulkAction === 'category'}
+          transactionIds={selectedIds}
+          onClose={() => setBulkAction(null)}
+        />
+        <BulkSetCompanyDialog
+          open={bulkAction === 'company'}
+          transactionIds={selectedIds}
+          onClose={() => setBulkAction(null)}
+        />
+        <BulkSetProjectDialog
+          open={bulkAction === 'project'}
+          transactionIds={selectedIds}
+          onClose={() => setBulkAction(null)}
+        />
+        <BulkSubscriptionLinkDialog
+          open={bulkAction === 'series'}
+          transactionIds={selectedIds}
+          onClose={() => setBulkAction(null)}
         />
         <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)} maxWidth="sm" fullWidth>
           <DialogTitle>Edit Comment</DialogTitle>

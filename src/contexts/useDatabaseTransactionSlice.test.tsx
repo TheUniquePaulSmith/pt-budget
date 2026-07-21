@@ -26,6 +26,7 @@ function createServiceMock() {
     setTransactionComment: vi.fn().mockResolvedValue(undefined),
     linkTransactionToSeries: vi.fn().mockResolvedValue(undefined),
     unlinkTransactionFromSeries: vi.fn().mockResolvedValue(undefined),
+    bulkLinkTransactionsToSeries: vi.fn().mockResolvedValue({ appliedCount: 2 }),
     getRecentTransactions: vi.fn().mockResolvedValue([]),
     getDashboardSummary: vi.fn().mockResolvedValue({ totalIncome: 0, totalExpenses: 0, netIncome: 0, transactionCount: 0 }),
     getChartData: vi.fn().mockResolvedValue({ spendingByCategory: [], incomeBySource: [], trends: { months: [], income: [], expenses: [] }, accountAnalysis: { accountNames: [], income: [], expenses: [] } }),
@@ -184,6 +185,30 @@ describe('useDatabaseTransactionSlice', () => {
     expect(refreshTransactions).toHaveBeenCalledTimes(1);
     expect(refreshCategories).toHaveBeenCalledTimes(1);
     expect(refreshCompanies).toHaveBeenCalledTimes(1);
+  });
+
+  it('bulk links transactions to a series and refreshes transactions and series', async () => {
+    const refreshTransactions = vi.fn().mockResolvedValue(undefined);
+    const refreshRecurringSeries = vi.fn().mockResolvedValue(undefined);
+    const service = createServiceMock();
+
+    const { result } = renderHook(() =>
+      useDatabaseTransactionSlice({
+        databaseService: service,
+        refreshTransactions,
+        refreshRecurringSeries,
+      })
+    );
+
+    await act(async () => {
+      await expect(
+        result.current.bulkLinkTransactionsToSeries([8, 9], 3)
+      ).resolves.toEqual({ appliedCount: 2 });
+    });
+
+    expect(service.bulkLinkTransactionsToSeries).toHaveBeenCalledWith([8, 9], 3);
+    expect(refreshTransactions).toHaveBeenCalledTimes(1);
+    expect(refreshRecurringSeries).toHaveBeenCalledTimes(1);
   });
 
   it('sets a transaction comment and refreshes transactions', async () => {

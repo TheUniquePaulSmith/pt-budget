@@ -284,6 +284,9 @@ export interface TransactionQueryParams {
   endDate?: string;
   minAmount?: number;
   maxAmount?: number;
+  missingCategory?: boolean;
+  missingCompany?: boolean;
+  missingProject?: boolean;
 }
 
 export interface TransactionsPaginatedResult {

@@ -21,10 +21,23 @@ vi.mock('@/contexts/useDatabaseSlices', () => ({
 }));
 
 vi.mock('@/components/common/DataGrid/AppDataGrid', () => ({
-  AppDataGrid: ({ rows, columns }: { rows: any[]; columns: Array<any> }) => (
+  AppDataGrid: ({
+    rows,
+    columns,
+    checkboxSelection,
+    rowSelectionModel,
+    onRowSelectionModelChange,
+  }: {
+    rows: any[];
+    columns: Array<any>;
+    checkboxSelection?: boolean;
+    rowSelectionModel?: { type: 'include' | 'exclude'; ids: Set<number> };
+    onRowSelectionModelChange?: (model: { type: 'include'; ids: Set<number> }) => void;
+  }) => (
     <table role="grid">
       <thead>
         <tr role="row">
+          {checkboxSelection && <th role="columnheader">Select</th>}
           {columns.map((column) => (
             <th role="columnheader" key={column.field}>{column.headerName ?? column.field}</th>
           ))}
@@ -33,6 +46,21 @@ vi.mock('@/components/common/DataGrid/AppDataGrid', () => ({
       <tbody>
         {rows.map((row) => (
           <tr role="row" key={row.id}>
+            {checkboxSelection && (
+              <td role="gridcell">
+                <input
+                  type="checkbox"
+                  aria-label={`Select row ${row.id}`}
+                  checked={rowSelectionModel?.ids?.has(row.id) ?? false}
+                  onChange={(event) => {
+                    const next = new Set(rowSelectionModel?.ids ?? []);
+                    if (event.target.checked) next.add(row.id);
+                    else next.delete(row.id);
+                    onRowSelectionModelChange?.({ type: 'include', ids: next });
+                  }}
+                />
+              </td>
+            )}
             {columns.map((column) => (
               <td role="gridcell" key={column.field}>
                 {column.renderCell
@@ -76,6 +104,8 @@ vi.mock('@mui/icons-material', () => {
     Business: createIcon('business-icon'),
     Category: createIcon('category-icon'),
     Clear: createIcon('clear-icon'),
+    Assignment: createIcon('assignment-icon'),
+    Close: createIcon('close-icon'),
   };
 });
 
@@ -199,6 +229,8 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
   const getTransactionsPaginated = createMockGetTransactionsPaginated(transactions);
   const getTransactionsForExport = vi.fn().mockResolvedValue(transactions);
   const setTransactionComment = vi.fn().mockResolvedValue(undefined);
+  const applyTransactionClassifications = vi.fn().mockResolvedValue({ appliedCount: 0, transactionIds: [] });
+  const bulkLinkTransactionsToSeries = vi.fn().mockResolvedValue({ appliedCount: 0 });
 
   mockedUseTransactionReportSlice.mockReturnValue({
     transactionVersion: 0,
@@ -213,6 +245,8 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
     getTransactionsForExport,
     setTransactionComment,
     getEffectiveBudgetPlan: vi.fn().mockResolvedValue(null),
+    applyTransactionClassifications,
+    bulkLinkTransactionsToSeries,
   } as never);
 
   mockedUseTransactionQuickActionsSlice.mockReturnValue({
@@ -235,7 +269,7 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
     </ThemeProvider>
   );
 
-  return { getTransactionsPaginated, setTransactionComment };
+  return { getTransactionsPaginated, setTransactionComment, applyTransactionClassifications, bulkLinkTransactionsToSeries };
 }
 
 describe('TransactionReport', () => {
@@ -324,6 +358,71 @@ describe('TransactionReport', () => {
 
     await waitFor(() => {
       expect(setTransactionComment).toHaveBeenCalledWith(1, 'Updated salary memo');
+    });
+  });
+
+  it('shows the bulk actions bar once a row is selected and clears it on demand', async () => {
+    renderReport();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+    await waitFor(() => {
+      expect(screen.getByText('Monthly salary deposit')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select row 1' }));
+
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Set Category/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Set Company/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Set Project/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subscription Link/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Clear Selection/ }));
+
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+  });
+
+  it('applies a bulk category to every selected transaction', async () => {
+    const { applyTransactionClassifications } = renderReport();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+    await waitFor(() => {
+      expect(screen.getByText('Monthly salary deposit')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select row 1' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select row 2' }));
+    await user.click(screen.getByRole('button', { name: /Set Category/ }));
+
+    const dialog = await screen.findByRole('dialog', { name: /Set Category/ });
+    await user.click(within(dialog).getByLabelText('Category'));
+    await user.click(await screen.findByRole('option', { name: 'Groceries' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => {
+      expect(applyTransactionClassifications).toHaveBeenCalledWith([
+        { transactionId: 1, categoryId: 2 },
+        { transactionId: 2, categoryId: 2 },
+      ]);
+    });
+  });
+
+  it('filters for transactions missing a category', async () => {
+    const { getTransactionsPaginated } = renderReport();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+    await waitFor(() => {
+      expect(screen.getByText('Monthly salary deposit')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('checkbox', { name: 'Missing Category' }));
+
+    await waitFor(() => {
+      expect(getTransactionsPaginated).toHaveBeenLastCalledWith(
+        expect.objectContaining({ missingCategory: true })
+      );
     });
   });
 });

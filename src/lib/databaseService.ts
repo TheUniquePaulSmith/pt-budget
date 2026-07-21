@@ -771,6 +771,15 @@ export class DatabaseService {
       conditions.push('ABS(t.amount) <= ?');
       queryParams.push(params.maxAmount);
     }
+    if (params.missingCategory) {
+      conditions.push('t.category_id IS NULL');
+    }
+    if (params.missingCompany) {
+      conditions.push('t.company_id IS NULL');
+    }
+    if (params.missingProject) {
+      conditions.push('t.project_id IS NULL');
+    }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     return { where, params: queryParams };
@@ -1491,6 +1500,25 @@ export class DatabaseService {
       await this.workerService.query(SUBSCRIPTION_QUERIES.DELETE_LINK_FOR_TRANSACTION, [txId]);
     } catch (error) {
       console.error('Failed to unlink transaction from series:', error);
+      throw error;
+    }
+  }
+
+  async bulkLinkTransactionsToSeries(transactionIds: number[], seriesId: number): Promise<{ appliedCount: number }> {
+    if (transactionIds.length === 0) {
+      return { appliedCount: 0 };
+    }
+
+    await this.workerService.query('BEGIN TRANSACTION');
+    try {
+      for (const txId of transactionIds) {
+        await this.workerService.query(SUBSCRIPTION_QUERIES.LINK_TRANSACTION_MANUAL, [txId, seriesId]);
+      }
+      await this.workerService.query('COMMIT');
+      return { appliedCount: transactionIds.length };
+    } catch (error) {
+      await this.workerService.query('ROLLBACK');
+      console.error('Failed to bulk link transactions to series:', error);
       throw error;
     }
   }

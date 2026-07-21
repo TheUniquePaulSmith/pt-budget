@@ -44,6 +44,7 @@ export interface DatabaseTransactionSlice {
   setTransactionComment: (txId: number, comment: string) => Promise<void>;
   linkTransactionToSeries: (txId: number, seriesId: number) => Promise<void>;
   unlinkTransactionFromSeries: (txId: number) => Promise<void>;
+  bulkLinkTransactionsToSeries: (transactionIds: number[], seriesId: number) => Promise<{ appliedCount: number }>;
   generateTransactionHash: (
     accountId: string,
     date: string,
@@ -78,6 +79,7 @@ type TransactionService = Pick<
   | 'setTransactionComment'
   | 'linkTransactionToSeries'
   | 'unlinkTransactionFromSeries'
+  | 'bulkLinkTransactionsToSeries'
   | 'getRecentTransactions'
   | 'getDashboardSummary'
   | 'getChartData'
@@ -223,6 +225,15 @@ export function useDatabaseTransactionSlice({
     [refreshRecurringSeries, refreshTransactions, requireService]
   );
 
+  const bulkLinkTransactionsToSeries = useCallback(
+    async (transactionIds: number[], seriesId: number): Promise<{ appliedCount: number }> => {
+      const result = await requireService().bulkLinkTransactionsToSeries(transactionIds, seriesId);
+      await Promise.all([refreshTransactions(), refreshRecurringSeries?.() ?? Promise.resolve()]);
+      return result;
+    },
+    [refreshRecurringSeries, refreshTransactions, requireService]
+  );
+
   const generateTransactionHash = useCallback(
     (accountId: string, date: string, amount: number, description: string, uniqueIdentifier?: string): string => {
       return DatabaseService.generateTransactionHashFromFields(accountId, date, amount, description, uniqueIdentifier);
@@ -303,6 +314,7 @@ export function useDatabaseTransactionSlice({
       setTransactionComment,
       linkTransactionToSeries,
       unlinkTransactionFromSeries,
+      bulkLinkTransactionsToSeries,
       generateTransactionHash,
       getRecentTransactions,
       getDashboardSummary,
@@ -329,6 +341,7 @@ export function useDatabaseTransactionSlice({
       setTransactionComment,
       linkTransactionToSeries,
       unlinkTransactionFromSeries,
+      bulkLinkTransactionsToSeries,
       generateTransactionHash,
       getRecentTransactions,
       getDashboardSummary,

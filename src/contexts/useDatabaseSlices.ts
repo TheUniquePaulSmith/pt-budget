@@ -107,6 +107,8 @@ export function useTransactionReportSlice() {
     getTransactionsForExport: transactions.getTransactionsForExport,
     setTransactionComment: transactions.setTransactionComment,
     getEffectiveBudgetPlan: budgets.getEffectiveBudgetPlan,
+    applyTransactionClassifications: transactions.applyTransactionClassifications,
+    bulkLinkTransactionsToSeries: transactions.bulkLinkTransactionsToSeries,
   };
 }
 

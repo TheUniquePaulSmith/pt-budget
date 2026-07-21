@@ -255,6 +255,8 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_recurring_series_status ON recurring_series(status, kind)`,
   `CREATE INDEX IF NOT EXISTS idx_tsl_series ON transaction_series_links(series_id)`,
   `CREATE INDEX IF NOT EXISTS idx_transactions_company_null ON transactions(company_id) WHERE company_id IS NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_transactions_category_null ON transactions(category_id) WHERE category_id IS NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_transactions_project_null ON transactions(project_id) WHERE project_id IS NULL`,
 ];
 
 // Schema versioning — applied by runMigrations() in database-worker.js.

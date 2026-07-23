@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import {
   bootstrapDatabase as bootstrapDatabaseWithOptions,
+  reloadAndUnlock,
   runQueryAndReadFirstCell,
 } from './helpers/bootstrap';
 
@@ -82,14 +83,9 @@ test('@smoke creates and reopens the browser-backed database', async ({ page }) 
   );
   expect(initialCount).toBeGreaterThan(0);
 
-  await page.reload();
-  await expect(
-    page.getByRole('button', { name: 'SQL Query' })
-  ).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByTestId('database-status-text')).toHaveText(
-    'Connected',
-    { timeout: 120_000 }
-  );
+  // The encrypting VFS requires the password again once the SharedWorker is
+  // torn down (no other tab kept it alive), so re-enter it if prompted.
+  await reloadAndUnlock(page);
 
   const reloadedCount = Number(
     await runQueryAndReadFirstCell(
@@ -231,9 +227,7 @@ test('shows worker disconnection and recovers after reload', async ({ page }) =>
     timeout: 120_000,
   });
 
-  await page.reload();
-
-  await expect(page.getByTestId('database-status-text')).toHaveText('Connected', {
-    timeout: 120_000,
-  });
+  // The encrypting VFS requires the password again once the SharedWorker is
+  // torn down, so re-enter it if prompted.
+  await reloadAndUnlock(page);
 });

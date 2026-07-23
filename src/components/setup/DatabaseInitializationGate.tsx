@@ -67,12 +67,11 @@ interface DatabaseInitializationGateProps {
   onCancelPasswordEntry: () => void;
   /** Called from the storage-choice screen right after password setup. */
   onStorageChoiceSelected: (choice: 'local' | CloudProvider) => Promise<void>;
-  /** Called from the needs-cloud-password screen. */
-  onCloudPasswordSubmitted: (password: string) => Promise<void>;
-  /** Continues into the app without unlocking cloud sync this session. */
-  onSkipCloudUnlock: () => Promise<void>;
-  /** Called from the locked-database screen (Settings → Lock Database) to resume the app. */
-  onUnlockDatabase: (password: string) => Promise<void>;
+  /**
+   * Called from the needs-unlock screen — both at first load of a returning
+   * device and after Settings → Lock Database.
+   */
+  onUnlockSubmitted: (password: string) => Promise<void>;
 }
 
 const centeredBoxSx = {
@@ -105,9 +104,7 @@ export function DatabaseInitializationGate({
   onPasswordEntrySubmitted,
   onCancelPasswordEntry,
   onStorageChoiceSelected,
-  onCloudPasswordSubmitted,
-  onSkipCloudUnlock,
-  onUnlockDatabase,
+  onUnlockSubmitted,
 }: DatabaseInitializationGateProps) {
   const handleCreateNew = useCallback(async () => {
     try {
@@ -233,25 +230,11 @@ export function DatabaseInitializationGate({
     );
   }
 
-  if (initializationState === 'needs-cloud-password') {
+  if (initializationState === 'needs-unlock') {
     return (
       <PasswordEntry
-        description="Enter your database password to enable cloud sync on this device."
-        onPasswordSubmitted={onCloudPasswordSubmitted}
-        onCancel={() => {
-          void onSkipCloudUnlock();
-        }}
-        isLoading={isLoading}
-        error={error}
-      />
-    );
-  }
-
-  if (initializationState === 'locked') {
-    return (
-      <PasswordEntry
-        description="Your database is locked. Enter your password to unlock it."
-        onPasswordSubmitted={onUnlockDatabase}
+        description="This database is encrypted. Enter your password to unlock it."
+        onPasswordSubmitted={onUnlockSubmitted}
         isLoading={isLoading}
         error={error}
       />

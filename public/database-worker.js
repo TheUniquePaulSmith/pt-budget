@@ -11,7 +11,13 @@ class DatabaseWorker {
     this.sqlite3Constants = null;
     this.db = 0;
     this.vfs = null;
-    this.vfsIdbName = 'ptbudgetapp';
+    // Renamed from the original 'ptbudgetapp' so pre-existing plaintext
+    // databases are orphaned (never read/migrated) rather than opened by the
+    // new encrypting VFS, which would fail to decrypt them.
+    this.vfsIdbName = 'ptbudgetapp-v2-encrypted';
+    // Out-of-band store for the page-encryption salt/verifier — must be
+    // readable before the VFS/SQLite is touched at all (see readEncryptionHeader).
+    this._headerIdbName = 'ptbudgetapp-keys';
     this.isInitialized = false;
     this.isConnected = false;
     this.ports = new Set();
@@ -24,8 +30,12 @@ class DatabaseWorker {
     this.queryQueue = [];
     this.isProcessingQuery = false;
 
-    // Encryption – the password is cached in worker memory for the lifetime of
-    // this SharedWorker instance (i.e. while at least one tab remains open).
+    // Encryption — both are cached in worker memory for the lifetime of this
+    // SharedWorker instance (i.e. while at least one tab remains open).
+    // `pageKey` (mirrors the VFS's own key) gates every database open/read/
+    // write; `encryptionPassword` is the raw password, used only to derive
+    // the separate archive-encryption key (see database-encryption.js).
+    this.pageKey = null;
     this.encryptionPassword = null;
 
     // Lazy-loaded encryption module (public/database-encryption.js)
@@ -53,42 +63,257 @@ class DatabaseWorker {
     return this._encryptionModule;
   }
 
-  async setPassword(password) {
-    if (!password || typeof password !== 'string' || password.length === 0) {
-      throw new Error('Password must be a non-empty string');
-    }
-    this.encryptionPassword = password;
-    console.info('[DB Worker] Encryption password set for this session');
-  }
-
-  clearPassword() {
-    this.encryptionPassword = null;
-    console.info('[DB Worker] Encryption password cleared');
-  }
-
   isEncryptionReady() {
-    return this.encryptionPassword !== null;
-  }
-
-  /** Compares a candidate password against the one currently held in memory, without changing it. */
-  verifyPassword(password) {
-    return this.encryptionPassword !== null && password === this.encryptionPassword;
+    return this.pageKey !== null;
   }
 
   async encryptArchiveBytes(plainArchiveBytes, lastSaveTimestamp) {
     if (!this.encryptionPassword) {
-      throw new Error('Encryption password is not set — call set_password first');
+      throw new Error('Database is locked — unlock it before exporting');
     }
     const enc = await this.getEncryptionModule();
     return enc.encryptArchive(plainArchiveBytes, this.encryptionPassword, lastSaveTimestamp);
   }
 
-  async decryptArchiveBytes(encryptedBytes) {
-    if (!this.encryptionPassword) {
-      throw new Error('Encryption password is not set — call set_password first');
+  // `explicitPassword` lets a caller decrypt a standalone archive (e.g. a
+  // file/cloud download picked before any local database exists) using
+  // whatever password the user just typed, without depending on — or
+  // side-affecting — the worker's ambient cached password.
+  async decryptArchiveBytes(encryptedBytes, explicitPassword) {
+    const password = explicitPassword || this.encryptionPassword;
+    if (!password) {
+      throw new Error('Database is locked — unlock it before importing');
     }
     const enc = await this.getEncryptionModule();
-    return enc.decryptArchive(encryptedBytes, this.encryptionPassword);
+    return enc.decryptArchive(encryptedBytes, password);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Out-of-band encryption header (page-encryption salt/verifier)
+  //
+  // Stored in its own IndexedDB database, entirely separate from the VFS's
+  // own `blocks`/`metadata` stores, so it can be read before the VFS/SQLite
+  // is touched at all — the salt is needed to derive the key that decrypts
+  // page 1, which is itself inside the VFS-managed blocks.
+  // ---------------------------------------------------------------------------
+
+  async openHeaderDatabase() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this._headerIdbName, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains('header')) {
+          db.createObjectStore('header', { keyPath: 'id' });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => {
+        reject(request.error || new Error('Failed to open encryption header database'));
+      };
+    });
+  }
+
+  async readEncryptionHeader() {
+    const idb = await this.openHeaderDatabase();
+    try {
+      return await new Promise((resolve, reject) => {
+        const request = idb.transaction('header', 'readonly').objectStore('header').get('default');
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error || new Error('Failed to read encryption header'));
+      });
+    } finally {
+      idb.close();
+    }
+  }
+
+  async writeEncryptionHeader(header) {
+    const idb = await this.openHeaderDatabase();
+    try {
+      await new Promise((resolve, reject) => {
+        const transaction = idb.transaction('header', 'readwrite');
+        transaction.objectStore('header').put(header);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error || new Error('Failed to write encryption header'));
+        transaction.onabort = () => reject(transaction.error || new Error('Encryption header transaction aborted'));
+      });
+    } finally {
+      idb.close();
+    }
+  }
+
+  /** Compares a candidate password against the stored header's verifier, without unlocking anything. */
+  async verifyPassword(password) {
+    if (typeof password !== 'string' || password.length === 0) return false;
+    try {
+      const header = await this.readEncryptionHeader();
+      if (!header) return false;
+      const enc = await this.getEncryptionModule();
+      const candidateKey = await enc.derivePageKey(password, enc.hexToBytes(header.pageSalt));
+      return await enc.checkPageKeyVerifier(candidateKey, header.verifierIv, header.verifierCiphertext);
+    } catch {
+      return false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Database create / unlock / lock (VFS-level page encryption)
+  // ---------------------------------------------------------------------------
+
+  /** Creates a brand-new encrypted database. Fails if one already exists on this device. */
+  async createNewDatabase(password, filename, options) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    if (typeof password !== 'string' || password.length === 0) {
+      throw new Error('Password must be a non-empty string');
+    }
+
+    const existing = await this.readEncryptionHeader();
+    if (existing) {
+      throw new Error('An encrypted database already exists on this device');
+    }
+
+    const enc = await this.getEncryptionModule();
+    const vfsModule = await import('/database-encrypted-vfs.js');
+    const pageSalt = crypto.getRandomValues(new Uint8Array(32));
+    const pageKey = await enc.derivePageKey(password, pageSalt);
+    const verifier = await enc.createPageKeyVerifier(pageKey);
+
+    const header = {
+      id: 'default',
+      format: 'budget-tracker-page-encryption-header-v1',
+      createdAt: new Date().toISOString(),
+      pageSalt: enc.bytesToHex(pageSalt),
+      pbkdf2Iterations: enc.PBKDF2_ITERATIONS,
+      blockSize: vfsModule.DEFAULT_BLOCK_SIZE,
+      verifierIv: verifier.verifierIv,
+      verifierCiphertext: verifier.verifierCiphertext,
+    };
+    await this.writeEncryptionHeader(header);
+
+    this.vfs.setKey(pageKey, header.blockSize);
+    this.pageKey = pageKey;
+    this.encryptionPassword = password;
+
+    return await this.openDatabase(filename, true, options);
+  }
+
+  /** Unlocks the existing encrypted database on this device. Rejects on a wrong password without touching the VFS/blocks. */
+  async unlockDatabase(password, filename) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    if (typeof password !== 'string' || password.length === 0) {
+      throw new Error('Password must be a non-empty string');
+    }
+    if (this.isConnected) {
+      throw new Error('Database is already unlocked — call lock_database first');
+    }
+
+    const header = await this.readEncryptionHeader();
+    if (!header) {
+      throw new Error('No encrypted database found on this device');
+    }
+
+    const enc = await this.getEncryptionModule();
+    const pageKey = await enc.derivePageKey(password, enc.hexToBytes(header.pageSalt));
+    const isValid = await enc.checkPageKeyVerifier(pageKey, header.verifierIv, header.verifierCiphertext);
+    if (!isValid) {
+      throw new Error('Incorrect password');
+    }
+
+    this.vfs.setKey(pageKey, header.blockSize);
+    this.pageKey = pageKey;
+    this.encryptionPassword = password;
+
+    return await this.openDatabase(filename, false, {});
+  }
+
+  /** Closes the live connection and forgets the key — the database cannot be read again until unlock_database succeeds. */
+  async lockDatabase() {
+    await this.closeDatabaseConnection();
+    this.vfs?.clearKey();
+    this.pageKey = null;
+    this.encryptionPassword = null;
+  }
+
+  /**
+   * Re-encrypts every physically-stored block under a newly-derived key.
+   * Only the `data` field of each `blocks` record changes — file paths,
+   * physical offsets, and the VFS's own version/crash-recovery bookkeeping
+   * in `metadata` are untouched.
+   */
+  async changePassword(oldPassword, newPassword) {
+    if (typeof newPassword !== 'string' || newPassword.length === 0) {
+      throw new Error('New password must be a non-empty string');
+    }
+    const oldHeader = await this.readEncryptionHeader();
+    if (!oldHeader) {
+      throw new Error('No encrypted database found on this device');
+    }
+    const isCurrentValid = await this.verifyPassword(oldPassword);
+    if (!isCurrentValid) {
+      throw new Error('Current password is incorrect');
+    }
+    if (!this.pageKey) {
+      throw new Error('Database is locked — unlock it before changing the password');
+    }
+
+    return await this.enqueueQuery(async () => {
+      const enc = await this.getEncryptionModule();
+      const vfsModule = await import('/database-encrypted-vfs.js');
+      const { physicalBlockSize, decryptBlock, encryptBlock, formatFilename } = vfsModule;
+
+      const oldPageKey = this.pageKey;
+      const newPageSalt = crypto.getRandomValues(new Uint8Array(32));
+      const newPageKey = await enc.derivePageKey(newPassword, newPageSalt);
+      const newVerifier = await enc.createPageKeyVerifier(newPageKey);
+      const pbs = physicalBlockSize(oldHeader.blockSize);
+
+      await this.closeDatabaseConnection();
+
+      const idb = await this.openVfsDatabase();
+      try {
+        const readTransaction = idb.transaction('blocks', 'readonly');
+        const blocks = await this.readAllFromStore(readTransaction.objectStore('blocks'));
+        await this.waitForTransaction(readTransaction);
+
+        const reencrypted = await Promise.all(
+          blocks.map(async (block) => {
+            const physicalOffset = -block.offset;
+            const blockIndex = Math.round(physicalOffset / pbs);
+            const aad = formatFilename(this.vfs.name, block.path);
+            const physicalData = block.data instanceof Uint8Array ? block.data : new Uint8Array(block.data);
+            const plaintext = await decryptBlock(oldPageKey, aad, blockIndex, physicalData);
+            const newPhysicalData = await encryptBlock(newPageKey, aad, blockIndex, plaintext);
+            return { ...block, data: newPhysicalData };
+          })
+        );
+
+        const writeTransaction = idb.transaction('blocks', 'readwrite');
+        const blocksStore = writeTransaction.objectStore('blocks');
+        for (const block of reencrypted) {
+          blocksStore.put(block);
+        }
+        await this.waitForTransaction(writeTransaction);
+      } finally {
+        idb.close();
+      }
+
+      const newHeader = {
+        ...oldHeader,
+        pageSalt: enc.bytesToHex(newPageSalt),
+        verifierIv: newVerifier.verifierIv,
+        verifierCiphertext: newVerifier.verifierCiphertext,
+      };
+      await this.writeEncryptionHeader(newHeader);
+
+      this.vfs.setKey(newPageKey, newHeader.blockSize);
+      this.pageKey = newPageKey;
+      this.encryptionPassword = newPassword;
+
+      await this.reopenCurrentDatabase();
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -143,8 +368,8 @@ class DatabaseWorker {
       //Load constants
       this.sqlite3Constants = await import('/wa-sqlite/src/sqlite-constants.js');
 
-      const vfsModule = await import('/wa-sqlite/src/examples/IDBBatchAtomicVFS.js');
-      const { IDBBatchAtomicVFS } = vfsModule;
+      const vfsModule = await import('/database-encrypted-vfs.js');
+      const { EncryptedIDBBatchAtomicVFS } = vfsModule;
 
       console.log('[DB Worker] Initializing SQLite WASM module...');
       const wasmModule = await SQLiteModule();
@@ -152,8 +377,12 @@ class DatabaseWorker {
       console.log('[DB Worker] Creating SQLite API...');
       this.sqlite3 = Factory(wasmModule);
 
-      console.log('[DB Worker] Creating IDB VFS...');
-      this.vfs = await IDBBatchAtomicVFS.create(this.vfsIdbName, wasmModule);
+      console.log('[DB Worker] Creating encrypting IDB VFS...');
+      // Constructed once for the SharedWorker's lifetime — setKey()/clearKey()
+      // (called from createNewDatabase/unlockDatabase/lockDatabase) toggle
+      // whether it reads/writes ciphertext, but the VFS instance itself is
+      // never re-created or re-registered.
+      this.vfs = await EncryptedIDBBatchAtomicVFS.create(this.vfsIdbName, wasmModule);
 
       console.log('[DB Worker] Registering IDB VFS...');
       this.sqlite3.vfs_register(this.vfs, true);
@@ -748,31 +977,58 @@ class DatabaseWorker {
     });
   }
 
+  // readVfsSnapshot/writeVfsSnapshot are the export/import boundary used by
+  // both local file export and cloud sync (Google Drive/OneDrive), so a
+  // snapshot must stay a PORTABLE, logically-plaintext representation —
+  // decrypting on export and re-encrypting on import — even though the live
+  // `blocks` store physically holds ciphertext. Otherwise a snapshot created
+  // on one device (encrypted under its own randomly-generated page key)
+  // could never be decrypted on another device, breaking cross-device sync.
+
   async readVfsSnapshot() {
+    if (!this.pageKey) {
+      throw new Error('Database is locked — unlock it before exporting');
+    }
+    const enc = await this.getEncryptionModule();
+    const header = await this.readEncryptionHeader();
+    const vfsModule = await import('/database-encrypted-vfs.js');
+    const { physicalBlockSize, decryptBlock, formatFilename } = vfsModule;
+    const blockSize = header.blockSize;
+    const pbs = physicalBlockSize(blockSize);
+
     const idb = await this.openVfsDatabase();
 
     try {
       const transaction = idb.transaction(['metadata', 'blocks'], 'readonly');
       const metadataStore = transaction.objectStore('metadata');
       const blocksStore = transaction.objectStore('blocks');
-      const [metadata, blocks] = await Promise.all([
+      const [physicalMetadata, physicalBlocks] = await Promise.all([
         this.readAllFromStore(metadataStore),
         this.readAllFromStore(blocksStore),
       ]);
       await this.waitForTransaction(transaction);
+
+      const metadata = physicalMetadata.map((entry) => ({
+        ...entry,
+        fileSize: Math.round((entry.fileSize / pbs) * blockSize),
+      }));
+
+      const blocks = await Promise.all(
+        physicalBlocks.map(async (block) => {
+          const physicalOffset = -block.offset;
+          const blockIndex = Math.round(physicalOffset / pbs);
+          const physicalData = block.data instanceof Uint8Array ? block.data : new Uint8Array(block.data);
+          const plaintext = await decryptBlock(this.pageKey, formatFilename(this.vfs.name, block.path), blockIndex, physicalData);
+          return { ...block, offset: -(blockIndex * blockSize), data: plaintext };
+        })
+      );
 
       return {
         format: 'wa-sqlite-idb-batch-atomic-v1',
         idbName: this.vfsIdbName,
         exportedAt: new Date().toISOString(),
         metadata,
-        blocks: blocks.map((block) => ({
-          ...block,
-          data:
-            block.data instanceof Uint8Array
-              ? block.data
-              : new Uint8Array(block.data),
-        })),
+        blocks,
       };
     } finally {
       idb.close();
@@ -783,6 +1039,15 @@ class DatabaseWorker {
     if (!snapshot || snapshot.format !== 'wa-sqlite-idb-batch-atomic-v1') {
       throw new Error('Snapshot payload is invalid');
     }
+    if (!this.pageKey) {
+      throw new Error('Database is locked — unlock it before importing');
+    }
+
+    const header = await this.readEncryptionHeader();
+    const vfsModule = await import('/database-encrypted-vfs.js');
+    const { physicalBlockSize, encryptBlock, formatFilename } = vfsModule;
+    const blockSize = header.blockSize;
+    const pbs = physicalBlockSize(blockSize);
 
     const idb = await this.openVfsDatabase();
 
@@ -795,17 +1060,36 @@ class DatabaseWorker {
       blocksStore.clear();
 
       for (const metadata of snapshot.metadata || []) {
-        metadataStore.put(metadata);
+        metadataStore.put({
+          ...metadata,
+          fileSize: Math.round((metadata.fileSize / blockSize) * pbs),
+        });
       }
 
-      for (const block of snapshot.blocks || []) {
-        blocksStore.put({
-          ...block,
-          data:
-            block.data instanceof Uint8Array
-              ? block.data
-              : new Uint8Array(block.data),
-        });
+      const encryptedBlocks = await Promise.all(
+        (snapshot.blocks || []).map(async (block) => {
+          const logicalOffset = -block.offset;
+          const blockIndex = Math.round(logicalOffset / blockSize);
+          const plainSource = block.data instanceof Uint8Array ? block.data : new Uint8Array(block.data);
+          // Every physical block must be a fixed, full block size — pad a
+          // short trailing block (possible for auxiliary/journal files)
+          // rather than storing a variably-sized physical block, which would
+          // corrupt later reads (see EncryptedIDBBatchAtomicVFS#readBlock).
+          const plaintext =
+            plainSource.byteLength === blockSize
+              ? plainSource
+              : (() => {
+                  const padded = new Uint8Array(blockSize);
+                  padded.set(plainSource.subarray(0, Math.min(plainSource.byteLength, blockSize)));
+                  return padded;
+                })();
+          const physicalData = await encryptBlock(this.pageKey, formatFilename(this.vfs.name, block.path), blockIndex, plaintext);
+          return { ...block, offset: -(blockIndex * pbs), data: physicalData };
+        })
+      );
+
+      for (const block of encryptedBlocks) {
+        blocksStore.put(block);
       }
 
       await this.waitForTransaction(transaction);
@@ -878,13 +1162,17 @@ class DatabaseWorker {
           };
           break;
           
-        case 'open_database':
+        case 'recreate_database': {
+          if (!this.pageKey) {
+            throw new Error('Database is locked — unlock it first');
+          }
           response = await this.openDatabase(
-            payload?.filename,
-            payload?.isNew,
+            payload?.filename ?? this.currentFilename,
+            true,
             payload?.options
           );
           break;
+        }
 
         case 'create_tables':
           await this.createTables(payload?.options);
@@ -947,26 +1235,40 @@ class DatabaseWorker {
         // Encryption-related messages
         // ----------------------------------------------------------------
 
-        case 'set_password': {
-          await this.setPassword(payload?.password);
+        case 'create_new_database': {
+          response = await this.createNewDatabase(
+            payload?.password,
+            payload?.filename,
+            payload?.options
+          );
+          break;
+        }
+
+        case 'unlock_database': {
+          response = await this.unlockDatabase(payload?.password, payload?.filename);
+          break;
+        }
+
+        case 'lock_database': {
+          await this.lockDatabase();
           response = {
-            type: 'set_password_response',
+            type: 'lock_database_response',
             isSuccessful: true,
-            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            dbStatus: 'disconnected',
             version: this.dbVersion,
-            sqlResponse: { message: 'Password set successfully' }
+            sqlResponse: { message: 'Database locked' }
           };
           break;
         }
 
-        case 'clear_password': {
-          this.clearPassword();
+        case 'change_password': {
+          await this.changePassword(payload?.oldPassword, payload?.newPassword);
           response = {
-            type: 'clear_password_response',
+            type: 'change_password_response',
             isSuccessful: true,
             dbStatus: this.isConnected ? 'connected' : 'disconnected',
             version: this.dbVersion,
-            sqlResponse: { message: 'Password cleared' }
+            sqlResponse: { message: 'Password changed successfully' }
           };
           break;
         }
@@ -983,12 +1285,13 @@ class DatabaseWorker {
         }
 
         case 'verify_password': {
+          const isMatch = await this.verifyPassword(payload?.password);
           response = {
             type: 'verify_password_response',
             isSuccessful: true,
             dbStatus: this.isConnected ? 'connected' : 'disconnected',
             version: this.dbVersion,
-            sqlResponse: { isMatch: this.verifyPassword(payload?.password) }
+            sqlResponse: { isMatch }
           };
           break;
         }
@@ -1010,8 +1313,8 @@ class DatabaseWorker {
         }
 
         case 'decrypt_archive': {
-          // payload: { encryptedBytes: Uint8Array }
-          const plainBytes = await this.decryptArchiveBytes(payload.encryptedBytes);
+          // payload: { encryptedBytes: Uint8Array, password?: string }
+          const plainBytes = await this.decryptArchiveBytes(payload.encryptedBytes, payload.password);
           response = {
             type: 'decrypt_archive_response',
             isSuccessful: true,

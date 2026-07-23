@@ -13,13 +13,16 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import {
+  bootstrapDatabase,
   fillDatabaseSetupForm,
   runQueryAndReadFirstCell,
   seedBrowserCompatibility,
+  TEST_PRIMARY_USER_NAME,
 } from './helpers/bootstrap';
 
 const TEST_PASSWORD = 'EncryptTest99!';
 const WRONG_PASSWORD = 'WrongPassword1!';
+const NEW_PASSWORD = 'NewEncryptTest1!';
 
 async function goToSetupPage(page: Page) {
   await seedBrowserCompatibility(page);
@@ -305,5 +308,60 @@ test.describe('Loading an encrypted archive', () => {
     await expect(
       page.getByRole('button', { name: 'Create Database' })
     ).toBeEnabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Changing the database password (Settings → Security)
+// ---------------------------------------------------------------------------
+
+test.describe('Changing the database password', () => {
+  test('re-encrypts the live database: the old password stops working, the new one unlocks it with data intact', async ({
+    page,
+  }) => {
+    await bootstrapDatabase(page, { loadSampleData: false, password: TEST_PASSWORD });
+
+    await page.getByRole('button', { name: 'Settings' }).click();
+    await page.getByRole('tab', { name: 'Security' }).click();
+
+    await page.getByLabel('Current Password').fill(TEST_PASSWORD);
+    // exact: true — a bare 'New Password' label also matches 'Confirm New
+    // Password' and trips Playwright's strict mode.
+    await page.getByLabel('New Password', { exact: true }).fill(NEW_PASSWORD);
+    await page.getByLabel('Confirm New Password').fill(NEW_PASSWORD);
+    await page.getByRole('button', { name: 'Change Password' }).click();
+
+    await expect(page.getByText('Password updated.')).toBeVisible({ timeout: 30_000 });
+
+    await page.getByRole('button', { name: 'Close settings' }).click();
+
+    // Reload — the SharedWorker is torn down, so the encrypting VFS requires
+    // the password again, and it must be the NEW one now.
+    await page.reload();
+
+    const passwordInput = page.getByLabel('Password', { exact: true });
+    await expect(passwordInput).toBeVisible({ timeout: 30_000 });
+
+    // The old password must no longer work — every physically-stored block
+    // was re-encrypted under the new key.
+    await passwordInput.fill(TEST_PASSWORD);
+    await page.getByRole('button', { name: 'Unlock' }).click();
+    await expect(page.getByText(/incorrect password/i)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'SQL Query' })).not.toBeVisible();
+
+    // The new password unlocks it, and the data survived re-encryption intact.
+    await passwordInput.fill(NEW_PASSWORD);
+    await page.getByRole('button', { name: 'Unlock' }).click();
+
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('database-status-text')).toHaveText('Connected', {
+      timeout: 60_000,
+    });
+
+    const primaryUserName = await runQueryAndReadFirstCell(
+      page,
+      `SELECT display_name FROM users WHERE is_primary = 1;`
+    );
+    expect(primaryUserName).toBe(TEST_PRIMARY_USER_NAME);
   });
 });

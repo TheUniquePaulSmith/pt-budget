@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import {
   bootstrapDatabase as bootstrapDatabaseWithOptions,
+  reloadAndUnlock,
   runQueryAndReadFirstCell,
 } from './helpers/bootstrap';
 
@@ -61,11 +62,7 @@ test('runs a subscription scan and persists a user-created merchant rule', async
   expect(userRuleCount).toBe(1);
 
   // The rule survives a reload (persisted through the worker VFS)
-  await page.reload();
-  await expect(page.getByTestId('database-status-text')).toHaveText(
-    'Connected',
-    { timeout: 120_000 }
-  );
+  await reloadAndUnlock(page);
 
   const reloadedRuleCount = Number(
     await runQueryAndReadFirstCell(

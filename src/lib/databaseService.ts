@@ -83,7 +83,6 @@ import type {
 
 export interface DatabaseWorkerTransport {
   initialize(): Promise<unknown>;
-  openDatabase(filename?: string, isNew?: boolean, options?: OpenDatabaseOptions): Promise<unknown>;
   createTables(options?: { ensureIndexes?: boolean }): Promise<unknown>;
   ensureIndexes(): Promise<unknown>;
   query(sql: string, parameters?: any[]): Promise<any[]>;
@@ -94,13 +93,16 @@ export interface DatabaseWorkerTransport {
     isSuccessful: boolean;
     sqlResponse?: { error?: string };
   }>;
-  // Encryption
-  setEncryptionPassword(password: string): Promise<void>;
-  clearEncryptionPassword(): Promise<void>;
+  // Database create / unlock / lock (VFS-level page encryption)
+  createNewDatabase(password: string, filename?: string, options?: OpenDatabaseOptions): Promise<unknown>;
+  unlockDatabase(password: string, filename?: string): Promise<unknown>;
+  lockDatabase(): Promise<void>;
+  changePassword(oldPassword: string, newPassword: string): Promise<void>;
+  recreateDatabase(options?: OpenDatabaseOptions): Promise<unknown>;
   isEncryptionReady(): Promise<boolean>;
   verifyCurrentPassword(password: string): Promise<boolean>;
   encryptArchive(archiveBytes: Uint8Array, lastSaveTimestamp: string): Promise<Uint8Array>;
-  decryptArchive(encryptedBytes: Uint8Array): Promise<Uint8Array>;
+  decryptArchive(encryptedBytes: Uint8Array, password?: string): Promise<Uint8Array>;
   onStatusChange(callback: (status: WorkerStatus) => void): () => void;
   destroy?(): void;
 }
@@ -152,32 +154,46 @@ export class DatabaseService {
     }
   }
 
-  async openDatabase(
-    filename: string = "/budget-app.db",
-    isNew: boolean = false,
-    options: OpenDatabaseOptions = {}
-  ): Promise<void> {
+  /** Creates a brand-new encrypted database. Fails if one already exists on this device. */
+  async createNewDatabase(password: string, options: OpenDatabaseOptions = {}): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
     try {
-      console.debug(`Opening database: ${filename}`);
-      await this.workerService.openDatabase(filename, isNew, options);
-
-      console.debug("Database opened successfully");
+      console.debug('Creating new encrypted database...');
+      await this.workerService.createNewDatabase(password, undefined, options);
+      console.debug('Database created successfully');
     } catch (error) {
-      console.error("Failed to open database:", error);
+      console.error('Failed to create database:', error);
       throw error;
     }
   }
 
-  async openExistingDatabase(): Promise<void> {
-    await this.openDatabase(undefined, false);
+  /** Unlocks the existing encrypted database on this device with `password`. Throws with a clear message on a wrong password. */
+  async unlockDatabase(password: string): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    try {
+      console.debug('Unlocking database...');
+      await this.workerService.unlockDatabase(password);
+      console.debug('Database unlocked successfully');
+    } catch (error) {
+      console.error('Failed to unlock database:', error);
+      throw error;
+    }
   }
 
-  async createNewDatabase(options: OpenDatabaseOptions = {}): Promise<void> {
-    await this.openDatabase(undefined, true, options);
+  /** Closes the live connection and forgets the key. Nothing is readable again until unlockDatabase succeeds. */
+  async lockDatabase(): Promise<void> {
+    await this.workerService.lockDatabase();
+  }
+
+  /** Re-encrypts every stored block under a newly-derived key. Throws if `oldPassword` is wrong. */
+  async changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    await this.workerService.changePassword(oldPassword, newPassword);
   }
 
   async loadDatabaseFromFile(file: File): Promise<void> {
@@ -277,35 +293,13 @@ export class DatabaseService {
   }
 
   // ---------------------------------------------------------------------------
-  // Encryption password management
+  // Encryption status
   // ---------------------------------------------------------------------------
 
   /**
-   * Stores the password in the SharedWorker for this session.
-   * Must be called before any export or before importing an encrypted archive.
-   */
-  async setEncryptionPassword(password: string): Promise<void> {
-    try {
-      await this.workerService.setEncryptionPassword(password);
-      console.info('[DB Service] Encryption password set');
-    } catch (error) {
-      console.error('[DB Service] Failed to set encryption password:', error);
-      throw error;
-    }
-  }
-
-  async clearEncryptionPassword(): Promise<void> {
-    try {
-      await this.workerService.clearEncryptionPassword();
-    } catch (error) {
-      console.error('[DB Service] Failed to clear encryption password:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Returns `true` when the worker holds a password and can encrypt/decrypt.
-   * Use this to decide whether to show the password prompt.
+   * Returns `true` when the worker currently holds a page-encryption key
+   * (i.e. a database is unlocked). Use this to decide whether to show the
+   * password prompt.
    */
   async isEncryptionReady(): Promise<boolean> {
     try {
@@ -316,19 +310,18 @@ export class DatabaseService {
   }
 
   /**
-   * Verifies that the currently-set encryption password can decrypt
-   * `archiveBytes`, WITHOUT importing/applying the result to the live
-   * database. Used to validate a password against a cloud copy before
-   * trusting it for future syncs — a wrong password must never silently
-   * proceed to encrypt local writes with a key that can't decrypt what's
-   * already in the cloud.
+   * Returns `true` if `password` can decrypt `archiveBytes`, with no side
+   * effects on the worker's cached state. Used to verify a password against
+   * a standalone archive (a picked file or cloud download) BEFORE
+   * establishing a local encryption header under it — a wrong password must
+   * never leave behind a header that blocks a clean retry.
    */
-  async verifyEncryptionPassword(archiveBytes: Uint8Array): Promise<boolean> {
+  async canDecryptArchive(archiveBytes: Uint8Array, password: string): Promise<boolean> {
     if (!isEncryptedArchive(archiveBytes)) {
       return false;
     }
     try {
-      await this.workerService.decryptArchive(archiveBytes);
+      await this.workerService.decryptArchive(archiveBytes, password);
       return true;
     } catch {
       return false;
@@ -336,8 +329,8 @@ export class DatabaseService {
   }
 
   /**
-   * Checks `password` against the password currently held in worker memory,
-   * without changing it. Used to confirm a "current password" before
+   * Checks `password` against the encrypted database's stored verifier,
+   * without unlocking anything. Used to confirm a "current password" before
    * accepting a password change.
    */
   async verifyCurrentPassword(password: string): Promise<boolean> {
@@ -419,10 +412,11 @@ export class DatabaseService {
     }
   }
 
+  /** Recreates the schema on the already-unlocked current connection (e.g. after an aborted sample-data import). */
   async clearAndRecreateDatabase(): Promise<void> {
     try {
       console.warn("Clearing corrupted database...");
-      await this.openDatabase("/budget-app.db", true);
+      await this.workerService.recreateDatabase();
       console.info("Database cleared and recreated successfully");
     } catch (error) {
       console.error("Failed to clear and recreate database:", error);
@@ -430,19 +424,21 @@ export class DatabaseService {
     }
   }
 
+  /**
+   * Checks the out-of-band encryption header database directly, bypassing
+   * the worker — its presence is what determines whether this device
+   * already has an encrypted database to unlock, vs. needing fresh setup.
+   */
   async databaseAlreadyExists(): Promise<boolean> {
-    // Because the SharedWorker and App share the same IndexedDB service, we can just check if the database exists in the services versus the SharedWorker
     console.info("[DB Service] Checking for existing database...");
     try {
-      //Logic to check for indexedDB database existence
       const databases = await indexedDB.databases();
-      const exists = databases.some((db) => db.name === "ptbudgetapp");
+      const exists = databases.some((db) => db.name === "ptbudgetapp-keys");
 
-      //If it exists check the number of blocks to ensure we don't have an empty database
       if (exists) {
-        const request = window.indexedDB.open("ptbudgetapp");
+        const request = window.indexedDB.open("ptbudgetapp-keys");
         const actuallyExists = new Promise<boolean>((resolve) => {
-          request.onsuccess = async (event) => {
+          request.onsuccess = (event) => {
             const target = event.target as IDBRequest | null;
             if (!target) {
               console.warn(
@@ -452,30 +448,22 @@ export class DatabaseService {
               return;
             }
             const db = target.result as IDBDatabase;
-            const transaction = db.transaction("blocks", "readonly");
-            const blocks = await transaction.objectStore("blocks").getAll();
-            blocks.onsuccess = () => {
-              const result = blocks.result;
-              console.info(
-                `[DB Service] Found ${
-                  Array.isArray(result) ? result.length : 0
-                } blocks in existing database`
-              );
-              //return false if blocks is empty list
-              if (!Array.isArray(result) || result.length === 0) {
-                console.warn("[DB Service] No blocks found in existing database, treating as new");
-                resolve(false);
-              } else {
-                resolve(true);
-              }
+            if (!db.objectStoreNames.contains("header")) {
+              resolve(false);
+              return;
+            }
+            const transaction = db.transaction("header", "readonly");
+            const header = transaction.objectStore("header").get("default");
+            header.onsuccess = () => {
+              resolve(header.result != null);
             };
-            blocks.onerror = () => {
-              console.warn("[DB Service] Error reading blocks object store");
+            header.onerror = () => {
+              console.warn("[DB Service] Error reading encryption header store");
               resolve(false);
             };
           };
           request.onerror = () => {
-            console.warn("[DB Service] Error opening IndexedDB");
+            console.warn("[DB Service] Error opening encryption header database");
             resolve(false);
           };
         });

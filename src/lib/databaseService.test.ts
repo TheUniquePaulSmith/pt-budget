@@ -196,16 +196,19 @@ function createWorkerTransportStub(
 ): DatabaseWorkerTransport {
   return {
     initialize: vi.fn(),
-    openDatabase: vi.fn(),
     createTables: vi.fn(),
     ensureIndexes: vi.fn(),
     query: vi.fn(),
     exec: vi.fn(),
     exportDatabaseSnapshot: vi.fn(),
     importDatabaseSnapshot: vi.fn(),
-    setEncryptionPassword: vi.fn().mockResolvedValue(undefined),
-    clearEncryptionPassword: vi.fn().mockResolvedValue(undefined),
+    createNewDatabase: vi.fn().mockResolvedValue(undefined),
+    unlockDatabase: vi.fn().mockResolvedValue(undefined),
+    lockDatabase: vi.fn().mockResolvedValue(undefined),
+    changePassword: vi.fn().mockResolvedValue(undefined),
+    recreateDatabase: vi.fn().mockResolvedValue(undefined),
     isEncryptionReady: vi.fn().mockResolvedValue(true),
+    verifyCurrentPassword: vi.fn().mockResolvedValue(true),
     encryptArchive: vi.fn().mockResolvedValue(new Uint8Array([0xaa, 0xbb])),
     decryptArchive: vi.fn().mockResolvedValue(new Uint8Array()),
     onStatusChange: vi.fn(() => () => undefined),
@@ -345,38 +348,36 @@ describe('DatabaseService lifecycle helpers', () => {
     expect(worker.initialize).toHaveBeenCalledTimes(1);
   });
 
-  it('delegates new database opening to the worker without a second createTables call', async () => {
+  it('delegates new database creation to the worker with the password and options', async () => {
     const worker = createWorkerTransportStub();
     const service = new DatabaseService(worker);
     vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
 
-    await service.openDatabase('/custom-budget.db', true);
+    await service.createNewDatabase('hunter22!', { deferIndexes: true });
 
-    expect(worker.openDatabase).toHaveBeenCalledWith('/custom-budget.db', true, {});
-    expect(worker.createTables).not.toHaveBeenCalled();
-  });
-
-  it('skips table creation when opening an existing database', async () => {
-    const worker = createWorkerTransportStub();
-    const service = new DatabaseService(worker);
-    vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
-
-    await service.openDatabase('/custom-budget.db', false);
-
-    expect(worker.openDatabase).toHaveBeenCalledWith('/custom-budget.db', false, {});
-    expect(worker.createTables).not.toHaveBeenCalled();
-  });
-
-  it('can defer index creation when opening a new database for bulk sample imports', async () => {
-    const worker = createWorkerTransportStub();
-    const service = new DatabaseService(worker);
-    vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
-
-    await service.createNewDatabase({ deferIndexes: true });
-
-    expect(worker.openDatabase).toHaveBeenCalledWith('/budget-app.db', true, {
+    expect(worker.createNewDatabase).toHaveBeenCalledWith('hunter22!', undefined, {
       deferIndexes: true,
     });
+  });
+
+  it('delegates unlocking to the worker with the password', async () => {
+    const worker = createWorkerTransportStub();
+    const service = new DatabaseService(worker);
+    vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
+
+    await service.unlockDatabase('hunter22!');
+
+    expect(worker.unlockDatabase).toHaveBeenCalledWith('hunter22!');
+  });
+
+  it('propagates a wrong-password rejection from unlockDatabase', async () => {
+    const worker = createWorkerTransportStub({
+      unlockDatabase: vi.fn().mockRejectedValue(new Error('Incorrect password')),
+    });
+    const service = new DatabaseService(worker);
+    vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
+
+    await expect(service.unlockDatabase('wrong-password')).rejects.toThrow('Incorrect password');
   });
 
   it('delegates ensureIndexes to the worker transport', async () => {
@@ -388,34 +389,31 @@ describe('DatabaseService lifecycle helpers', () => {
     expect(worker.ensureIndexes).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    {
-      name: 'openExistingDatabase',
-      call: (service: DatabaseService) => service.openExistingDatabase(),
-      expectedArgs: [undefined, false],
-    },
-    {
-      name: 'createNewDatabase',
-      call: (service: DatabaseService) => service.createNewDatabase(),
-      expectedArgs: [undefined, true, {}],
-    },
-    {
-      name: 'clearAndRecreateDatabase',
-      call: (service: DatabaseService) => service.clearAndRecreateDatabase(),
-      expectedArgs: ['/budget-app.db', true],
-    },
-  ])('delegates %s to openDatabase with the expected arguments', async ({
-    call,
-    expectedArgs,
-  }) => {
-    const service = new DatabaseService(createWorkerTransportStub());
-    const openDatabaseSpy = vi
-      .spyOn(service, 'openDatabase')
-      .mockResolvedValue(undefined);
+  it('delegates lockDatabase to the worker transport', async () => {
+    const worker = createWorkerTransportStub();
+    const service = new DatabaseService(worker);
 
-    await call(service);
+    await service.lockDatabase();
 
-    expect(openDatabaseSpy).toHaveBeenCalledWith(...expectedArgs);
+    expect(worker.lockDatabase).toHaveBeenCalledTimes(1);
+  });
+
+  it('delegates changePassword to the worker transport', async () => {
+    const worker = createWorkerTransportStub();
+    const service = new DatabaseService(worker);
+
+    await service.changePassword('old-password', 'new-password');
+
+    expect(worker.changePassword).toHaveBeenCalledWith('old-password', 'new-password');
+  });
+
+  it('delegates clearAndRecreateDatabase to the worker\'s recreateDatabase', async () => {
+    const worker = createWorkerTransportStub();
+    const service = new DatabaseService(worker);
+
+    await service.clearAndRecreateDatabase();
+
+    expect(worker.recreateDatabase).toHaveBeenCalledTimes(1);
   });
 });
 

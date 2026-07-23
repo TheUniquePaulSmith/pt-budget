@@ -681,19 +681,23 @@ describe('DatabaseService scope filters', () => {
 });
 
 describe('DatabaseService delegate wrappers', () => {
-  it('delegates encryption password management to the worker transport', async () => {
+  it('delegates database create/unlock/lock to the worker transport', async () => {
     const transport = {
-      setEncryptionPassword: vi.fn().mockResolvedValue(undefined),
-      clearEncryptionPassword: vi.fn().mockResolvedValue(undefined),
+      initialize: vi.fn().mockResolvedValue(undefined),
+      createNewDatabase: vi.fn().mockResolvedValue(undefined),
+      unlockDatabase: vi.fn().mockResolvedValue(undefined),
+      lockDatabase: vi.fn().mockResolvedValue(undefined),
       isEncryptionReady: vi.fn().mockResolvedValue(true),
     } as unknown as DatabaseWorkerTransport;
     const service = new DatabaseService(transport);
 
-    await service.setEncryptionPassword('hunter22!');
-    await service.clearEncryptionPassword();
+    await service.createNewDatabase('hunter22!', { deferIndexes: true });
+    await service.unlockDatabase('hunter22!');
+    await service.lockDatabase();
 
-    expect(transport.setEncryptionPassword).toHaveBeenCalledWith('hunter22!');
-    expect(transport.clearEncryptionPassword).toHaveBeenCalled();
+    expect(transport.createNewDatabase).toHaveBeenCalledWith('hunter22!', undefined, { deferIndexes: true });
+    expect(transport.unlockDatabase).toHaveBeenCalledWith('hunter22!');
+    expect(transport.lockDatabase).toHaveBeenCalled();
     await expect(service.isEncryptionReady()).resolves.toBe(true);
   });
 

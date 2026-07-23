@@ -266,12 +266,16 @@ export class DatabaseWorkerService {
     exec: 5000,          // 5s for commands
     ping: 5000,          // 5s for heartbeat
     initialize: 30000,   // 30s for initialization
-    open_database: 30000, // 30s for opening database
+    recreate_database: 30000, // 30s for recreating schema on an already-unlocked connection
     ensure_indexes: 600000, // 10m for building indexes on large datasets
-    export_database_snapshot: 60000, // 1min for exports
-    import_database_snapshot: 120000, // 2min for archive imports
-    set_password: 30000,           // 30s for password derivation
-    clear_password: 5000,
+    // Export/import now decrypt/re-encrypt every physical page, so they carry
+    // the same generous allowance as change_password's full-database walk.
+    export_database_snapshot: 600000, // 10min for exports
+    import_database_snapshot: 600000, // 10min for archive imports
+    create_new_database: 30000,    // 30s for password derivation + creation
+    unlock_database: 30000,        // 30s for password derivation + verification
+    lock_database: 10000,
+    change_password: 600000,       // 10m — re-encrypts every stored block
     check_encryption_ready: 5000,
     verify_password: 5000,
     encrypt_archive: 120000,       // 2min for large archive encryption
@@ -323,14 +327,6 @@ export class DatabaseWorkerService {
   // Database operations
   public async initialize(): Promise<DatabaseResponse> {
     return this.sendMessage('initialize');
-  }
-
-  public async openDatabase(
-    filename?: string,
-    isNew?: boolean,
-    options: OpenDatabaseOptions = {}
-  ): Promise<DatabaseResponse> {
-    return this.sendMessage('open_database', { filename, isNew, options });
   }
 
   public async createTables(options: CreateTablesOptions = {}): Promise<DatabaseResponse> {
@@ -388,26 +384,53 @@ export class DatabaseWorkerService {
   }
 
   // ---------------------------------------------------------------------------
-  // Encryption operations
+  // Database create / unlock / lock (VFS-level page encryption)
   // ---------------------------------------------------------------------------
 
-  /** Store the user's password in the worker for this SharedWorker lifetime. */
-  public async setEncryptionPassword(password: string): Promise<void> {
-    await this.sendMessage('set_password', { password });
+  /**
+   * Creates a brand-new encrypted database: derives a page-encryption key
+   * from `password`, writes the out-of-band encryption header, and opens the
+   * database. Fails if an encrypted database already exists on this device.
+   */
+  public async createNewDatabase(
+    password: string,
+    filename?: string,
+    options: OpenDatabaseOptions = {}
+  ): Promise<DatabaseResponse> {
+    return this.sendMessage('create_new_database', { password, filename, options });
   }
 
-  /** Remove the stored password from the worker (e.g. explicit sign-out). */
-  public async clearEncryptionPassword(): Promise<void> {
-    await this.sendMessage('clear_password');
+  /**
+   * Unlocks the existing encrypted database on this device with `password`.
+   * Rejects with a clear error on a wrong password without ever opening the
+   * database or touching its stored blocks.
+   */
+  public async unlockDatabase(password: string, filename?: string): Promise<DatabaseResponse> {
+    return this.sendMessage('unlock_database', { password, filename });
   }
 
-  /** Returns `true` if the worker has a password set and can encrypt/decrypt. */
+  /** Closes the live connection and forgets the key — nothing is readable again until unlockDatabase succeeds. */
+  public async lockDatabase(): Promise<void> {
+    await this.sendMessage('lock_database');
+  }
+
+  /** Re-encrypts every stored block under a newly-derived key. Rejects if `oldPassword` is wrong. */
+  public async changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    await this.sendMessage('change_password', { oldPassword, newPassword });
+  }
+
+  /** Recreates the schema on the already-unlocked current connection (e.g. after an aborted sample-data import). */
+  public async recreateDatabase(options: OpenDatabaseOptions = {}): Promise<DatabaseResponse> {
+    return this.sendMessage('recreate_database', { options });
+  }
+
+  /** Returns `true` if the worker currently holds a page-encryption key (i.e. a database is unlocked). */
   public async isEncryptionReady(): Promise<boolean> {
     const response = await this.sendMessage('check_encryption_ready');
     return response.sqlResponse?.isReady === true;
   }
 
-  /** Returns `true` if `password` matches the password currently held in worker memory. */
+  /** Returns `true` if `password` matches the encrypted database's stored verifier, without unlocking anything. */
   public async verifyCurrentPassword(password: string): Promise<boolean> {
     const response = await this.sendMessage('verify_password', { password });
     return response.sqlResponse?.isMatch === true;
@@ -432,11 +455,13 @@ export class DatabaseWorkerService {
   }
 
   /**
-   * Asks the worker to decrypt `encryptedBytes` using the stored password and
-   * returns the inner ZIP bytes.
+   * Asks the worker to decrypt `encryptedBytes` and returns the inner ZIP
+   * bytes. Uses `password` if given (e.g. verifying a standalone archive
+   * before any local database exists); otherwise falls back to whatever
+   * password the worker already has cached for the unlocked database.
    */
-  public async decryptArchive(encryptedBytes: Uint8Array): Promise<Uint8Array> {
-    const response = await this.sendMessage('decrypt_archive', { encryptedBytes });
+  public async decryptArchive(encryptedBytes: Uint8Array, password?: string): Promise<Uint8Array> {
+    const response = await this.sendMessage('decrypt_archive', { encryptedBytes, password });
     if (!response.isSuccessful || !response.sqlResponse?.plainBytes) {
       throw new Error(response.sqlResponse?.error || 'Failed to decrypt archive');
     }

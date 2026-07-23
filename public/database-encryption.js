@@ -208,3 +208,62 @@ export async function decryptArchive(encryptedBytes, password) {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Page-encryption key (VFS-level at-rest encryption of the live database)
+// ---------------------------------------------------------------------------
+//
+// Uses the same PBKDF2-HMAC-SHA256 -> AES-256-GCM derivation as the archive
+// path above, but with its own independently-random salt (persisted in the
+// worker's out-of-band encryption header) so the page-encryption key and the
+// archive-encryption key are cryptographically independent even though both
+// are derived from the same password.
+
+const PAGE_KEY_VERIFIER_PLAINTEXT = 'budget-tracker-page-key-check-v1';
+
+/**
+ * Derives the AES-256-GCM key used to encrypt/decrypt live database pages.
+ * @param {string} password
+ * @param {Uint8Array} pageSalt
+ * @returns {Promise<CryptoKey>}
+ */
+export async function derivePageKey(password, pageSalt) {
+  return deriveKey(password, pageSalt);
+}
+
+/**
+ * Encrypts a fixed, non-secret constant under `pageKey` so a later unlock
+ * attempt can reject a wrong password immediately, without ever touching the
+ * VFS-managed blocks.
+ * @param {CryptoKey} pageKey
+ * @returns {Promise<{verifierIv: string, verifierCiphertext: string}>}
+ */
+export async function createPageKeyVerifier(pageKey) {
+  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTE_LENGTH));
+  const plaintext = new TextEncoder().encode(PAGE_KEY_VERIFIER_PLAINTEXT);
+  const cipherBuffer = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, pageKey, plaintext);
+  return {
+    verifierIv: bytesToHex(iv),
+    verifierCiphertext: bytesToHex(new Uint8Array(cipherBuffer)),
+  };
+}
+
+/**
+ * Returns `true` only if `pageKey` correctly decrypts the stored verifier.
+ * @param {CryptoKey} pageKey
+ * @param {string} verifierIv
+ * @param {string} verifierCiphertext
+ * @returns {Promise<boolean>}
+ */
+export async function checkPageKeyVerifier(pageKey, verifierIv, verifierCiphertext) {
+  try {
+    const plainBuffer = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: hexToBytes(verifierIv) },
+      pageKey,
+      hexToBytes(verifierCiphertext)
+    );
+    return new TextDecoder().decode(plainBuffer) === PAGE_KEY_VERIFIER_PLAINTEXT;
+  } catch {
+    return false;
+  }
+}

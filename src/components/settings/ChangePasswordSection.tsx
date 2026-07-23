@@ -94,8 +94,8 @@ export function ChangePasswordSection({
         Change Password
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        This is the password used to encrypt exports and cloud backups. There is no password
-        recovery, so store it somewhere safe.
+        This password encrypts your database on this device, as well as exports and cloud
+        backups. There is no password recovery, so store it somewhere safe.
       </Typography>
 
       {displayError && (

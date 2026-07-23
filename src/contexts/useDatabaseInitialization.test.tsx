@@ -55,8 +55,9 @@ vi.mock('@/lib/cloudProviderClients', () => ({
 type MockService = {
   dbExistsBeforeInit: boolean;
   initialize: ReturnType<typeof vi.fn>;
-  openExistingDatabase: ReturnType<typeof vi.fn>;
   createNewDatabase: ReturnType<typeof vi.fn>;
+  unlockDatabase: ReturnType<typeof vi.fn>;
+  lockDatabase: ReturnType<typeof vi.fn>;
   ensurePrimaryUser: ReturnType<typeof vi.fn>;
   addAccountWithCard: ReturnType<typeof vi.fn>;
   ensureIndexes: ReturnType<typeof vi.fn>;
@@ -64,11 +65,9 @@ type MockService = {
   loadDatabaseFromFile: ReturnType<typeof vi.fn>;
   getWorkerService: ReturnType<typeof vi.fn>;
   isEncryptionReady: ReturnType<typeof vi.fn>;
-  setEncryptionPassword: ReturnType<typeof vi.fn>;
-  clearEncryptionPassword: ReturnType<typeof vi.fn>;
   importDatabaseArchiveData: ReturnType<typeof vi.fn>;
   getEncryptedArchiveTimestamp: ReturnType<typeof vi.fn>;
-  verifyEncryptionPassword: ReturnType<typeof vi.fn>;
+  canDecryptArchive: ReturnType<typeof vi.fn>;
   getDatabaseStatus: ReturnType<typeof vi.fn>;
 };
 
@@ -130,8 +129,9 @@ function createServiceMock(overrides: Partial<MockService> = {}): MockService {
   return {
     dbExistsBeforeInit: false,
     initialize: vi.fn().mockResolvedValue(undefined),
-    openExistingDatabase: vi.fn().mockResolvedValue(undefined),
     createNewDatabase: vi.fn().mockResolvedValue(undefined),
+    unlockDatabase: vi.fn().mockResolvedValue(undefined),
+    lockDatabase: vi.fn().mockResolvedValue(undefined),
     ensurePrimaryUser: vi.fn().mockResolvedValue(1),
     addAccountWithCard: vi.fn().mockResolvedValue({ accountId: 1, cardId: 1 }),
     ensureIndexes: vi.fn().mockResolvedValue(undefined),
@@ -139,11 +139,9 @@ function createServiceMock(overrides: Partial<MockService> = {}): MockService {
     loadDatabaseFromFile: vi.fn().mockResolvedValue(undefined),
     getWorkerService: vi.fn(() => workerService),
     isEncryptionReady: vi.fn().mockResolvedValue(true),
-    setEncryptionPassword: vi.fn().mockResolvedValue(undefined),
-    clearEncryptionPassword: vi.fn().mockResolvedValue(undefined),
     importDatabaseArchiveData: vi.fn().mockResolvedValue(undefined),
     getEncryptedArchiveTimestamp: vi.fn().mockReturnValue(null),
-    verifyEncryptionPassword: vi.fn().mockResolvedValue(true),
+    canDecryptArchive: vi.fn().mockResolvedValue(true),
     getDatabaseStatus: vi
       .fn()
       .mockResolvedValue({ lastWriteTimestamp: null, tableStats: {} }),
@@ -201,13 +199,54 @@ describe('useDatabaseInitialization', () => {
     expect(mockedDatabaseService).not.toHaveBeenCalled();
   });
 
-  it('uses cached compatible browser results to initialize and open an existing database', async () => {
+  it('uses cached compatible browser results to detect an existing encrypted database and gate on unlock', async () => {
     localStorage.setItem(
       'budgetApp_browserTestPassed',
       JSON.stringify(compatibleBrowserResults)
     );
 
-    const service = createServiceMock({ dbExistsBeforeInit: true });
+    const service = createServiceMock({
+      dbExistsBeforeInit: true,
+      isEncryptionReady: vi.fn().mockResolvedValue(false),
+    });
+    mockedDatabaseService.mockImplementation(
+      () => service as unknown as DatabaseService
+    );
+    const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useDatabaseInitialization({ loadAllData })
+    );
+
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('needs-unlock');
+    });
+
+    expect(service.initialize).toHaveBeenCalledTimes(1);
+    expect(service.getWorkerService).toHaveBeenCalledTimes(1);
+    expect(loadAllData).not.toHaveBeenCalled();
+    expect(result.current.databaseService).toBe(service);
+
+    // The SQLite engine itself enforces the password via the encrypting VFS.
+    await act(async () => {
+      await result.current.handleUnlockSubmitted('correcthorsebatterystaple');
+    });
+
+    expect(service.unlockDatabase).toHaveBeenCalledWith('correcthorsebatterystaple');
+    expect(loadAllData).toHaveBeenCalledWith(service);
+    expect(result.current.initializationState).toBe('initialized');
+  });
+
+  it('skips needs-unlock and loads straight through when another tab in this SharedWorker session already unlocked the database', async () => {
+    localStorage.setItem(
+      'budgetApp_browserTestPassed',
+      JSON.stringify(compatibleBrowserResults)
+    );
+
+    const service = createServiceMock({
+      dbExistsBeforeInit: true,
+      isEncryptionReady: vi.fn().mockResolvedValue(true),
+    });
     mockedDatabaseService.mockImplementation(
       () => service as unknown as DatabaseService
     );
@@ -221,14 +260,71 @@ describe('useDatabaseInitialization', () => {
       expect(result.current.initializationState).toBe('initialized');
     });
 
-    expect(service.initialize).toHaveBeenCalledTimes(1);
-    expect(service.getWorkerService).toHaveBeenCalledTimes(1);
-    expect(service.openExistingDatabase).toHaveBeenCalledTimes(1);
+    expect(service.unlockDatabase).not.toHaveBeenCalled();
     expect(loadAllData).toHaveBeenCalledWith(service);
-    expect(result.current.databaseService).toBe(service);
   });
 
-  it('creates a new database and loads sample data when requested', async () => {
+  it('rejects an incorrect password at needs-unlock without loading any data', async () => {
+    localStorage.setItem(
+      'budgetApp_browserTestPassed',
+      JSON.stringify(compatibleBrowserResults)
+    );
+
+    const service = createServiceMock({
+      dbExistsBeforeInit: true,
+      isEncryptionReady: vi.fn().mockResolvedValue(false),
+      unlockDatabase: vi.fn().mockRejectedValue(new Error('Incorrect password')),
+    });
+    mockedDatabaseService.mockImplementation(
+      () => service as unknown as DatabaseService
+    );
+    const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useDatabaseInitialization({ loadAllData })
+    );
+
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('needs-unlock');
+    });
+
+    await act(async () => {
+      await result.current.handleUnlockSubmitted('wrong-password');
+    });
+
+    expect(loadAllData).not.toHaveBeenCalled();
+    expect(result.current.error).toBe('Incorrect password');
+    expect(result.current.initializationState).toBe('needs-unlock');
+  });
+
+  it('createOrOpenDatabase(true) redirects to needs-password-setup without creating anything (a password is required first)', async () => {
+    const service = createServiceMock({
+      dbExistsBeforeInit: false,
+      isEncryptionReady: vi.fn().mockResolvedValue(false),
+    });
+    mockedDatabaseService.mockImplementation(
+      () => service as unknown as DatabaseService
+    );
+    const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useDatabaseInitialization({ loadAllData })
+    );
+
+    await completeBrowserTest(result);
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('needs-setup');
+    });
+
+    await act(async () => {
+      await result.current.createOrOpenDatabase(true);
+    });
+
+    expect(service.createNewDatabase).not.toHaveBeenCalled();
+    expect(result.current.initializationState).toBe('needs-password-setup');
+  });
+
+  it('handlePasswordSetupConfirmed creates the database with the password and loads sample data when requested', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
     mockedDatabaseService.mockImplementation(
       () => service as unknown as DatabaseService
@@ -248,10 +344,10 @@ describe('useDatabaseInitialization', () => {
     });
 
     await act(async () => {
-      await result.current.createOrOpenDatabase(true);
+      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
     });
 
-    expect(service.createNewDatabase).toHaveBeenCalledWith({
+    expect(service.createNewDatabase).toHaveBeenCalledWith('correcthorsebatterystaple', {
       deferIndexes: true,
     });
     expect(service.ensureIndexes).toHaveBeenCalledTimes(1);
@@ -262,12 +358,11 @@ describe('useDatabaseInitialization', () => {
         onProgress: expect.any(Function),
       })
     );
-    expect(loadAllData).toHaveBeenLastCalledWith(service);
-    expect(result.current.initializationState).toBe('initialized');
+    expect(result.current.initializationState).toBe('needs-initial-account');
     expect(result.current.isLoading).toBe(false);
   });
 
-  it('cancels sample data import, recreates the database, and finishes initialized', async () => {
+  it('cancels sample data import and recreates the database, then proceeds to needs-initial-account', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
     mockedDatabaseService.mockImplementation(
       () => service as unknown as DatabaseService
@@ -309,9 +404,9 @@ describe('useDatabaseInitialization', () => {
       expect(result.current.initializationState).toBe('needs-setup');
     });
 
-    let createPromise!: Promise<void>;
+    let confirmPromise!: Promise<void>;
     await act(async () => {
-      createPromise = result.current.createOrOpenDatabase(true);
+      confirmPromise = result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
     });
 
     await waitFor(() => {
@@ -322,16 +417,15 @@ describe('useDatabaseInitialization', () => {
 
     await act(async () => {
       result.current.cancelSampleDataImport();
-      await createPromise;
+      await confirmPromise;
     });
 
-    expect(service.createNewDatabase).toHaveBeenCalledWith({
+    expect(service.createNewDatabase).toHaveBeenCalledWith('correcthorsebatterystaple', {
       deferIndexes: true,
     });
     expect(service.clearAndRecreateDatabase).toHaveBeenCalledTimes(1);
     expect(service.ensureIndexes).toHaveBeenCalledTimes(1);
-    expect(loadAllData).toHaveBeenLastCalledWith(service);
-    expect(result.current.initializationState).toBe('initialized');
+    expect(result.current.initializationState).toBe('needs-initial-account');
     expect(result.current.sampleDataImportProgress).toBeNull();
     expect(result.current.isLoading).toBe(false);
   });
@@ -389,7 +483,9 @@ describe('useDatabaseInitialization', () => {
       await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
     });
 
-    expect(service.setEncryptionPassword).toHaveBeenCalledWith('correcthorsebatterystaple');
+    expect(service.createNewDatabase).toHaveBeenCalledWith('correcthorsebatterystaple', {
+      deferIndexes: false,
+    });
     expect(result.current.initializationState).toBe('needs-initial-account');
   });
 
@@ -697,7 +793,10 @@ describe('useDatabaseInitialization', () => {
       await result.current.handlePasswordEntrySubmitted('correcthorsebatterystaple');
     });
 
-    expect(service.setEncryptionPassword).toHaveBeenCalledWith('correcthorsebatterystaple');
+    expect(service.canDecryptArchive).toHaveBeenCalledWith(archiveBytes, 'correcthorsebatterystaple');
+    expect(service.createNewDatabase).toHaveBeenCalledWith('correcthorsebatterystaple', {
+      deferIndexes: true,
+    });
     expect(service.importDatabaseArchiveData).toHaveBeenCalledWith(archiveBytes);
     expect(mockedPersistCloudLink).toHaveBeenCalledWith({
       provider: 'gdrive',
@@ -708,7 +807,7 @@ describe('useDatabaseInitialization', () => {
     expect(result.current.initializationState).toBe('initialized');
   });
 
-  it('needs-cloud-password: an incorrect password is rejected without touching the local database', async () => {
+  it('needs-unlock (cloud-linked): an incorrect password is rejected and cloud reconciliation never runs', async () => {
     document.cookie = 'budgetTrackerDatabaseSource=gdrive; path=/';
     localStorage.setItem(
       'budgetTrackerDatabaseSourceState',
@@ -723,7 +822,7 @@ describe('useDatabaseInitialization', () => {
     const service = createServiceMock({
       dbExistsBeforeInit: true,
       isEncryptionReady: vi.fn().mockResolvedValue(false),
-      verifyEncryptionPassword: vi.fn().mockResolvedValue(false),
+      unlockDatabase: vi.fn().mockRejectedValue(new Error('Incorrect password')),
     });
     mockedDatabaseService.mockImplementation(
       () => service as unknown as DatabaseService
@@ -735,73 +834,21 @@ describe('useDatabaseInitialization', () => {
     );
     await completeBrowserTest(result);
     await waitFor(() => {
-      expect(result.current.initializationState).toBe('needs-cloud-password');
+      expect(result.current.initializationState).toBe('needs-unlock');
     });
-
-    mockedDownloadCloudArchive.mockResolvedValue({
-      bytes: new Uint8Array([9]),
-      cloudTimestamp: null,
-      freshMeta: createCloudFile(),
-    } as any);
 
     await act(async () => {
-      await result.current.handleCloudPasswordSubmitted('wrong-password');
+      await result.current.handleUnlockSubmitted('wrong-password');
     });
 
-    expect(service.verifyEncryptionPassword).toHaveBeenCalled();
-    expect(service.importDatabaseArchiveData).not.toHaveBeenCalled();
-    expect(service.clearEncryptionPassword).toHaveBeenCalled();
-    expect(result.current.error).toBe('Incorrect password for this database');
-    expect(result.current.initializationState).toBe('needs-cloud-password');
+    expect(service.unlockDatabase).toHaveBeenCalledWith('wrong-password');
+    expect(mockedReconcileOnOpen).not.toHaveBeenCalled();
+    expect(result.current.error).toBe('Incorrect password');
+    expect(result.current.initializationState).toBe('needs-unlock');
     expect(loadAllData).not.toHaveBeenCalled();
   });
 
-  it('needs-cloud-password: the correct password unlocks and proceeds to initialized', async () => {
-    document.cookie = 'budgetTrackerDatabaseSource=gdrive; path=/';
-    localStorage.setItem(
-      'budgetTrackerDatabaseSourceState',
-      JSON.stringify(
-        createDefaultSourceState({
-          source: 'gdrive',
-          linkedFiles: { gdrive: createCloudFile() },
-        })
-      )
-    );
-
-    const service = createServiceMock({
-      dbExistsBeforeInit: true,
-      isEncryptionReady: vi.fn().mockResolvedValue(false),
-      verifyEncryptionPassword: vi.fn().mockResolvedValue(true),
-    });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
-    const loadAllData = vi.fn().mockResolvedValue(undefined);
-
-    const { result } = renderHook(() =>
-      useDatabaseInitialization({ loadAllData })
-    );
-    await completeBrowserTest(result);
-    await waitFor(() => {
-      expect(result.current.initializationState).toBe('needs-cloud-password');
-    });
-
-    mockedDownloadCloudArchive.mockResolvedValue({
-      bytes: new Uint8Array([9]),
-      cloudTimestamp: null,
-      freshMeta: createCloudFile(),
-    } as any);
-
-    await act(async () => {
-      await result.current.handleCloudPasswordSubmitted('correcthorsebatterystaple');
-    });
-
-    expect(service.clearEncryptionPassword).not.toHaveBeenCalled();
-    expect(loadAllData).toHaveBeenCalledWith(service);
-    expect(result.current.initializationState).toBe('initialized');
-  });
-
-  it('skipCloudUnlock loads local data and proceeds without ever setting a password', async () => {
+  it('needs-unlock (cloud-linked): the correct password unlocks, reconciles with the cloud source, and proceeds to initialized', async () => {
     document.cookie = 'budgetTrackerDatabaseSource=gdrive; path=/';
     localStorage.setItem(
       'budgetTrackerDatabaseSourceState',
@@ -820,6 +867,7 @@ describe('useDatabaseInitialization', () => {
     mockedDatabaseService.mockImplementation(
       () => service as unknown as DatabaseService
     );
+    mockedReconcileOnOpen.mockResolvedValue('in-sync');
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
@@ -827,15 +875,18 @@ describe('useDatabaseInitialization', () => {
     );
     await completeBrowserTest(result);
     await waitFor(() => {
-      expect(result.current.initializationState).toBe('needs-cloud-password');
+      expect(result.current.initializationState).toBe('needs-unlock');
     });
 
     await act(async () => {
-      await result.current.skipCloudUnlock();
+      await result.current.handleUnlockSubmitted('correcthorsebatterystaple');
     });
 
+    expect(service.unlockDatabase).toHaveBeenCalledWith('correcthorsebatterystaple');
+    expect(mockedReconcileOnOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'gdrive' })
+    );
     expect(loadAllData).toHaveBeenCalledWith(service);
-    expect(service.setEncryptionPassword).not.toHaveBeenCalled();
     expect(result.current.initializationState).toBe('initialized');
   });
 });

@@ -19,6 +19,29 @@ vi.mock('@/contexts/useDatabaseSlices', () => ({
   useSqlQuerySlice: vi.fn(),
 }));
 
+vi.mock('./useSqlSchema', () => ({
+  useSqlSchema: () => ({
+    schema: null,
+    schemaError: null,
+    schemaLoading: false,
+    refreshSchema: vi.fn(),
+  }),
+}));
+
+vi.mock('./SqlEditor', () => ({
+  default: ({ value, onChange, 'data-testid': testId }: {
+    value: string;
+    onChange: (value: string) => void;
+    'data-testid'?: string;
+  }) => (
+    <textarea
+      data-testid={testId}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ),
+}));
+
 vi.mock('@/components/common/DataGrid/AppDataGrid', () => ({
   AppDataGrid: ({ rows, columns }: { rows: any[]; columns: Array<{ field: string; headerName?: string }> }) => (
     <div role="grid">
@@ -54,6 +77,9 @@ vi.mock('@mui/icons-material', () => {
     ExpandMore: createIcon('expand-more-icon'),
     ContentCopy: createIcon('content-copy-icon'),
     History: createIcon('history-icon'),
+    ListAlt: createIcon('list-alt-icon'),
+    AutoFixHigh: createIcon('auto-fix-high-icon'),
+    Close: createIcon('close-icon'),
   };
 });
 
@@ -85,7 +111,7 @@ describe('SQLQueryPage', () => {
     renderPage();
     const user = userEvent.setup();
 
-    await user.type(screen.getByTestId('sql-query-input'), 'SELECT 1;');
+    await user.type(await screen.findByTestId('sql-query-input'), 'SELECT 1;');
     await user.click(screen.getByRole('button', { name: 'Execute Query' }));
 
     expect(await screen.findByText('Database not loaded')).toBeInTheDocument();
@@ -103,7 +129,7 @@ describe('SQLQueryPage', () => {
     const user = userEvent.setup();
     const query = 'SELECT COUNT(*) AS count FROM transactions;';
 
-    await user.type(screen.getByTestId('sql-query-input'), query);
+    await user.type(await screen.findByTestId('sql-query-input'), query);
     await user.click(screen.getByRole('button', { name: 'Execute Query' }));
 
     await waitFor(() => {
@@ -128,7 +154,7 @@ describe('SQLQueryPage', () => {
     renderPage();
     const user = userEvent.setup();
 
-    await user.type(screen.getByTestId('sql-query-input'), 'SELECT value FROM transactions;');
+    await user.type(await screen.findByTestId('sql-query-input'), 'SELECT value FROM transactions;');
     await user.click(screen.getByRole('button', { name: 'Execute Query' }));
 
     expect(await screen.findByRole('grid')).toBeInTheDocument();

@@ -147,7 +147,10 @@ export async function reloadAndUnlock(page: Page, password: string = TEST_PASSWO
 
 export async function runQuery(page: Page, sql: string) {
   await page.getByRole('button', { name: 'SQL Query' }).click();
-  await page.getByTestId('sql-query-input').fill(sql);
+  // The query box is a CodeMirror editor: `sql-query-input` tags its outer
+  // wrapper, but `.fill()` needs the actual contenteditable `.cm-content`
+  // node inside it.
+  await page.getByTestId('sql-query-input').locator('.cm-content').fill(sql);
   await page.getByRole('button', { name: 'Execute Query' }).click();
   await expect(page.getByTestId('sql-query-results')).toBeVisible();
 }

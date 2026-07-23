@@ -1,19 +1,16 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Box,
   Typography,
   Paper,
-  TextField,
   Button,
   Alert,
   CircularProgress,
   Chip,
   Stack,
-  Card,
-  CardContent,
-  IconButton,
   Tooltip,
   Accordion,
   AccordionSummary,
@@ -21,6 +18,8 @@ import {
   List,
   ListItem,
   MenuItem,
+  TextField,
+  Skeleton,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
@@ -29,13 +28,25 @@ import {
   Clear,
   Storage,
   ExpandMore,
-  ContentCopy,
   History,
+  ListAlt,
+  AutoFixHigh,
 } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { useSqlQuerySlice } from '@/contexts/useDatabaseSlices';
+
+import { useSqlSchema } from './useSqlSchema';
+import SampleQueriesDrawer from './SampleQueriesDrawer';
+import type { SqlQueryAnalysis } from './sqlQueryAnalysis';
+
+// CodeMirror + the local SQL parser used for linting are a few hundred KB;
+// loaded only when this page is actually opened, not with the main bundle.
+const SqlEditor = dynamic(() => import('./SqlEditor'), {
+  ssr: false,
+  loading: () => <Skeleton variant="rectangular" height={160} sx={{ borderRadius: 1 }} />,
+});
 
 interface QueryResult {
   columns: string[];
@@ -53,10 +64,15 @@ interface QueryHistory {
   error?: string;
 }
 
+const EMPTY_ANALYSIS: SqlQueryAnalysis = { issues: [], blockingReason: null };
+const MAX_VISIBLE_ISSUES = 5;
+
 export default function SQLQueryPage() {
   const { executeCustomQuery, isDatabaseLoaded } = useSqlQuerySlice();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  const { schema, schemaError, schemaLoading } = useSqlSchema(executeCustomQuery, isDatabaseLoaded);
 
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<QueryResult | null>(null);
@@ -64,75 +80,18 @@ export default function SQLQueryPage() {
   const [loading, setLoading] = useState(false);
   const [queryHistory, setQueryHistory] = useState<QueryHistory[]>([]);
   const [queryTimeout, setQueryTimeout] = useState(10000);
-
-  // Sample queries for reference
-  const sampleQueries = [
-    {
-      title: 'All Transactions',
-      query: 'SELECT * FROM transactions ORDER BY date DESC LIMIT 10;'
-    },
-    {
-      title: 'Transaction Summary by Category',
-      query: `SELECT 
-  c.name as category,
-  t.type,
-  COUNT(*) as transaction_count,
-  SUM(ABS(t.amount)) as total_amount
-FROM transactions t
-LEFT JOIN categories c ON t.category_id = c.id
-GROUP BY c.name, t.type
-ORDER BY total_amount DESC;`
-    },
-    {
-      title: 'Monthly Spending Totals',
-      query: `SELECT 
-  strftime('%Y-%m', date) as month,
-  SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
-  SUM(CASE WHEN type = 'expense' THEN ABS(amount) ELSE 0 END) as expenses
-FROM transactions
-GROUP BY strftime('%Y-%m', date)
-ORDER BY month DESC;`
-    },
-    {
-      title: 'Top 10 Expense Categories',
-      query: `SELECT 
-  c.name as category,
-  COUNT(*) as transaction_count,
-  SUM(ABS(t.amount)) as total_spent
-FROM transactions t
-LEFT JOIN categories c ON t.category_id = c.id
-WHERE t.type = 'expense'
-GROUP BY c.id, c.name
-ORDER BY total_spent DESC
-LIMIT 10;`
-    },
-    {
-      title: 'Database Schema - Tables',
-      query: `SELECT 
-  name as table_name,
-  type
-FROM sqlite_master 
-WHERE type IN ('table', 'view')
-ORDER BY name;`
-    },
-    {
-      title: 'Database Schema - Columns',
-      query: `SELECT 
-  m.name as table_name,
-  p.name as column_name,
-  p.type as data_type,
-  p.[notnull] as not_null,
-  p.pk as primary_key
-FROM sqlite_master m
-LEFT OUTER JOIN pragma_table_info(m.name) p
-WHERE m.type = 'table'
-ORDER BY m.name, p.cid;`
-    }
-  ];
+  const [analysis, setAnalysis] = useState<SqlQueryAnalysis>(EMPTY_ANALYSIS);
+  const [formatting, setFormatting] = useState(false);
+  const [sampleQueriesOpen, setSampleQueriesOpen] = useState(false);
 
   const executeQuery = useCallback(async () => {
     if (!query.trim()) {
       setError('Please enter a SQL query');
+      return;
+    }
+
+    if (analysis.blockingReason) {
+      setError(analysis.blockingReason);
       return;
     }
 
@@ -157,14 +116,14 @@ ORDER BY m.name, p.cid;`
       // Execute the custom query
       const rows: any[] = await executeCustomQuery(query.trim(), queryTimeout);
       const endTime = performance.now();
-      
+
       let columns: string[] = [];
       let resultRows: any[][] = [];
 
       if (rows.length > 0) {
         // Get column names from the first row
         columns = Object.keys(rows[0]);
-        
+
         // Convert rows to array format
         resultRows = rows.map((row: any) => columns.map(col => row[col]));
       }
@@ -177,7 +136,7 @@ ORDER BY m.name, p.cid;`
       };
 
       setResult(queryResult);
-      
+
       // Update history
       historyEntry.success = true;
       historyEntry.rowCount = rows.length;
@@ -186,18 +145,29 @@ ORDER BY m.name, p.cid;`
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
-      
+
       // Update history with error
       historyEntry.error = errorMessage;
       setQueryHistory(prev => [historyEntry, ...prev.slice(0, 19)]);
     } finally {
       setLoading(false);
     }
-  }, [query, executeCustomQuery, isDatabaseLoaded, queryTimeout]);
+  }, [query, executeCustomQuery, isDatabaseLoaded, queryTimeout, analysis.blockingReason]);
 
-  const handleQuerySelect = (selectedQuery: string) => {
-    setQuery(selectedQuery);
-  };
+  const handleFormat = useCallback(async () => {
+    if (!query.trim()) {
+      return;
+    }
+    setFormatting(true);
+    try {
+      const { formatDialect, sqlite } = await import('sql-formatter');
+      setQuery(formatDialect(query, { dialect: sqlite, keywordCase: 'upper' }));
+    } catch (err) {
+      setError(err instanceof Error ? `Failed to format query: ${err.message}` : 'Failed to format query');
+    } finally {
+      setFormatting(false);
+    }
+  }, [query]);
 
   const handleHistorySelect = (historicalQuery: string) => {
     setQuery(historicalQuery);
@@ -207,14 +177,6 @@ ORDER BY m.name, p.cid;`
     setQuery('');
     setResult(null);
     setError(null);
-  };
-
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (err) {
-      console.error('Failed to copy to clipboard:', err);
-    }
   };
 
   const formatValue = (value: any): string => {
@@ -257,27 +219,38 @@ ORDER BY m.name, p.cid;`
     ),
   })) ?? [];
 
+  const visibleIssues = analysis.issues.slice(0, MAX_VISIBLE_ISSUES);
+  const hiddenIssueCount = analysis.issues.length - visibleIssues.length;
+
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
       {/* Header */}
-      <Box sx={{ 
-        display: 'flex', 
+      <Box sx={{
+        display: 'flex',
         flexDirection: { xs: 'column', sm: 'row' },
-        justifyContent: 'space-between', 
-        alignItems: { xs: 'stretch', sm: 'center' }, 
+        justifyContent: 'space-between',
+        alignItems: { xs: 'stretch', sm: 'center' },
         mb: 3,
         gap: { xs: 2, sm: 0 }
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Storage color="primary" />
-          <Typography 
-            variant="h4" 
+          <Typography
+            variant="h4"
             component="h1"
             sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}
           >
             SQL Query Console
           </Typography>
         </Box>
+        <Button
+          variant="outlined"
+          startIcon={<ListAlt />}
+          onClick={() => setSampleQueriesOpen(true)}
+          sx={{ width: { xs: '100%', sm: 'auto' } }}
+        >
+          Sample Queries
+        </Button>
       </Box>
 
       {/* Query Input */}
@@ -285,26 +258,38 @@ ORDER BY m.name, p.cid;`
         <Typography variant="h6" sx={{ mb: 2 }}>
           SQL Query
         </Typography>
-        
-        <TextField
-          fullWidth
-          multiline
-          rows={isMobile ? 6 : 8}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Enter your SQL query here..."
-          variant="outlined"
-          inputProps={{
-            'data-testid': 'sql-query-input',
-          }}
-          sx={{ 
-            mb: 2,
-            '& .MuiInputBase-input': {
-              fontFamily: 'monospace',
-              fontSize: '0.875rem',
-            }
-          }}
-        />
+
+        <Box sx={{ mb: 1 }}>
+          <SqlEditor
+            value={query}
+            onChange={setQuery}
+            schema={schema}
+            onExecute={executeQuery}
+            onAnalysis={setAnalysis}
+            data-testid="sql-query-input"
+          />
+        </Box>
+
+        {schemaError && (
+          <Typography variant="caption" color="warning.main" sx={{ display: 'block', mb: 1 }}>
+            Autocomplete and schema checks are unavailable: {schemaError}
+          </Typography>
+        )}
+
+        {visibleIssues.length > 0 && (
+          <Stack spacing={0.5} sx={{ mb: 2 }}>
+            {visibleIssues.map((issue, index) => (
+              <Alert key={index} severity={issue.severity} sx={{ py: 0 }}>
+                {issue.message}
+              </Alert>
+            ))}
+            {hiddenIssueCount > 0 && (
+              <Typography variant="caption" color="text.secondary">
+                +{hiddenIssueCount} more issue{hiddenIssueCount === 1 ? '' : 's'}
+              </Typography>
+            )}
+          </Stack>
+        )}
 
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
@@ -331,10 +316,19 @@ ORDER BY m.name, p.cid;`
             variant="contained"
             startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <PlayArrow />}
             onClick={executeQuery}
-            disabled={loading || !query.trim()}
+            disabled={loading || !query.trim() || Boolean(analysis.blockingReason)}
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             {loading ? 'Executing...' : 'Execute Query'}
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={formatting ? <CircularProgress size={16} /> : <AutoFixHigh />}
+            onClick={handleFormat}
+            disabled={formatting || !query.trim()}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            Format
           </Button>
           <Button
             variant="outlined"
@@ -345,59 +339,16 @@ ORDER BY m.name, p.cid;`
             Clear
           </Button>
         </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+          Ctrl+Enter (Cmd+Enter on Mac) runs the query. Syntax, schema, and SELECT-only checks run locally, before anything is sent to the database.
+        </Typography>
       </Paper>
 
-      {/* Sample Queries */}
-      <Accordion sx={{ mb: 3 }}>
-        <AccordionSummary expandIcon={<ExpandMore />}>
-          <Typography variant="h6">Sample Queries</Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {sampleQueries.map((sample, index) => (
-              <Card key={index} variant="outlined">
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                    <Typography variant="subtitle2" color="primary">
-                      {sample.title}
-                    </Typography>
-                    <Stack direction="row" spacing={1}>
-                      <Tooltip title="Copy to clipboard">
-                        <IconButton 
-                          size="small" 
-                          onClick={() => copyToClipboard(sample.query)}
-                        >
-                          <ContentCopy fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Button 
-                        size="small" 
-                        onClick={() => handleQuerySelect(sample.query)}
-                      >
-                        Use Query
-                      </Button>
-                    </Stack>
-                  </Box>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      fontFamily: 'monospace',
-                      fontSize: '0.75rem',
-                      bgcolor: 'grey.100',
-                      p: 1,
-                      borderRadius: 1,
-                      whiteSpace: 'pre-wrap',
-                      overflow: 'auto'
-                    }}
-                  >
-                    {sample.query}
-                  </Typography>
-                </CardContent>
-              </Card>
-            ))}
-          </Box>
-        </AccordionDetails>
-      </Accordion>
+      <SampleQueriesDrawer
+        open={sampleQueriesOpen}
+        onClose={() => setSampleQueriesOpen(false)}
+        onSelectQuery={setQuery}
+      />
 
       {/* Query History */}
       {queryHistory.length > 0 && (
@@ -411,12 +362,12 @@ ORDER BY m.name, p.cid;`
           <AccordionDetails>
             <List dense>
               {queryHistory.map((entry) => (
-                <ListItem 
+                <ListItem
                   key={entry.id}
-                  sx={{ 
-                    border: 1, 
-                    borderColor: 'divider', 
-                    borderRadius: 1, 
+                  sx={{
+                    border: 1,
+                    borderColor: 'divider',
+                    borderRadius: 1,
                     mb: 1,
                     flexDirection: 'column',
                     alignItems: 'stretch'
@@ -425,8 +376,8 @@ ORDER BY m.name, p.cid;`
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
                     <Box sx={{ flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <Chip 
-                          label={entry.success ? 'Success' : 'Error'} 
+                        <Chip
+                          label={entry.success ? 'Success' : 'Error'}
                           color={entry.success ? 'success' : 'error'}
                           size="small"
                         />
@@ -439,9 +390,9 @@ ORDER BY m.name, p.cid;`
                           </Typography>
                         )}
                       </Box>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
+                      <Typography
+                        variant="body2"
+                        sx={{
                           fontFamily: 'monospace',
                           fontSize: '0.75rem',
                           maxHeight: '3em',
@@ -460,8 +411,8 @@ ORDER BY m.name, p.cid;`
                         </Typography>
                       )}
                     </Box>
-                    <Button 
-                      size="small" 
+                    <Button
+                      size="small"
                       onClick={() => handleHistorySelect(entry.query)}
                       sx={{ ml: 1, flexShrink: 0 }}
                     >
@@ -491,15 +442,15 @@ ORDER BY m.name, p.cid;`
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
               <Typography variant="h6">Query Results</Typography>
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <Chip 
-                  label={`${result.rowCount} rows`} 
-                  size="small" 
-                  color="primary" 
+                <Chip
+                  label={`${result.rowCount} rows`}
+                  size="small"
+                  color="primary"
                 />
-                <Chip 
-                  label={`${result.executionTime.toFixed(2)}ms`} 
-                  size="small" 
-                  variant="outlined" 
+                <Chip
+                  label={`${result.executionTime.toFixed(2)}ms`}
+                  size="small"
+                  variant="outlined"
                 />
               </Box>
             </Box>

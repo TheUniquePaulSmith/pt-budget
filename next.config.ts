@@ -11,11 +11,21 @@ function getAppVersion(): string {
   }
 }
 
+// `next build` always forces NODE_ENV=production internally, so there's no
+// way to get a literal dev-mode build out of it. This flag instead keeps
+// the same optimized static-export pipeline but restores real file names,
+// line numbers, and unmangled identifiers in DevTools, for hosts (like the
+// Cloudflare Pages build for dev.ptbudget.org) that want debuggable output
+// without shipping a persistent `next dev` process. Set NEXT_DEBUG_BUILD=true
+// in that environment's build variables; leave it unset for production.
+const isDebugBuild = process.env.NEXT_DEBUG_BUILD === 'true';
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: getAppVersion(),
   },
   output: 'export',
+  productionBrowserSourceMaps: isDebugBuild,
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
   distDir: 'dist',
@@ -56,23 +66,12 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  // webpack: (config, { isServer }) => {
-  //   // Basic fallbacks for Node.js modules in the browser
-  //   if (!isServer) {
-  //     config.resolve.fallback = {
-  //       ...config.resolve.fallback,
-  //       fs: false,
-  //       path: false,
-  //       crypto: false,
-  //       stream: false,
-  //       util: false,
-  //       buffer: false,
-  //       os: false,
-  //     };
-  //   }
-    
-  //   return config;
-  // },
+  webpack: (config) => {
+    if (isDebugBuild) {
+      config.optimization.minimize = false;
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

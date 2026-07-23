@@ -86,6 +86,47 @@ function getActiveOrFirstAccount(instance: PublicClientApplication): AccountInfo
   return instance.getActiveAccount() ?? instance.getAllAccounts()[0] ?? null;
 }
 
+// Guards against concurrent callers (e.g. downloadFile + getFileMetadata
+// firing in the same Promise.all with no cached token yet) each opening
+// their own popup: a second window.open() with the same popup name
+// re-navigates the first one away before it ever reaches the provider, so
+// only one of the two round trips can complete. Callers that arrive while a
+// popup flow is already in flight await that same flow instead of starting
+// a new one.
+let pendingInteractiveAuth: Promise<string> | null = null;
+
+async function runInteractiveMicrosoftAuth(
+  instance: PublicClientApplication
+): Promise<string> {
+  const state = crypto.randomUUID();
+  const popup = openAuthPopup('onedrive', state);
+  if (!popup) {
+    throw new CloudAuthCancelledError(
+      'The sign-in popup was blocked. Please allow popups for this site and try again.',
+      'popup_blocked'
+    );
+  }
+
+  const result = await awaitPopupAuthResult(popup, state);
+  if (!result.ok) {
+    throw new Error(result.errorMessage);
+  }
+
+  // The popup's loginRedirect wrote the token/account into MSAL's shared
+  // localStorage cache; re-run the silent flow in this window to pick it up.
+  const refreshedAccount = getActiveOrFirstAccount(instance);
+  if (!refreshedAccount) {
+    throw new Error('Microsoft sign-in completed but no account was found');
+  }
+  instance.setActiveAccount(refreshedAccount);
+
+  const silentResult = await instance.acquireTokenSilent({
+    account: refreshedAccount,
+    scopes: MICROSOFT_SCOPES,
+  });
+  return silentResult.accessToken;
+}
+
 /**
  * Resolves to a valid Microsoft Graph access token. Tries a silent
  * acquisition against MSAL's shared localStorage cache first; only runs the
@@ -118,31 +159,13 @@ export async function ensureMicrosoftToken(interactive: boolean): Promise<string
     throw new CloudAuthRequiredError('Microsoft sign-in is required');
   }
 
-  const state = crypto.randomUUID();
-  const popup = openAuthPopup('onedrive', state);
-  if (!popup) {
-    throw new CloudAuthCancelledError(
-      'The sign-in popup was blocked. Please allow popups for this site and try again.',
-      'popup_blocked'
-    );
+  if (pendingInteractiveAuth) {
+    return pendingInteractiveAuth;
   }
 
-  const result = await awaitPopupAuthResult(popup, state);
-  if (!result.ok) {
-    throw new Error(result.errorMessage);
-  }
-
-  // The popup's loginRedirect wrote the token/account into MSAL's shared
-  // localStorage cache; re-run the silent flow in this window to pick it up.
-  const refreshedAccount = getActiveOrFirstAccount(instance);
-  if (!refreshedAccount) {
-    throw new Error('Microsoft sign-in completed but no account was found');
-  }
-  instance.setActiveAccount(refreshedAccount);
-
-  const silentResult = await instance.acquireTokenSilent({
-    account: refreshedAccount,
-    scopes: MICROSOFT_SCOPES,
+  pendingInteractiveAuth = runInteractiveMicrosoftAuth(instance).finally(() => {
+    pendingInteractiveAuth = null;
   });
-  return silentResult.accessToken;
+
+  return pendingInteractiveAuth;
 }

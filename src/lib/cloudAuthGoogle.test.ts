@@ -5,11 +5,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildGoogleAuthorizeUrl,
   clearGoogleToken,
+  ensureGoogleToken,
   getValidGoogleToken,
   isGoogleDriveConfigured,
   storeGoogleToken,
   type GoogleTokenInfo,
 } from './cloudAuthGoogle';
+import { awaitPopupAuthResult, openAuthPopup } from './cloudAuthPopup';
+import type { AuthCompleteMessage } from './cloudAuthBroadcast';
+
+vi.mock('./cloudAuthPopup', () => ({
+  openAuthPopup: vi.fn(),
+  awaitPopupAuthResult: vi.fn(),
+}));
+
+const mockedOpenAuthPopup = vi.mocked(openAuthPopup);
+const mockedAwaitPopupAuthResult = vi.mocked(awaitPopupAuthResult);
 
 describe('isGoogleDriveConfigured', () => {
   afterEach(() => {
@@ -102,5 +113,48 @@ describe('token storage', () => {
     clearGoogleToken();
 
     expect(getValidGoogleToken()).toBeNull();
+  });
+});
+
+describe('ensureGoogleToken concurrent interactive calls', () => {
+  beforeEach(() => {
+    clearGoogleToken();
+    vi.clearAllMocks();
+  });
+
+  // Regression test: downloadCloudArchive fires downloadFile and
+  // getFileMetadata in the same Promise.all, and with no cached token yet
+  // both used to independently call ensureGoogleToken(true), each opening
+  // its own popup on the shared 'bt-auth' window name — the second
+  // window.open() re-navigated the first away before it ever reached
+  // Google, so one of the two callers always failed with
+  // CloudAuthCancelledError even though sign-in genuinely succeeded.
+  it('shares a single popup flow across simultaneous interactive callers', async () => {
+    const fakePopup = {} as Window;
+    mockedOpenAuthPopup.mockReturnValue(fakePopup);
+
+    let resolveAuth!: (result: AuthCompleteMessage) => void;
+    mockedAwaitPopupAuthResult.mockReturnValue(
+      new Promise<AuthCompleteMessage>((resolve) => {
+        resolveAuth = resolve;
+      })
+    );
+
+    const first = ensureGoogleToken(true);
+    const second = ensureGoogleToken(true);
+
+    expect(mockedOpenAuthPopup).toHaveBeenCalledTimes(1);
+
+    resolveAuth({
+      kind: 'auth-complete',
+      provider: 'gdrive',
+      state: mockedOpenAuthPopup.mock.calls[0][1],
+      ok: true,
+      google: { accessToken: 'token-abc', expiresInSec: 3600, scope: 'drive.file' },
+    });
+
+    await expect(first).resolves.toBe('token-abc');
+    await expect(second).resolves.toBe('token-abc');
+    expect(mockedOpenAuthPopup).toHaveBeenCalledTimes(1);
   });
 });

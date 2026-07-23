@@ -97,23 +97,16 @@ export function getValidGoogleToken(): GoogleTokenInfo | null {
   return token;
 }
 
-/**
- * Resolves to a valid Google Drive access token, running the popup OAuth
- * flow if necessary and `interactive` is true. Never opens a popup when
- * `interactive` is false — callers doing background work (e.g. auto-sync)
- * should catch CloudAuthRequiredError and surface a "reconnect" affordance
- * instead of prompting unprompted.
- */
-export async function ensureGoogleToken(interactive: boolean): Promise<string> {
-  const cached = getValidGoogleToken();
-  if (cached) {
-    return cached.accessToken;
-  }
+// Guards against concurrent callers (e.g. downloadFile + getFileMetadata
+// firing in the same Promise.all with no cached token yet) each opening
+// their own popup: a second window.open() with the same popup name
+// re-navigates the first one away before it ever reaches the provider, so
+// only one of the two round trips can complete. Callers that arrive while a
+// popup flow is already in flight await that same flow instead of starting
+// a new one.
+let pendingInteractiveAuth: Promise<string> | null = null;
 
-  if (!interactive) {
-    throw new CloudAuthRequiredError('Google Drive sign-in is required');
-  }
-
+async function runInteractiveGoogleAuth(): Promise<string> {
   const state = crypto.randomUUID();
   window.sessionStorage.setItem(STATE_STORAGE_KEY, state);
 
@@ -142,4 +135,32 @@ export async function ensureGoogleToken(interactive: boolean): Promise<string> {
   storeGoogleToken(token);
 
   return token.accessToken;
+}
+
+/**
+ * Resolves to a valid Google Drive access token, running the popup OAuth
+ * flow if necessary and `interactive` is true. Never opens a popup when
+ * `interactive` is false — callers doing background work (e.g. auto-sync)
+ * should catch CloudAuthRequiredError and surface a "reconnect" affordance
+ * instead of prompting unprompted.
+ */
+export async function ensureGoogleToken(interactive: boolean): Promise<string> {
+  const cached = getValidGoogleToken();
+  if (cached) {
+    return cached.accessToken;
+  }
+
+  if (!interactive) {
+    throw new CloudAuthRequiredError('Google Drive sign-in is required');
+  }
+
+  if (pendingInteractiveAuth) {
+    return pendingInteractiveAuth;
+  }
+
+  pendingInteractiveAuth = runInteractiveGoogleAuth().finally(() => {
+    pendingInteractiveAuth = null;
+  });
+
+  return pendingInteractiveAuth;
 }

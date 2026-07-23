@@ -88,9 +88,9 @@ export function PasswordSetup({
             Set Up Your Database
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Your database is encrypted before it is saved or uploaded to cloud
-            storage. Choose a strong password — it is the only way to open your
-            backup. There is no password recovery, so store it somewhere safe.
+            Your database is encrypted on this device, and this password is
+            required to open it every time you return. Choose a strong
+            password — there is no password recovery, so store it somewhere safe.
           </Typography>
         </Box>
 

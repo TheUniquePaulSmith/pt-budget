@@ -96,14 +96,10 @@ interface DatabaseLifecycleSlice {
   migrateDatabaseToCloud: (provider: CloudProvider) => Promise<void>;
   saveDatabaseToCurrentCloud: () => Promise<void>;
   switchToLocalSource: () => void;
-  setEncryptionPassword: (password: string) => Promise<void>;
-  clearEncryptionPassword: () => Promise<void>;
-  /** Verifies `currentPassword`, then re-encrypts future exports/cloud uploads with `newPassword` and (if cloud-linked) immediately re-syncs. */
+  /** Verifies `currentPassword`, then re-encrypts every stored block with `newPassword` and (if cloud-linked) immediately re-syncs. */
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ syncError: string | null }>;
-  /** Syncs to cloud (if linked), forgets the password, and gates the app until it's re-entered. Pass `{ skipSync: true }` to lock anyway after a failed sync attempt. */
+  /** Syncs to cloud (if linked), closes the connection, and gates the app until the password is re-entered. Pass `{ skipSync: true }` to lock anyway after a failed sync attempt. */
   lockDatabase: (options?: { skipSync?: boolean }) => Promise<{ locked: boolean; syncError: string | null }>;
-  /** Re-enters the password after a manual lock and resumes the app. */
-  unlockDatabase: (password: string) => Promise<void>;
   syncNow: () => Promise<void>;
   setAutoSyncEnabled: (enabled: boolean) => void;
   setSyncIntervalMinutes: (minutes: number) => void;
@@ -269,8 +265,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     handlePasswordEntrySubmitted,
     cancelPasswordEntry,
     handleStorageChoiceSelected,
-    handleCloudPasswordSubmitted,
-    skipCloudUnlock,
     createOrOpenDatabase,
     loadDatabaseFromFile,
     connectCloudSource,
@@ -281,7 +275,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     switchToLocalSource,
     cancelSampleDataImport,
     lockDatabaseState,
-    unlockDatabase,
+    handleUnlockSubmitted,
   } = useDatabaseInitialization({ loadAllData });
 
   const {
@@ -346,31 +340,16 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     }
   }, [databaseService, setError]);
 
-  const setEncryptionPassword = useCallback(async (password: string) => {
-    if (!databaseService) throw new Error('Database service not initialized');
-    await databaseService.setEncryptionPassword(password);
-  }, [databaseService]);
-
-  const clearEncryptionPassword = useCallback(async () => {
-    if (!databaseService) throw new Error('Database service not initialized');
-    await databaseService.clearEncryptionPassword();
-  }, [databaseService]);
-
   /**
-   * Verifies the current password, switches the worker over to the new one,
-   * and (when cloud-linked) immediately re-syncs so the cloud copy is
-   * re-encrypted under the new key rather than left stale under the old one.
+   * Re-encrypts every stored block under the new password (verifying the
+   * current one first) and, when cloud-linked, immediately re-syncs so the
+   * cloud copy is re-encrypted under the new key rather than left stale.
    */
   const changePassword = useCallback(
     async (currentPassword: string, newPassword: string): Promise<{ syncError: string | null }> => {
       if (!databaseService) throw new Error('Database service not initialized');
 
-      const isCurrentPasswordValid = await databaseService.verifyCurrentPassword(currentPassword);
-      if (!isCurrentPasswordValid) {
-        throw new Error('Current password is incorrect.');
-      }
-
-      await databaseService.setEncryptionPassword(newPassword);
+      await databaseService.changePassword(currentPassword, newPassword);
 
       if (databaseSource === 'local') {
         return { syncError: null };
@@ -383,13 +362,16 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   );
 
   /**
-   * Syncs to cloud (if linked) then forgets the password and gates the app.
-   * If a cloud sync is needed and fails, the password is left in place and
-   * the caller (Settings UI) gets the failure back to decide whether to
-   * confirm locking anyway via `{ skipSync: true }`.
+   * Syncs to cloud (if linked) then closes the connection and forgets the
+   * key, gating the app until it's re-entered. If a cloud sync is needed and
+   * fails, the connection is left open and the caller (Settings UI) gets the
+   * failure back to decide whether to confirm locking anyway via
+   * `{ skipSync: true }`.
    */
   const lockDatabase = useCallback(
     async (options?: { skipSync?: boolean }): Promise<{ locked: boolean; syncError: string | null }> => {
+      if (!databaseService) throw new Error('Database service not initialized');
+
       if (databaseSource !== 'local' && !options?.skipSync) {
         await syncNow();
         const syncError = loadPersistedDatabaseSourceState().lastSyncError;
@@ -398,11 +380,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         }
       }
 
-      await clearEncryptionPassword();
+      await databaseService.lockDatabase();
       lockDatabaseState();
       return { locked: true, syncError: null };
     },
-    [databaseSource, syncNow, clearEncryptionPassword, lockDatabaseState]
+    [databaseService, databaseSource, syncNow, lockDatabaseState]
   );
 
   const transactionsSlice = useDatabaseTransactionSlice({
@@ -506,11 +488,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       migrateDatabaseToCloud,
       saveDatabaseToCurrentCloud,
       switchToLocalSource,
-      setEncryptionPassword,
-      clearEncryptionPassword,
       changePassword,
       lockDatabase,
-      unlockDatabase,
       syncNow,
       setAutoSyncEnabled,
       setSyncIntervalMinutes,
@@ -528,11 +507,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       migrateDatabaseToCloud,
       saveDatabaseToCurrentCloud,
       switchToLocalSource,
-      setEncryptionPassword,
-      clearEncryptionPassword,
       changePassword,
       lockDatabase,
-      unlockDatabase,
       syncNow,
       setAutoSyncEnabled,
       setSyncIntervalMinutes,
@@ -575,9 +551,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         onPasswordEntrySubmitted={handlePasswordEntrySubmitted}
         onCancelPasswordEntry={cancelPasswordEntry}
         onStorageChoiceSelected={handleStorageChoiceSelected}
-        onCloudPasswordSubmitted={handleCloudPasswordSubmitted}
-        onSkipCloudUnlock={skipCloudUnlock}
-        onUnlockDatabase={unlockDatabase}
+        onUnlockSubmitted={handleUnlockSubmitted}
       />
     );
   }

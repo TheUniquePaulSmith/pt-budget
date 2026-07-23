@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   bytesToHex,
+  checkPageKeyVerifier,
+  createPageKeyVerifier,
   decryptArchive,
+  derivePageKey,
   ENCRYPTED_ARCHIVE_FORMAT,
   encryptArchive,
   hexToBytes,
@@ -193,5 +196,70 @@ describe('decryptArchive', () => {
     await expect(
       decryptArchive(new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0]), 'pw')
     ).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// derivePageKey / createPageKeyVerifier / checkPageKeyVerifier
+// ---------------------------------------------------------------------------
+
+describe('derivePageKey', () => {
+  it('derives a different key than the archive path would for the same password (independent salts)', async () => {
+    const password = 'correct-horse-battery-staple';
+    const pageSalt = crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
+
+    const pageKey = await derivePageKey(password, pageSalt);
+    const verifier = await createPageKeyVerifier(pageKey);
+
+    // A key derived from the archive path's own (different, random) salt
+    // must not satisfy the page key's verifier.
+    const archiveEncrypted = await encryptArchive(new Uint8Array([1]), password, '2025-01-01T00:00:00.000Z');
+    const archiveMeta = readEncryptedArchiveMeta(archiveEncrypted);
+    const archiveKey = await derivePageKey(password, hexToBytes(archiveMeta.salt));
+
+    expect(await checkPageKeyVerifier(archiveKey, verifier.verifierIv, verifier.verifierCiphertext)).toBe(false);
+    expect(await checkPageKeyVerifier(pageKey, verifier.verifierIv, verifier.verifierCiphertext)).toBe(true);
+  });
+
+  it('is deterministic for the same password and salt', async () => {
+    const password = 'my-password';
+    const pageSalt = crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
+
+    const key1 = await derivePageKey(password, pageSalt);
+    const key2 = await derivePageKey(password, pageSalt);
+    const verifier = await createPageKeyVerifier(key1);
+
+    expect(await checkPageKeyVerifier(key2, verifier.verifierIv, verifier.verifierCiphertext)).toBe(true);
+  });
+});
+
+describe('createPageKeyVerifier / checkPageKeyVerifier', () => {
+  it('accepts the correct key', async () => {
+    const pageKey = await derivePageKey('pw', crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH)));
+    const { verifierIv, verifierCiphertext } = await createPageKeyVerifier(pageKey);
+
+    expect(await checkPageKeyVerifier(pageKey, verifierIv, verifierCiphertext)).toBe(true);
+  });
+
+  it('rejects a key derived from the wrong password', async () => {
+    const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
+    const correctKey = await derivePageKey('correct-password', salt);
+    const wrongKey = await derivePageKey('wrong-password', salt);
+
+    const { verifierIv, verifierCiphertext } = await createPageKeyVerifier(correctKey);
+
+    expect(await checkPageKeyVerifier(wrongKey, verifierIv, verifierCiphertext)).toBe(false);
+  });
+
+  it('rejects a tampered verifier ciphertext instead of throwing', async () => {
+    const pageKey = await derivePageKey('pw', crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH)));
+    const { verifierIv, verifierCiphertext } = await createPageKeyVerifier(pageKey);
+
+    const tamperedBytes = hexToBytes(verifierCiphertext);
+    tamperedBytes[tamperedBytes.length - 1] ^= 0xff;
+
+    await expect(
+      checkPageKeyVerifier(pageKey, verifierIv, bytesToHex(tamperedBytes))
+    ).resolves.toBe(false);
   });
 });

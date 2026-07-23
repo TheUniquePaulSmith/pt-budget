@@ -115,6 +115,36 @@ export async function bootstrapDatabase(
   );
 }
 
+/**
+ * Reloads the page and, if a SharedWorker with no other connected tabs was
+ * torn down as a result, re-enters the password at the needs-unlock screen
+ * (the encrypting VFS requires it before the database can be opened again).
+ * Safe to call when another page in the same context kept the worker alive
+ * too — in that case the app skips straight to Connected.
+ */
+export async function reloadAndUnlock(page: Page, password: string = TEST_PASSWORD) {
+  await page.reload();
+
+  const passwordInput = page.getByLabel('Password', { exact: true });
+  const sqlQueryButton = page.getByRole('button', { name: 'SQL Query' });
+
+  await Promise.race([
+    passwordInput.waitFor({ state: 'visible', timeout: 120_000 }),
+    sqlQueryButton.waitFor({ state: 'visible', timeout: 120_000 }),
+  ]);
+
+  if (await passwordInput.isVisible().catch(() => false)) {
+    await passwordInput.fill(password);
+    await page.getByRole('button', { name: 'Unlock' }).click();
+  }
+
+  await expect(sqlQueryButton).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId('database-status-text')).toHaveText(
+    'Connected',
+    { timeout: 120_000 }
+  );
+}
+
 export async function runQuery(page: Page, sql: string) {
   await page.getByRole('button', { name: 'SQL Query' }).click();
   await page.getByTestId('sql-query-input').fill(sql);

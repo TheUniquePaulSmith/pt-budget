@@ -137,8 +137,8 @@ test('@smoke syncs edits to Google Drive automatically and resolves a conflict',
 
   // Boot-time reconcile drift tolerance (reconcileOnOpen → in-sync when
   // only `version` drifted) is covered by unit tests in
-  // cloudSyncService.test.ts: reloading here would hit the cloud-password
-  // gate (the SharedWorker loses the encryption key with the page), which
-  // re-downloads the archive as part of unlocking and so can't observe the
-  // no-download path.
+  // cloudSyncService.test.ts: reloading here would hit the needs-unlock
+  // gate (the SharedWorker loses the encryption key with the page), and
+  // handleUnlockSubmitted's post-unlock reconcile would re-download the
+  // archive anyway, so it can't observe the no-download path.
 });

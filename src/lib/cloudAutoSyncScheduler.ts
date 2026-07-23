@@ -382,6 +382,10 @@ export class AutoSyncScheduler {
         break;
       }
       case 'locked': {
+        // Defensive only — see the matching comment on syncToCloud's
+        // isEncryptionReady() check; this should be unreachable now that the
+        // SQLite engine itself enforces the password before 'initialized'
+        // is ever reached.
         this.clearTimers();
         this.state = 'paused-auth';
         this.pauseReason = 'encryption-locked';

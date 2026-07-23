@@ -295,6 +295,12 @@ export async function syncToCloud({
   onStage?: SyncStageCallback;
   clientFactory?: ClientFactory;
 }): Promise<SyncOutcome> {
+  // Defensive only: now that the SQLite engine itself enforces the password
+  // (via the encrypting VFS), reaching 'initialized' already implies
+  // isEncryptionReady() === true for the rest of the session — the only way
+  // it flips false is the explicit Settings → Lock Database action, which
+  // itself immediately re-gates the whole app before any sync call could
+  // observe the transient state. This should be unreachable in practice.
   const isReady = await databaseService.isEncryptionReady().catch(() => false);
   if (!isReady) {
     return 'locked';

@@ -43,10 +43,14 @@ export type InitializationState =
   /** New database, password just set: user chooses local vs. cloud storage. */
   | 'needs-storage-choice'
   | 'needs-cloud-auth'
-  /** Cloud source with a local working copy, but no key yet this session: gate cloud sync on the password. */
-  | 'needs-cloud-password'
-  /** User manually locked the database (Settings): the working copy is untouched, but the password has been forgotten and the app is gated until it's re-entered. */
-  | 'locked'
+  /**
+   * An encrypted database already exists on this device (a fresh session
+   * with no key yet, or after Settings → Lock Database) and must be
+   * unlocked — with the SQLite engine itself enforcing the password via the
+   * encrypting VFS — before anything else can happen. Not cancelable: there
+   * is no "open without a password" for an encrypted database.
+   */
+  | 'needs-unlock'
   | 'initialized'
   | 'error';
 
@@ -116,10 +120,6 @@ interface UseDatabaseInitializationResult {
   cancelPasswordEntry: () => void;
   /** Called from the needs-storage-choice screen right after password setup. */
   handleStorageChoiceSelected: (choice: 'local' | CloudProvider) => Promise<void>;
-  /** Called from the needs-cloud-password screen. */
-  handleCloudPasswordSubmitted: (password: string) => Promise<void>;
-  /** Continues into the app without unlocking cloud sync this session. */
-  skipCloudUnlock: () => Promise<void>;
   createOrOpenDatabase: (isNew: boolean) => Promise<void>;
   loadDatabaseFromFile: (file: File) => Promise<void>;
   /** Opens the cloud file picker for `provider` (or the persisted source if omitted). */
@@ -131,10 +131,16 @@ interface UseDatabaseInitializationResult {
   saveDatabaseToCurrentCloud: () => Promise<void>;
   switchToLocalSource: () => void;
   cancelSampleDataImport: () => void;
-  /** Puts the app into the locked gate. Call only after the password has already been cleared from the worker. */
+  /** Puts the app into the needs-unlock gate. Call only after the connection has already been closed/locked in the worker. */
   lockDatabaseState: () => void;
-  /** Called by the locked-database gate: re-sets the password and resumes the app. The working copy was never touched, so no reimport is needed. */
-  unlockDatabase: (password: string) => Promise<void>;
+  /**
+   * Called by the needs-unlock gate — both at first load of a returning
+   * device and after Settings → Lock Database. Unlocks the encrypted
+   * database (the SQLite engine itself enforces the password via the
+   * encrypting VFS) and, once open, reconciles with the cloud source if
+   * one is linked.
+   */
+  handleUnlockSubmitted: (password: string) => Promise<void>;
 }
 
 const BROWSER_TEST_STORAGE_KEY = 'budgetApp_browserTestPassed';
@@ -208,77 +214,27 @@ export function useDatabaseInitialization({
         setDatabaseService(service);
         setDatabaseSourceState(persistedSourceState);
 
-        if (persistedSourceState.source !== 'local') {
-          const provider = persistedSourceState.source;
-
-          if (service.dbExistsBeforeInit) {
-            console.info('[DB Context] Found existing local working copy, opening...');
-            await service.openExistingDatabase();
-          }
-
-          const encryptionReady = await service.isEncryptionReady().catch(() => false);
-
-          if (!encryptionReady) {
-            // The live database is plaintext and needs no password to open,
-            // but cloud sync needs the password to encrypt/decrypt archives.
-            // With a local copy already open we can gate just cloud sync on
-            // it (needs-cloud-password); without one, reconcileOnOpen can't
-            // safely decide anything without a key, so fall through to the
-            // normal connect flow.
-            setInitializationState(
-              service.dbExistsBeforeInit ? 'needs-cloud-password' : 'needs-cloud-auth'
-            );
-            hasCheckedDatabase.current = true;
-            return;
-          }
-
-          let outcome: ReconcileOutcome;
-          try {
-            outcome = await reconcileOnOpen({ provider });
-          } catch (err) {
-            console.error('[DB Context] Failed to reconcile cloud state:', err);
-            outcome = 'auth-required';
-          }
-
-          if (outcome === 'remote-newer') {
-            const linkedFile = getLinkedCloudFile(persistedSourceState, provider);
-            if (linkedFile) {
-              try {
-                const { bytes, freshMeta } = await downloadCloudArchive({ provider, file: linkedFile });
-                await applyDownloadedArchive({ databaseService: service, provider, file: freshMeta, bytes });
-              } catch (err) {
-                console.error('[DB Context] Failed to pull the newer cloud copy:', err);
-                setError(err instanceof Error ? err.message : 'Failed to sync from the cloud');
-              }
-            }
-          }
-
-          setDatabaseSourceState(loadPersistedDatabaseSourceState());
-
-          const needsUserAction =
-            (outcome === 'auth-required' || outcome === 'no-link') && !service.dbExistsBeforeInit;
-
-          if (needsUserAction) {
-            setInitializationState('needs-cloud-auth');
-          } else {
-            // remote-newer (pulled above), in-sync, local-newer, both-changed
-            // (the conflict is now persisted and surfaced via the status
-            // chip), or auth-required-but-we-still-have-a-local-copy: in
-            // every case there's something to show. The auto-sync scheduler
-            // takes it from here.
+        if (service.dbExistsBeforeInit) {
+          // Another tab in this SharedWorker session may have already
+          // unlocked the database (e.g. a second page opened in the same
+          // browser context) — in that case there's nothing to unlock here,
+          // just load what's already open.
+          const alreadyUnlocked = await service.isEncryptionReady().catch(() => false);
+          if (alreadyUnlocked) {
+            console.info('[DB Context] Database already unlocked by another tab this session');
             await loadAllData(service);
             setInitializationState('initialized');
+          } else {
+            // An encrypted database exists on this device (regardless of
+            // whether the persisted source is local or cloud-linked) — the
+            // engine can't open it without the password. Reconciling with
+            // the cloud source (if linked) happens after a successful
+            // unlock, in handleUnlockSubmitted.
+            console.info('[DB Context] Found an existing encrypted database, needs unlock');
+            setInitializationState('needs-unlock');
           }
-
-          hasCheckedDatabase.current = true;
-          return;
-        }
-
-        if (service.dbExistsBeforeInit) {
-          console.info('[DB Context] Found existing database, opening...');
-          await service.openExistingDatabase();
-          await loadAllData(service);
-          setInitializationState('initialized');
+        } else if (persistedSourceState.source !== 'local') {
+          setInitializationState('needs-cloud-auth');
         } else {
           console.info('[DB Context] No existing database found');
           setInitializationState('needs-setup');
@@ -349,109 +305,41 @@ export function useDatabaseInitialization({
     }));
   }, [databaseService]);
 
+  // Creating a database always requires a password first (see
+  // handlePasswordSetupConfirmed, which does the actual creation), so this
+  // just gates entry into that screen — except for the rare multi-tab race
+  // where another tab in this SharedWorker session already created+unlocked
+  // a database, in which case there's nothing left to create; just load
+  // what's already open.
   const createOrOpenDatabase = useCallback(
     async (isNew: boolean) => {
       if (!databaseService) {
         throw new Error('Database service not initialized');
       }
+      if (!isNew) {
+        throw new Error('Opening an existing database requires unlocking it with a password');
+      }
 
-      // For a new database we must collect a password first.  Check whether
-      // the worker already holds a key (from another tab in this session).
-      if (isNew) {
-        const encryptionAlreadyReady = await databaseService
-          .isEncryptionReady()
-          .catch(() => false);
+      const encryptionAlreadyReady = await databaseService
+        .isEncryptionReady()
+        .catch(() => false);
 
-        if (!encryptionAlreadyReady) {
-          // Transition to the password setup screen.  The actual database
-          // creation happens in handlePasswordSetupConfirmed.
-          setInitializationState('needs-password-setup');
-          return;
-        }
+      if (!encryptionAlreadyReady) {
+        setInitializationState('needs-password-setup');
+        return;
       }
 
       setIsLoading(true);
       setError(null);
 
       try {
-        if (isNew) {
-          const shouldLoadSampleData = SampleDataService.shouldLoadSampleData();
-          await databaseService.createNewDatabase({
-            deferIndexes: shouldLoadSampleData,
-          });
-
-          if (shouldLoadSampleData) {
-            console.info('[DB Context] Loading sample data...');
-            const abortController = new AbortController();
-            sampleDataImportAbortControllerRef.current = abortController;
-            setSampleDataImportProgress({
-              stage: 'starting',
-              currentFile: null,
-              currentTable: null,
-              completedFiles: 0,
-              totalFiles: SAMPLE_DATA_IMPORT_FILE_COUNT,
-              importedRows: 0,
-              expectedRows: null,
-              isCancelable: true,
-              message: 'Preparing sample data import...',
-            });
-
-            try {
-              await SampleDataService.loadAllSampleData({
-                signal: abortController.signal,
-                onProgress: setSampleDataImportProgress,
-              });
-              console.info('[DB Context] Sample data loaded successfully');
-            } catch (sampleError) {
-              if (isAbortError(sampleError)) {
-                console.info(
-                  '[DB Context] Sample data import cancelled, recreating an empty database...'
-                );
-                setSampleDataImportProgress((currentProgress: SampleDataImportProgress | null) => ({
-                  stage: 'cancelled',
-                  currentFile: currentProgress?.currentFile ?? null,
-                  currentTable: currentProgress?.currentTable ?? null,
-                  completedFiles: currentProgress?.completedFiles ?? 0,
-                  totalFiles:
-                    currentProgress?.totalFiles ?? SAMPLE_DATA_IMPORT_FILE_COUNT,
-                  importedRows: currentProgress?.importedRows ?? 0,
-                  expectedRows: currentProgress?.expectedRows ?? null,
-                  isCancelable: false,
-                  message:
-                    'Cancelling sample data import and resetting the database...',
-                }));
-                await databaseService.clearAndRecreateDatabase();
-                console.info(
-                  '[DB Context] Sample data import cancelled; continuing with an empty database'
-                );
-              } else {
-                console.error(
-                  '[DB Context] Failed to load sample data:',
-                  sampleError
-                );
-                setError('Database created but sample data failed to load');
-              }
-            } finally {
-              sampleDataImportAbortControllerRef.current = null;
-            }
-
-            console.info('[DB Context] Ensuring indexes after sample data import...');
-            await databaseService.ensureIndexes();
-          }
-          await databaseService.ensurePrimaryUser('Primary User');
-        } else {
-          await databaseService.openExistingDatabase();
-        }
-
         await loadAllData(databaseService);
         setInitializationState('initialized');
       } catch (err) {
-        console.error('Failed to create/open database:', err);
+        console.error('Failed to load already-open database:', err);
         setError(err instanceof Error ? err.message : 'Failed to open database');
         throw err;
       } finally {
-        sampleDataImportAbortControllerRef.current = null;
-        setSampleDataImportProgress(null);
         setIsLoading(false);
       }
     },
@@ -695,13 +583,8 @@ export function useDatabaseInitialization({
       setError(null);
 
       try {
-        // Store the password in the worker first.
-        await databaseService.setEncryptionPassword(password);
-
-        // Now create the database (mirrors createOrOpenDatabase isNew=true path
-        // but skips the password gate since we just set it).
         const shouldLoadSampleData = SampleDataService.shouldLoadSampleData();
-        await databaseService.createNewDatabase({
+        await databaseService.createNewDatabase(password, {
           deferIndexes: shouldLoadSampleData,
         });
 
@@ -859,70 +742,6 @@ export function useDatabaseInitialization({
   );
 
   // ---------------------------------------------------------------------------
-  // Cloud password gate (returning to a cloud-linked database this session)
-  // ---------------------------------------------------------------------------
-
-  const handleCloudPasswordSubmitted = useCallback(
-    async (password: string) => {
-      if (!databaseService) {
-        throw new Error('Database service not initialized');
-      }
-
-      const provider = databaseSourceState.source;
-      if (provider === 'local') {
-        throw new Error('The current database source is local');
-      }
-
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        await databaseService.setEncryptionPassword(password);
-
-        const currentState = loadPersistedDatabaseSourceState();
-        const linkedFile = getLinkedCloudFile(currentState, provider);
-
-        if (linkedFile) {
-          // Verify against the cloud copy WITHOUT importing it — the local
-          // database (already open, always plaintext) must not be silently
-          // overwritten just to check a password.
-          const { bytes } = await downloadCloudArchive({ provider, file: linkedFile });
-          const passwordIsValid = await databaseService.verifyEncryptionPassword(bytes);
-
-          if (!passwordIsValid) {
-            await databaseService.clearEncryptionPassword().catch(() => undefined);
-            throw new Error('Incorrect password for this database');
-          }
-        }
-
-        await loadAllData(databaseService);
-        setInitializationState('initialized');
-      } catch (err) {
-        console.error('[DB Context] Failed to unlock cloud sync:', err);
-        setError(err instanceof Error ? err.message : 'Failed to unlock cloud sync');
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [databaseService, databaseSourceState.source, loadAllData]
-  );
-
-  const skipCloudUnlock = useCallback(async () => {
-    if (!databaseService) {
-      setInitializationState('needs-setup');
-      return;
-    }
-
-    setError(null);
-    try {
-      await loadAllData(databaseService);
-    } catch (err) {
-      console.error('[DB Context] Failed to load data after skipping cloud unlock:', err);
-    }
-    setInitializationState('initialized');
-  }, [databaseService, loadAllData]);
-
-  // ---------------------------------------------------------------------------
   // Password entry (loading an encrypted archive)
   // ---------------------------------------------------------------------------
 
@@ -941,10 +760,19 @@ export function useDatabaseInitialization({
       setError(null);
 
       try {
-        // Set the password in the worker (derives the key).
-        await databaseService.setEncryptionPassword(password);
+        // Verify the password can actually decrypt THIS archive before
+        // establishing a local encryption header under it — a wrong
+        // password must never leave behind a header that blocks a clean
+        // retry (this state is only reachable before any local database
+        // exists, so there's nothing else to protect yet).
+        const canDecrypt = await databaseService.canDecryptArchive(pendingBytes, password);
+        if (!canDecrypt) {
+          throw new Error('Incorrect password for this database');
+        }
 
-        // Delegate to importDatabaseArchiveData which will decrypt and import.
+        // Password confirmed: establish this device's local encryption
+        // under it, then decrypt and import the archive.
+        await databaseService.createNewDatabase(password, { deferIndexes: true });
         await databaseService.importDatabaseArchiveData(pendingBytes);
 
         const cloudContext = pendingCloudContextRef.current;
@@ -964,8 +792,6 @@ export function useDatabaseInitialization({
         console.error('Failed to decrypt/import database:', err);
         const message = err instanceof Error ? err.message : 'Failed to open database';
         setError(message);
-        // Clear a bad password from the worker so the user can retry.
-        await databaseService.clearEncryptionPassword().catch(() => undefined);
       } finally {
         setIsLoading(false);
       }
@@ -981,15 +807,16 @@ export function useDatabaseInitialization({
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Manual lock (Settings → Security → Lock Database)
+  // Unlock (first load of a returning device, and Settings → Lock Database)
   // ---------------------------------------------------------------------------
 
+  /** Puts the app into the needs-unlock gate. Call only after the connection has already been closed/locked in the worker. */
   const lockDatabaseState = useCallback(() => {
     setError(null);
-    setInitializationState('locked');
+    setInitializationState('needs-unlock');
   }, []);
 
-  const unlockDatabase = useCallback(
+  const handleUnlockSubmitted = useCallback(
     async (password: string) => {
       if (!databaseService) {
         throw new Error('Database service not initialized');
@@ -999,16 +826,48 @@ export function useDatabaseInitialization({
       setError(null);
 
       try {
-        await databaseService.setEncryptionPassword(password);
+        // The SQLite engine itself enforces the password here (the
+        // encrypting VFS rejects a wrong key), so once this succeeds there's
+        // nothing left to separately verify against the cloud copy.
+        await databaseService.unlockDatabase(password);
+
+        if (databaseSourceState.source !== 'local') {
+          const provider = databaseSourceState.source;
+
+          let outcome: ReconcileOutcome;
+          try {
+            outcome = await reconcileOnOpen({ provider });
+          } catch (err) {
+            console.error('[DB Context] Failed to reconcile cloud state:', err);
+            outcome = 'auth-required';
+          }
+
+          if (outcome === 'remote-newer') {
+            const linkedFile = getLinkedCloudFile(databaseSourceState, provider);
+            if (linkedFile) {
+              try {
+                const { bytes, freshMeta } = await downloadCloudArchive({ provider, file: linkedFile });
+                await applyDownloadedArchive({ databaseService, provider, file: freshMeta, bytes });
+              } catch (err) {
+                console.error('[DB Context] Failed to pull the newer cloud copy:', err);
+                setError(err instanceof Error ? err.message : 'Failed to sync from the cloud');
+              }
+            }
+          }
+
+          setDatabaseSourceState(loadPersistedDatabaseSourceState());
+        }
+
+        await loadAllData(databaseService);
         setInitializationState('initialized');
       } catch (err) {
         console.error('[DB Context] Failed to unlock database:', err);
-        setError(err instanceof Error ? err.message : 'Failed to unlock database');
+        setError(err instanceof Error ? err.message : 'Incorrect password');
       } finally {
         setIsLoading(false);
       }
     },
-    [databaseService]
+    [databaseService, databaseSourceState, loadAllData]
   );
 
   return {
@@ -1032,8 +891,6 @@ export function useDatabaseInitialization({
     handlePasswordEntrySubmitted,
     cancelPasswordEntry,
     handleStorageChoiceSelected,
-    handleCloudPasswordSubmitted,
-    skipCloudUnlock,
     createOrOpenDatabase,
     loadDatabaseFromFile,
     connectCloudSource,
@@ -1044,6 +901,6 @@ export function useDatabaseInitialization({
     switchToLocalSource,
     cancelSampleDataImport,
     lockDatabaseState,
-    unlockDatabase,
+    handleUnlockSubmitted,
   };
 }

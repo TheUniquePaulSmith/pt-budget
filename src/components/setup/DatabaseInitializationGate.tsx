@@ -72,6 +72,8 @@ interface DatabaseInitializationGateProps {
    * device and after Settings → Lock Database.
    */
   onUnlockSubmitted: (password: string) => Promise<void>;
+  /** Debug-only (`?debug`) — when set, the unlock screen shows a "Reset App" button. */
+  onResetApp?: () => void | Promise<void>;
 }
 
 const centeredBoxSx = {
@@ -105,6 +107,7 @@ export function DatabaseInitializationGate({
   onCancelPasswordEntry,
   onStorageChoiceSelected,
   onUnlockSubmitted,
+  onResetApp,
 }: DatabaseInitializationGateProps) {
   const handleCreateNew = useCallback(async () => {
     try {
@@ -235,6 +238,7 @@ export function DatabaseInitializationGate({
       <PasswordEntry
         description="This database is encrypted. Enter your password to unlock it."
         onPasswordSubmitted={onUnlockSubmitted}
+        onResetApp={onResetApp}
         isLoading={isLoading}
         error={error}
       />

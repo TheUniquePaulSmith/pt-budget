@@ -43,14 +43,18 @@ import {
   SwapHoriz,
   Refresh,
   LinkOff,
+  BugReport,
 } from '@mui/icons-material';
 import StorageQuota from '@/components/common/Storage/StorageQuota';
 import { CloudConflictDialog } from './CloudConflictDialog';
 import { ChangePasswordSection } from './ChangePasswordSection';
 import { CloudFilePickerDialog } from '@/components/setup/CloudFilePickerDialog';
 import { EncryptionProgress } from '@/components/setup/EncryptionProgress';
+import { ResetAppButton } from '@/components/common/ResetAppButton';
 import { useSettingsSlice } from '@/contexts/useDatabaseSlices';
 import { ThemePresetId, useThemePreferences } from '@/theme/theme';
+import { isDebugMode } from '@/lib/debugMode';
+import { resetApp } from '@/lib/resetApp';
 import type { AutoSyncSnapshot } from '@/lib/cloudAutoSyncScheduler';
 import type { CloudProvider, DatabaseSource } from '@/lib/databaseSourceStorage';
 
@@ -115,6 +119,7 @@ interface SettingsPageProps {
 const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const [tabValue, setTabValue] = useState(0);
   const [notifications, setNotifications] = useState(true);
+  const debugMode = isDebugMode();
 
   const {
     exportDatabase,
@@ -135,6 +140,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     disconnectCloudProvider,
     closeCloudFilePicker,
     handleCloudFileSelected,
+    disconnectWorker,
     isDatabaseLoaded,
     databaseSource,
     databaseSourceState,
@@ -293,6 +299,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
               <Tab icon={<Backup />} label="Data & Backup" />
               <Tab icon={<Palette />} label="Display" />
               <Tab icon={<Notifications />} label="Notifications" />
+              {debugMode && <Tab icon={<BugReport />} label="Developer" />}
             </Tabs>
           </Box>
 
@@ -934,6 +941,35 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
               </Box>
             </Stack>
           </TabPanel>
+
+          {/* Developer Tab — only visible with ?debug */}
+          {debugMode && (
+            <TabPanel value={tabValue} index={6}>
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="h5" gutterBottom>
+                    Developer
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    Debug-only tools, visible because the app was opened with <code>?debug</code>.
+                  </Typography>
+                </Box>
+
+                <Divider />
+
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Reset App
+                  </Typography>
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    Deletes the database, all settings, and cookies, then reloads the app to its
+                    original, first-run state. This cannot be undone.
+                  </Alert>
+                  <ResetAppButton onReset={() => resetApp(disconnectWorker)} />
+                </Box>
+              </Stack>
+            </TabPanel>
+          )}
         </Paper>
       </Box>
     </Box>

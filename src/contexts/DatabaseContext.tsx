@@ -57,6 +57,8 @@ import {
   type DatabaseBudgetSlice,
 } from './useDatabaseBudgetSlice';
 import { useDatabaseInitialization } from './useDatabaseInitialization';
+import { isDebugMode } from '../lib/debugMode';
+import { resetApp } from '../lib/resetApp';
 //import { appLogger } from '../lib/logger';
 
 declare global {
@@ -108,6 +110,8 @@ interface DatabaseLifecycleSlice {
   disconnectCloudProvider: (provider: CloudProvider) => void;
   closeCloudFilePicker: () => void;
   handleCloudFileSelected: (file: CloudLinkedFile) => Promise<void>;
+  /** Best-effort teardown of this tab's SharedWorker connection — used by the debug-only Reset App flow. */
+  disconnectWorker: () => void;
 }
 
 interface DatabaseDiagnosticsSlice {
@@ -498,6 +502,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       disconnectCloudProvider,
       closeCloudFilePicker,
       handleCloudFileSelected,
+      disconnectWorker,
     }),
     [
       createOrOpenDatabase,
@@ -517,6 +522,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       disconnectCloudProvider,
       closeCloudFilePicker,
       handleCloudFileSelected,
+      disconnectWorker,
     ]
   );
 
@@ -552,6 +558,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         onCancelPasswordEntry={cancelPasswordEntry}
         onStorageChoiceSelected={handleStorageChoiceSelected}
         onUnlockSubmitted={handleUnlockSubmitted}
+        onResetApp={isDebugMode() ? () => resetApp(disconnectWorker) : undefined}
       />
     );
   }

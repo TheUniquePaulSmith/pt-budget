@@ -50,7 +50,7 @@ export default function SampleQueriesDrawer({ open, onClose, onSelectQuery }: Sa
       <Divider />
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
         {SAMPLE_QUERIES.map((sample) => (
-          <Card key={sample.title} variant="outlined">
+          <Card key={sample.title} variant="outlined" sx={{ flexShrink: 0 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                 <Typography variant="subtitle2" color="primary">

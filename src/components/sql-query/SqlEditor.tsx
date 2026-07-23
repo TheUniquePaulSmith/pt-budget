@@ -4,10 +4,12 @@ import React, { useMemo } from 'react';
 import { useTheme } from '@mui/material';
 import CodeMirror from '@uiw/react-codemirror';
 import { keymap } from '@codemirror/view';
+import { Prec } from '@codemirror/state';
 import { sql, SQLite, type SQLNamespace } from '@codemirror/lang-sql';
 import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
 
 import { analyzeSqlQuery, type SqlQueryAnalysis } from './sqlQueryAnalysis';
+import { createBareColumnCompletionSource } from './sqlBareColumnCompletion';
 import { toCodeMirrorSchema, type SqlSchemaMap } from '@/lib/sqlSchemaIntrospection';
 
 export interface SqlEditorProps {
@@ -49,6 +51,7 @@ export default function SqlEditor({
   const extensions = useMemo(() => {
     const result = [
       sql({ dialect: SQLite, schema: cmSchema, upperCaseKeywords: true }),
+      SQLite.language.data.of({ autocomplete: createBareColumnCompletionSource(schema) }),
       linter(
         async (view) => {
           const text = view.state.doc.toString();
@@ -66,16 +69,22 @@ export default function SqlEditor({
     ];
 
     if (onExecute) {
+      // Prec.highest: @codemirror/commands' defaultKeymap (part of
+      // basicSetup) already binds Mod-Enter to insertBlankLine, and it's
+      // registered before this extension, so without an explicit
+      // precedence bump it always wins the race and this handler never runs.
       result.push(
-        keymap.of([
-          {
-            key: 'Mod-Enter',
-            run: () => {
-              onExecute();
-              return true;
+        Prec.highest(
+          keymap.of([
+            {
+              key: 'Mod-Enter',
+              run: () => {
+                onExecute();
+                return true;
+              },
             },
-          },
-        ])
+          ])
+        )
       );
     }
 

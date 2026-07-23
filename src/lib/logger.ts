@@ -50,12 +50,26 @@ const addToBuffer = async (
   let fullStack: string | undefined;
 
   try {
-    const stackframes = await StackTrace.get();
+    // getSync() only parses the raw `Error().stack` string — it never
+    // resolves source maps over the network. StackTrace.get() does, via
+    // stacktrace-gps, and for anonymous frames inside an async call chain
+    // (no "at fn (url:line:col)", just "at async url:line:col") the parser
+    // in error-stack-parser mis-splits the line and leaves the literal
+    // "async " keyword glued to the front of the parsed fileName. get()
+    // then fetches *that* string as a URL to look for a source map, which
+    // the browser resolves relative to this origin (since "async https://…"
+    // isn't a valid absolute URL) — producing a bogus 404 request on every
+    // console call made from inside an async function. This logger only
+    // needs an approximate caller location for the Developer Console
+    // display, so getSync()'s fully local parsing avoids the network call
+    // (and the request it 404s) while still being fast enough to run on
+    // every intercepted console call.
+    const stackframes = StackTrace.getSync();
     // Skip first frame (this function) and second frame (the console wrapper)
     // Third frame is the actual caller
     if (stackframes.length > 2) {
       const callerFrame = stackframes[2];
-      sourceFile = callerFrame.fileName;
+      sourceFile = callerFrame.fileName?.replace(/^async\s+/, '');
       sourceLine = callerFrame.lineNumber;
       sourceColumn = callerFrame.columnNumber;
     }

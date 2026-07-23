@@ -21,11 +21,18 @@ const LATE_RESULT_GRACE_MS = 1500;
  * Returns null if the popup was blocked; callers should show a "popup
  * blocked, try again" affordance rather than retrying automatically.
  *
- * The returned reference stays live for the whole flow: this app does not
- * send a COOP header (cross-origin isolation for wllama comes from
- * Document-Isolation-Policy instead — see next.config.ts), so the popup's
- * browsing-context-group link to this window survives its navigation to
- * the identity provider, and `popup.closed` stays trustworthy throughout.
+ * This app itself does not send a COOP header (cross-origin isolation for
+ * wllama comes from Document-Isolation-Policy instead — see
+ * next.config.ts), but the identity provider's own pages do (accounts
+ * .google.com and login.microsoftonline.com both send
+ * Cross-Origin-Opener-Policy: same-origin). COOP severance is triggered by
+ * either side, so once the popup navigates there the browsing-context-group
+ * link still switches and `window.opener`/messaging go away — Chromium
+ * logs "Cross-Origin-Opener-Policy policy would block the window.closed
+ * call" at that point. `.closed` itself is exempted from COOP's scripting
+ * restrictions in every current engine (it leaks nothing beyond a
+ * boolean), so despite the warning it keeps reporting real values and the
+ * poll in awaitPopupAuthResult below stays trustworthy throughout.
  */
 export function openAuthPopup(provider: CloudProvider, state: string): Window | null {
   const url = `/auth/start/?provider=${encodeURIComponent(provider)}&state=${encodeURIComponent(state)}`;

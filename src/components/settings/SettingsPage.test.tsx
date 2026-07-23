@@ -97,6 +97,7 @@ describe('SettingsPage theme presets', () => {
       disconnectCloudProvider: vi.fn(),
       closeCloudFilePicker: vi.fn(),
       handleCloudFileSelected: vi.fn().mockResolvedValue(undefined),
+      disconnectWorker: vi.fn(),
       isDatabaseLoaded: true,
       databaseSource: 'local',
       databaseSourceState: {

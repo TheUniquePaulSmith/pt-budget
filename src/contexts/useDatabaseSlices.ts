@@ -307,6 +307,7 @@ export function useSettingsSlice() {
     disconnectCloudProvider: lifecycle.disconnectCloudProvider,
     closeCloudFilePicker: lifecycle.closeCloudFilePicker,
     handleCloudFileSelected: lifecycle.handleCloudFileSelected,
+    disconnectWorker: lifecycle.disconnectWorker,
     isDatabaseLoaded: status.isDatabaseLoaded,
     databaseSource: status.databaseSource,
     databaseSourceState: status.databaseSourceState,

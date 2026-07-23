@@ -15,6 +15,8 @@ import {
   Typography,
 } from '@mui/material';
 
+import { ResetAppButton } from '@/components/common/ResetAppButton';
+
 interface PasswordEntryProps {
   /** Shown when context is needed (e.g. "Enter password to open cloud backup"). */
   description?: string;
@@ -22,6 +24,8 @@ interface PasswordEntryProps {
   onPasswordSubmitted: (password: string) => Promise<void>;
   /** Shown when the user can go back (e.g. cancel cloud import). */
   onCancel?: () => void;
+  /** Debug-only (`?debug`) — when set, shows a "Reset App" button that wipes all local data. */
+  onResetApp?: () => void | Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
@@ -30,6 +34,7 @@ export function PasswordEntry({
   description,
   onPasswordSubmitted,
   onCancel,
+  onResetApp,
   isLoading,
   error,
 }: PasswordEntryProps) {
@@ -125,6 +130,12 @@ export function PasswordEntry({
             {isLoading ? 'Decrypting…' : 'Unlock'}
           </Button>
         </Box>
+
+        {onResetApp && (
+          <Box sx={{ mt: 3 }}>
+            <ResetAppButton onReset={onResetApp} fullWidth />
+          </Box>
+        )}
       </Paper>
     </Box>
   );

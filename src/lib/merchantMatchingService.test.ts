@@ -125,7 +125,9 @@ describe('rule matching against the community list', () => {
     ['DD *DOORDASH P.F.CHANG', 'community:doordash', 'purchase'],
     ['IC* COSTCO BY INSTACAR', 'community:instacart', 'purchase'],
     ['UNITED   01621115998843', 'community:united-airlines', 'purchase'],
-    ['UNITED DAIRY FARMERS', null],
+    // Guard: the exact-match airline rule must not swallow United Dairy Farmers,
+    // which has its own merchant rule.
+    ['UNITED DAIRY FARMERS', 'community:udf', 'purchase'],
     ['TST* HIGH BANK DISTILL', null],
     ['SQ *BLEND CANDLE CO.', null],
   ];

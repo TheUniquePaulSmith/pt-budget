@@ -40,6 +40,7 @@ import { useSqlQuerySlice } from '@/contexts/useDatabaseSlices';
 import { useSqlSchema } from './useSqlSchema';
 import SampleQueriesDrawer from './SampleQueriesDrawer';
 import type { SqlQueryAnalysis } from './sqlQueryAnalysis';
+import { GridToolbar } from '@mui/x-data-grid/internals';
 
 // CodeMirror + the local SQL parser used for linting are a few hundred KB;
 // loaded only when this page is actually opened, not with the main bundle.
@@ -466,6 +467,12 @@ export default function SQLQueryPage() {
                 initialState={{ pagination: { paginationModel: { pageSize: 25, page: 0 } } }}
                 pageSizeOptions={[10, 25, 50, 100]}
                 disableVirtualization={process.env.NODE_ENV === 'test'}
+                slotProps={{
+                  toolbar: {
+                    csvOptions: { fileName: 'query_results', utf8WithBom: true },
+                    showQuickFilter: true,
+                  }
+                }}
               />
             </Box>
           ) : (

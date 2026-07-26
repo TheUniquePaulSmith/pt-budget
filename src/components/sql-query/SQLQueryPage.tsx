@@ -32,7 +32,7 @@ import {
   ListAlt,
   AutoFixHigh,
 } from '@mui/icons-material';
-import type { GridColDef } from '@mui/x-data-grid';
+import { GridToolbar, type GridColDef } from '@mui/x-data-grid';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { useSqlQuerySlice } from '@/contexts/useDatabaseSlices';
@@ -467,12 +467,9 @@ export default function SQLQueryPage() {
                 initialState={{ pagination: { paginationModel: { pageSize: 25, page: 0 } } }}
                 pageSizeOptions={[10, 25, 50, 100]}
                 disableVirtualization={process.env.NODE_ENV === 'test'}
-                slotProps={{
-                  toolbar: {
-                    csvOptions: { fileName: 'query_results', utf8WithBom: true },
-                    showQuickFilter: true,
-                  }
-                }}
+                showToolbar
+                slots={{ toolbar: GridToolbar }}
+                slotProps={{ toolbar: { csvOptions: { fileName: 'sql-query-results' } } }}
               />
             </Box>
           ) : (

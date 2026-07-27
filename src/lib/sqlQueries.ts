@@ -185,6 +185,16 @@ export const TRANSACTION_QUERIES = {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
 
+  // RETURNING variant used by the batched temp-table load so a single
+  // transaction inserts every row and returns each new id in order (requires
+  // SQLite >= 3.35; bundled wa-sqlite is 3.50.x). Callers rely on the returned
+  // ids being positionally aligned with the input rows.
+  INSERT_TEMP_TRANSACTION_RETURNING_ID: `
+    INSERT INTO temp_import_transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING id
+  `,
+
   CHECK_DUPLICATES_IN_TEMP: `
     SELECT t.transaction_hash 
     FROM transactions t

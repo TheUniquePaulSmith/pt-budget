@@ -526,6 +526,23 @@ class DatabaseWorker {
     this.isProcessingQuery = false;
   }
 
+  // Per-connection PRAGMAs applied on every open. These do not persist in the
+  // database file, so a reopened connection reverts to SQLite defaults without
+  // this. cache_size is the primary lever against the encrypting VFS's per-page
+  // decrypt cost: a larger cache keeps hot pages decrypted in WASM memory.
+  async applyConnectionPragmas() {
+    // Negative value = absolute memory budget in KiB, independent of page_size,
+    // so 32 MB stays 32 MB even though page_size is 8192 (a positive page count
+    // would silently double when page_size doubled).
+    await this.sqlite3.exec(this.db, 'PRAGMA cache_size=-32768'); // 32 MB
+    // Keep GROUP BY/ORDER BY scratch B-trees in RAM instead of spilling to
+    // encrypted temp files through the VFS.
+    await this.sqlite3.exec(this.db, 'PRAGMA temp_store=MEMORY');
+    // Relax durability to match new-database behavior on reopen (the base VFS
+    // honors this to use 'relaxed' IndexedDB transaction durability).
+    await this.sqlite3.exec(this.db, 'PRAGMA synchronous=NORMAL');
+  }
+
   async openDatabase(filename = '/budget-app.db', isNew = false, options = {}) {
     if (!this.isInitialized) {
       await this.initialize();
@@ -550,11 +567,25 @@ class DatabaseWorker {
       this.isConnected = true;
 
       if (isNew) {
-        // Configure database for optimal performance and consistency
-        await this.sqlite3.exec(this.db, 'PRAGMA locking_mode=NORMAL');
-        await this.sqlite3.exec(this.db, 'PRAGMA synchronous=NORMAL');
-        await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=ON');
+        // page_size can only be set while the DB is empty (the base VFS refuses
+        // a change once the file has content), so it must precede the first
+        // write. 8192 must stay in lockstep with the encrypting VFS block size
+        // (DEFAULT_BLOCK_SIZE in database-encrypted-vfs.js).
+        await this.sqlite3.exec(this.db, 'PRAGMA page_size=8192');
 
+        // locking_mode is the SQLite default; foreign_keys is intentionally
+        // enabled only for new databases (see the FK note in databaseService.ts)
+        // and deliberately NOT re-enabled on reopen.
+        await this.sqlite3.exec(this.db, 'PRAGMA locking_mode=NORMAL');
+        await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=ON');
+      }
+
+      // Per-connection performance PRAGMAs must be applied on EVERY open (new and
+      // reopened): cache_size/temp_store/synchronous do not persist across
+      // connections and otherwise revert to slow SQLite defaults on reopen.
+      await this.applyConnectionPragmas();
+
+      if (isNew) {
         // Create database tables
         await this.createTables({ ensureIndexes: !deferIndexes });
 
@@ -672,6 +703,7 @@ class DatabaseWorker {
       }
 
       const useTransaction = options.useTransaction !== false;
+      const collectResults = options.collectResults === true;
 
       try {
         if (!Array.isArray(parameterSets) || parameterSets.length === 0) {
@@ -680,7 +712,7 @@ class DatabaseWorker {
             isSuccessful: true,
             dbStatus: 'connected',
             version: this.dbVersion,
-            sqlResponse: { rowCount: 0, sql }
+            sqlResponse: { rowCount: 0, sql, ...(collectResults ? { results: [] } : {}) }
           };
         }
 
@@ -688,10 +720,15 @@ class DatabaseWorker {
           await this.sqlite3.exec(this.db, 'BEGIN IMMEDIATE');
         }
 
+        let collectedResults = null;
         try {
-          for (const parameters of parameterSets) {
-            await this.executePreparedStatement(sql, parameters, false);
-          }
+          // Single compile, reused across all parameter sets (see
+          // executeReusablePreparedStatement) within one transaction.
+          collectedResults = await this.executeReusablePreparedStatement(
+            sql,
+            parameterSets,
+            collectResults
+          );
 
           if (useTransaction) {
             await this.sqlite3.exec(this.db, 'COMMIT');
@@ -718,7 +755,11 @@ class DatabaseWorker {
           isSuccessful: true,
           dbStatus: 'connected',
           version: this.dbVersion,
-          sqlResponse: { rowCount: parameterSets.length, sql }
+          sqlResponse: {
+            rowCount: parameterSets.length,
+            sql,
+            ...(collectResults ? { results: collectedResults ?? [] } : {})
+          }
         };
       } catch (error) {
         console.error('[DB Worker] Batch query execution failed:', error);
@@ -756,6 +797,61 @@ class DatabaseWorker {
         this.sqlite3.bind_text(stmt, index + 1, String(param));
       }
     }
+  }
+
+  // Compiles `sql` once and runs it for every parameter set, reusing the
+  // prepared statement (reset + clear_bindings + rebind) instead of recompiling
+  // per row as executePreparedStatement would. `sql` must be a single
+  // statement (the batch contract). When collectResults is true, returns the
+  // rows produced by each execution (e.g. INSERT ... RETURNING id) in
+  // parameter-set order; otherwise returns null.
+  async executeReusablePreparedStatement(sql, parameterSets, collectResults = false) {
+    const collected = collectResults ? [] : null;
+
+    for await (const stmt of this.sqlite3.statements(this.db, sql)) {
+      let columnNames = null;
+
+      for (const parameters of parameterSets) {
+        // reset() on a freshly prepared statement is a valid no-op, so this is
+        // safe on the first iteration too.
+        await this.sqlite3.reset(stmt);
+        this.sqlite3.clear_bindings(stmt);
+        this.bindParameters(stmt, parameters);
+
+        while (true) {
+          const stepResult = await this.sqlite3.step(stmt);
+
+          if (stepResult === this.sqlite3Constants.SQLITE_ROW) {
+            if (!collectResults) {
+              continue;
+            }
+
+            if (columnNames === null) {
+              columnNames = [];
+              const columnCount = this.sqlite3.column_count(stmt);
+              for (let index = 0; index < columnCount; index += 1) {
+                columnNames.push(this.sqlite3.column_name(stmt, index));
+              }
+            }
+
+            const row = {};
+            columnNames.forEach((column, index) => {
+              row[column] = this.sqlite3.column(stmt, index);
+            });
+            collected.push(row);
+            continue;
+          }
+
+          if (stepResult === this.sqlite3Constants.SQLITE_DONE) {
+            break;
+          }
+
+          throw new Error(`SQLite step failed with code ${stepResult}`);
+        }
+      }
+    }
+
+    return collected;
   }
 
   async executePreparedStatement(sql, parameters = [], collectResults = false) {

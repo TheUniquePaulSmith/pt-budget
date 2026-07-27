@@ -20,6 +20,10 @@ export interface DatabaseResponse {
 
 export interface BatchQueryOptions {
   useTransaction?: boolean;
+  // When true, the worker collects and returns the rows produced by each
+  // execution (e.g. INSERT ... RETURNING) in parameter-set order. Use
+  // batchQueryReturning() for the typed row-array result.
+  collectResults?: boolean;
 }
 
 export interface OpenDatabaseOptions {
@@ -359,6 +363,23 @@ export class DatabaseWorkerService {
     });
 
     return response.sqlResponse?.rowCount || 0;
+  }
+
+  // Batch variant that returns the rows produced by each execution (in
+  // parameter-set order) — e.g. the ids from INSERT ... RETURNING id. Runs in a
+  // single transaction with one compiled statement, like batchQuery().
+  public async batchQueryReturning(
+    sql: string,
+    parameterSets: any[][] = [],
+    options: Omit<BatchQueryOptions, 'collectResults'> = {}
+  ): Promise<any[]> {
+    const response = await this.sendMessage('batch_query', {
+      sql,
+      parameterSets,
+      options: { ...options, collectResults: true },
+    });
+
+    return response.sqlResponse?.results || [];
   }
 
   public async exec(sql: string): Promise<void> {

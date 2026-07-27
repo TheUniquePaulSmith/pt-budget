@@ -1,5 +1,3 @@
-import { createInterface } from 'node:readline/promises';
-
 import {
   DEFAULT_TRANSACTION_GENERATION,
   MANAGED_SAMPLE_TABLES,
@@ -15,16 +13,46 @@ import {
   writeFixtureEnvelopes,
 } from './lib/sample-data-tools.mjs';
 
+// Maps `--flag=value` / `--flag value` argument pairs to the option key they
+// set. Aliases share a key (e.g. --count/--transactions/--amount all set the
+// transaction count; --amount is kept for backward compatibility even though it
+// means a count, not a dollar amount). Declared before parseCliOptions runs so
+// the hoisted function does not read them from the temporal dead zone.
+const VALUE_FLAGS = {
+  '--months': 'monthsBack',
+  '--count': 'targetTransactionCount',
+  '--transactions': 'targetTransactionCount',
+  '--amount': 'targetTransactionCount',
+  '--seed': 'seed',
+  '--reference-date': 'referenceDate',
+};
+
+const BOOLEAN_FLAGS = {
+  '--full-schema': 'fullSchema',
+  '--dry-run': 'dryRun',
+  '--help': 'help',
+  '-h': 'help',
+};
+
 const repoRoot = process.cwd();
 const cliOptions = parseCliOptions(process.argv.slice(2));
+
+if (cliOptions.help) {
+  printUsage();
+  process.exit(0);
+}
+
 const mode = cliOptions.fullSchema
   ? SAMPLE_DATA_GENERATION_MODES.FULL_SCHEMA
   : SAMPLE_DATA_GENERATION_MODES.RUNTIME_COMPATIBLE;
-const promptAnswers = await resolvePromptedGenerationOptions(cliOptions);
+// Non-interactive: every value comes from a flag or a default, so the script
+// runs unattended (CI, agents) without ever prompting.
+const generationInputs = resolveGenerationOptions(cliOptions);
 const transactionGeneration = resolveTransactionGenerationOptions({
-  referenceDate: new Date(),
-  monthsBack: promptAnswers.monthsBack,
-  targetTransactionCount: promptAnswers.targetTransactionCount,
+  referenceDate: generationInputs.referenceDate,
+  monthsBack: generationInputs.monthsBack,
+  targetTransactionCount: generationInputs.targetTransactionCount,
+  ...(generationInputs.seed !== null ? { seed: generationInputs.seed } : {}),
 });
 
 const context = await loadSampleDataContext(repoRoot);
@@ -144,113 +172,118 @@ function parseCliOptions(argv) {
   const options = {
     fullSchema: false,
     dryRun: false,
+    help: false,
     monthsBack: null,
     targetTransactionCount: null,
+    seed: null,
+    referenceDate: null,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
 
-    if (argument === '--full-schema') {
-      options.fullSchema = true;
+    if (Object.prototype.hasOwnProperty.call(BOOLEAN_FLAGS, argument)) {
+      options[BOOLEAN_FLAGS[argument]] = true;
       continue;
     }
 
-    if (argument === '--dry-run') {
-      options.dryRun = true;
-      continue;
+    // `--flag=value`
+    const equalsIndex = argument.indexOf('=');
+    if (argument.startsWith('--') && equalsIndex !== -1) {
+      const flag = argument.slice(0, equalsIndex);
+      if (Object.prototype.hasOwnProperty.call(VALUE_FLAGS, flag)) {
+        options[VALUE_FLAGS[flag]] = argument.slice(equalsIndex + 1);
+        continue;
+      }
+      throw new Error(`Unknown option: ${flag}. Run with --help for usage.`);
     }
 
-    if (argument.startsWith('--months=')) {
-      options.monthsBack = argument.slice('--months='.length);
-      continue;
-    }
-
-    if (argument === '--months') {
-      options.monthsBack = argv[index + 1];
+    // `--flag value`
+    if (Object.prototype.hasOwnProperty.call(VALUE_FLAGS, argument)) {
+      options[VALUE_FLAGS[argument]] = argv[index + 1];
       index += 1;
       continue;
     }
 
-    if (argument.startsWith('--amount=')) {
-      options.targetTransactionCount = argument.slice('--amount='.length);
-      continue;
-    }
-
-    if (argument === '--amount') {
-      options.targetTransactionCount = argv[index + 1];
-      index += 1;
-      continue;
-    }
+    throw new Error(`Unknown option: ${argument}. Run with --help for usage.`);
   }
 
   return options;
 }
 
-async function resolvePromptedGenerationOptions(cliOptions) {
-  const isInteractive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+// Resolves every generation input from CLI flags, falling back to defaults.
+// No prompting: absent flags simply use their default.
+function resolveGenerationOptions(cliOptions) {
   const fallbackMonths = Number.parseInt(
     String(DEFAULT_TRANSACTION_GENERATION.monthsBack),
     10
   );
-  const parsedCliMonths = parseOptionalPositiveInteger(cliOptions.monthsBack);
   const monthsBack =
-    parsedCliMonths ??
-    (isInteractive ? await promptForMonthsBack(fallbackMonths) : fallbackMonths);
-  const fallbackTransactionCount = estimateDefaultTransactionCount(monthsBack);
-  const parsedCliTransactionCount = parseOptionalPositiveInteger(
-    cliOptions.targetTransactionCount
-  );
+    parseOptionalPositiveInteger(cliOptions.monthsBack, 'months') ?? fallbackMonths;
   const targetTransactionCount =
-    parsedCliTransactionCount ??
-    (isInteractive
-      ? await promptForTransactionCount(fallbackTransactionCount)
-      : fallbackTransactionCount);
+    parseOptionalPositiveInteger(cliOptions.targetTransactionCount, 'count') ??
+    estimateDefaultTransactionCount(monthsBack);
+  const seed =
+    cliOptions.seed !== null &&
+    cliOptions.seed !== undefined &&
+    cliOptions.seed !== ''
+      ? String(cliOptions.seed)
+      : null;
+  const referenceDate = parseReferenceDate(cliOptions.referenceDate);
 
-  return {
-    monthsBack,
-    targetTransactionCount,
-  };
+  return { monthsBack, targetTransactionCount, seed, referenceDate };
 }
 
-async function promptForMonthsBack(defaultValue) {
-  const response = await promptWithDefault(
-    `How many months back from today should the sample data cover?`,
-    defaultValue
-  );
-
-  return parseRequiredPositiveInteger(response, 'months');
-}
-
-async function promptForTransactionCount(defaultValue) {
-  const response = await promptWithDefault(
-    `Roughly how many transactions should be generated for that full period?`,
-    defaultValue
-  );
-
-  return parseRequiredPositiveInteger(response, 'amount');
-}
-
-async function promptWithDefault(question, defaultValue) {
-  const readline = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  try {
-    const answer = await readline.question(`${question} [${defaultValue}]: `);
-    return answer.trim() || String(defaultValue);
-  } finally {
-    readline.close();
+function parseReferenceDate(value) {
+  if (value === null || value === undefined || value === '') {
+    return new Date();
   }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(
+      `reference-date must be a valid date (e.g. 2026-01-01), got: ${value}`
+    );
+  }
+
+  return parsed;
 }
 
-function parseOptionalPositiveInteger(value) {
+function printUsage() {
+  const defaultMonths = Number.parseInt(
+    String(DEFAULT_TRANSACTION_GENERATION.monthsBack),
+    10
+  );
+
+  console.log(`Usage: node scripts/generate-sample-data.mjs [options]
+
+Generates sample-data fixtures under public/sample-data/. Fully non-interactive:
+every value comes from a flag or a default.
+
+Options:
+  --months=<n>             Months of history to cover (default: ${defaultMonths}).
+  --count=<n>              Approx transactions for the full period
+                          (aliases: --transactions, --amount; default: scaled to months).
+  --seed=<string>         Seed for deterministic output
+                          (default: derived from reference date + months + count).
+  --reference-date=<date> Reference "today" for the window, e.g. 2026-01-01
+                          (default: the current date).
+  --full-schema           Emit schema-only fixtures for every managed table.
+  --dry-run               Print an estimate summary without writing files.
+  -h, --help              Show this help and exit.
+
+Examples:
+  npm run sample-data:generate -- --months=12 --count=5000
+  npm run sample-data:generate -- --count=250000 --seed=perf --reference-date=2026-01-01
+  npm run sample-data:generate -- --dry-run --count=1000000`);
+}
+
+function parseOptionalPositiveInteger(value, label = 'value') {
   if (value === null || value === undefined || value === '') {
     return null;
   }
 
-  return parseRequiredPositiveInteger(value, 'value');
+  return parseRequiredPositiveInteger(value, label);
 }
 
 function parseRequiredPositiveInteger(value, label) {

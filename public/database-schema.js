@@ -257,6 +257,12 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_transactions_company_null ON transactions(company_id) WHERE company_id IS NULL`,
   `CREATE INDEX IF NOT EXISTS idx_transactions_category_null ON transactions(category_id) WHERE category_id IS NULL`,
   `CREATE INDEX IF NOT EXISTS idx_transactions_project_null ON transactions(project_id) WHERE project_id IS NULL`,
+  // account_id has no index despite being an FK: supports list filtering by
+  // account (account_id IN (...)) and the account/income analytics joins.
+  `CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON transactions(account_id)`,
+  // trip_id is usually NULL, so a partial index stays small while accelerating
+  // trip transaction lookups and trip cost rollups.
+  `CREATE INDEX IF NOT EXISTS idx_transactions_trip_id ON transactions(trip_id) WHERE trip_id IS NOT NULL`,
 ];
 
 // Schema versioning — applied by runMigrations() in database-worker.js.

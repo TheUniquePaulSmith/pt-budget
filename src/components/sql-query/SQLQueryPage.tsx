@@ -40,7 +40,6 @@ import { useSqlQuerySlice } from '@/contexts/useDatabaseSlices';
 import { useSqlSchema } from './useSqlSchema';
 import SampleQueriesDrawer from './SampleQueriesDrawer';
 import type { SqlQueryAnalysis } from './sqlQueryAnalysis';
-import { GridToolbar } from '@mui/x-data-grid/internals';
 
 // CodeMirror + the local SQL parser used for linting are a few hundred KB;
 // loaded only when this page is actually opened, not with the main bundle.

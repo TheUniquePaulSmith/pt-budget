@@ -12,7 +12,11 @@ import * as VFS from './wa-sqlite/src/VFS.js';
 export const NONCE_LENGTH = 12; // AES-GCM IV
 export const TAG_LENGTH = 16; // AES-GCM appends the tag to the ciphertext
 export const OVERHEAD = NONCE_LENGTH + TAG_LENGTH;
-export const DEFAULT_BLOCK_SIZE = 4096;
+// Must equal SQLite's page_size (set to 8192 on new databases in
+// database-worker.js openDatabase) so each crypto block maps to exactly one
+// SQLite page. Persisted per-database in the encryption header (header.blockSize)
+// and read back on unlock, so this is the value baked into freshly created DBs.
+export const DEFAULT_BLOCK_SIZE = 8192;
 
 export function physicalBlockSize(blockSize) {
   return blockSize + OVERHEAD;

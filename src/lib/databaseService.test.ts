@@ -199,6 +199,7 @@ function createWorkerTransportStub(
     createTables: vi.fn(),
     ensureIndexes: vi.fn(),
     query: vi.fn(),
+    batchQueryReturning: vi.fn().mockResolvedValue([]),
     exec: vi.fn(),
     exportDatabaseSnapshot: vi.fn(),
     importDatabaseSnapshot: vi.fn(),
@@ -662,13 +663,10 @@ describe('DatabaseService batch and import helpers', () => {
     });
   });
 
-  it('inserts temp transactions and returns the inserted row ids', async () => {
-    const querySpy = vi
-      .spyOn(databaseWorkerService, 'query')
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 101 }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 102 }]);
+  it('inserts temp transactions in one batch and returns the row ids in order', async () => {
+    const batchSpy = vi
+      .spyOn(databaseWorkerService, 'batchQueryReturning')
+      .mockResolvedValue([{ id: 101 }, { id: 102 }]);
     const service = new DatabaseService();
 
     const insertedIds = await service.insertIntoTempTable([
@@ -680,45 +678,50 @@ describe('DatabaseService batch and import helpers', () => {
       },
     ]);
 
+    // Ordered ids are the contract csvImportService.buildDuplicateGroups relies on.
     expect(insertedIds).toEqual([101, 102]);
-    expect(querySpy).toHaveBeenNthCalledWith(
-      1,
-      TRANSACTION_QUERIES.INSERT_TEMP_TRANSACTION,
+    expect(batchSpy).toHaveBeenCalledTimes(1);
+    expect(batchSpy).toHaveBeenCalledWith(
+      TRANSACTION_QUERIES.INSERT_TEMP_TRANSACTION_RETURNING_ID,
       [
-        baseTransaction.date,
-        baseTransaction.amount,
-        baseTransaction.description,
-        null,
-        baseTransaction.account_id,
-        null,
-        null,
-        baseTransaction.company_id,
-        null,
-        null,
-        baseTransaction.type,
-        null,
+        [
+          baseTransaction.date,
+          baseTransaction.amount,
+          baseTransaction.description,
+          null,
+          baseTransaction.account_id,
+          null,
+          null,
+          baseTransaction.company_id,
+          null,
+          null,
+          baseTransaction.type,
+          null,
+        ],
+        [
+          baseTransaction.date,
+          baseTransaction.amount,
+          'Imported airfare',
+          null,
+          baseTransaction.account_id,
+          null,
+          null,
+          baseTransaction.company_id,
+          null,
+          null,
+          baseTransaction.type,
+          'airfare-123',
+        ],
       ]
     );
-    expect(querySpy).toHaveBeenNthCalledWith(2, 'SELECT last_insert_rowid() as id');
-    expect(querySpy).toHaveBeenNthCalledWith(
-      3,
-      TRANSACTION_QUERIES.INSERT_TEMP_TRANSACTION,
-      [
-        baseTransaction.date,
-        baseTransaction.amount,
-        'Imported airfare',
-        null,
-        baseTransaction.account_id,
-        null,
-        null,
-        baseTransaction.company_id,
-        null,
-        null,
-        baseTransaction.type,
-        'airfare-123',
-      ]
-    );
-    expect(querySpy).toHaveBeenNthCalledWith(4, 'SELECT last_insert_rowid() as id');
+  });
+
+  it('returns an empty id list without hitting the worker for no rows', async () => {
+    const batchSpy = vi.spyOn(databaseWorkerService, 'batchQueryReturning');
+    const service = new DatabaseService();
+
+    await expect(service.insertIntoTempTable([])).resolves.toEqual([]);
+    expect(batchSpy).not.toHaveBeenCalled();
   });
 
   it('returns the inserted row count after bulk import', async () => {

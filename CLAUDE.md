@@ -28,6 +28,8 @@ npm run sample-data:generate   # regenerate public/sample-data/ fixtures (schema
 npm run sample-data:validate   # validate fixtures against current schema
 ```
 
+`sample-data:generate` is **non-interactive** — it never prompts; every input comes from a flag or a default, so agents/CI can run it unattended. Pass flags after `--`, e.g. `npm run sample-data:generate -- --months=12 --count=5000 --seed=demo --reference-date=2026-01-01`. Run `node scripts/generate-sample-data.mjs --help` for the full flag list (`--count`/`--transactions`/`--amount`, `--seed`, `--reference-date`, `--full-schema`, `--dry-run`).
+
 Playwright runs Chromium only, single worker, against `http://localhost:3000` (always localhost, not 127.0.0.1) and reuses an existing dev server if one is running.
 
 ## Architecture

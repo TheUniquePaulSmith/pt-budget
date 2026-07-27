@@ -87,6 +87,7 @@ export interface DatabaseWorkerTransport {
   ensureIndexes(): Promise<unknown>;
   query(sql: string, parameters?: any[]): Promise<any[]>;
   queryWithTimeout(sql: string, parameters?: any[], timeoutMs?: number): Promise<any[]>;
+  batchQueryReturning(sql: string, parameterSets?: any[][], options?: { useTransaction?: boolean }): Promise<any[]>;
   exec(sql: string): Promise<void>;
   exportDatabaseSnapshot(): Promise<DatabaseVfsSnapshot>;
   importDatabaseSnapshot(snapshot: DatabaseVfsSnapshot): Promise<{
@@ -549,27 +550,36 @@ export class DatabaseService {
     transactions: Array<Omit<Transaction, "id" | "created_at" | "updated_at" | "card_id"> & { card_id?: number | null }>
   ): Promise<number[]> {
     try {
-      const insertedIds: number[] = [];
-      for (const transaction of transactions) {
-        const result = await this.workerService.query(TRANSACTION_QUERIES.INSERT_TEMP_TRANSACTION, [
-          transaction.date,
-          transaction.amount,
-          transaction.description,
-          transaction.comment || null,
-          transaction.account_id,
-          transaction.card_id || null,
-          transaction.category_id || null,
-          transaction.company_id || null,
-          transaction.project_id || null,
-          transaction.trip_id || null,
-          transaction.type,
-          transaction.transaction_hash || null,
-        ]);
-        // SQLite returns the last inserted rowid
-        const lastId = await this.workerService.query('SELECT last_insert_rowid() as id');
-        insertedIds.push(lastId[0].id);
+      if (transactions.length === 0) {
+        return [];
       }
-      return insertedIds;
+
+      // One transaction, one compiled statement, RETURNING id per row — instead
+      // of a per-row INSERT plus a per-row `SELECT last_insert_rowid()`
+      // round-trip (each its own implicit transaction = one encrypted IndexedDB
+      // flush). The returned ids stay positionally aligned with `transactions`,
+      // which csvImportService.buildDuplicateGroups depends on.
+      const parameterSets = transactions.map((transaction) => [
+        transaction.date,
+        transaction.amount,
+        transaction.description,
+        transaction.comment || null,
+        transaction.account_id,
+        transaction.card_id || null,
+        transaction.category_id || null,
+        transaction.company_id || null,
+        transaction.project_id || null,
+        transaction.trip_id || null,
+        transaction.type,
+        transaction.transaction_hash || null,
+      ]);
+
+      const rows = await this.workerService.batchQueryReturning(
+        TRANSACTION_QUERIES.INSERT_TEMP_TRANSACTION_RETURNING_ID,
+        parameterSets
+      );
+
+      return rows.map((row) => row.id as number);
     } catch (error) {
       console.error("Failed to insert into temp table:", error);
       throw error;

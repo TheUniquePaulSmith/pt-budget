@@ -44,6 +44,11 @@ export interface RecurringSeriesUpdate {
   notes?: string | null;
 }
 
+export interface RecurringSeriesCompanyInput {
+  companyId?: number | null;
+  companyName?: string | null;
+}
+
 export interface DatabaseSubscriptionsSlice {
   runSubscriptionScan: () => Promise<SubscriptionScanSummary>;
   addMerchantRule: (rule: MerchantRuleInput) => Promise<number>;
@@ -55,6 +60,7 @@ export interface DatabaseSubscriptionsSlice {
   }) => Promise<number>;
   updateRecurringSeries: (id: number, updates: RecurringSeriesUpdate) => Promise<void>;
   updateRecurringSeriesStatus: (id: number, status: RecurringSeriesStatus) => Promise<void>;
+  setRecurringSeriesCompany: (id: number, input: RecurringSeriesCompanyInput) => Promise<void>;
   deleteRecurringSeries: (id: number) => Promise<void>;
   getRecurringSeriesWithStats: (range?: { startDate?: string; endDate?: string }) => Promise<RecurringSeries[]>;
   getTransactionsByIds: (ids: number[]) => Promise<Transaction[]>;
@@ -74,6 +80,7 @@ type SubscriptionsService = Pick<
   | 'previewMerchantRuleMatches'
   | 'updateRecurringSeries'
   | 'updateRecurringSeriesStatus'
+  | 'setRecurringSeriesCompany'
   | 'deleteRecurringSeries'
   | 'getRecurringSeriesWithStats'
   | 'getTransactionsByIds'
@@ -161,6 +168,15 @@ export function useDatabaseSubscriptionsSlice({
     [refreshRecurringSeries, requireService]
   );
 
+  const setRecurringSeriesCompany = useCallback(
+    async (id: number, input: RecurringSeriesCompanyInput): Promise<void> => {
+      await requireService().setRecurringSeriesCompany(id, input);
+      // A new company name may have created a row, so refresh both.
+      await Promise.all([refreshRecurringSeries(), refreshCompanies()]);
+    },
+    [refreshCompanies, refreshRecurringSeries, requireService]
+  );
+
   const deleteRecurringSeries = useCallback(
     async (id: number): Promise<void> => {
       await requireService().deleteRecurringSeries(id);
@@ -217,6 +233,7 @@ export function useDatabaseSubscriptionsSlice({
       previewMerchantRuleMatches,
       updateRecurringSeries,
       updateRecurringSeriesStatus,
+      setRecurringSeriesCompany,
       deleteRecurringSeries,
       getRecurringSeriesWithStats,
       getTransactionsByIds,
@@ -234,6 +251,7 @@ export function useDatabaseSubscriptionsSlice({
       previewMerchantRuleMatches,
       updateRecurringSeries,
       updateRecurringSeriesStatus,
+      setRecurringSeriesCompany,
       deleteRecurringSeries,
       getRecurringSeriesWithStats,
       getTransactionsByIds,

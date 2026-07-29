@@ -89,6 +89,7 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
     previewMerchantRuleMatches,
     updateRecurringSeries,
     updateRecurringSeriesStatus,
+    setRecurringSeriesCompany,
     deleteRecurringSeries,
     getRecurringSeriesWithStats,
     getTransactionsByIds,
@@ -676,8 +677,10 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
       <SeriesDetailDialog
         open={detailSeries !== null}
         series={detailSeries}
+        companies={companies}
         onClose={() => setDetailSeries(null)}
         onSave={updateRecurringSeries}
+        onSetCompany={setRecurringSeriesCompany}
         onDelete={deleteRecurringSeries}
         getSeriesTransactions={getSeriesTransactions}
       />

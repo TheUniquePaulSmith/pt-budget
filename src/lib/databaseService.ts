@@ -3304,6 +3304,26 @@ export class DatabaseService {
     }
   }
 
+  // Links a series to an existing company (companyId), a newly-created one
+  // (companyName, resolved via findOrCreateCompany so re-using an existing
+  // name never creates a duplicate), or clears it (companyId: null).
+  async setRecurringSeriesCompany(
+    id: number,
+    input: { companyId?: number | null; companyName?: string | null }
+  ): Promise<void> {
+    try {
+      let companyId = input.companyId ?? null;
+      const companyName = input.companyName?.trim();
+      if (companyName) {
+        companyId = await this.findOrCreateCompany(companyName);
+      }
+      await this.workerService.query(SUBSCRIPTION_QUERIES.UPDATE_SERIES_COMPANY, [companyId, id]);
+    } catch (error) {
+      console.error('Failed to set recurring series company:', error);
+      throw error;
+    }
+  }
+
   // Links are removed explicitly: PRAGMA foreign_keys is not enabled on
   // databases created before this feature, so ON DELETE CASCADE cannot be
   // relied upon.
@@ -3462,6 +3482,8 @@ export class DatabaseService {
       created_at: row.created_at,
       updated_at: row.updated_at,
       company_name: row.company_name || undefined,
+      card_last_four: row.card_last_four || undefined,
+      card_nickname: row.card_nickname ?? null,
       transaction_count: row.transaction_count != null ? Number(row.transaction_count) : undefined,
       total_spent: row.total_spent != null ? Number(row.total_spent) : undefined,
     };

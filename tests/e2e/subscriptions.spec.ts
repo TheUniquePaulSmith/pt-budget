@@ -72,3 +72,44 @@ test('runs a subscription scan and persists a user-created merchant rule', async
   );
   expect(reloadedRuleCount).toBe(1);
 });
+
+test('shows a Card column on the series table and links a series to a newly created company', async ({ page }) => {
+  await bootstrapDatabase(page);
+
+  await page.getByRole('button', { name: 'Subscriptions' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Subscriptions' })
+  ).toBeVisible({ timeout: 120_000 });
+
+  await page.getByRole('button', { name: 'Rescan' }).click();
+  await expect(page.getByText(/Scan complete/)).toBeVisible({ timeout: 120_000 });
+
+  // The series grid renders a Card column header (proves cardColumn wiring
+  // survives a real render, even though sample data has no cards assigned).
+  await expect(page.getByRole('columnheader', { name: 'Card' }).first()).toBeVisible({
+    timeout: 30_000,
+  });
+
+  // Open the first series' detail dialog via its "View transactions" action.
+  await page.getByRole('button', { name: 'View transactions' }).first().click();
+
+  const companyField = page.getByRole('combobox', { name: 'Company' });
+  await expect(companyField).toBeVisible({ timeout: 30_000 });
+
+  const newCompanyName = `Playwright Merge Co ${Date.now()}`;
+  await companyField.fill(newCompanyName);
+  await companyField.press('Enter');
+
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 30_000 });
+
+  const linkedCount = Number(
+    await runQueryAndReadFirstCell(
+      page,
+      `SELECT COUNT(*) AS count FROM recurring_series rs
+       JOIN companies c ON c.id = rs.company_id
+       WHERE c.name = '${newCompanyName}';`
+    )
+  );
+  expect(linkedCount).toBe(1);
+});

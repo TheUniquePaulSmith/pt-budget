@@ -200,6 +200,7 @@ export function useSubscriptionsSlice() {
     previewMerchantRuleMatches: subscriptions.previewMerchantRuleMatches,
     updateRecurringSeries: subscriptions.updateRecurringSeries,
     updateRecurringSeriesStatus: subscriptions.updateRecurringSeriesStatus,
+    setRecurringSeriesCompany: subscriptions.setRecurringSeriesCompany,
     deleteRecurringSeries: subscriptions.deleteRecurringSeries,
     getRecurringSeriesWithStats: subscriptions.getRecurringSeriesWithStats,
     getTransactionsByIds: subscriptions.getTransactionsByIds,

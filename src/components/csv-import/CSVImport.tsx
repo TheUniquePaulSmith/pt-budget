@@ -101,6 +101,42 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     preview: true,
   });
 
+  const resetImportState = useCallback(() => {
+    setFile(null);
+    setCsvData([]);
+    setPreview([]);
+    setMapping({
+      accountColumn: '',
+      dateColumn: '',
+      amountColumn: '',
+      descriptionColumn: '',
+      uniqueIdentifierColumn: '',
+    });
+    setAccountMatches([]);
+    setLoading(false);
+    setImporting(false);
+    setAnalyzing(false);
+    setAnalysisResult(null);
+    setImportResult(null);
+    setError(null);
+    setDuplicateResolverOpen(false);
+    setExcludedTransactionIndices(new Set());
+    setExpandedSections({
+      columnMapping: true,
+      accountMapping: true,
+      preview: true,
+    });
+  }, []);
+
+  // Reset stale state (e.g. a previous import's success message) whenever the
+  // dialog opens, since the parent may close it on success without routing
+  // through handleClose (see onSuccess in Dashboard).
+  useEffect(() => {
+    if (open) {
+      resetImportState();
+    }
+  }, [open, resetImportState]);
+
   // Function to analyze account column and find matching accounts
   const analyzeAccountColumn = useCallback(async (data: any[], accountColumn: string) => {
     console.debug(`Available accounts in database:`, accounts.map(acc => ({
@@ -481,34 +517,11 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
   const handleClose = () => {
     // Clear import table when closing modal
-    truncateImportTable().catch(err => 
+    truncateImportTable().catch(err =>
       console.error('Error clearing import table on close:', err)
     );
-    
-    setFile(null);
-    setCsvData([]);
-    setPreview([]);
-    setMapping({
-      accountColumn: '',
-      dateColumn: '',
-      amountColumn: '',
-      descriptionColumn: '',
-      uniqueIdentifierColumn: '',
-    });
-    setAccountMatches([]);
-    setLoading(false);
-    setImporting(false);
-    setAnalyzing(false);
-    setAnalysisResult(null);
-    setImportResult(null);
-    setError(null);
-    setDuplicateResolverOpen(false);
-    setExcludedTransactionIndices(new Set());
-    setExpandedSections({
-      columnMapping: true,
-      accountMapping: true,
-      preview: true,
-    });
+
+    resetImportState();
     onClose();
   };
 

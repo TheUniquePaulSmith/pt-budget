@@ -18,6 +18,7 @@ import {
   isEncryptedArchive,
   readEncryptedArchiveMeta,
 } from './databaseEncryption';
+import { advanceByCadence } from './recurringCadence';
 import {
   TRANSACTION_QUERIES,
   CATEGORY_QUERIES,
@@ -52,6 +53,11 @@ import {
   TransactionsPaginatedResult,
   DashboardSummary,
   ChartData,
+  ChartCategoryData,
+  ChartCategoryDelta,
+  ChartCategoryTrends,
+  ChartCommittedSplit,
+  ChartUpcomingCommitments,
   ProjectCosts,
   MerchantRule,
   MerchantRuleKind,
@@ -985,14 +991,30 @@ export class DatabaseService {
       trendStart.setMonth(trendStart.getMonth() - 6);
       const trendStartStr = trendStart.toISOString().split('T')[0];
 
+      const comparison = this.getComparisonRange(startDate, endDate);
+
       const spendingQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.SPENDING_BY_CATEGORY, filters);
       const companySpendingQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.SPENDING_BY_COMPANY_SERVICE, filters);
       const recurringSpendingQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.SPENDING_BY_RECURRING_SERIES, filters);
       const incomeQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.INCOME_BY_SOURCE, filters);
       const trendsQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.TRENDS_BY_DATE_RANGE, filters);
       const accountQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.ACCOUNT_ANALYSIS, filters);
+      const monthCategoryQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.SPENDING_BY_MONTH_CATEGORY, filters);
+      const committedQuery = this.applyAnalyticsFilters(ANALYTICS_QUERIES.SPENDING_COMMITTED_BY_MONTH, filters);
 
-      const [spendingRows, companySpendingRows, recurringSpendingRows, incomeRows, trendRows, accountRows, incomeSourceRows] = await Promise.all([
+      const [
+        spendingRows,
+        companySpendingRows,
+        recurringSpendingRows,
+        incomeRows,
+        trendRows,
+        accountRows,
+        incomeSourceRows,
+        monthCategoryRows,
+        committedRows,
+        previousSpendingRows,
+        activeSeriesRows,
+      ] = await Promise.all([
         this.workerService.query(spendingQuery.sql, [startDate, endDate, ...spendingQuery.params]),
         this.workerService.query(companySpendingQuery.sql, [startDate, endDate, ...companySpendingQuery.params]),
         this.workerService.query(recurringSpendingQuery.sql, [startDate, endDate, ...recurringSpendingQuery.params]),
@@ -1000,6 +1022,10 @@ export class DatabaseService {
         this.workerService.query(trendsQuery.sql, [trendStartStr, endDate, ...trendsQuery.params]),
         this.workerService.query(accountQuery.sql, [startDate, endDate, ...accountQuery.params]),
         this.workerService.query(INCOME_SOURCE_QUERIES.GET_ALL),
+        this.workerService.query(monthCategoryQuery.sql, [trendStartStr, endDate, ...monthCategoryQuery.params]),
+        this.workerService.query(committedQuery.sql, [trendStartStr, endDate, ...committedQuery.params]),
+        this.workerService.query(spendingQuery.sql, [comparison.start, comparison.end, ...spendingQuery.params]),
+        this.workerService.query(SUBSCRIPTION_QUERIES.GET_ACTIVE_SERIES),
       ]);
       const incomeSources = incomeSourceRows.map(this.mapToIncomeSource);
       const selectedRangeIncomeSources = this.getIncomeSourceChartRows(incomeSources, startDate, endDate, filters);
@@ -1064,11 +1090,186 @@ export class DatabaseService {
 
       const accountAnalysis = this.mergeIncomeSourcesIntoAccountAnalysis(accountRows, incomeSources, startDate, endDate, filters);
 
-      return { spendingByCategory, spendingByCompany, spendingByRecurring, incomeBySource, trends: sortedTrends, accountAnalysis };
+      // Every month-axis chart shares sortedTrends.months so their x-axes line up.
+      const categoryTrends = this.buildCategoryTrends(monthCategoryRows, sortedTrends.months);
+      const committedSplit = this.buildCommittedSplit(committedRows, sortedTrends.months);
+      const categoryDeltas = this.buildCategoryDeltas(spendingByCategory, previousSpendingRows);
+      const upcomingCommitments = this.buildUpcomingCommitments(activeSeriesRows);
+
+      return {
+        spendingByCategory,
+        spendingByCompany,
+        spendingByRecurring,
+        incomeBySource,
+        trends: sortedTrends,
+        accountAnalysis,
+        categoryTrends,
+        committedSplit,
+        upcomingCommitments,
+        categoryDeltas,
+        comparisonPeriodLabel: comparison.label,
+      };
     } catch (error) {
       console.error("Failed to get chart data:", error);
       throw error;
     }
+  }
+
+  /**
+   * The equal-length window immediately preceding [startDate, endDate], used for
+   * the period-over-period category comparison.
+   */
+  private getComparisonRange(startDate: string, endDate: string): { start: string; end: string; label: string } {
+    const shiftDays = (iso: string, days: number) =>
+      new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86400000).toISOString().split('T')[0];
+
+    const spanDays = Math.max(
+      1,
+      Math.round((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000) + 1
+    );
+    const end = shiftDays(startDate, -1);
+    const start = shiftDays(end, -(spanDays - 1));
+    return { start, end, label: `previous ${spanDays} day${spanDays === 1 ? '' : 's'}` };
+  }
+
+  /** Pivots month x category expense rows into stacked series, collapsing the tail into "Other". */
+  private buildCategoryTrends(rows: any[], months: string[]): ChartCategoryTrends {
+    const TOP_N = 8;
+    const monthIndex = new Map(months.map((month, index) => [month, index]));
+
+    const byCategory = new Map<number | string, { label: string; color: string; total: number; data: number[] }>();
+    for (const row of rows) {
+      const index = monthIndex.get(row.month);
+      if (index === undefined) continue; // outside the shared trend window
+      const key = row.category_id;
+      let entry = byCategory.get(key);
+      if (!entry) {
+        entry = {
+          label: row.category_name || 'Uncategorized',
+          color: row.color || '#999',
+          total: 0,
+          data: new Array(months.length).fill(0),
+        };
+        byCategory.set(key, entry);
+      }
+      const value = Number(row.total || 0);
+      entry.data[index] += value;
+      entry.total += value;
+    }
+
+    const ranked = [...byCategory.entries()].sort((a, b) => b[1].total - a[1].total);
+    const top = ranked.slice(0, TOP_N);
+    const rest = ranked.slice(TOP_N);
+
+    const series = top.map(([id, entry]) => ({ id, label: entry.label, color: entry.color, data: entry.data }));
+    if (rest.length > 0) {
+      const otherData = new Array(months.length).fill(0);
+      for (const [, entry] of rest) {
+        entry.data.forEach((value, index) => { otherData[index] += value; });
+      }
+      series.push({ id: 'other', label: 'Other', color: '#9e9e9e', data: otherData });
+    }
+
+    return { months, series };
+  }
+
+  /** Aligns committed/discretionary monthly totals to the shared month list, padding gaps with 0. */
+  private buildCommittedSplit(rows: any[], months: string[]): ChartCommittedSplit {
+    const committedByMonth = new Map<string, number>();
+    const discretionaryByMonth = new Map<string, number>();
+    for (const row of rows) {
+      committedByMonth.set(row.month, Number(row.committed || 0));
+      discretionaryByMonth.set(row.month, Number(row.discretionary || 0));
+    }
+    return {
+      months,
+      committed: months.map((month) => committedByMonth.get(month) ?? 0),
+      discretionary: months.map((month) => discretionaryByMonth.get(month) ?? 0),
+    };
+  }
+
+  /**
+   * Joins current-period category spend against the previous equal-length window.
+   * Categories present in only one window still appear, with 0 on the missing side.
+   */
+  private buildCategoryDeltas(current: ChartCategoryData[], previousRows: any[]): ChartCategoryDelta[] {
+    const previous = new Map<number | string, { label: string; color: string; value: number }>();
+    for (const row of previousRows) {
+      previous.set(row.category_id, {
+        label: row.category_name,
+        color: row.color || '#999',
+        value: Number(row.total || 0),
+      });
+    }
+
+    const deltas: ChartCategoryDelta[] = current.map((item) => {
+      const prior = previous.get(item.id)?.value ?? 0;
+      previous.delete(item.id);
+      return {
+        id: item.id,
+        label: item.label,
+        color: item.color,
+        current: item.value,
+        previous: prior,
+        delta: item.value - prior,
+      };
+    });
+
+    // Categories that had spend last period but none this period — a real, useful signal.
+    for (const [id, entry] of previous.entries()) {
+      deltas.push({
+        id,
+        label: entry.label,
+        color: entry.color,
+        current: 0,
+        previous: entry.value,
+        delta: -entry.value,
+      });
+    }
+
+    return deltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  }
+
+  /**
+   * Projects active recurring series forward into the current month plus the next two,
+   * stepping by cadence from next_expected_date. Occurrences already in the past are skipped,
+   * so the current-month bucket reads as "still to come". An `irregular` series has no
+   * dependable period, so it contributes only its single next expected charge.
+   */
+  private buildUpcomingCommitments(seriesRows: any[]): ChartUpcomingCommitments {
+    const MONTHS_AHEAD = 3;
+    const MAX_STEPS = 400; // guards against a pathological cadence/date combination
+
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const months: string[] = [];
+    for (let offset = 0; offset < MONTHS_AHEAD; offset += 1) {
+      const month = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + offset, 1));
+      months.push(`${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, '0')}`);
+    }
+    const horizonEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + MONTHS_AHEAD, 1));
+
+    const totals = new Map(months.map((month) => [month, 0]));
+
+    for (const row of seriesRows) {
+      const amount = row.expected_amount != null ? Number(row.expected_amount) : 0;
+      if (!amount) continue;
+
+      const seed = row.next_expected_date ? new Date(`${row.next_expected_date}T00:00:00Z`) : today;
+      let cursor = Number.isNaN(seed.getTime()) ? today : seed;
+
+      for (let step = 0; step < MAX_STEPS && cursor < horizonEnd; step += 1) {
+        if (cursor >= today) {
+          const key = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`;
+          if (totals.has(key)) totals.set(key, (totals.get(key) ?? 0) + amount);
+        }
+        const next = advanceByCadence(cursor, row.cadence);
+        if (!next || next.getTime() <= cursor.getTime()) break; // irregular cadence, or no forward progress
+        cursor = next;
+      }
+    }
+
+    return { months, amounts: months.map((month) => totals.get(month) ?? 0) };
   }
 
   async getAllProjectCosts(): Promise<ProjectCosts[]> {

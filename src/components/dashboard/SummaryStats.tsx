@@ -36,6 +36,17 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
   const averageDailySpend = dayCount > 0 ? totalExpenses / dayCount : 0;
   const topSpendingCategory = chartData?.spendingByCategory?.[0];
 
+  // Sparkline history comes from the same 6-month trend window the Trends tab charts use.
+  const incomeTrend = chartData?.trends?.income ?? [];
+  const expensesTrend = chartData?.trends?.expenses ?? [];
+  const netTrend = incomeTrend.map((income, index) => income - (expensesTrend[index] ?? 0));
+  const savingsRateTrend = incomeTrend.map((income, index) =>
+    income > 0 ? ((income - (expensesTrend[index] ?? 0)) / income) * 100 : 0
+  );
+
+  const formatTrendCurrency = (value: number | null) => (value == null ? '' : formatCurrency(value));
+  const formatTrendPercent = (value: number | null) => (value == null ? '' : formatPercent(value));
+
   return (
     <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
       <Box flex="1 1 300px">
@@ -45,6 +56,8 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
           icon={<TrendingUp />}
           color="success"
           subtitle={timeRangeLabel}
+          trend={incomeTrend}
+          trendValueFormatter={formatTrendCurrency}
         />
       </Box>
       <Box flex="1 1 300px">
@@ -54,6 +67,8 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
           icon={<TrendingDown />}
           color="error"
           subtitle={timeRangeLabel}
+          trend={expensesTrend}
+          trendValueFormatter={formatTrendCurrency}
         />
       </Box>
       <Box flex="1 1 300px">
@@ -63,6 +78,8 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
           icon={<AccountBalanceWallet />}
           color={netIncome >= 0 ? 'success' : 'error'}
           subtitle={timeRangeLabel}
+          trend={netTrend}
+          trendValueFormatter={formatTrendCurrency}
         />
       </Box>
       <Box flex="1 1 300px">
@@ -81,6 +98,8 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
           icon={<Savings />}
           color={savingsRate >= 20 ? 'success' : savingsRate >= 0 ? 'warning' : 'error'}
           subtitle={timeRangeLabel}
+          trend={savingsRateTrend}
+          trendValueFormatter={formatTrendPercent}
         />
       </Box>
       <Box flex="1 1 300px">

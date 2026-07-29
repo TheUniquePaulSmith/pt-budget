@@ -10,28 +10,10 @@ import {
 } from '@mui/icons-material';
 
 import StatCard from '@/components/common/Charts/StatCard';
+import { monthlyEquivalent } from '@/lib/recurringCadence';
 import type { RecurringSeries } from '@/types/database';
 
 const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
-// Normalizes an expected amount to a per-month figure for the summary tile.
-function monthlyEquivalent(series: RecurringSeries): number {
-  const amount = series.expected_amount ?? 0;
-  switch (series.cadence) {
-    case 'weekly':
-      return (amount * 52) / 12;
-    case 'biweekly':
-      return (amount * 26) / 12;
-    case 'monthly':
-      return amount;
-    case 'quarterly':
-      return amount / 3;
-    case 'yearly':
-      return amount / 12;
-    default:
-      return 0; // irregular cadence is excluded from the estimate
-  }
-}
 
 interface SubscriptionSummaryTilesProps {
   series: RecurringSeries[];

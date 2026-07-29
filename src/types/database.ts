@@ -238,6 +238,8 @@ export interface RecurringSeries {
   updated_at: string;
   // Joined fields from SQL queries
   company_name?: string;
+  card_last_four?: string;
+  card_nickname?: string | null;
   transaction_count?: number;
   total_spent?: number;
 }

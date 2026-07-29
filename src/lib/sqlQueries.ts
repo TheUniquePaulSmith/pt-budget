@@ -665,13 +665,25 @@ export const SUBSCRIPTION_QUERIES = {
       rs.*,
       comp.name as company_name,
       COUNT(t.id) as transaction_count,
-      COALESCE(SUM(ABS(t.amount)), 0) as total_spent
+      COALESCE(SUM(ABS(t.amount)), 0) as total_spent,
+      latest_card.last_four as card_last_four,
+      latest_card.nickname as card_nickname
     FROM recurring_series rs
     LEFT JOIN companies comp ON rs.company_id = comp.id
     LEFT JOIN transaction_series_links tsl ON tsl.series_id = rs.id
     LEFT JOIN transactions t ON t.id = tsl.transaction_id
       AND (? IS NULL OR t.date >= ?)
       AND (? IS NULL OR t.date <= ?)
+    LEFT JOIN account_cards latest_card ON latest_card.id = (
+      -- Card of the most recent transaction linked to this series, regardless of the
+      -- stats date range above: the card column reflects "what charges it today", not the filter.
+      SELECT t2.card_id
+      FROM transaction_series_links tsl2
+      JOIN transactions t2 ON t2.id = tsl2.transaction_id
+      WHERE tsl2.series_id = rs.id AND t2.card_id IS NOT NULL
+      ORDER BY t2.date DESC, t2.id DESC
+      LIMIT 1
+    )
     GROUP BY rs.id
     ORDER BY rs.status, rs.kind, rs.name
   `,
@@ -693,6 +705,7 @@ export const SUBSCRIPTION_QUERIES = {
     WHERE id = ?
   `,
   UPDATE_SERIES_STATUS: `UPDATE recurring_series SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  UPDATE_SERIES_COMPANY: `UPDATE recurring_series SET company_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
   DELETE_SERIES: `DELETE FROM recurring_series WHERE id = ?`,
 
   // --- transaction_series_links ---

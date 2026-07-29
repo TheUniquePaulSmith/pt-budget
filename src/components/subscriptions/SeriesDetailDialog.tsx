@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   CircularProgress,
@@ -13,25 +14,40 @@ import {
   MenuItem,
   TextField,
   Typography,
+  createFilterOptions,
 } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, userColumn } from '@/components/common/DataGrid/columns';
 import type {
+  Company,
   RecurringSeries,
   RecurringSeriesStatus,
   Transaction,
 } from '@/types/database';
-import type { RecurringSeriesUpdate } from '@/contexts/useDatabaseSubscriptionsSlice';
+import type {
+  RecurringSeriesCompanyInput,
+  RecurringSeriesUpdate,
+} from '@/contexts/useDatabaseSubscriptionsSlice';
 
 const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+interface CompanyOption {
+  id: number;
+  name: string;
+  isNew?: boolean;
+}
+
+const companyFilter = createFilterOptions<CompanyOption>();
 
 interface SeriesDetailDialogProps {
   open: boolean;
   series: RecurringSeries | null;
+  companies: Company[];
   onClose: () => void;
   onSave: (id: number, updates: RecurringSeriesUpdate) => Promise<void>;
+  onSetCompany: (id: number, input: RecurringSeriesCompanyInput) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   getSeriesTransactions: (seriesId: number) => Promise<Transaction[]>;
 }
@@ -39,8 +55,10 @@ interface SeriesDetailDialogProps {
 const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
   open,
   series,
+  companies,
   onClose,
   onSave,
+  onSetCompany,
   onDelete,
   getSeriesTransactions,
 }) => {
@@ -50,10 +68,16 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
   const [expectedAmount, setExpectedAmount] = useState('');
   const [status, setStatus] = useState<RecurringSeriesStatus>('active');
   const [notes, setNotes] = useState('');
+  const [companyOption, setCompanyOption] = useState<CompanyOption | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const companyOptions = useMemo<CompanyOption[]>(
+    () => companies.map((company) => ({ id: company.id, name: company.name })),
+    [companies]
+  );
 
   const transactionColumns = useMemo<GridColDef<Transaction>[]>(() => [
     { field: 'date', headerName: 'Date', width: 110 },
@@ -80,6 +104,9 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
     setExpectedAmount(series.expected_amount != null ? String(series.expected_amount) : '');
     setStatus(series.status);
     setNotes(series.notes || '');
+    setCompanyOption(
+      series.company_id != null ? { id: series.company_id, name: series.company_name || '' } : null
+    );
     setError(null);
 
     setLoadingTransactions(true);
@@ -116,6 +143,12 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
         status,
         notes: notes.trim() || null,
       });
+      await onSetCompany(
+        series.id,
+        companyOption?.isNew
+          ? { companyName: companyOption.name }
+          : { companyId: companyOption?.id ?? null }
+      );
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save changes');
@@ -157,6 +190,54 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
             onChange={(event) => setName(event.target.value)}
             sx={{ flex: '2 1 240px' }}
             size="small"
+          />
+          <Autocomplete
+            options={companyOptions}
+            value={companyOption}
+            onChange={(_, value) => {
+              if (typeof value === 'string') {
+                const trimmed = value.trim();
+                setCompanyOption(trimmed ? { id: -1, name: trimmed, isNew: true } : null);
+              } else {
+                setCompanyOption(value);
+              }
+            }}
+            filterOptions={(candidates, params) => {
+              const filtered = companyFilter(candidates, params);
+              const inputValue = params.inputValue.trim();
+              const exists = candidates.some(
+                (candidate) => candidate.name.toLowerCase() === inputValue.toLowerCase()
+              );
+              if (inputValue && !exists) {
+                filtered.push({ id: -1, name: inputValue, isNew: true });
+              }
+              return filtered;
+            }}
+            getOptionLabel={(option) => (typeof option === 'string' ? option : option.name)}
+            isOptionEqualToValue={(option, value) => option.id === value.id && option.name === value.name}
+            renderOption={(props, option) => {
+              const { key, ...otherProps } = props;
+              return (
+                <Box component="li" key={key} {...otherProps}>
+                  <Typography variant="body2">
+                    {option.isNew ? `Create "${option.name}"` : option.name}
+                  </Typography>
+                </Box>
+              );
+            }}
+            freeSolo
+            selectOnFocus
+            clearOnBlur
+            handleHomeEndKeys
+            sx={{ flex: '1 1 200px' }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Company"
+                size="small"
+                helperText="Pick an existing company to merge into it, or type a new name"
+              />
+            )}
           />
           <TextField
             select

@@ -13,6 +13,7 @@ interface FakeTransactionRow {
   type: 'income' | 'expense';
   company_id: number | null;
   account_id?: number;
+  card_id?: number | null;
 }
 
 /**
@@ -25,6 +26,7 @@ class FakeSubscriptionDb {
   series: any[] = [];
   links: any[] = [];
   companies: Array<{ id: number; name: string }> = [];
+  cards: Array<{ id: number; last_four: string; nickname: string | null }> = [];
   transactions: FakeTransactionRow[] = [];
   metadata = new Map<string, string>();
 
@@ -32,6 +34,13 @@ class FakeSubscriptionDb {
   private nextSeriesId = 1;
   private nextLinkId = 1;
   private nextCompanyId = 1;
+  private nextCardId = 1;
+
+  addCard(card: { last_four: string; nickname?: string | null }): { id: number; last_four: string; nickname: string | null } {
+    const row = { id: this.nextCardId++, last_four: card.last_four, nickname: card.nickname ?? null };
+    this.cards.push(row);
+    return row;
+  }
 
   addRule(rule: Partial<MerchantRule>): any {
     const row = {
@@ -268,6 +277,12 @@ class FakeSubscriptionDb {
         return [];
       }
 
+      case SUBSCRIPTION_QUERIES.UPDATE_SERIES_COMPANY: {
+        const series = this.series.find((candidate) => candidate.id === params[1]);
+        if (series) series.company_id = params[0];
+        return [];
+      }
+
       case SUBSCRIPTION_QUERIES.DELETE_SERIES:
         this.series = this.series.filter((series) => series.id !== params[0]);
         return [];
@@ -338,11 +353,20 @@ class FakeSubscriptionDb {
             return total + Math.abs(txn.amount);
           }, 0);
           const company = this.companies.find((candidate) => candidate.id === series.company_id);
+          const latestCardTxn = seriesLinks
+            .map((link) => this.transactions.find((candidate) => candidate.id === link.transaction_id))
+            .filter((txn): txn is FakeTransactionRow => txn != null && txn.card_id != null)
+            .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)[0];
+          const latestCard = latestCardTxn
+            ? this.cards.find((card) => card.id === latestCardTxn.card_id) ?? null
+            : null;
           return {
             ...series,
             company_name: company?.name ?? null,
             transaction_count: linkedTransactions.length,
             total_spent: totalSpent,
+            card_last_four: latestCard?.last_four ?? null,
+            card_nickname: latestCard?.nickname ?? null,
           };
         });
 
@@ -437,6 +461,14 @@ function seedScenario(db: FakeSubscriptionDb): void {
   // Manually classified already -> matching must never overwrite
   db.companies.push({ id: 99, name: 'My Grocery' });
   db.addTransaction({ id: 15, date: '2026-03-01', amount: -84.64, description: 'GIANT EAGLE #6507', type: 'expense', company_id: 99 });
+}
+
+async function scannedService() {
+  const db = new FakeSubscriptionDb();
+  seedScenario(db);
+  const service = createService(db);
+  await service.runSubscriptionScan();
+  return { db, service };
 }
 
 afterEach(() => {
@@ -658,14 +690,6 @@ describe('DatabaseService.runSubscriptionScan', () => {
 });
 
 describe('DatabaseService recurring series operations', () => {
-  async function scannedService() {
-    const db = new FakeSubscriptionDb();
-    seedScenario(db);
-    const service = createService(db);
-    await service.runSubscriptionScan();
-    return { db, service };
-  }
-
   it('returns series with stats and maps rows', async () => {
     const { service } = await scannedService();
     const series = await service.getRecurringSeriesWithStats();
@@ -675,6 +699,32 @@ describe('DatabaseService recurring series operations', () => {
     expect(netflix.company_name).toBe('Netflix');
     expect(netflix.transaction_count).toBe(3);
     expect(netflix.total_spent).toBeCloseTo(118.71, 2);
+  });
+
+  it('surfaces the card from the most recently dated linked transaction', async () => {
+    const { db, service } = await scannedService();
+    const netflix = db.series.find((series) => series.match_key === 'rule:community:netflix')!;
+
+    const oldCard = db.addCard({ last_four: '1111', nickname: 'Old Visa' });
+    const newCard = db.addCard({ last_four: '2222', nickname: null });
+    // Transaction 1 (2026-01-22) on the old card, transaction 3 (2026-03-22, latest) on the new one.
+    db.transactions.find((txn) => txn.id === 1)!.card_id = oldCard.id;
+    db.transactions.find((txn) => txn.id === 3)!.card_id = newCard.id;
+
+    const series = await service.getRecurringSeriesWithStats();
+    const netflixWithStats = series.find((item) => item.id === netflix.id)!;
+
+    expect(netflixWithStats.card_last_four).toBe('2222');
+    expect(netflixWithStats.card_nickname).toBeNull();
+  });
+
+  it('omits the card when no linked transaction has one', async () => {
+    const { service } = await scannedService();
+    const series = await service.getRecurringSeriesWithStats();
+    const netflix = series.find((item) => item.match_key === 'rule:community:netflix')!;
+
+    expect(netflix.card_last_four).toBeUndefined();
+    expect(netflix.card_nickname).toBeNull();
   });
 
   it('filters recurring series stats by transaction date range', async () => {
@@ -735,6 +785,48 @@ describe('DatabaseService recurring series operations', () => {
     expect(db.links.some((link) => link.series_id === netflix.id)).toBe(false);
     // Other series' links survive
     expect(db.links.length).toBeGreaterThan(0);
+  });
+});
+
+describe('DatabaseService.setRecurringSeriesCompany', () => {
+  it('links a series to an existing company by id without creating a new one', async () => {
+    const { db, service } = await scannedService();
+    const netflix = db.series.find((series) => series.match_key === 'rule:community:netflix')!;
+    const otherCompany = { id: 500, name: 'Airtron Llc' };
+    db.companies.push(otherCompany);
+    const countBefore = db.companies.length;
+
+    await service.setRecurringSeriesCompany(netflix.id, { companyId: otherCompany.id });
+
+    expect(netflix.company_id).toBe(otherCompany.id);
+    expect(db.companies).toHaveLength(countBefore);
+  });
+
+  it('creates a new company by name, reusing it case-insensitively on a later call', async () => {
+    const { db, service } = await scannedService();
+    const heuristic = db.series.find((series) => series.match_key === 'desc:PELOTON CYCLE STUDIO')!;
+    const breezeline = db.series.find((series) => series.match_key === 'rule:community:breezeline')!;
+
+    await service.setRecurringSeriesCompany(heuristic.id, { companyName: 'Airtron Llc' });
+    const created = db.companies.find((company) => company.name === 'Airtron Llc')!;
+    expect(heuristic.company_id).toBe(created.id);
+
+    // "Airtron, Inc" typed with different case/punctuation-adjacent text still
+    // resolves case-insensitively to the same company rather than duplicating it.
+    await service.setRecurringSeriesCompany(breezeline.id, { companyName: 'airtron llc' });
+
+    expect(breezeline.company_id).toBe(created.id);
+    expect(db.companies.filter((company) => company.name.toLowerCase() === 'airtron llc')).toHaveLength(1);
+  });
+
+  it('clears a series company when given a null id', async () => {
+    const { db, service } = await scannedService();
+    const netflix = db.series.find((series) => series.match_key === 'rule:community:netflix')!;
+    expect(netflix.company_id).not.toBeNull();
+
+    await service.setRecurringSeriesCompany(netflix.id, { companyId: null });
+
+    expect(netflix.company_id).toBeNull();
   });
 });
 

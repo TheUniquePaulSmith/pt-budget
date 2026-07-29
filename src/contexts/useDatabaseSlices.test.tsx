@@ -200,6 +200,7 @@ function mockDatabaseHooks() {
       previewMerchantRuleMatches: vi.fn(),
       updateRecurringSeries: vi.fn(),
       updateRecurringSeriesStatus: vi.fn(),
+      setRecurringSeriesCompany: vi.fn(),
       deleteRecurringSeries: vi.fn(),
       getRecurringSeriesWithStats: vi.fn(),
       getTransactionsByIds: vi.fn(),
@@ -343,6 +344,9 @@ describe('useDatabaseSlices', () => {
     expect(result.current.getTransactionsByIds).toBe(slices.subscriptions.getTransactionsByIds);
     expect(result.current.getUnmatchedRecurringClusters).toBe(
       slices.subscriptions.getUnmatchedRecurringClusters
+    );
+    expect(result.current.setRecurringSeriesCompany).toBe(
+      slices.subscriptions.setRecurringSeriesCompany
     );
   });
 

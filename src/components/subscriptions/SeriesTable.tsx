@@ -22,6 +22,7 @@ import {
 import type { GridColDef } from '@mui/x-data-grid';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
+import { cardColumn } from '@/components/common/DataGrid/columns';
 import type { RecurringSeries } from '@/types/database';
 
 const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -92,6 +93,7 @@ const SeriesTable: React.FC<SeriesTableProps> = ({
       minWidth: 140,
       valueGetter: (_, row) => row.company_name || '—',
     },
+    cardColumn<RecurringSeries>(),
     {
       field: 'cadence',
       headerName: 'Cadence',

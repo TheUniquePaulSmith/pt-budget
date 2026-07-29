@@ -179,6 +179,39 @@ class FakeSubscriptionDb {
         return [];
       }
 
+      case SUBSCRIPTION_QUERIES.IMPORT_USER_RULE: {
+        const [ruleKey, pattern, matchType, priority, merchantName, serviceName, defaultKind, enabled, notes] =
+          params;
+        const existing = this.rules.find((rule) => rule.rule_key === ruleKey);
+        if (!existing) {
+          this.addRule({
+            rule_key: ruleKey,
+            source: 'user',
+            pattern,
+            match_type: matchType,
+            priority,
+            merchant_name: merchantName,
+            service_name: serviceName,
+            default_kind: defaultKind,
+            enabled,
+            user_modified: 1,
+            notes,
+          });
+        } else if (existing.source === 'user') {
+          Object.assign(existing, {
+            pattern,
+            match_type: matchType,
+            priority,
+            merchant_name: merchantName,
+            service_name: serviceName,
+            default_kind: defaultKind,
+            enabled,
+            notes,
+          });
+        }
+        return [];
+      }
+
       case SUBSCRIPTION_QUERIES.COUNT_RULES_BY_SOURCE: {
         const counts = new Map<string, number>();
         for (const rule of this.rules) {
@@ -602,6 +635,100 @@ describe('DatabaseService merchant rules CRUD', () => {
     // Forced reseed bypasses the gate
     const forced = await service.seedCommunityMerchantRules(true);
     expect(forced.skipped).toBe(false);
+  });
+});
+
+describe('DatabaseService merchant rules export/import', () => {
+  it('exports only user rules, in priority order', async () => {
+    const db = new FakeSubscriptionDb();
+    db.addRule({ rule_key: 'community:a', source: 'community', pattern: 'A', merchant_name: 'A' });
+    db.addRule({
+      rule_key: 'user:high',
+      source: 'user',
+      pattern: 'HIGH',
+      merchant_name: 'High',
+      priority: 90,
+    });
+    db.addRule({
+      rule_key: 'user:low',
+      source: 'user',
+      pattern: 'LOW',
+      merchant_name: 'Low',
+      priority: 10,
+    });
+    const service = createService(db);
+
+    const file = await service.exportMerchantRules();
+
+    expect(file.table).toBe('merchant_rules');
+    expect(file.data.map((entry) => entry.rule_key)).toEqual(['user:low', 'user:high']);
+    expect(file.data[0]).toMatchObject({ pattern: 'LOW', merchant_name: 'Low', priority: 10 });
+  });
+
+  it('imports user rules from a previously-exported file', async () => {
+    const db = new FakeSubscriptionDb();
+    const service = createService(db);
+
+    const result = await service.importMerchantRules({
+      table: 'merchant_rules',
+      kind: 'custom-rules-export',
+      version: 1,
+      exported_at: '2026-01-01T00:00:00.000Z',
+      note: '',
+      data: [
+        {
+          rule_key: 'user:restored',
+          pattern: 'RESTORED MERCHANT',
+          match_type: 'prefix',
+          priority: 30,
+          merchant_name: 'Restored Merchant',
+          service_name: null,
+          default_kind: 'purchase',
+          enabled: true,
+          notes: null,
+        },
+      ],
+    });
+
+    expect(result).toEqual({ imported: 1, rejected: 0 });
+    const rule = db.rules.find((candidate) => candidate.rule_key === 'user:restored');
+    expect(rule).toMatchObject({ source: 'user', pattern: 'RESTORED MERCHANT', priority: 30 });
+  });
+
+  it('re-importing the same file updates the existing rule instead of duplicating it', async () => {
+    const db = new FakeSubscriptionDb();
+    const service = createService(db);
+    const file = {
+      table: 'merchant_rules' as const,
+      data: [
+        {
+          rule_key: 'user:restored',
+          pattern: 'RESTORED',
+          match_type: 'prefix' as const,
+          priority: 30,
+          merchant_name: 'Restored',
+          service_name: null,
+          default_kind: 'purchase' as const,
+          enabled: true,
+          notes: null,
+        },
+      ],
+    };
+
+    await service.importMerchantRules(file);
+    await service.importMerchantRules({
+      ...file,
+      data: [{ ...file.data[0], priority: 5, merchant_name: 'Renamed' }],
+    });
+
+    const matches = db.rules.filter((candidate) => candidate.rule_key === 'user:restored');
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ priority: 5, merchant_name: 'Renamed' });
+  });
+
+  it('rejects a file that is not a recognized merchant rules export', async () => {
+    const service = createService(new FakeSubscriptionDb());
+    await expect(service.importMerchantRules({ not: 'a rules file' })).rejects.toThrow();
   });
 });
 

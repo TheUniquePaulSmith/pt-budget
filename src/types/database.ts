@@ -205,7 +205,7 @@ export interface MerchantRule {
   source: 'community' | 'user';
   pattern: string; // Matched against the NORMALIZED description
   match_type: MerchantRuleMatchType;
-  priority: number; // Lower wins: 50 user default, 100 service-level, 200 merchant catch-all
+  priority: number; // Lower wins: 50 user default, 1000 service-level, 2000 merchant catch-all
   merchant_name: string;
   service_name?: string | null;
   default_kind: MerchantRuleKind;

@@ -658,6 +658,23 @@ export const SUBSCRIPTION_QUERIES = {
     WHERE merchant_rules.user_modified = 0
   `,
   COUNT_RULES_BY_SOURCE: `SELECT source, COUNT(*) as count FROM merchant_rules GROUP BY source`,
+  // Restore-from-export upsert: re-importing the same file updates the matching
+  // user rule in place (by rule_key) instead of duplicating it.
+  IMPORT_USER_RULE: `
+    INSERT INTO merchant_rules (rule_key, source, pattern, match_type, priority, merchant_name, service_name, default_kind, enabled, user_modified, notes)
+    VALUES (?, 'user', ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    ON CONFLICT(rule_key) DO UPDATE SET
+      pattern = excluded.pattern,
+      match_type = excluded.match_type,
+      priority = excluded.priority,
+      merchant_name = excluded.merchant_name,
+      service_name = excluded.service_name,
+      default_kind = excluded.default_kind,
+      enabled = excluded.enabled,
+      notes = excluded.notes,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE merchant_rules.source = 'user'
+  `,
 
   // --- recurring_series ---
   GET_SERIES_WITH_STATS: `

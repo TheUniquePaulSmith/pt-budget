@@ -82,7 +82,7 @@ export function normalizeDescription(raw: string): string {
 
 /**
  * Sorts rules into evaluation order: lowest priority number first
- * (user 50 < service-level 100 < merchant catch-all 200), then longest
+ * (user 50 < service-level 1000 < merchant catch-all 2000), then longest
  * pattern (most specific), then rule_key for determinism.
  */
 export function sortRules(rules: MerchantRule[]): MerchantRule[] {

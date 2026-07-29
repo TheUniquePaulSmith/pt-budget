@@ -297,6 +297,8 @@ export function useSettingsSlice() {
     reseedCommunityRules: subscriptions.reseedCommunityRules,
     getMerchantRuleCounts: subscriptions.getMerchantRuleCounts,
     getMerchantRulesSeedVersion: subscriptions.getMerchantRulesSeedVersion,
+    exportMerchantRules: subscriptions.exportMerchantRules,
+    importMerchantRules: subscriptions.importMerchantRules,
     connectCloudSource: lifecycle.connectCloudSource,
     migrateDatabaseToCloud: lifecycle.migrateDatabaseToCloud,
     saveDatabaseToCurrentCloud: lifecycle.saveDatabaseToCurrentCloud,

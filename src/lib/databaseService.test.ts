@@ -1627,8 +1627,10 @@ describe('DatabaseService chart analytics extensions', () => {
     // July is 31 days, so the comparison window is the 31 days ending 2026-06-30.
     expect(chartData.comparisonPeriodLabel).toBe('previous 31 days');
     const comparisonCall = querySpy.mock.calls.find(
-      ([sql, params]: [string, any[]]) =>
-        sql.includes("c.type = 'expense'") && params[0] === '2026-05-31'
+      (call: any[]) =>
+        typeof call[0] === 'string' &&
+        call[0].includes("c.type = 'expense'") &&
+        call[1]?.[0] === '2026-05-31'
     );
     expect(comparisonCall?.[1]).toEqual(['2026-05-31', '2026-06-30']);
   });

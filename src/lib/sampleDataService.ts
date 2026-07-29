@@ -461,6 +461,7 @@ export class SampleDataService {
             row.id,
             row.account_id,
             row.last_four,
+            row.full_number || null,
             row.nickname || null,
             row.user_id || null,
             row.created_at,

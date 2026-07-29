@@ -66,6 +66,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     checkDuplicateTransactions,
     bulkInsertFromTempTable,
     findAccountsByLastFour,
+    findAccountsByFullNumber,
     getAccountCards,
     runSubscriptionScan,
   } = useCsvImportSlice();
@@ -108,23 +109,35 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       type: acc.type
     })));
 
-    const matches = await createAccountMatches(data, accountColumn, async (lastFour) => {
-      console.debug(`Analyzing account column by last four: "${lastFour}"`);
-      const matchingAccounts = await findAccountsByLastFour(lastFour);
-      console.debug(
-        `Found ${matchingAccounts.length} matching accounts for last four "${lastFour}":`,
-        matchingAccounts
-      );
-      return matchingAccounts;
-    });
-    
+    const matches = await createAccountMatches(
+      data,
+      accountColumn,
+      async (lastFour) => {
+        console.debug(`Analyzing account column by last four: "${lastFour}"`);
+        const matchingAccounts = await findAccountsByLastFour(lastFour);
+        console.debug(
+          `Found ${matchingAccounts.length} matching accounts for last four "${lastFour}":`,
+          matchingAccounts
+        );
+        return matchingAccounts;
+      },
+      async (fullNumber) => {
+        const matchingAccounts = await findAccountsByFullNumber(fullNumber);
+        console.debug(
+          `Found ${matchingAccounts.length} matching accounts for full number match`,
+          matchingAccounts
+        );
+        return matchingAccounts;
+      }
+    );
+
     setAccountMatches(matches.map((match) => ({
       ...match,
       selectedCardId: match.selectedAccountId
         ? accountCardsByAccountId[match.selectedAccountId]?.find((card) => card.last_four === match.lastFourValue)?.id ?? null
         : null,
     })));
-  }, [accounts, accountCardsByAccountId, findAccountsByLastFour]);
+  }, [accounts, accountCardsByAccountId, findAccountsByLastFour, findAccountsByFullNumber]);
 
   // Preload all account cards when dialog opens
   useEffect(() => {

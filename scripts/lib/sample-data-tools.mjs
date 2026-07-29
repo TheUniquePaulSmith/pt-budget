@@ -1022,6 +1022,7 @@ function getBaseRowsForTable(tableName, context) {
           id: 1,
           account_id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
           last_four: '4821',
+          full_number: '400000000004821',
           nickname: 'Main Debit',
           user_id: 1,
         },
@@ -1045,6 +1046,17 @@ function getBaseRowsForTable(tableName, context) {
           last_four: '1176',
           nickname: 'Joint Debit',
           user_id: 2,
+        },
+        // Deliberately shares last_four with card 1 but on a different
+        // account, distinguished by full_number — exercises CSV-import
+        // disambiguation between cards that share their last four digits.
+        {
+          id: 5,
+          account_id: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
+          last_four: '4821',
+          full_number: '550000000004821',
+          nickname: 'Backup Card',
+          user_id: 1,
         },
       ];
     case 'categories':
@@ -2626,6 +2638,12 @@ function createFallbackValue(schemaTable, column, rowIndex, context) {
 
   if (columnName === 'last_four') {
     return String(1000 + rowIndex).padStart(4, '0');
+  }
+
+  // Optional; most generated cards don't need a full number, only ones
+  // deliberately crafted to disambiguate a shared last_four do.
+  if (columnName === 'full_number') {
+    return null;
   }
 
   if (columnName.includes('display_name')) {

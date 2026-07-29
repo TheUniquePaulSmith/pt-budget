@@ -46,6 +46,7 @@ describe('csvImportService', () => {
     const findAccountsByLastFour = vi.fn(async (lastFour: string) => {
       return lastFour === '1682' ? [accountFixture] : [];
     });
+    const findAccountsByFullNumber = vi.fn().mockResolvedValue([]);
 
     const matches = await createAccountMatches(
       [
@@ -54,7 +55,8 @@ describe('csvImportService', () => {
         { account: 'Unknown 9999' },
       ],
       'account',
-      findAccountsByLastFour
+      findAccountsByLastFour,
+      findAccountsByFullNumber
     );
 
     expect(matches).toEqual([
@@ -69,6 +71,66 @@ describe('csvImportService', () => {
         csvAccountValue: 'Unknown 9999',
         lastFourValue: '9999',
         matchingAccounts: [],
+        selectedAccountId: null,
+        selectedCardId: null,
+      },
+    ]);
+  });
+
+  it('disambiguates matching last-four values using the full number when provided', async () => {
+    const accountA = { ...accountFixture, id: 7 };
+    const accountB = { ...accountFixture, id: 8, name: 'Joint Checking' };
+
+    const findAccountsByLastFour = vi.fn(async (lastFour: string) =>
+      lastFour === '1682' ? [accountA, accountB] : []
+    );
+    const findAccountsByFullNumber = vi.fn(async (fullNumber: string) =>
+      fullNumber === '4111111111111682' ? [accountA] : []
+    );
+
+    const matches = await createAccountMatches(
+      [{ account: '4111111111111682' }],
+      'account',
+      findAccountsByLastFour,
+      findAccountsByFullNumber
+    );
+
+    expect(findAccountsByFullNumber).toHaveBeenCalledWith('4111111111111682');
+    expect(findAccountsByLastFour).not.toHaveBeenCalled();
+    expect(matches).toEqual([
+      {
+        csvAccountValue: '4111111111111682',
+        lastFourValue: '1682',
+        matchingAccounts: [accountA],
+        selectedAccountId: accountA.id,
+        selectedCardId: null,
+      },
+    ]);
+  });
+
+  it('falls back to last-four matching (which may be ambiguous) when no full-number match is found', async () => {
+    const accountA = { ...accountFixture, id: 7 };
+    const accountB = { ...accountFixture, id: 8, name: 'Joint Checking' };
+
+    const findAccountsByLastFour = vi.fn(async (lastFour: string) =>
+      lastFour === '1682' ? [accountA, accountB] : []
+    );
+    const findAccountsByFullNumber = vi.fn().mockResolvedValue([]);
+
+    const matches = await createAccountMatches(
+      [{ account: '4111111111111682' }],
+      'account',
+      findAccountsByLastFour,
+      findAccountsByFullNumber
+    );
+
+    expect(findAccountsByFullNumber).toHaveBeenCalledWith('4111111111111682');
+    expect(findAccountsByLastFour).toHaveBeenCalledWith('1682');
+    expect(matches).toEqual([
+      {
+        csvAccountValue: '4111111111111682',
+        lastFourValue: '1682',
+        matchingAccounts: [accountA, accountB],
         selectedAccountId: null,
         selectedCardId: null,
       },

@@ -101,19 +101,31 @@ export function extractLastFourValue(csvValue: string): string {
   return lastFourMatch ? lastFourMatch[1] : '';
 }
 
+function extractDigitsValue(csvValue: string): string {
+  return csvValue.replace(/\D/g, '');
+}
+
 export async function createAccountMatches(
   data: any[],
   accountColumn: string,
-  findAccountsByLastFour: (lastFour: string) => Promise<Account[]>
+  findAccountsByLastFour: (lastFour: string) => Promise<Account[]>,
+  findAccountsByFullNumber: (fullNumber: string) => Promise<Account[]>
 ): Promise<CSVAccountMatch[]> {
   const uniqueAccountValues = [...new Set(data.map((row) => String(row[accountColumn])))];
 
   return Promise.all(
     uniqueAccountValues.map(async (csvValue) => {
       const lastFourValue = extractLastFourValue(csvValue);
-      const matchingAccounts = lastFourValue
-        ? await findAccountsByLastFour(lastFourValue)
-        : [];
+      const digitsValue = extractDigitsValue(csvValue);
+
+      // Prefer an exact full-number match to disambiguate cards that share a
+      // last_four; fall back to last-four matching (which may now return
+      // more than one account) when no full-number match is found.
+      let matchingAccounts: Account[] =
+        digitsValue.length > 4 ? await findAccountsByFullNumber(digitsValue) : [];
+      if (matchingAccounts.length === 0 && lastFourValue) {
+        matchingAccounts = await findAccountsByLastFour(lastFourValue);
+      }
 
       return {
         csvAccountValue: csvValue,

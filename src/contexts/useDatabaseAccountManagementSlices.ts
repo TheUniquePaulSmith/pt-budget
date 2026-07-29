@@ -12,15 +12,25 @@ export interface DatabaseAccountSlice {
     card: Omit<AccountCard, 'id' | 'created_at' | 'updated_at' | 'account_id'>
   ) => Promise<{ accountId: number; cardId: number }>;
   deleteAccount: (id: number) => Promise<void>;
+  updateAccount: (
+    id: number,
+    updates: Partial<Pick<Account, 'name' | 'type'>>
+  ) => Promise<void>;
   getAccountCards: (accountId: number) => Promise<any[]>;
   addAccountCard: (card: {
     account_id: number;
     last_four: string;
+    full_number?: string | null;
     nickname?: string;
     user_id?: number;
   }) => Promise<number>;
   deleteAccountCard: (id: number) => Promise<void>;
+  updateAccountCard: (
+    id: number,
+    updates: Partial<Pick<AccountCard, 'last_four' | 'full_number' | 'nickname' | 'user_id'>>
+  ) => Promise<void>;
   findAccountsByLastFour: (lastFour: string) => Promise<Account[]>;
+  findAccountsByFullNumber: (fullNumber: string) => Promise<Account[]>;
 }
 
 export interface DatabaseUserSlice {
@@ -38,10 +48,13 @@ type AccountManagementService = Pick<
   DatabaseService,
   | 'addAccountWithCard'
   | 'deleteAccount'
+  | 'updateAccount'
   | 'getAccountCards'
   | 'addAccountCard'
   | 'deleteAccountCard'
+  | 'updateAccountCard'
   | 'findAccountsByLastFour'
+  | 'findAccountsByFullNumber'
   | 'addUser'
   | 'updateUser'
   | 'deleteUser'
@@ -90,6 +103,14 @@ export function useDatabaseAccountManagementSlices({
     [refreshAccounts, requireService]
   );
 
+  const updateAccount = useCallback(
+    async (id: number, updates: Partial<Pick<Account, 'name' | 'type'>>): Promise<void> => {
+      await requireService().updateAccount(id, updates);
+      await refreshAccounts();
+    },
+    [refreshAccounts, requireService]
+  );
+
   const getAccountCards = useCallback(
     async (accountId: number): Promise<any[]> => {
       return requireService().getAccountCards(accountId);
@@ -101,6 +122,7 @@ export function useDatabaseAccountManagementSlices({
     async (card: {
       account_id: number;
       last_four: string;
+      full_number?: string | null;
       nickname?: string;
       user_id?: number;
     }): Promise<number> => {
@@ -119,9 +141,27 @@ export function useDatabaseAccountManagementSlices({
     [refreshAccounts, requireService]
   );
 
+  const updateAccountCard = useCallback(
+    async (
+      id: number,
+      updates: Partial<Pick<AccountCard, 'last_four' | 'full_number' | 'nickname' | 'user_id'>>
+    ): Promise<void> => {
+      await requireService().updateAccountCard(id, updates);
+      await refreshAccounts();
+    },
+    [refreshAccounts, requireService]
+  );
+
   const findAccountsByLastFour = useCallback(
     async (lastFour: string): Promise<Account[]> => {
       return requireService().findAccountsByLastFour(lastFour);
+    },
+    [requireService]
+  );
+
+  const findAccountsByFullNumber = useCallback(
+    async (fullNumber: string): Promise<Account[]> => {
+      return requireService().findAccountsByFullNumber(fullNumber);
     },
     [requireService]
   );
@@ -158,18 +198,24 @@ export function useDatabaseAccountManagementSlices({
     () => ({
       addAccountWithCard,
       deleteAccount,
+      updateAccount,
       getAccountCards,
       addAccountCard,
       deleteAccountCard,
+      updateAccountCard,
       findAccountsByLastFour,
+      findAccountsByFullNumber,
     }),
     [
       addAccountWithCard,
       deleteAccount,
+      updateAccount,
       getAccountCards,
       addAccountCard,
       deleteAccountCard,
+      updateAccountCard,
       findAccountsByLastFour,
+      findAccountsByFullNumber,
     ]
   );
 

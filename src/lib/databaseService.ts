@@ -1331,6 +1331,7 @@ export class DatabaseService {
       const cardResult = await this.workerService.query(ACCOUNT_CARD_QUERIES.CREATE, [
         accountId,
         card.last_four,
+        card.full_number || null,
         card.nickname || null,
         card.user_id || null,
       ]);
@@ -1339,11 +1340,7 @@ export class DatabaseService {
       return { accountId, cardId };
     } catch (error) {
       await this.workerService.query('ROLLBACK');
-      if (error instanceof Error && /UNIQUE|constraint/i.test(error.message)) {
-        throw new Error('A card with that last four already exists.');
-      }
-      console.error("Failed to add account with card:", error);
-      throw error;
+      throw this.translateAccountCardUniqueError(error, 'Failed to add account with card');
     }
   }
 
@@ -1356,7 +1353,34 @@ export class DatabaseService {
     }
   }
 
+  async updateAccount(id: number, updates: Partial<Pick<Account, 'name' | 'type'>>): Promise<void> {
+    try {
+      await this.workerService.query(ACCOUNT_QUERIES.UPDATE, [
+        updates.name,
+        updates.type,
+        id,
+      ]);
+    } catch (error) {
+      console.error("Failed to update account:", error);
+      throw error;
+    }
+  }
+
   // Account-User relationship removed; ownership via owner_user_id
+
+  // A card/account-number UNIQUE violation can now come from either the
+  // (account_id, last_four) composite key or the partial full_number index;
+  // give the user a message that matches which one tripped.
+  private translateAccountCardUniqueError(error: unknown, logMessage: string): unknown {
+    if (error instanceof Error && /UNIQUE|constraint/i.test(error.message)) {
+      if (/full_number/i.test(error.message)) {
+        return new Error('This card number is already registered to a different card.');
+      }
+      return new Error('This account already has a card with that last four.');
+    }
+    console.error(`${logMessage}:`, error);
+    return error;
+  }
 
   // Account Card operations
   async getAccountCards(accountId: number): Promise<AccountCard[]> {
@@ -1377,16 +1401,13 @@ export class DatabaseService {
       const result = await this.workerService.query(ACCOUNT_CARD_QUERIES.CREATE, [
         card.account_id,
         card.last_four,
+        card.full_number || null,
         card.nickname || null,
         card.user_id || null,
       ]);
       return result[0].id;
     } catch (error) {
-      if (error instanceof Error && /UNIQUE|constraint/i.test(error.message)) {
-        throw new Error('A card with that last four already exists.');
-      }
-      console.error("Failed to add account card:", error);
-      throw error;
+      throw this.translateAccountCardUniqueError(error, 'Failed to add account card');
     }
   }
 
@@ -1410,17 +1431,17 @@ export class DatabaseService {
     }
   }
 
-  async updateAccountCard(id: number, updates: Partial<Pick<AccountCard, 'last_four' | 'nickname' | 'user_id'>>): Promise<void> {
+  async updateAccountCard(id: number, updates: Partial<Pick<AccountCard, 'last_four' | 'full_number' | 'nickname' | 'user_id'>>): Promise<void> {
     try {
       await this.workerService.query(ACCOUNT_CARD_QUERIES.UPDATE, [
         updates.last_four,
+        updates.full_number,
         updates.nickname,
         updates.user_id,
         id,
       ]);
     } catch (error) {
-      console.error("Failed to update account card:", error);
-      throw error;
+      throw this.translateAccountCardUniqueError(error, 'Failed to update account card');
     }
   }
 
@@ -1433,6 +1454,19 @@ export class DatabaseService {
       return rows.map(this.mapToAccount);
     } catch (error) {
       console.error("Failed to find accounts by last four:", error);
+      throw error;
+    }
+  }
+
+  async findAccountsByFullNumber(fullNumber: string): Promise<Account[]> {
+    try {
+      const rows = await this.workerService.query(
+        ACCOUNT_CARD_QUERIES.FIND_ACCOUNT_BY_FULL_NUMBER,
+        [fullNumber]
+      );
+      return rows.map(this.mapToAccount);
+    } catch (error) {
+      console.error("Failed to find accounts by full number:", error);
       throw error;
     }
   }
@@ -2221,6 +2255,7 @@ export class DatabaseService {
       id: row.id,
       account_id: row.account_id,
       last_four: row.last_four,
+      full_number: row.full_number ?? null,
       nickname: row.nickname,
       user_id: row.user_id,
       created_at: row.created_at,

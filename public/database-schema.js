@@ -46,7 +46,8 @@ export const CREATE_TABLES = {
     CREATE TABLE IF NOT EXISTS account_cards (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       account_id INTEGER NOT NULL,
-      last_four TEXT NOT NULL UNIQUE,
+      last_four TEXT NOT NULL,
+      full_number TEXT,
       nickname TEXT,
       user_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -263,6 +264,16 @@ export const CREATE_INDEXES = [
   // trip_id is usually NULL, so a partial index stays small while accelerating
   // trip transaction lookups and trip cost rollups.
   `CREATE INDEX IF NOT EXISTS idx_transactions_trip_id ON transactions(trip_id) WHERE trip_id IS NOT NULL`,
+  // Replaces the old single-column UNIQUE on last_four: still blocks true
+  // dupes on the same account, but now allows different accounts to share a
+  // last_four (disambiguated, when needed, by full_number below).
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_account_cards_account_last_four ON account_cards(account_id, last_four)`,
+  // full_number is optional (used only to disambiguate cards that share a
+  // last_four); unique only when present so most rows are unaffected.
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_account_cards_full_number ON account_cards(full_number) WHERE full_number IS NOT NULL`,
+  // last_four is only the trailing column of the composite unique index
+  // above, so restore a plain leading index for lookup-by-last-four alone.
+  `CREATE INDEX IF NOT EXISTS idx_account_cards_last_four ON account_cards(last_four)`,
 ];
 
 // Schema versioning — applied by runMigrations() in database-worker.js.

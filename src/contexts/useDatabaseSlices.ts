@@ -178,6 +178,7 @@ export function useCsvImportSlice() {
     checkDuplicateTransactions: transactions.checkDuplicateTransactions,
     bulkInsertFromTempTable: transactions.bulkInsertFromTempTable,
     findAccountsByLastFour: accounts.findAccountsByLastFour,
+    findAccountsByFullNumber: accounts.findAccountsByFullNumber,
     getAccountCards: accounts.getAccountCards,
     runSubscriptionScan: subscriptions.runSubscriptionScan,
   };
@@ -260,12 +261,14 @@ export function useAccountManagementSlice() {
     users: collections.users,
     addAccountWithCard: accounts.addAccountWithCard,
     deleteAccount: accounts.deleteAccount,
+    updateAccount: accounts.updateAccount,
     addUser: users.addUser,
     updateUser: users.updateUser,
     deleteUser: users.deleteUser,
     getAccountCards: accounts.getAccountCards,
     addAccountCard: accounts.addAccountCard,
     deleteAccountCard: accounts.deleteAccountCard,
+    updateAccountCard: accounts.updateAccountCard,
   };
 }
 

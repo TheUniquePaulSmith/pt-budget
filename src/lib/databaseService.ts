@@ -76,6 +76,12 @@ import {
   SEED_VERSION_METADATA_KEY,
   type SeedMerchantRulesResult,
 } from './merchantRulesSeedService';
+import {
+  buildMerchantRulesExportFile,
+  importMerchantRulesFile,
+  type ImportMerchantRulesResult,
+  type MerchantRulesExportFile,
+} from './merchantRulesBackupService';
 import type {
   ApplyTransactionClassificationInput,
   ApplyTransactionClassificationsResult,
@@ -3031,6 +3037,21 @@ export class DatabaseService {
   async getMerchantRulesSeedVersion(): Promise<number> {
     const value = await this.getAppMetadata(SEED_VERSION_METADATA_KEY);
     return Number(value) || 0;
+  }
+
+  async exportMerchantRules(): Promise<MerchantRulesExportFile> {
+    const rules = await this.getMerchantRules();
+    return buildMerchantRulesExportFile(rules);
+  }
+
+  async importMerchantRules(file: unknown): Promise<ImportMerchantRulesResult> {
+    return importMerchantRulesFile(
+      {
+        query: (sql, parameters) => this.workerService.query(sql, parameters as any[]),
+        generateRuleKey: () => this.generateUserRuleKey(),
+      },
+      file
+    );
   }
 
   // --- Matching + scan pipeline ---

@@ -5,6 +5,10 @@ import { useCallback, useMemo } from 'react';
 import type { DatabaseService } from '../lib/databaseService';
 import type { SeedMerchantRulesResult } from '../lib/merchantRulesSeedService';
 import type {
+  ImportMerchantRulesResult,
+  MerchantRulesExportFile,
+} from '../lib/merchantRulesBackupService';
+import type {
   MerchantRuleKind,
   MerchantRuleMatchType,
   RecurringSeries,
@@ -69,6 +73,8 @@ export interface DatabaseSubscriptionsSlice {
   reseedCommunityRules: () => Promise<SeedMerchantRulesResult>;
   getMerchantRuleCounts: () => Promise<{ community: number; user: number }>;
   getMerchantRulesSeedVersion: () => Promise<number>;
+  exportMerchantRules: () => Promise<MerchantRulesExportFile>;
+  importMerchantRules: (file: unknown) => Promise<ImportMerchantRulesResult>;
 }
 
 type SubscriptionsService = Pick<
@@ -89,6 +95,8 @@ type SubscriptionsService = Pick<
   | 'seedCommunityMerchantRules'
   | 'getMerchantRuleCounts'
   | 'getMerchantRulesSeedVersion'
+  | 'exportMerchantRules'
+  | 'importMerchantRules'
 >;
 
 interface UseDatabaseSubscriptionsSliceOptions {
@@ -224,6 +232,20 @@ export function useDatabaseSubscriptionsSlice({
     [requireService]
   );
 
+  const exportMerchantRules = useCallback(
+    async (): Promise<MerchantRulesExportFile> => requireService().exportMerchantRules(),
+    [requireService]
+  );
+
+  const importMerchantRules = useCallback(
+    async (file: unknown): Promise<ImportMerchantRulesResult> => {
+      const result = await requireService().importMerchantRules(file);
+      await refreshMerchantRules();
+      return result;
+    },
+    [refreshMerchantRules, requireService]
+  );
+
   return useMemo(
     () => ({
       runSubscriptionScan,
@@ -242,6 +264,8 @@ export function useDatabaseSubscriptionsSlice({
       reseedCommunityRules,
       getMerchantRuleCounts,
       getMerchantRulesSeedVersion,
+      exportMerchantRules,
+      importMerchantRules,
     }),
     [
       runSubscriptionScan,
@@ -260,6 +284,8 @@ export function useDatabaseSubscriptionsSlice({
       reseedCommunityRules,
       getMerchantRuleCounts,
       getMerchantRulesSeedVersion,
+      exportMerchantRules,
+      importMerchantRules,
     ]
   );
 }

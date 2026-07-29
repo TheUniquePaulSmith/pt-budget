@@ -44,6 +44,8 @@ import {
   Refresh,
   LinkOff,
   BugReport,
+  Download,
+  Upload,
 } from '@mui/icons-material';
 import StorageQuota from '@/components/common/Storage/StorageQuota';
 import { CloudConflictDialog } from './CloudConflictDialog';
@@ -126,6 +128,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     reseedCommunityRules,
     getMerchantRuleCounts,
     getMerchantRulesSeedVersion,
+    exportMerchantRules,
+    importMerchantRules,
     connectCloudSource,
     migrateDatabaseToCloud,
     saveDatabaseToCurrentCloud,
@@ -151,6 +155,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const [ruleCounts, setRuleCounts] = useState<{ community: number; user: number } | null>(null);
   const [rulesSeedVersion, setRulesSeedVersion] = useState<number | null>(null);
   const [reseeding, setReseeding] = useState(false);
+  const [importingRules, setImportingRules] = useState(false);
+  const [rulesImportError, setRulesImportError] = useState<string | null>(null);
+  const [rulesImportResult, setRulesImportResult] = useState<{
+    imported: number;
+    rejected: number;
+  } | null>(null);
   const [migratingProvider, setMigratingProvider] = useState<CloudProvider | null>(null);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [isLocking, setIsLocking] = useState(false);
@@ -177,6 +187,42 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
       setReseeding(false);
     }
   };
+
+  const handleExportCustomRules = async () => {
+    const file = await exportMerchantRules();
+    const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `merchant-rules-custom-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportRulesFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setImportingRules(true);
+    setRulesImportError(null);
+    setRulesImportResult(null);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const result = await importMerchantRules(parsed);
+      setRulesImportResult(result);
+      const counts = await getMerchantRuleCounts();
+      setRuleCounts(counts);
+    } catch (err) {
+      setRulesImportError(err instanceof Error ? err.message : 'Failed to import rules file');
+    } finally {
+      setImportingRules(false);
+    }
+  };
+
   const {
     availableThemes,
     selectedThemeId,
@@ -792,6 +838,53 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     Restores the bundled community rule list. Rules you have edited or disabled are
                     left untouched.
                   </Typography>
+
+                  <Divider />
+
+                  <Typography variant="subtitle2">Your Custom Rules</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Download the rules you&apos;ve created (not the community list) as a JSON file,
+                    in priority order, to back them up or move them to another browser. Importing
+                    the same file again updates matching rules instead of duplicating them.
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Download />}
+                      onClick={handleExportCustomRules}
+                      disabled={!isDatabaseLoaded || !ruleCounts?.user}
+                    >
+                      Export Custom Rules
+                    </Button>
+                    <input
+                      accept="application/json"
+                      style={{ display: 'none' }}
+                      id="import-custom-rules-input"
+                      type="file"
+                      onChange={handleImportRulesFile}
+                    />
+                    <label htmlFor="import-custom-rules-input">
+                      <Button
+                        variant="outlined"
+                        component="span"
+                        startIcon={<Upload />}
+                        disabled={!isDatabaseLoaded || importingRules}
+                      >
+                        {importingRules ? 'Importing…' : 'Import Custom Rules'}
+                      </Button>
+                    </label>
+                  </Box>
+                  {rulesImportError && <Alert severity="error">{rulesImportError}</Alert>}
+                  {rulesImportResult && (
+                    <Alert severity={rulesImportResult.rejected > 0 ? 'warning' : 'success'}>
+                      Imported {rulesImportResult.imported} rule
+                      {rulesImportResult.imported === 1 ? '' : 's'}.
+                      {rulesImportResult.rejected > 0 &&
+                        ` Skipped ${rulesImportResult.rejected} invalid entr${
+                          rulesImportResult.rejected === 1 ? 'y' : 'ies'
+                        }.`}
+                    </Alert>
+                  )}
                 </Stack>
               </Box>
 

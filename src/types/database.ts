@@ -76,6 +76,7 @@ export interface AccountCard {
   id: number;
   account_id: number;
   last_four: string; // Last 4 digits of card number
+  full_number?: string | null; // Optional full number, used only to disambiguate cards sharing a last_four; never displayed
   nickname?: string | null; // Optional nickname for the card (e.g., "My Card", "Spouse Card")
   user_id?: number | null; // Optional: which user has this specific card
   created_at: string;

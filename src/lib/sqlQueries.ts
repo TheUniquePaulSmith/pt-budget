@@ -295,7 +295,7 @@ export const ACCOUNT_CARD_QUERIES = {
     ORDER BY ac.created_at
   `,
   GET_BY_LAST_FOUR: `
-    SELECT 
+    SELECT
       ac.*,
       a.name as account_name,
       a.type as account_type
@@ -303,8 +303,8 @@ export const ACCOUNT_CARD_QUERIES = {
     JOIN accounts a ON ac.account_id = a.id
     WHERE ac.last_four = ?
   `,
-  CREATE: `INSERT INTO account_cards (account_id, last_four, nickname, user_id) VALUES (?, ?, ?, ?) RETURNING id`,
-  UPDATE: `UPDATE account_cards SET last_four = ?, nickname = ?, user_id = ? WHERE id = ?`,
+  CREATE: `INSERT INTO account_cards (account_id, last_four, full_number, nickname, user_id) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+  UPDATE: `UPDATE account_cards SET last_four = ?, full_number = ?, nickname = ?, user_id = ? WHERE id = ?`,
   DELETE: `DELETE FROM account_cards WHERE id = ?`,
   FIND_ACCOUNT_BY_LAST_FOUR: `
     SELECT DISTINCT
@@ -313,6 +313,14 @@ export const ACCOUNT_CARD_QUERIES = {
     JOIN accounts a ON ac.account_id = a.id
     LEFT JOIN users u ON a.owner_user_id = u.id
     WHERE ac.last_four = ?
+  `,
+  FIND_ACCOUNT_BY_FULL_NUMBER: `
+    SELECT DISTINCT
+      a.*, u.display_name as owner_display_name
+    FROM account_cards ac
+    JOIN accounts a ON ac.account_id = a.id
+    LEFT JOIN users u ON a.owner_user_id = u.id
+    WHERE ac.full_number = ?
   `,
 };
 
@@ -748,7 +756,7 @@ export const SAMPLE_DATA_QUERIES = {
   // Insert with explicit ID using REPLACE to handle conflicts (SQLite allows this when AUTOINCREMENT is used)
   INSERT_USER: `INSERT OR REPLACE INTO users (id, display_name, is_primary, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
   INSERT_ACCOUNT: `INSERT OR REPLACE INTO accounts (id, name, type, owner_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-  INSERT_ACCOUNT_CARD: `INSERT OR REPLACE INTO account_cards (id, account_id, last_four, nickname, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+  INSERT_ACCOUNT_CARD: `INSERT OR REPLACE INTO account_cards (id, account_id, last_four, full_number, nickname, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   INSERT_CATEGORY: `INSERT OR REPLACE INTO categories (id, name, color, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
   INSERT_COMPANY: `INSERT OR REPLACE INTO companies (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
   INSERT_TRANSACTION: `INSERT OR REPLACE INTO transactions (id, date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

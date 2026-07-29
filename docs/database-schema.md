@@ -24,6 +24,7 @@ erDiagram
         int id PK
         int account_id FK
         string last_four
+        string full_number
         string nickname
         int user_id FK
         datetime created_at
@@ -183,7 +184,7 @@ erDiagram
 ## Key Features:
 
 1. **Users Table**: Central user management with display names
-2. **Accounts + Account Cards**: Accounts are owned via `owner_user_id`; card last-four digits live on `account_cards` and drive CSV import account matching
+2. **Accounts + Account Cards**: Accounts are owned via `owner_user_id`; card last-four digits live on `account_cards` and drive CSV import account matching. `account_cards.last_four` is unique per account (not globally), so different accounts may share a last-four; an optional `full_number` disambiguates them (used only for matching — never displayed, since the UI always shows just the last four digits) via `idx_account_cards_full_number`
 3. **Trips Table**: Full trip management with categories, status, dates, and costs
 4. **Transaction Labeling**: Transactions can be associated with both projects and trips
 5. **CSV Import Staging**: `temp_import_transactions` stages imports for duplicate analysis before `transactions` receives them

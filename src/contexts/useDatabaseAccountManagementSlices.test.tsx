@@ -17,10 +17,13 @@ function createServiceMock() {
   return {
     addAccountWithCard: vi.fn().mockResolvedValue({ accountId: 41, cardId: 42 }),
     deleteAccount: vi.fn().mockResolvedValue(undefined),
+    updateAccount: vi.fn().mockResolvedValue(undefined),
     getAccountCards: vi.fn().mockResolvedValue([]),
     addAccountCard: vi.fn().mockResolvedValue(7),
     deleteAccountCard: vi.fn().mockResolvedValue(undefined),
+    updateAccountCard: vi.fn().mockResolvedValue(undefined),
     findAccountsByLastFour: vi.fn().mockResolvedValue([]),
+    findAccountsByFullNumber: vi.fn().mockResolvedValue([]),
     addUser: vi.fn().mockResolvedValue(9),
     updateUser: vi.fn().mockResolvedValue(undefined),
     deleteUser: vi.fn().mockResolvedValue(undefined),
@@ -78,6 +81,48 @@ describe('useDatabaseAccountManagementSlices', () => {
     });
     expect(refreshAccounts).toHaveBeenCalledTimes(1);
     expect(accountCardId).toBe(7);
+  });
+
+  it('refreshes cached accounts after updating an account', async () => {
+    const refreshAccounts = vi.fn().mockResolvedValue(undefined);
+    const refreshUsers = vi.fn().mockResolvedValue(undefined);
+    const service = createServiceMock();
+
+    const { result } = renderHook(() =>
+      useDatabaseAccountManagementSlices({
+        databaseService: service,
+        refreshAccounts,
+        refreshUsers,
+      })
+    );
+
+    await act(async () => {
+      await result.current.accountsSlice.updateAccount(3, { name: 'Renamed' });
+    });
+
+    expect(service.updateAccount).toHaveBeenCalledWith(3, { name: 'Renamed' });
+    expect(refreshAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes cached accounts after updating an account card', async () => {
+    const refreshAccounts = vi.fn().mockResolvedValue(undefined);
+    const refreshUsers = vi.fn().mockResolvedValue(undefined);
+    const service = createServiceMock();
+
+    const { result } = renderHook(() =>
+      useDatabaseAccountManagementSlices({
+        databaseService: service,
+        refreshAccounts,
+        refreshUsers,
+      })
+    );
+
+    await act(async () => {
+      await result.current.accountsSlice.updateAccountCard(7, { nickname: 'Updated', full_number: '411111114242' });
+    });
+
+    expect(service.updateAccountCard).toHaveBeenCalledWith(7, { nickname: 'Updated', full_number: '411111114242' });
+    expect(refreshAccounts).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes cached users after updating a user', async () => {

@@ -166,10 +166,13 @@ function mockDatabaseHooks() {
     accounts: {
       addAccountWithCard: vi.fn(),
       deleteAccount: vi.fn(),
+      updateAccount: vi.fn(),
       getAccountCards: vi.fn(),
       addAccountCard: vi.fn(),
       deleteAccountCard: vi.fn(),
+      updateAccountCard: vi.fn(),
       findAccountsByLastFour: vi.fn(),
+      findAccountsByFullNumber: vi.fn(),
     },
     projects: {
       addProject: vi.fn(),

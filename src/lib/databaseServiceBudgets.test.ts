@@ -441,7 +441,7 @@ describe('DatabaseService account and card invariants', () => {
 
     expect(result).toEqual({ accountId: 10, cardId: 20 });
     expect(query).toHaveBeenCalledWith(ACCOUNT_QUERIES.CREATE, ['Everyday Checking', 'checking', 7]);
-    expect(query).toHaveBeenCalledWith(ACCOUNT_CARD_QUERIES.CREATE, [10, '4242', 'Debit', 7]);
+    expect(query).toHaveBeenCalledWith(ACCOUNT_CARD_QUERIES.CREATE, [10, '4242', null, 'Debit', 7]);
     const sql = issuedSql(query);
     expect(sql[0]).toBe('BEGIN TRANSACTION');
     expect(sql[sql.length - 1]).toBe('COMMIT');
@@ -451,7 +451,7 @@ describe('DatabaseService account and card invariants', () => {
     const query = vi.fn(async (sql: string) => {
       if (sql === ACCOUNT_QUERIES.CREATE) return [{ id: 10 }];
       if (sql === ACCOUNT_CARD_QUERIES.CREATE) {
-        throw new Error('UNIQUE constraint failed: account_cards.last_four');
+        throw new Error('UNIQUE constraint failed: account_cards.account_id, account_cards.last_four');
       }
       return [];
     });
@@ -463,7 +463,7 @@ describe('DatabaseService account and card invariants', () => {
         7,
         { last_four: '4242', nickname: null, user_id: null }
       )
-    ).rejects.toThrow('A card with that last four already exists.');
+    ).rejects.toThrow('This account already has a card with that last four.');
     expect(issuedSql(query)).toContain('ROLLBACK');
   });
 

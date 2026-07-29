@@ -178,6 +178,7 @@ const accountCardRow = {
   id: 22,
   account_id: 3,
   last_four: '4242',
+  full_number: null,
   nickname: 'Daily card',
   user_id: 7,
   created_at: '2026-02-02T00:00:00.000Z',
@@ -1112,6 +1113,15 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
       expected: undefined,
     },
     {
+      name: 'updates an account name and type',
+      call: (service: DatabaseService) =>
+        service.updateAccount(53, { name: 'Renamed Checking', type: 'savings' }),
+      query: ACCOUNT_QUERIES.UPDATE,
+      parameters: ['Renamed Checking', 'savings', 53],
+      response: [],
+      expected: undefined,
+    },
+    {
       name: 'adds an account card with optional values normalized',
       call: (service: DatabaseService) =>
         service.addAccountCard({
@@ -1121,20 +1131,21 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
           user_id: null,
         }),
       query: ACCOUNT_CARD_QUERIES.CREATE,
-      parameters: [3, '1111', null, null],
+      parameters: [3, '1111', null, null, null],
       response: [{ id: 54 }],
       expected: 54,
     },
     {
-      name: 'updates account card metadata',
+      name: 'updates account card metadata including the full number',
       call: (service: DatabaseService) =>
         service.updateAccountCard(54, {
           last_four: '2222',
+          full_number: '411111112222',
           nickname: 'Travel card',
           user_id: 7,
         }),
       query: ACCOUNT_CARD_QUERIES.UPDATE,
-      parameters: ['2222', 'Travel card', 7, 54],
+      parameters: ['2222', '411111112222', 'Travel card', 7, 54],
       response: [],
       expected: undefined,
     },
@@ -1248,6 +1259,39 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
       ACCOUNT_CARD_QUERIES.FIND_ACCOUNT_BY_LAST_FOUR,
       ['4242']
     );
+  });
+
+  it('finds accounts by card full number', async () => {
+    const querySpy = vi.spyOn(databaseWorkerService, 'query').mockResolvedValue([
+      accountRow,
+    ]);
+    const service = new DatabaseService();
+
+    await expect(service.findAccountsByFullNumber('411111114242')).resolves.toEqual([
+      accountRow,
+    ]);
+    expect(querySpy).toHaveBeenCalledWith(
+      ACCOUNT_CARD_QUERIES.FIND_ACCOUNT_BY_FULL_NUMBER,
+      ['411111114242']
+    );
+  });
+
+  it('translates a full_number UNIQUE violation into a friendly error distinct from a last-four violation', async () => {
+    const service = new DatabaseService();
+
+    vi.spyOn(databaseWorkerService, 'query').mockRejectedValueOnce(
+      new Error('UNIQUE constraint failed: account_cards.full_number')
+    );
+    await expect(
+      service.addAccountCard({ account_id: 3, last_four: '1111', full_number: '411111111111', user_id: null })
+    ).rejects.toThrow('This card number is already registered to a different card.');
+
+    vi.spyOn(databaseWorkerService, 'query').mockRejectedValueOnce(
+      new Error('UNIQUE constraint failed: account_cards.account_id, account_cards.last_four')
+    );
+    await expect(
+      service.addAccountCard({ account_id: 3, last_four: '1111', user_id: null })
+    ).rejects.toThrow('This account already has a card with that last four.');
   });
 });
 

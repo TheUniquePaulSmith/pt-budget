@@ -175,10 +175,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
         dayCount={selectedRangeDayCount}
       />
 
-      <BudgetStatusCard
-        status={budgetStatus}
-        onManageBudget={() => onNavigateToBudget?.()}
-      />
+      {(!budgetStatus || budgetStatus.budgetedTotal == null) && (
+        <BudgetStatusCard
+          status={budgetStatus}
+          onManageBudget={() => onNavigateToBudget?.()}
+        />
+      )}
 
       <ChartsSection
         chartData={chartData}

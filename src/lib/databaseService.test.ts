@@ -1463,6 +1463,15 @@ describe('DatabaseService dashboard income summaries', () => {
           { month: '2026-07', income: 0, expense: 2500 },
         ];
       }
+      if (sql.includes('c.name as category_name') && sql.includes("strftime('%Y-%m', t.date) as month")) {
+        return [];
+      }
+      if (sql.includes('as committed') && sql.includes('as discretionary')) {
+        return [];
+      }
+      if (sql === SUBSCRIPTION_QUERIES.GET_ACTIVE_SERIES) {
+        return [];
+      }
       if (sql.includes('a.id as account_id') && sql.includes('as expenses')) {
         expect(sql).toContain("t.type = 'income' AND a.type != 'credit'");
         return [
@@ -1498,6 +1507,202 @@ describe('DatabaseService dashboard income summaries', () => {
       income: [5000, 1000],
       expenses: [0, 1250],
     });
+  });
+});
+
+describe('DatabaseService chart analytics extensions', () => {
+  /**
+   * Dispatches the queries getChartData fans out, so each test only supplies the
+   * rows it actually cares about. SPENDING_BY_CATEGORY runs twice — once for the
+   * selected range and once for the comparison window — so it dispatches on params.
+   */
+  function createChartQueryStub(rows: {
+    currentSpending?: any[];
+    previousSpending?: any[];
+    monthCategory?: any[];
+    committed?: any[];
+    trends?: any[];
+    activeSeries?: any[];
+    currentStart?: string;
+  } = {}) {
+    const currentStart = rows.currentStart ?? '2026-07-01';
+    return vi.fn().mockImplementation(async (sql: string, params: any[] = []) => {
+      if (sql.includes('SUM(ABS(t.amount)) as total') && sql.includes("c.type = 'expense'")) {
+        return params[0] === currentStart ? (rows.currentSpending ?? []) : (rows.previousSpending ?? []);
+      }
+      if (sql.includes('c.name as category_name') && sql.includes("strftime('%Y-%m', t.date) as month")) {
+        return rows.monthCategory ?? [];
+      }
+      if (sql.includes('as committed') && sql.includes('as discretionary')) {
+        return rows.committed ?? [];
+      }
+      if (sql.includes("strftime('%Y-%m', t.date) as month") && sql.includes('as expense')) {
+        return rows.trends ?? [];
+      }
+      if (sql === SUBSCRIPTION_QUERIES.GET_ACTIVE_SERIES) {
+        return rows.activeSeries ?? [];
+      }
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
+        return [];
+      }
+      // Company / recurring-series / income-by-source / account-analysis panels.
+      return [];
+    });
+  }
+
+  it('pivots month x category spend onto the shared trend month axis, padding gaps with zero', async () => {
+    const querySpy = createChartQueryStub({
+      trends: [
+        { month: '2026-05', income: 0, expense: 100 },
+        { month: '2026-06', income: 0, expense: 80 },
+        { month: '2026-07', income: 0, expense: 150 },
+      ],
+      monthCategory: [
+        { month: '2026-05', category_id: 1, category_name: 'Groceries', color: '#111', total: 100 },
+        { month: '2026-07', category_id: 1, category_name: 'Groceries', color: '#111', total: 150 },
+        { month: '2026-06', category_id: 2, category_name: 'Dining', color: '#222', total: 80 },
+      ],
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const chartData = await service.getChartData('2026-07-01', '2026-07-31');
+
+    expect(chartData.categoryTrends.months).toEqual(['2026-05', '2026-06', '2026-07']);
+    expect(chartData.categoryTrends.series).toEqual([
+      { id: 1, label: 'Groceries', color: '#111', data: [100, 0, 150] },
+      { id: 2, label: 'Dining', color: '#222', data: [0, 80, 0] },
+    ]);
+  });
+
+  it('collapses category trend series beyond the top eight into an Other series', async () => {
+    const monthCategory = Array.from({ length: 10 }, (_, index) => ({
+      month: '2026-07',
+      category_id: index + 1,
+      category_name: `Category ${index + 1}`,
+      color: '#123456',
+      // Descending totals so ranking is unambiguous: 100, 90, ... 10.
+      total: (10 - index) * 10,
+    }));
+    const querySpy = createChartQueryStub({
+      trends: [{ month: '2026-07', income: 0, expense: 550 }],
+      monthCategory,
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const chartData = await service.getChartData('2026-07-01', '2026-07-31');
+
+    expect(chartData.categoryTrends.series).toHaveLength(9);
+    const other = chartData.categoryTrends.series[8];
+    expect(other.label).toBe('Other');
+    expect(other.id).toBe('other');
+    // The two smallest categories: 20 + 10.
+    expect(other.data).toEqual([30]);
+  });
+
+  it('aligns committed and discretionary monthly totals to the trend months', async () => {
+    const querySpy = createChartQueryStub({
+      trends: [
+        { month: '2026-06', income: 0, expense: 400 },
+        { month: '2026-07', income: 0, expense: 300 },
+      ],
+      committed: [{ month: '2026-07', committed: 120, discretionary: 180 }],
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const chartData = await service.getChartData('2026-07-01', '2026-07-31');
+
+    expect(chartData.committedSplit).toEqual({
+      months: ['2026-06', '2026-07'],
+      committed: [0, 120],
+      discretionary: [0, 180],
+    });
+  });
+
+  it('queries the preceding equal-length window for the category comparison', async () => {
+    const querySpy = createChartQueryStub({ currentStart: '2026-07-01' });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const chartData = await service.getChartData('2026-07-01', '2026-07-31');
+
+    // July is 31 days, so the comparison window is the 31 days ending 2026-06-30.
+    expect(chartData.comparisonPeriodLabel).toBe('previous 31 days');
+    const comparisonCall = querySpy.mock.calls.find(
+      (call: any[]) =>
+        typeof call[0] === 'string' &&
+        call[0].includes("c.type = 'expense'") &&
+        call[1]?.[0] === '2026-05-31'
+    );
+    expect(comparisonCall?.[1]).toEqual(['2026-05-31', '2026-06-30']);
+  });
+
+  it('builds category deltas from both windows and sorts by absolute change', async () => {
+    const querySpy = createChartQueryStub({
+      currentSpending: [
+        { category_id: 1, category_name: 'Groceries', color: '#111', total: 500 },
+        { category_id: 2, category_name: 'Dining', color: '#222', total: 100 },
+      ],
+      previousSpending: [
+        { category_id: 1, category_name: 'Groceries', color: '#111', total: 450 },
+        { category_id: 3, category_name: 'Travel', color: '#333', total: 800 },
+      ],
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const chartData = await service.getChartData('2026-07-01', '2026-07-31');
+
+    expect(chartData.categoryDeltas).toEqual([
+      // Travel disappeared entirely this period — the largest absolute change.
+      { id: 3, label: 'Travel', color: '#333', current: 0, previous: 800, delta: -800 },
+      { id: 2, label: 'Dining', color: '#222', current: 100, previous: 0, delta: 100 },
+      { id: 1, label: 'Groceries', color: '#111', current: 500, previous: 450, delta: 50 },
+    ]);
+  });
+
+  it('projects active recurring series into the next three months by cadence', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    try {
+      const querySpy = createChartQueryStub({
+        activeSeries: [
+          // Monthly charge lands once in each of the three buckets.
+          { id: 1, name: 'Streaming', kind: 'subscription', cadence: 'monthly', expected_amount: 50, next_expected_date: '2026-07-20' },
+          // Annual renewal lands only in August.
+          { id: 2, name: 'Domain', kind: 'bill', cadence: 'yearly', expected_amount: 600, next_expected_date: '2026-08-01' },
+          // Stale monthly date rolls forward rather than being dropped. Its July
+          // occurrence (the 5th) is already past on the 15th, so only Aug/Sep count.
+          { id: 3, name: 'Gym', kind: 'bill', cadence: 'monthly', expected_amount: 30, next_expected_date: '2026-01-05' },
+          // No expected amount contributes nothing.
+          { id: 4, name: 'Variable', kind: 'bill', cadence: 'monthly', expected_amount: null, next_expected_date: '2026-07-20' },
+        ],
+      });
+      const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+      const chartData = await service.getChartData('2026-07-01', '2026-07-31');
+
+      expect(chartData.upcomingCommitments.months).toEqual(['2026-07', '2026-08', '2026-09']);
+      expect(chartData.upcomingCommitments.amounts).toEqual([50, 680, 80]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives an irregular series only its single next expected charge', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    try {
+      const querySpy = createChartQueryStub({
+        activeSeries: [
+          { id: 1, name: 'Vet', kind: 'bill', cadence: 'irregular', expected_amount: 200, next_expected_date: '2026-08-10' },
+        ],
+      });
+      const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+      const chartData = await service.getChartData('2026-07-01', '2026-07-31');
+
+      expect(chartData.upcomingCommitments.amounts).toEqual([0, 200, 0]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

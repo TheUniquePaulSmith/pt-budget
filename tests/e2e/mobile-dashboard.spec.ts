@@ -11,8 +11,10 @@ const SAMPLE_DATA_TRANSACTION_LIMIT = 1000;
 
 const CHART_TABS = [
   'Spending Breakdown',
-  'Income Sources',
+  'Budget Health',
   'Trends',
+  'Commitments',
+  'Income Sources',
   'User Analysis',
 ];
 

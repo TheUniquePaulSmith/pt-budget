@@ -325,6 +325,39 @@ export interface ChartAccountData {
   expenses: number[];
 }
 
+// One stacked series in a month-axis chart; `data` is aligned to the shared `months` array.
+export interface ChartMonthSeries {
+  id: number | string;
+  label: string;
+  color: string;
+  data: number[];
+}
+
+export interface ChartCategoryTrends {
+  months: string[];
+  series: ChartMonthSeries[];
+}
+
+export interface ChartCommittedSplit {
+  months: string[];
+  committed: number[];
+  discretionary: number[];
+}
+
+export interface ChartUpcomingCommitments {
+  months: string[];
+  amounts: number[];
+}
+
+export interface ChartCategoryDelta {
+  id: number | string;
+  label: string;
+  color: string;
+  current: number;
+  previous: number;
+  delta: number;
+}
+
 export interface ChartData {
   spendingByCategory: ChartCategoryData[];
   spendingByCompany: ChartCategoryData[];
@@ -332,6 +365,12 @@ export interface ChartData {
   incomeBySource: ChartCategoryData[];
   trends: ChartTrendsData;
   accountAnalysis: ChartAccountData;
+  categoryTrends: ChartCategoryTrends;
+  committedSplit: ChartCommittedSplit;
+  upcomingCommitments: ChartUpcomingCommitments;
+  // Current period vs the immediately preceding equal-length period.
+  categoryDeltas: ChartCategoryDelta[];
+  comparisonPeriodLabel: string;
 }
 
 export interface ProjectCosts {

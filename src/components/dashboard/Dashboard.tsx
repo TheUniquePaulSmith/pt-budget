@@ -187,6 +187,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
         accounts={accounts}
         users={users}
         timeRangeLabel={getTimeRangeLabel()}
+        budgetStatus={budgetStatus}
+        onManageBudget={() => onNavigateToBudget?.()}
       />
 
       <RecentTransactions

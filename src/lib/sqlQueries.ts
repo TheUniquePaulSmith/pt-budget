@@ -606,6 +606,42 @@ export const ANALYTICS_QUERIES = {
     ORDER BY month ASC
   `,
 
+  // Month x category expense matrix, for the stacked "what drove the spike" chart.
+  // Shaped like BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY, but scopeable
+  // and carrying category name/color so series match the category pie.
+  SPENDING_BY_MONTH_CATEGORY: `
+    SELECT
+      strftime('%Y-%m', t.date) as month,
+      c.id as category_id,
+      c.name as category_name,
+      c.color,
+      SUM(ABS(t.amount)) as total
+    FROM transactions t
+    JOIN categories c ON t.category_id = c.id
+    /*__FILTER_JOINS__*/
+    WHERE t.type = 'expense' AND t.date BETWEEN ? AND ?
+    /*__FILTERS__*/
+    GROUP BY strftime('%Y-%m', t.date), c.id, c.name, c.color
+    HAVING total > 0
+    ORDER BY month ASC
+  `,
+
+  // Splits monthly expenses into "committed" (linked to a recurring series) vs
+  // discretionary — how much of a month is spoken for before any choice is made.
+  SPENDING_COMMITTED_BY_MONTH: `
+    SELECT
+      strftime('%Y-%m', t.date) as month,
+      SUM(CASE WHEN tsl.transaction_id IS NOT NULL THEN ABS(t.amount) ELSE 0 END) as committed,
+      SUM(CASE WHEN tsl.transaction_id IS NULL THEN ABS(t.amount) ELSE 0 END) as discretionary
+    FROM transactions t
+    LEFT JOIN transaction_series_links tsl ON tsl.transaction_id = t.id
+    /*__FILTER_JOINS__*/
+    WHERE t.type = 'expense' AND t.date BETWEEN ? AND ?
+    /*__FILTERS__*/
+    GROUP BY strftime('%Y-%m', t.date)
+    ORDER BY month ASC
+  `,
+
   ACCOUNT_ANALYSIS: `
     SELECT
       a.id as account_id,
@@ -703,6 +739,13 @@ export const SUBSCRIPTION_QUERIES = {
     )
     GROUP BY rs.id
     ORDER BY rs.status, rs.kind, rs.name
+  `,
+  // Lightweight active-series read for the upcoming-commitments forecast. Deliberately
+  // avoids the transaction joins in GET_SERIES_WITH_STATS — the forecast only needs cadence.
+  GET_ACTIVE_SERIES: `
+    SELECT id, name, kind, cadence, expected_amount, next_expected_date
+    FROM recurring_series
+    WHERE status = 'active'
   `,
   GET_SERIES_BY_ID: `SELECT * FROM recurring_series WHERE id = ?`,
   GET_SERIES_BY_MATCH_KEY: `SELECT * FROM recurring_series WHERE match_key = ?`,

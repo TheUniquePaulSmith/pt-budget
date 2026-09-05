@@ -22,6 +22,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useTransactionComposerSlice } from '@/contexts/useDatabaseSlices';
+import { toLocalDateOnly } from '@/lib/dateOnly';
 import { Transaction, AccountCard } from '@/types/database';
 
 interface AddTransactionProps {
@@ -96,7 +97,8 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
       const transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'> = {
         description: formData.description,
         amount: formData.type === 'expense' ? -Math.abs(parseFloat(formData.amount)) : Math.abs(parseFloat(formData.amount)),
-        date: formData.date.toISOString().split('T')[0],
+        // Local calendar date: toISOString() would roll an evening entry to tomorrow.
+        date: toLocalDateOnly(formData.date),
         type: formData.type,
         category_id: categoryId || null,
         company_id: companyId || null,

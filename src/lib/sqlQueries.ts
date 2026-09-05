@@ -475,18 +475,21 @@ export const TRIP_QUERIES = {
 
 // Analytics Queries
 export const ANALYTICS_QUERIES = {
+  // Income/expense is decided by transactions.type everywhere; categories.type is a
+  // display default only. Uncategorized spend is a real bucket, not a dropped row,
+  // so the category pie sums to the same total as the dashboard summary card.
   SPENDING_BY_CATEGORY: `
-    SELECT 
-      c.id as category_id,
-      c.name as category_name,
-      c.color,
+    SELECT
+      COALESCE(c.id, 'uncategorized') as category_id,
+      COALESCE(c.name, 'Uncategorized') as category_name,
+      COALESCE(c.color, '#9e9e9e') as color,
       SUM(ABS(t.amount)) as total
     FROM transactions t
-    JOIN categories c ON t.category_id = c.id
+    LEFT JOIN categories c ON t.category_id = c.id
     /*__FILTER_JOINS__*/
-    WHERE t.date BETWEEN ? AND ? AND c.type = 'expense'
+    WHERE t.type = 'expense' AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
-    GROUP BY c.id, c.name, c.color
+    GROUP BY c.id
     HAVING total > 0
     ORDER BY total DESC
   `,
@@ -530,17 +533,18 @@ export const ANALYTICS_QUERIES = {
   `,
 
   INCOME_BY_CATEGORY: `
-    SELECT 
-      c.id as category_id,
-      c.name as category_name,
-      c.color,
+    SELECT
+      COALESCE(c.id, 'uncategorized') as category_id,
+      COALESCE(c.name, 'Uncategorized') as category_name,
+      COALESCE(c.color, '#9e9e9e') as color,
       SUM(t.amount) as total
     FROM transactions t
-    JOIN categories c ON t.category_id = c.id
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN accounts a ON t.account_id = a.id
     /*__FILTER_JOINS__*/
-    WHERE t.date BETWEEN ? AND ? AND c.type = 'income'
+    WHERE t.type = 'income' AND a.type != 'credit' AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
-    GROUP BY c.id, c.name, c.color
+    GROUP BY c.id
     HAVING total > 0
     ORDER BY total DESC
   `,
@@ -548,10 +552,10 @@ export const ANALYTICS_QUERIES = {
   MONTHLY_TRENDS: `
     SELECT
       strftime('%Y-%m', t.date) as month,
-      SUM(CASE WHEN c.type = 'income' THEN t.amount ELSE 0 END) as income,
-      SUM(CASE WHEN c.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as expense
+      SUM(CASE WHEN t.type = 'income' AND a.type != 'credit' THEN t.amount ELSE 0 END) as income,
+      SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as expense
     FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN accounts a ON t.account_id = a.id
     /*__FILTER_JOINS__*/
     WHERE t.date >= date('now', ? || ' months')
     /*__FILTERS__*/
@@ -612,16 +616,16 @@ export const ANALYTICS_QUERIES = {
   SPENDING_BY_MONTH_CATEGORY: `
     SELECT
       strftime('%Y-%m', t.date) as month,
-      c.id as category_id,
-      c.name as category_name,
-      c.color,
+      COALESCE(c.id, 'uncategorized') as category_id,
+      COALESCE(c.name, 'Uncategorized') as category_name,
+      COALESCE(c.color, '#9e9e9e') as color,
       SUM(ABS(t.amount)) as total
     FROM transactions t
-    JOIN categories c ON t.category_id = c.id
+    LEFT JOIN categories c ON t.category_id = c.id
     /*__FILTER_JOINS__*/
     WHERE t.type = 'expense' AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
-    GROUP BY strftime('%Y-%m', t.date), c.id, c.name, c.color
+    GROUP BY strftime('%Y-%m', t.date), c.id
     HAVING total > 0
     ORDER BY month ASC
   `,
@@ -642,20 +646,24 @@ export const ANALYTICS_QUERIES = {
     ORDER BY month ASC
   `,
 
+  // Attributes each row to the person who actually spent it: the card holder when
+  // the row carries a card, otherwise the account owner. A spouse's card on a
+  // shared credit account therefore shows under the spouse, not the owner.
   ACCOUNT_ANALYSIS: `
     SELECT
-      a.id as account_id,
-      a.name as account_name,
-      u.display_name as user_display_name,
+      COALESCE(card.user_id, a.owner_user_id) as user_id,
+      COALESCE(card_user.display_name, owner_user.display_name) as user_display_name,
       SUM(CASE WHEN t.type = 'income' AND a.type != 'credit' THEN t.amount ELSE 0 END) as income,
       SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as expenses
     FROM transactions t
     JOIN accounts a ON t.account_id = a.id
-    LEFT JOIN users u ON a.owner_user_id = u.id
+    LEFT JOIN account_cards card ON t.card_id = card.id
+    LEFT JOIN users card_user ON card.user_id = card_user.id
+    LEFT JOIN users owner_user ON a.owner_user_id = owner_user.id
     /*__FILTER_JOINS__*/
     WHERE t.date BETWEEN ? AND ?
     /*__FILTERS__*/
-    GROUP BY a.id
+    GROUP BY COALESCE(card.user_id, a.owner_user_id)
     ORDER BY (income + expenses) DESC
   `,
 };

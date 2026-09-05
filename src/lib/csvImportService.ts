@@ -1,6 +1,7 @@
 import type { Account, Transaction } from '../types/database';
 
 import { DatabaseService } from './databaseService';
+import { parseCsvDate } from './dateOnly';
 
 export interface CSVImportColumnMapping {
   accountColumn: string;
@@ -40,13 +41,27 @@ export interface CSVImportDuplicateGroup {
   transactions: CSVImportDuplicateGroupItem[];
 }
 
+/** A CSV data row (1-based, excluding the header) that could not be turned into a transaction. */
+export interface CsvRejectedRow {
+  rowNumber: number;
+  reason: string;
+}
+
+export interface CsvMappingResult {
+  mapped: MappedCsvTransaction[];
+  rejected: CsvRejectedRow[];
+}
+
 export interface CSVImportAnalysisResult {
   totalRows: number;
   mappableRows: number;
   duplicateCount: number;
   internalDuplicates: number;
   uniqueCount: number;
+  /** Rows whose account value matched none of the user's accounts. */
   skippedRows: number;
+  /** Rows with an unreadable date or amount; never imported, always reported. */
+  rejectedRows: CsvRejectedRow[];
   duplicateGroups?: CSVImportDuplicateGroup[];
 }
 
@@ -87,13 +102,60 @@ export function autoDetectColumnMapping(
           header.toLowerCase().includes('description') ||
           header.toLowerCase().includes('memo')
       ) || '',
-    uniqueIdentifierColumn:
-      headers.find(
-        (header) =>
-          header.toLowerCase().includes('reference') ||
-          header.toLowerCase().includes('id')
-      ) || '',
+    uniqueIdentifierColumn: detectUniqueIdentifierColumn(headers),
   };
+}
+
+// A bank reference/transaction number is a strong dedup key; a header that merely
+// contains "id" (Paid, Valid, Card Holder ID) is not, and a wrong pick silently
+// breaks duplicate detection on the next overlapping import.
+const UNIQUE_ID_STRONG_RE = /reference|\btrans(?:action)?\s*(?:id|number|#|no\.?)\b|\btxn\s*(?:id|number)|\bfitid\b/i;
+const UNIQUE_ID_WEAK_RE = /\bid\b/i;
+const UNIQUE_ID_EXCLUDE_RE = /holder|customer|member|account|card|user|category|merchant|payee/i;
+
+export function detectUniqueIdentifierColumn(headers: string[]): string {
+  const strong = headers.find((header) => UNIQUE_ID_STRONG_RE.test(header));
+  if (strong) return strong;
+  return (
+    headers.find(
+      (header) => UNIQUE_ID_WEAK_RE.test(header) && !UNIQUE_ID_EXCLUDE_RE.test(header)
+    ) || ''
+  );
+}
+
+/**
+ * Parses a bank-export amount cell. Understands accounting negatives "(12.34)",
+ * trailing minus "12.34-", CR/DR markers (CR = money in, DR = money out), and
+ * currency symbols / thousands separators. Returns null for anything that is
+ * not a number so the row can be reported instead of imported as $0.
+ */
+export function parseCsvAmount(raw: unknown): number | null {
+  if (raw == null) return null;
+  let text = String(raw).trim();
+  if (!text) return null;
+
+  let sign = 1;
+  if (/^\(.*\)$/.test(text)) {
+    sign = -1;
+    text = text.slice(1, -1);
+  }
+
+  const marker = text.match(/\b(CR|DR)\b\s*$/i) ?? text.match(/^\s*(CR|DR)\b/i);
+  if (marker) {
+    if (marker[1].toUpperCase() === 'DR') sign *= -1;
+    text = text.replace(marker[0], '');
+  }
+
+  if (/-\s*$/.test(text) && !/^\s*-/.test(text)) {
+    sign *= -1;
+    text = text.replace(/-\s*$/, '');
+  }
+
+  const cleaned = text.replace(/[^\d.-]/g, '');
+  if (!/\d/.test(cleaned)) return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value)) return null;
+  return value * sign;
 }
 
 export function extractLastFourValue(csvValue: string): string {
@@ -139,100 +201,104 @@ export async function createAccountMatches(
   );
 }
 
+/**
+ * Turns parsed CSV rows into transactions. Rows whose account value is not
+ * mapped are skipped silently (the caller reports them as "unmapped"); rows with
+ * an unreadable date or amount are returned in `rejected` with a reason instead
+ * of being defaulted to today / $0.
+ */
 export function mapTransactionsFromCSV(
   data: any[],
   columnMapping: CSVImportColumnMapping,
   accountMappings: CSVAccountMatch[],
   generateTransactionHash: HashGenerator
-): MappedCsvTransaction[] {
+): CsvMappingResult {
   const isDirectAccount = columnMapping.accountColumn.startsWith('DIRECT_ACCOUNT:');
   const directAccountMapping = isDirectAccount ? accountMappings[0] : null;
 
-  return data
-    .filter((row) => {
-      if (isDirectAccount) {
-        return Boolean(directAccountMapping?.selectedAccountId);
-      }
+  const mapped: MappedCsvTransaction[] = [];
+  const rejected: CsvRejectedRow[] = [];
 
-      const csvAccountValue = String(row[columnMapping.accountColumn]);
-      const accountMapping = accountMappings.find(
+  data.forEach((row, index) => {
+    let csvAccountValue: string;
+    let accountMapping: CSVAccountMatch | undefined | null;
+    let lastFourValue: string;
+
+    if (isDirectAccount) {
+      csvAccountValue = 'ALL_TRANSACTIONS';
+      accountMapping = directAccountMapping;
+      lastFourValue = '';
+    } else {
+      csvAccountValue = String(row[columnMapping.accountColumn]);
+      accountMapping = accountMappings.find(
         (match) => match.csvAccountValue === csvAccountValue
       );
-      return Boolean(accountMapping?.selectedAccountId);
-    })
-    .map((row) => {
-      let csvAccountValue: string;
-      let accountMapping: CSVAccountMatch | undefined | null;
-      let lastFourValue: string;
+      lastFourValue = accountMapping?.lastFourValue || '';
+    }
 
-      if (isDirectAccount) {
-        csvAccountValue = 'ALL_TRANSACTIONS';
-        accountMapping = directAccountMapping;
-        lastFourValue = '';
-      } else {
-        csvAccountValue = String(row[columnMapping.accountColumn]);
-        accountMapping = accountMappings.find(
-          (match) => match.csvAccountValue === csvAccountValue
-        );
-        lastFourValue = accountMapping?.lastFourValue || '';
-      }
+    // Unmapped account: skipped, not rejected (the account-mapping step already told the user).
+    if (!accountMapping?.selectedAccountId) return;
 
-      if (!accountMapping?.selectedAccountId) {
-        throw new Error(`No account mapping found for ${csvAccountValue}`);
-      }
+    const rowNumber = index + 1;
+    const rawDate = row[columnMapping.dateColumn];
+    const rawAmount = row[columnMapping.amountColumn];
+    const description = String(row[columnMapping.descriptionColumn] ?? '');
+    const uniqueIdentifier = columnMapping.uniqueIdentifierColumn
+      ? String(row[columnMapping.uniqueIdentifierColumn])
+      : undefined;
 
-      const dateStr = row[columnMapping.dateColumn];
-      const amountStr = String(row[columnMapping.amountColumn]);
-      const description = String(row[columnMapping.descriptionColumn]);
-      const uniqueIdentifier = columnMapping.uniqueIdentifierColumn
-        ? String(row[columnMapping.uniqueIdentifierColumn])
-        : undefined;
+    const date = parseCsvDate(rawDate);
+    if (!date) {
+      rejected.push({
+        rowNumber,
+        reason: `Unrecognized date "${String(rawDate ?? '').trim()}" in column "${columnMapping.dateColumn}"`,
+      });
+      return;
+    }
 
-      let date: string;
-      try {
-        const parsedDate = new Date(dateStr);
-        if (Number.isNaN(parsedDate.getTime())) {
-          throw new Error('Invalid date');
-        }
-        date = parsedDate.toISOString().split('T')[0];
-      } catch {
-        date = new Date().toISOString().split('T')[0];
-      }
+    const amount = parseCsvAmount(rawAmount);
+    if (amount == null) {
+      rejected.push({
+        rowNumber,
+        reason: `Unrecognized amount "${String(rawAmount ?? '').trim()}" in column "${columnMapping.amountColumn}"`,
+      });
+      return;
+    }
 
-      const cleanAmount = amountStr.replace(/[^\d.-]/g, '');
-      const amount = parseFloat(cleanAmount) || 0;
-      const type: 'income' | 'expense' = amount > 0 ? 'income' : 'expense';
+    const type: 'income' | 'expense' = amount > 0 ? 'income' : 'expense';
 
-      const transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'> = {
-        date,
-        amount: Math.abs(amount) * (type === 'expense' ? -1 : 1),
-        description: description || 'Imported transaction',
-        comment: null,
-        account_id: accountMapping.selectedAccountId,
-        card_id: accountMapping.selectedCardId ?? null,
-        category_id: null,
-        company_id: null,
-        project_id: null,
-        trip_id: null,
-        type,
-      };
+    const transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'> = {
+      date,
+      amount: Math.abs(amount) * (type === 'expense' ? -1 : 1),
+      description: description || 'Imported transaction',
+      comment: null,
+      account_id: accountMapping.selectedAccountId,
+      card_id: accountMapping.selectedCardId ?? null,
+      category_id: null,
+      company_id: null,
+      project_id: null,
+      trip_id: null,
+      type,
+    };
 
-      const hash = generateTransactionHash(
-        csvAccountValue,
-        date,
-        amount,
-        description,
-        uniqueIdentifier
-      );
+    const hash = generateTransactionHash(
+      csvAccountValue,
+      date,
+      amount,
+      description,
+      uniqueIdentifier
+    );
 
-      return {
-        transaction: { ...transaction, transaction_hash: hash },
-        csvAccountValue,
-        lastFourValue,
-        hash,
-        uniqueIdentifier,
-      };
+    mapped.push({
+      transaction: { ...transaction, transaction_hash: hash },
+      csvAccountValue,
+      lastFourValue,
+      hash,
+      uniqueIdentifier,
     });
+  });
+
+  return { mapped, rejected };
 }
 
 export function buildDuplicateGroups(

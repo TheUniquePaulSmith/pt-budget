@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from 'react';
 
 import type { DatabaseService } from '../lib/databaseService';
-import type { Account, AccountCard, User } from '../types/database';
+import type { Account, AccountCard, AccountEditableFields, User } from '../types/database';
 
 export interface DatabaseAccountSlice {
   addAccountWithCard: (
@@ -14,7 +14,7 @@ export interface DatabaseAccountSlice {
   deleteAccount: (id: number) => Promise<void>;
   updateAccount: (
     id: number,
-    updates: Partial<Pick<Account, 'name' | 'type' | 'ownership'>>
+    updates: AccountEditableFields
   ) => Promise<void>;
   getAccountCards: (accountId: number) => Promise<any[]>;
   addAccountCard: (card: {
@@ -104,7 +104,7 @@ export function useDatabaseAccountManagementSlices({
   );
 
   const updateAccount = useCallback(
-    async (id: number, updates: Partial<Pick<Account, 'name' | 'type' | 'ownership'>>): Promise<void> => {
+    async (id: number, updates: AccountEditableFields): Promise<void> => {
       await requireService().updateAccount(id, updates);
       await refreshAccounts();
     },

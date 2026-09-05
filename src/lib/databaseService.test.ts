@@ -15,6 +15,7 @@ import {
   BUDGET_PLAN_QUERIES,
   CATEGORY_QUERIES,
   COMPANY_QUERIES,
+  IMPORT_BATCH_QUERIES,
   INCOME_SOURCE_QUERIES,
   PROJECT_QUERIES,
   SUBSCRIPTION_QUERIES,
@@ -1139,11 +1140,11 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
       expected: undefined,
     },
     {
-      name: 'updates an account name, type and ownership',
+      name: 'updates an account with schema defaults for omitted optional fields',
       call: (service: DatabaseService) =>
         service.updateAccount(53, { name: 'Renamed Checking', type: 'savings', ownership: 'joint' }),
       query: ACCOUNT_QUERIES.UPDATE,
-      parameters: ['Renamed Checking', 'savings', 'joint', 53],
+      parameters: ['Renamed Checking', 'savings', 'joint', null, 0, null, null, 1, 53],
       response: [],
       expected: undefined,
     },
@@ -2211,5 +2212,188 @@ describe('DatabaseService analytics consistency', () => {
     expect(ANALYTICS_QUERIES.DASHBOARD_SUMMARY).toContain("t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit' THEN t.amount");
     expect(BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY).toContain("t.type IN ('expense', 'refund') AND t.is_excluded = 0");
     expect(TRIP_QUERIES.GET_COSTS).toContain("tr.type IN ('expense', 'refund') AND tr.is_excluded = 0 THEN -tr.amount");
+  });
+});
+
+describe('DatabaseService transaction editing', () => {
+  const existingRow = {
+    id: 31,
+    date: '2026-04-20',
+    amount: -25.75,
+    description: 'Fuel stop',
+    comment: null,
+    account_id: 3,
+    card_id: null,
+    category_id: 4,
+    company_id: null,
+    project_id: null,
+    trip_id: null,
+    type: 'expense',
+    transaction_hash: 'old-hash',
+    hash_variation_seed: 0,
+    type_locked: 0,
+    is_excluded: 0,
+    is_flagged: 0,
+  };
+
+  function editingStub(overrides: { row?: Record<string, unknown>; duplicateCount?: number } = {}) {
+    return vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === TRANSACTION_QUERIES.GET_RAW_BY_ID) return [{ ...existingRow, ...(overrides.row ?? {}) }];
+      if (sql === TRANSACTION_QUERIES.CHECK_HASH_EXISTS_EXCLUDING) return [{ count: overrides.duplicateCount ?? 0 }];
+      return [];
+    });
+  }
+
+  it('recomputes the hash and checks other rows when a key field changes', async () => {
+    const querySpy = editingStub();
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.updateTransaction(31, { amount: -30, category_id: 6 });
+
+    const expectedHash = await DatabaseService.generateTransactionHashFromFields(3, '2026-04-20', -30, 'Fuel stop');
+    expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.CHECK_HASH_EXISTS_EXCLUDING, [expectedHash, 31]);
+    expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.UPDATE_FULL, [
+      '2026-04-20', -30, 'Fuel stop', null, 3, null, 6, null, null, null, 'expense', 0, expectedHash, 31,
+    ]);
+  });
+
+  it('keeps the stored hash when only non-key fields change and locks a hand-picked type', async () => {
+    const querySpy = editingStub();
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.updateTransaction(31, { type: 'transfer', comment: 'Card payment' });
+
+    expect(querySpy).not.toHaveBeenCalledWith(TRANSACTION_QUERIES.CHECK_HASH_EXISTS_EXCLUDING, expect.anything());
+    expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.UPDATE_FULL, [
+      '2026-04-20', -25.75, 'Fuel stop', 'Card payment', 3, null, 4, null, null, null, 'transfer', 1, 'old-hash', 31,
+    ]);
+  });
+
+  it('refuses an edit that would duplicate another transaction', async () => {
+    const querySpy = editingStub({ duplicateCount: 1 });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await expect(service.updateTransaction(31, { description: 'Fuel stop #2' })).rejects.toThrow(
+      /identical transaction already exists/
+    );
+    expect(querySpy).not.toHaveBeenCalledWith(TRANSACTION_QUERIES.UPDATE_FULL, expect.anything());
+  });
+
+  it('refuses a type that contradicts the sign of the amount', async () => {
+    const service = new DatabaseService(createWorkerTransportStub({ query: editingStub() }));
+
+    await expect(service.updateTransaction(31, { type: 'income' })).rejects.toThrow(/Income must be a positive amount/);
+    await expect(service.setTransactionType(31, 'refund')).rejects.toThrow(/A refund must be a positive amount/);
+  });
+
+  it('re-types a row in place, locking the type, and toggles flag and exclusion', async () => {
+    const querySpy = editingStub();
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.setTransactionType(31, 'transfer');
+    await service.setTransactionFlag(31, true);
+    await service.setTransactionExcluded(31, false);
+
+    expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.SET_TYPE, ['transfer', 31]);
+    expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.SET_FLAG, [1, 31]);
+    expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.SET_EXCLUDED, [0, 31]);
+    expect(TRANSACTION_QUERIES.SET_TYPE).toContain('type_locked = 1');
+  });
+
+  it('deletes the series link before the row, inside one database transaction', async () => {
+    const querySpy = vi.fn().mockResolvedValue([]);
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.deleteTransaction(31);
+
+    const issued = querySpy.mock.calls.map((call) => call[0]);
+    expect(issued).toEqual([
+      'BEGIN TRANSACTION',
+      SUBSCRIPTION_QUERIES.DELETE_LINK_FOR_TRANSACTION,
+      TRANSACTION_QUERIES.DELETE,
+      'COMMIT',
+    ]);
+    expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.DELETE, [31]);
+  });
+
+  it('rolls back when the delete fails', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === TRANSACTION_QUERIES.DELETE) throw new Error('locked');
+      return [];
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await expect(service.deleteTransaction(31)).rejects.toThrow('locked');
+    expect(querySpy.mock.calls.map((call) => call[0])).toContain('ROLLBACK');
+    expect(querySpy.mock.calls.map((call) => call[0])).not.toContain('COMMIT');
+  });
+});
+
+describe('DatabaseService import batches and review filters', () => {
+  it('records a batch, stamps inserted rows with it, and finalizes the counts', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === IMPORT_BATCH_QUERIES.CREATE) return [{ id: 9 }];
+      if (sql.includes('changes()')) return [{ count: 100 }];
+      return [];
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const batchId = await service.createImportBatch({
+      source: 'csv',
+      file_name: 'huntington-august.csv',
+      account_ids: [3, 4],
+      total_rows: 120,
+    });
+    const inserted = await service.bulkInsertFromTempTable(batchId);
+    await service.finalizeImportBatch(batchId, {
+      inserted_count: inserted,
+      duplicate_count: 15,
+      skipped_count: 3,
+      rejected_count: 2,
+    });
+
+    expect(batchId).toBe(9);
+    expect(inserted).toBe(100);
+    expect(querySpy).toHaveBeenCalledWith(IMPORT_BATCH_QUERIES.CREATE, ['csv', 'huntington-august.csv', '[3,4]', 120]);
+    expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.BULK_INSERT_FROM_TEMP, [9]);
+    expect(querySpy).toHaveBeenCalledWith(IMPORT_BATCH_QUERIES.FINALIZE, [100, 15, 3, 2, 9]);
+  });
+
+  it('maps recent import batches', async () => {
+    const querySpy = vi.fn().mockResolvedValue([
+      { id: 9, imported_at: '2026-09-01 10:00:00', source: 'csv', file_name: 'a.csv', account_ids_json: '[3]', total_rows: 10, inserted_count: 8, duplicate_count: 2, skipped_count: 0, rejected_count: 0, min_date: '2026-08-01', max_date: '2026-08-28' },
+    ]);
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await expect(service.getRecentImportBatches(5)).resolves.toEqual([
+      expect.objectContaining({ id: 9, source: 'csv', inserted_count: 8, duplicate_count: 2, max_date: '2026-08-28' }),
+    ]);
+    expect(querySpy).toHaveBeenCalledWith(IMPORT_BATCH_QUERIES.GET_RECENT, [5]);
+  });
+
+  it('filters flagged rows and hides excluded rows by default in the paginated report', async () => {
+    const issued: string[] = [];
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      issued.push(sql);
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) return [];
+      if (sql.includes('COUNT(*) as total')) return [{ total: 0, total_income: 0, total_expenses: 0 }];
+      return [];
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    // The spend/income CASE expressions always carry "is_excluded = 0 THEN"; the
+    // WHERE-clause predicate is the one without THEN after it.
+    const whereExcludesHidden = /t\.is_excluded = 0(?! THEN)/;
+
+    await service.getTransactionsPaginated({ page: 0, pageSize: 25, sortBy: 'date', sortOrder: 'desc', flaggedOnly: true });
+    const defaultAggregate = issued.find((sql) => sql.includes('COUNT(*) as total')) ?? '';
+    expect(defaultAggregate).toContain('t.is_flagged = 1');
+    expect(defaultAggregate).toMatch(whereExcludesHidden);
+
+    issued.length = 0;
+    await service.getTransactionsPaginated({ page: 0, pageSize: 25, sortBy: 'date', sortOrder: 'desc', includeExcluded: true });
+    const inclusiveAggregate = issued.find((sql) => sql.includes('COUNT(*) as total')) ?? '';
+    expect(inclusiveAggregate).not.toMatch(whereExcludesHidden);
+    expect(inclusiveAggregate).not.toContain('t.is_flagged = 1');
   });
 });

@@ -21,10 +21,18 @@ import {
 import { advanceByCadence } from './recurringCadence';
 import { addMonthsISO, todayLocalISO } from './dateOnly';
 import { computeTransactionHash } from './transactionHash';
-import type { TransactionType } from '../types/database';
+import type {
+  AccountEditableFields,
+  ImportBatch,
+  ImportBatchInput,
+  ImportBatchTotals,
+  TransactionType,
+  TransactionUpdateInput,
+} from '../types/database';
 import {
   incomeExpr,
   spendExpr,
+  IMPORT_BATCH_QUERIES,
   TRANSACTION_QUERIES,
   CATEGORY_QUERIES,
   COMPANY_QUERIES,
@@ -641,11 +649,11 @@ export class DatabaseService {
     }
   }
 
-  async bulkInsertFromTempTable(): Promise<number> {
+  async bulkInsertFromTempTable(importBatchId: number | null = null): Promise<number> {
     try {
-      // Insert all non-duplicate transactions from temp table
-      await this.workerService.query(TRANSACTION_QUERIES.BULK_INSERT_FROM_TEMP);
-      
+      // Insert all non-duplicate transactions from temp table, stamped with the import batch
+      await this.workerService.query(TRANSACTION_QUERIES.BULK_INSERT_FROM_TEMP, [importBatchId]);
+
       // Return count of inserted rows
       const result = await this.workerService.query(
         `SELECT changes() as count`
@@ -802,6 +810,13 @@ export class DatabaseService {
     }
     if (params.missingProject) {
       conditions.push('t.project_id IS NULL');
+    }
+    if (params.flaggedOnly) {
+      conditions.push('t.is_flagged = 1');
+    }
+    // Rows excluded from reports stay out of the list too unless asked for.
+    if (!params.includeExcluded) {
+      conditions.push('t.is_excluded = 0');
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -1556,6 +1571,11 @@ export class DatabaseService {
         account.type,
         account.ownership ?? 'individual',
         ownerUserId,
+        account.institution ?? null,
+        account.opening_balance ?? 0,
+        account.opening_balance_date ?? null,
+        account.credit_limit ?? null,
+        account.is_active ?? 1,
       ]);
       const accountId = Number(accountResult[0].id);
       const cardResult = await this.workerService.query(ACCOUNT_CARD_QUERIES.CREATE, [
@@ -1583,12 +1603,19 @@ export class DatabaseService {
     }
   }
 
-  async updateAccount(id: number, updates: Partial<Pick<Account, 'name' | 'type' | 'ownership'>>): Promise<void> {
+  // Callers send the complete editable set (the account form always does);
+  // omitted optional fields fall back to their schema defaults.
+  async updateAccount(id: number, updates: AccountEditableFields): Promise<void> {
     try {
       await this.workerService.query(ACCOUNT_QUERIES.UPDATE, [
         updates.name,
         updates.type,
         updates.ownership ?? 'individual',
+        updates.institution ?? null,
+        updates.opening_balance ?? 0,
+        updates.opening_balance_date ?? null,
+        updates.credit_limit ?? null,
+        updates.is_active ?? 1,
         id,
       ]);
     } catch (error) {
@@ -1735,6 +1762,209 @@ export class DatabaseService {
       await this.workerService.query(TRANSACTION_QUERIES.SET_COMPANY, [companyId, txId]);
     } catch (error) {
       console.error("Failed to set transaction company:", error);
+      throw error;
+    }
+  }
+
+  private assertTypeMatchesSign(type: TransactionType, amount: number): void {
+    if (type === 'expense' && amount > 0) {
+      throw new Error('An expense must be a negative amount. Change the amount, or mark the row as income or a refund.');
+    }
+    if ((type === 'income' || type === 'refund') && amount < 0) {
+      throw new Error(`${type === 'income' ? 'Income' : 'A refund'} must be a positive amount. Change the amount, or mark the row as an expense.`);
+    }
+  }
+
+  async getTransactionById(id: number): Promise<Transaction | null> {
+    try {
+      const rows = await this.workerService.query(
+        `SELECT ${this.TRANSACTION_SELECT} FROM transactions t ${this.TRANSACTION_JOINS} WHERE t.id = ?`,
+        [id]
+      );
+      return rows[0] ? this.mapToTransaction(rows[0]) : null;
+    } catch (error) {
+      console.error('Failed to get transaction:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Edits an existing transaction. Fields not present in `patch` keep their
+   * value. When a hash-key field (account, date, amount, description) changes,
+   * the content hash is recomputed with the row's existing variation seed and
+   * checked against every other row, so an edit cannot silently create a
+   * duplicate of another transaction. Choosing a type by hand locks it.
+   */
+  async updateTransaction(id: number, patch: TransactionUpdateInput): Promise<void> {
+    try {
+      const rows = await this.workerService.query(TRANSACTION_QUERIES.GET_RAW_BY_ID, [id]);
+      const existing = rows[0];
+      if (!existing) {
+        throw new Error(`Transaction ${id} was not found`);
+      }
+
+      const next = {
+        date: patch.date ?? String(existing.date),
+        amount: patch.amount ?? Number(existing.amount),
+        description: patch.description ?? String(existing.description),
+        comment: patch.comment !== undefined ? patch.comment : (existing.comment ?? null),
+        account_id: patch.account_id ?? Number(existing.account_id),
+        card_id: patch.card_id !== undefined ? patch.card_id : (existing.card_id ?? null),
+        category_id: patch.category_id !== undefined ? patch.category_id : (existing.category_id ?? null),
+        company_id: patch.company_id !== undefined ? patch.company_id : (existing.company_id ?? null),
+        project_id: patch.project_id !== undefined ? patch.project_id : (existing.project_id ?? null),
+        trip_id: patch.trip_id !== undefined ? patch.trip_id : (existing.trip_id ?? null),
+        type: (patch.type ?? existing.type) as TransactionType,
+      };
+      this.assertTypeMatchesSign(next.type, next.amount);
+
+      const typeChanged = patch.type !== undefined && patch.type !== existing.type;
+      const typeLocked = typeChanged ? 1 : Number(existing.type_locked ?? 0);
+
+      const keyChanged =
+        next.date !== existing.date ||
+        next.amount !== Number(existing.amount) ||
+        next.description !== existing.description ||
+        next.account_id !== Number(existing.account_id);
+      let hash: string | null = existing.transaction_hash ?? null;
+      if (keyChanged || !hash) {
+        hash = await computeTransactionHash(
+          next.account_id,
+          next.date,
+          next.amount,
+          next.description,
+          Number(existing.hash_variation_seed ?? 0)
+        );
+        const duplicates = await this.workerService.query(
+          TRANSACTION_QUERIES.CHECK_HASH_EXISTS_EXCLUDING,
+          [hash, id]
+        );
+        if (Number(duplicates[0]?.count ?? 0) > 0) {
+          throw new Error('An identical transaction already exists (same account, date, amount and description).');
+        }
+      }
+
+      await this.workerService.query(TRANSACTION_QUERIES.UPDATE_FULL, [
+        next.date,
+        next.amount,
+        next.description,
+        next.comment,
+        next.account_id,
+        next.card_id,
+        next.category_id,
+        next.company_id,
+        next.project_id,
+        next.trip_id,
+        next.type,
+        typeLocked,
+        hash,
+        id,
+      ]);
+    } catch (error) {
+      console.error('Failed to update transaction:', error);
+      throw error;
+    }
+  }
+
+  // The series link is removed explicitly: PRAGMA foreign_keys is not enabled
+  // on reopened databases, so ON DELETE CASCADE cannot be relied upon.
+  async deleteTransaction(id: number): Promise<void> {
+    await this.workerService.query('BEGIN TRANSACTION');
+    try {
+      await this.workerService.query(SUBSCRIPTION_QUERIES.DELETE_LINK_FOR_TRANSACTION, [id]);
+      await this.workerService.query(TRANSACTION_QUERIES.DELETE, [id]);
+      await this.workerService.query('COMMIT');
+    } catch (error) {
+      await this.workerService.query('ROLLBACK');
+      console.error('Failed to delete transaction:', error);
+      throw error;
+    }
+  }
+
+  async setTransactionFlag(id: number, flagged: boolean): Promise<void> {
+    try {
+      await this.workerService.query(TRANSACTION_QUERIES.SET_FLAG, [flagged ? 1 : 0, id]);
+    } catch (error) {
+      console.error('Failed to set transaction flag:', error);
+      throw error;
+    }
+  }
+
+  async setTransactionExcluded(id: number, excluded: boolean): Promise<void> {
+    try {
+      await this.workerService.query(TRANSACTION_QUERIES.SET_EXCLUDED, [excluded ? 1 : 0, id]);
+    } catch (error) {
+      console.error('Failed to set transaction exclusion:', error);
+      throw error;
+    }
+  }
+
+  /** Re-types a row (expense / income / refund / transfer) without touching its amount. */
+  async setTransactionType(id: number, type: TransactionType): Promise<void> {
+    try {
+      const rows = await this.workerService.query(TRANSACTION_QUERIES.GET_RAW_BY_ID, [id]);
+      if (!rows[0]) {
+        throw new Error(`Transaction ${id} was not found`);
+      }
+      this.assertTypeMatchesSign(type, Number(rows[0].amount));
+      await this.workerService.query(TRANSACTION_QUERIES.SET_TYPE, [type, id]);
+    } catch (error) {
+      console.error('Failed to set transaction type:', error);
+      throw error;
+    }
+  }
+
+  // --- Import batches ---
+
+  async createImportBatch(input: ImportBatchInput): Promise<number> {
+    try {
+      const rows = await this.workerService.query(IMPORT_BATCH_QUERIES.CREATE, [
+        input.source,
+        input.file_name ?? null,
+        JSON.stringify(input.account_ids ?? []),
+        input.total_rows,
+      ]);
+      return Number(rows[0].id);
+    } catch (error) {
+      console.error('Failed to create import batch:', error);
+      throw error;
+    }
+  }
+
+  async finalizeImportBatch(id: number, totals: ImportBatchTotals): Promise<void> {
+    try {
+      await this.workerService.query(IMPORT_BATCH_QUERIES.FINALIZE, [
+        totals.inserted_count,
+        totals.duplicate_count,
+        totals.skipped_count,
+        totals.rejected_count,
+        id,
+      ]);
+    } catch (error) {
+      console.error('Failed to finalize import batch:', error);
+      throw error;
+    }
+  }
+
+  async getRecentImportBatches(limit = 20): Promise<ImportBatch[]> {
+    try {
+      const rows = await this.workerService.query(IMPORT_BATCH_QUERIES.GET_RECENT, [limit]);
+      return rows.map((row: any) => ({
+        id: Number(row.id),
+        imported_at: String(row.imported_at),
+        source: row.source,
+        file_name: row.file_name ?? null,
+        account_ids_json: row.account_ids_json ?? null,
+        total_rows: Number(row.total_rows ?? 0),
+        inserted_count: Number(row.inserted_count ?? 0),
+        duplicate_count: Number(row.duplicate_count ?? 0),
+        skipped_count: Number(row.skipped_count ?? 0),
+        rejected_count: Number(row.rejected_count ?? 0),
+        min_date: row.min_date ?? null,
+        max_date: row.max_date ?? null,
+      }));
+    } catch (error) {
+      console.error('Failed to get import batches:', error);
       throw error;
     }
   }

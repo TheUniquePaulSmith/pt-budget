@@ -10,6 +10,15 @@ import {
 import { Account, AccountCard, User } from '@/types/database';
 import { AccountCardChips } from './AccountCardChips';
 
+const ACCOUNT_TYPE_LABELS: Record<Account['type'], string> = {
+  checking: 'Checking',
+  savings: 'Savings',
+  credit: 'Credit Card',
+  loan: 'Loan / Mortgage',
+  investment: 'Investment',
+  retirement: 'Retirement',
+};
+
 interface AccountListItemProps {
   account: Account;
   cards: AccountCard[];
@@ -31,7 +40,14 @@ export function AccountListItem({
   onManageCards,
   onDeleteAccount,
 }: AccountListItemProps) {
-  const typeLabel = account.type.charAt(0).toUpperCase() + account.type.slice(1);
+  const typeLabel = ACCOUNT_TYPE_LABELS[account.type] ?? account.type;
+  const details = [
+    typeLabel,
+    account.ownership === 'joint' ? 'Joint' : null,
+    account.institution || null,
+    account.is_active === 0 ? 'Closed' : null,
+    readOnly && account.owner_display_name ? `Owner: ${account.owner_display_name}` : null,
+  ].filter(Boolean);
   const visibleCards = readOnly ? cards.filter((c) => c.user_id === currentUserId) : cards;
 
   return (
@@ -54,8 +70,7 @@ export function AccountListItem({
             {account.name}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {typeLabel}
-            {readOnly && account.owner_display_name && ` • Owner: ${account.owner_display_name}`}
+            {details.join(' • ')}
           </Typography>
         </Box>
         {!readOnly && (

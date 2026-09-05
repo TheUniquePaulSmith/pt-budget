@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,12 +27,16 @@ vi.mock('@/components/common/DataGrid/AppDataGrid', () => ({
     checkboxSelection,
     rowSelectionModel,
     onRowSelectionModelChange,
+    slotProps,
+    getRowClassName,
   }: {
     rows: any[];
     columns: Array<any>;
     checkboxSelection?: boolean;
     rowSelectionModel?: { type: 'include' | 'exclude'; ids: Set<number> };
     onRowSelectionModelChange?: (model: { type: 'include'; ids: Set<number> }) => void;
+    slotProps?: { row?: Record<string, unknown> };
+    getRowClassName?: (params: { row: any }) => string;
   }) => (
     <table role="grid">
       <thead>
@@ -45,7 +49,14 @@ vi.mock('@/components/common/DataGrid/AppDataGrid', () => ({
       </thead>
       <tbody>
         {rows.map((row) => (
-          <tr role="row" key={row.id}>
+          // The real DataGrid stamps data-id on each row and spreads slotProps.row onto it.
+          <tr
+            role="row"
+            key={row.id}
+            data-id={row.id}
+            className={getRowClassName?.({ row }) ?? ''}
+            {...((slotProps?.row ?? {}) as React.HTMLAttributes<HTMLTableRowElement>)}
+          >
             {checkboxSelection && (
               <td role="gridcell">
                 <input
@@ -106,6 +117,15 @@ vi.mock('@mui/icons-material', () => {
     Clear: createIcon('clear-icon'),
     Assignment: createIcon('assignment-icon'),
     Close: createIcon('close-icon'),
+    Delete: createIcon('delete-icon'),
+    Edit: createIcon('edit-icon'),
+    FlagOutlined: createIcon('flag-outlined-icon'),
+    SwapHoriz: createIcon('swap-horiz-icon'),
+    TrendingDown: createIcon('trending-down-icon'),
+    TrendingUp: createIcon('trending-up-icon'),
+    Undo: createIcon('undo-icon'),
+    Visibility: createIcon('visibility-icon'),
+    VisibilityOff: createIcon('visibility-off-icon'),
   };
 });
 
@@ -231,6 +251,10 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
   const setTransactionComment = vi.fn().mockResolvedValue(undefined);
   const applyTransactionClassifications = vi.fn().mockResolvedValue({ appliedCount: 0, transactionIds: [] });
   const bulkLinkTransactionsToSeries = vi.fn().mockResolvedValue({ appliedCount: 0 });
+  const setTransactionFlag = vi.fn().mockResolvedValue(undefined);
+  const setTransactionExcluded = vi.fn().mockResolvedValue(undefined);
+  const setTransactionType = vi.fn().mockResolvedValue(undefined);
+  const deleteTransaction = vi.fn().mockResolvedValue(undefined);
 
   mockedUseTransactionReportSlice.mockReturnValue({
     transactionVersion: 0,
@@ -259,6 +283,10 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
     linkTransactionToSeries: vi.fn().mockResolvedValue(undefined),
     unlinkTransactionFromSeries: vi.fn().mockResolvedValue(undefined),
     updateTransactionLabels: vi.fn().mockResolvedValue(undefined),
+    deleteTransaction,
+    setTransactionFlag,
+    setTransactionExcluded,
+    setTransactionType,
     addCompany: vi.fn().mockResolvedValue(undefined),
     updateCompany: vi.fn().mockResolvedValue(undefined),
   } as never);
@@ -269,7 +297,16 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
     </ThemeProvider>
   );
 
-  return { getTransactionsPaginated, setTransactionComment, applyTransactionClassifications, bulkLinkTransactionsToSeries };
+  return {
+    getTransactionsPaginated,
+    setTransactionComment,
+    applyTransactionClassifications,
+    bulkLinkTransactionsToSeries,
+    setTransactionFlag,
+    setTransactionExcluded,
+    setTransactionType,
+    deleteTransaction,
+  };
 }
 
 describe('TransactionReport', () => {
@@ -422,6 +459,81 @@ describe('TransactionReport', () => {
     await waitFor(() => {
       expect(getTransactionsPaginated).toHaveBeenLastCalledWith(
         expect.objectContaining({ missingCategory: true })
+      );
+    });
+  });
+
+  it('opens the row action menu on right-click and flags the row from it', async () => {
+    const { setTransactionFlag } = renderReport();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+    await waitFor(() => {
+      expect(screen.getByText('Monthly salary deposit')).toBeInTheDocument();
+    });
+
+    const salaryRow = screen.getByText('Monthly salary deposit').closest('tr');
+    if (!salaryRow) throw new Error('Salary transaction row was not rendered');
+
+    fireEvent.contextMenu(salaryRow, { clientX: 120, clientY: 80 });
+
+    expect(await screen.findByRole('menuitem', { name: 'Edit…' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Flag for review' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Exclude from reports' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete…' })).toBeInTheDocument();
+    // A positive (income) row can become a refund or a transfer, never an expense.
+    expect(screen.getByRole('menuitem', { name: 'Mark as Refund' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Mark as Transfer' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Mark as Expense' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('menuitem', { name: 'Flag for review' }));
+
+    await waitFor(() => {
+      expect(setTransactionFlag).toHaveBeenCalledWith(1, true);
+    });
+  });
+
+  it('asks for confirmation before deleting from the row menu', async () => {
+    const { deleteTransaction } = renderReport();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+    await waitFor(() => {
+      expect(screen.getByText('Weekly grocery shopping')).toBeInTheDocument();
+    });
+
+    const groceryRow = screen.getByText('Weekly grocery shopping').closest('tr');
+    if (!groceryRow) throw new Error('Grocery transaction row was not rendered');
+
+    await user.click(within(groceryRow).getByTitle('More Actions'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete…' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Delete transaction?' });
+    expect(within(dialog).getByText('Weekly grocery shopping')).toBeInTheDocument();
+    expect(deleteTransaction).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(deleteTransaction).toHaveBeenCalledWith(2);
+    });
+  });
+
+  it('passes the review filters to the query', async () => {
+    const { getTransactionsPaginated } = renderReport();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+    await waitFor(() => {
+      expect(screen.getByText('Monthly salary deposit')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('checkbox', { name: 'Flagged only' }));
+    await waitFor(() => {
+      expect(getTransactionsPaginated).toHaveBeenLastCalledWith(expect.objectContaining({ flaggedOnly: true }));
+    });
+
+    await user.click(screen.getByRole('checkbox', { name: 'Show excluded' }));
+    await waitFor(() => {
+      expect(getTransactionsPaginated).toHaveBeenLastCalledWith(
+        expect.objectContaining({ flaggedOnly: true, includeExcluded: true })
       );
     });
   });

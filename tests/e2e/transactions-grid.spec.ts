@@ -103,3 +103,51 @@ test('marks the primary user and blocks deleting them', async ({ page }) => {
   const deleteControl = primarySummary.getByTitle('Delete User');
   await expect(deleteControl).toHaveClass(/Mui-disabled/);
 });
+
+test('edits, flags and deletes a transaction from the right-click row menu', async ({ page }) => {
+  await bootstrapDatabase(page);
+
+  const description = `Grid Context Menu ${Date.now()}`;
+  await addTransactionFromDashboard(page, description, '42.10');
+
+  const rowFor = () => page.getByRole('row').filter({ has: page.getByText(description) }).first();
+  await expect(rowFor()).toBeVisible({ timeout: 30_000 });
+
+  // Edit the amount through the context menu (right-click on the row).
+  await rowFor().click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Edit…' }).click();
+  const editDialog = page.getByRole('dialog', { name: 'Edit Transaction' });
+  await expect(editDialog.getByRole('textbox', { name: 'Description' })).toHaveValue(description);
+  await editDialog.getByRole('spinbutton', { name: 'Amount' }).fill('60.75');
+  await editDialog.getByRole('button', { name: 'Save Changes' }).click();
+  await expect(editDialog).not.toBeVisible({ timeout: 30_000 });
+
+  expect(
+    await runQueryAndReadFirstCell(page, `SELECT amount FROM transactions WHERE description = '${description}';`)
+  ).toBe('-60.75');
+
+  // Flag it for review.
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await expect(rowFor()).toBeVisible({ timeout: 30_000 });
+  await rowFor().click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Flag for review' }).click();
+  await expect(rowFor().getByText('Flagged')).toBeVisible({ timeout: 30_000 });
+
+  expect(
+    await runQueryAndReadFirstCell(page, `SELECT is_flagged FROM transactions WHERE description = '${description}';`)
+  ).toBe('1');
+
+  // Delete it, confirming in the dialog.
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await expect(rowFor()).toBeVisible({ timeout: 30_000 });
+  await rowFor().click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Delete…' }).click();
+  const deleteDialog = page.getByRole('dialog', { name: 'Delete transaction?' });
+  await expect(deleteDialog.getByText(description)).toBeVisible();
+  await deleteDialog.getByRole('button', { name: 'Delete' }).click();
+  await expect(deleteDialog).not.toBeVisible({ timeout: 30_000 });
+
+  expect(
+    await runQueryAndReadFirstCell(page, `SELECT COUNT(*) FROM transactions WHERE description = '${description}';`)
+  ).toBe('0');
+});

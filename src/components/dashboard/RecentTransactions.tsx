@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -24,6 +24,7 @@ import { gridExpandedSortedRowIdsSelector, useGridApiContext, useGridSelector } 
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
+import { useLongPress } from '@/components/common/DataGrid/useLongPress';
 import TransactionLabelDialog from '@/components/transactions/TransactionLabelDialog';
 import TransactionRowActionsMenu from '@/components/transactions/TransactionRowActionsMenu';
 import { Transaction } from '@/types/database';
@@ -52,7 +53,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
   const [labelTransaction, setLabelTransaction] = useState<Transaction | null>(null);
   const [quickActions, setQuickActions] = useState<{
-    anchorEl: HTMLElement;
+    anchorEl?: HTMLElement | null;
+    anchorPosition?: { top: number; left: number } | null;
     transaction: Transaction;
   } | null>(null);
 
@@ -64,6 +66,25 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   };
 
   const rows = useMemo(() => transactions.slice(0, limit), [transactions, limit]);
+
+  // Right-click and long-press open the same row menu as the kebab button.
+  const openRowMenuAt = useCallback(
+    (rowId: number, position: { top: number; left: number }) => {
+      const transaction = rows.find((row) => row.id === rowId);
+      if (transaction) setQuickActions({ anchorPosition: position, transaction });
+    },
+    [rows]
+  );
+  const handleRowContextMenu = (event: React.MouseEvent<HTMLElement>) => {
+    const rowId = Number(event.currentTarget.getAttribute('data-id'));
+    if (!Number.isFinite(rowId)) return;
+    event.preventDefault();
+    openRowMenuAt(rowId, { top: event.clientY, left: event.clientX });
+  };
+  const longPressHandlers = useLongPress(({ target, clientX, clientY }) => {
+    const rowId = Number(target.getAttribute('data-id'));
+    if (Number.isFinite(rowId)) openRowMenuAt(rowId, { top: clientY, left: clientX });
+  });
   const handleOpenCommentDialog = (transaction: Transaction) => {
     setCommentTransaction(transaction);
     setCommentDraft(transaction.comment || '');
@@ -177,6 +198,9 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         height={Math.min(Math.max(rows.length * 54 + 150, 320), 680)}
         initialState={{ pagination: { paginationModel: { pageSize: Math.min(limit, 100), page: 0 } } }}
         showToolbar
+        slotProps={{ row: { onContextMenu: handleRowContextMenu, ...longPressHandlers } }}
+        getRowClassName={(params) => (params.row.is_excluded ? 'transaction-row--excluded' : '')}
+        sx={{ '& .transaction-row--excluded': { opacity: 0.55 } }}
         footerSummary={<FooterSummary />}
         emptyMessage="No transactions found. Add your first transaction to get started."
         disableVirtualization={process.env.NODE_ENV === 'test'}
@@ -207,6 +231,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       />
       <TransactionRowActionsMenu
         anchorEl={quickActions?.anchorEl ?? null}
+        anchorPosition={quickActions?.anchorPosition ?? null}
         transaction={quickActions?.transaction ?? null}
         onClose={() => setQuickActions(null)}
       />

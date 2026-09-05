@@ -440,7 +440,7 @@ describe('DatabaseService account and card invariants', () => {
     );
 
     expect(result).toEqual({ accountId: 10, cardId: 20 });
-    expect(query).toHaveBeenCalledWith(ACCOUNT_QUERIES.CREATE, ['Everyday Checking', 'checking', 'individual', 7]);
+    expect(query).toHaveBeenCalledWith(ACCOUNT_QUERIES.CREATE, ['Everyday Checking', 'checking', 'individual', 7, null, 0, null, null, 1]);
     expect(query).toHaveBeenCalledWith(ACCOUNT_CARD_QUERIES.CREATE, [10, '4242', null, 'Debit', 7]);
     const sql = issuedSql(query);
     expect(sql[0]).toBe('BEGIN TRANSACTION');

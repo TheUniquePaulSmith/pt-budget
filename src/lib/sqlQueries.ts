@@ -77,6 +77,31 @@ export const TRANSACTION_QUERIES = {
     WHERE id = ?
   `,
 
+  GET_RAW_BY_ID: `SELECT * FROM transactions WHERE id = ?`,
+
+  CHECK_HASH_EXISTS_EXCLUDING: `
+    SELECT COUNT(*) as count FROM transactions WHERE transaction_hash = ? AND id != ?
+  `,
+
+  // Full edit. The hash is recomputed by the service when a key field changed;
+  // type_locked is set once the user chooses a type by hand.
+  UPDATE_FULL: `
+    UPDATE transactions
+    SET date = ?, amount = ?, description = ?, comment = ?, account_id = ?, card_id = ?,
+        category_id = ?, company_id = ?, project_id = ?, trip_id = ?, type = ?, type_locked = ?,
+        transaction_hash = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `,
+
+  DELETE: `DELETE FROM transactions WHERE id = ?`,
+
+  SET_FLAG: `UPDATE transactions SET is_flagged = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+
+  SET_EXCLUDED: `UPDATE transactions SET is_excluded = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+
+  // A manual type change locks the type so later automatic classification never undoes it.
+  SET_TYPE: `UPDATE transactions SET type = ?, type_locked = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+
   UPDATE_PROJECT_TRIP: `
     UPDATE transactions 
     SET project_id = ?, trip_id = ?, updated_at = CURRENT_TIMESTAMP 
@@ -235,9 +260,10 @@ export const TRANSACTION_QUERIES = {
     )
   `,
 
+  // The single parameter is the import_batches id stamped on every inserted row (or NULL).
   BULK_INSERT_FROM_TEMP: `
-    INSERT INTO transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, external_id)
-    SELECT date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, external_id
+    INSERT INTO transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, external_id, import_batch_id)
+    SELECT date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, external_id, ?
     FROM temp_import_transactions
     WHERE NOT EXISTS (
       SELECT 1 FROM transactions t WHERE t.transaction_hash = temp_import_transactions.transaction_hash
@@ -301,7 +327,11 @@ export const ACCOUNT_QUERIES = {
     LEFT JOIN users u ON a.owner_user_id = u.id
     ORDER BY a.name
   `,
-  CREATE: `INSERT INTO accounts (name, type, ownership, owner_user_id) VALUES (?, ?, ?, ?) RETURNING id`,
+  CREATE: `
+    INSERT INTO accounts (name, type, ownership, owner_user_id, institution, opening_balance, opening_balance_date, credit_limit, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING id
+  `,
   GET_BY_ID: `
     SELECT 
       a.*, 
@@ -317,8 +347,32 @@ export const ACCOUNT_QUERIES = {
     WHERE a.owner_user_id = ?
     ORDER BY a.name
   `,
-  UPDATE: `UPDATE accounts SET name = ?, type = ?, ownership = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  UPDATE: `
+    UPDATE accounts
+    SET name = ?, type = ?, ownership = ?, institution = ?, opening_balance = ?, opening_balance_date = ?,
+        credit_limit = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `,
   DELETE: `DELETE FROM accounts WHERE id = ?`,
+};
+
+// Import Batch Queries — one row per import run (see import_batches)
+export const IMPORT_BATCH_QUERIES = {
+  CREATE: `
+    INSERT INTO import_batches (source, file_name, account_ids_json, total_rows)
+    VALUES (?, ?, ?, ?)
+    RETURNING id
+  `,
+  // Date bounds come from the rows the batch actually inserted.
+  FINALIZE: `
+    UPDATE import_batches
+    SET inserted_count = ?, duplicate_count = ?, skipped_count = ?, rejected_count = ?,
+        min_date = (SELECT MIN(t.date) FROM transactions t WHERE t.import_batch_id = import_batches.id),
+        max_date = (SELECT MAX(t.date) FROM transactions t WHERE t.import_batch_id = import_batches.id)
+    WHERE id = ?
+  `,
+  GET_RECENT: `SELECT * FROM import_batches ORDER BY imported_at DESC, id DESC LIMIT ?`,
+  DELETE: `DELETE FROM import_batches WHERE id = ?`,
 };
 
 // Account Card Queries

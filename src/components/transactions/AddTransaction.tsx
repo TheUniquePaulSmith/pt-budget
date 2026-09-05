@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -9,6 +10,7 @@ import {
   TextField,
   Button,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
@@ -21,48 +23,99 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { parseISO } from 'date-fns';
 import { useTransactionComposerSlice } from '@/contexts/useDatabaseSlices';
 import { toLocalDateOnly } from '@/lib/dateOnly';
-import { Transaction, AccountCard } from '@/types/database';
+import { Transaction, TransactionType, AccountCard } from '@/types/database';
 
 interface AddTransactionProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  /** 'edit' prefills the form from `transaction` and saves changes to that row. */
+  mode?: 'add' | 'edit';
+  transaction?: Transaction | null;
 }
 
-export default function AddTransaction({ open, onClose, onSuccess }: AddTransactionProps) {
-  const { 
-    addTransaction, 
-    addCategory, 
-    addCompany, 
+type TransferDirection = 'out' | 'in';
+
+// Categories are income or expense; refunds file under the expense category
+// they reverse, and transfers have no category of their own.
+function categoryTypeFor(type: TransactionType): 'income' | 'expense' {
+  return type === 'income' ? 'income' : 'expense';
+}
+
+function signedAmount(type: TransactionType, amount: number, direction: TransferDirection): number {
+  const magnitude = Math.abs(amount);
+  if (type === 'expense') return -magnitude;
+  if (type === 'income' || type === 'refund') return magnitude;
+  return direction === 'out' ? -magnitude : magnitude;
+}
+
+const EMPTY_FORM = {
+  description: '',
+  amount: '',
+  date: new Date(),
+  type: 'expense' as TransactionType,
+  direction: 'out' as TransferDirection,
+  category_id: null as number | null,
+  company_id: null as number | null,
+  project_id: null as number | null,
+  account_id: '' as number | '',
+  card_id: null as number | null,
+  is_recurring: false,
+};
+
+export default function AddTransaction({
+  open,
+  onClose,
+  onSuccess,
+  mode = 'add',
+  transaction = null,
+}: AddTransactionProps) {
+  const {
+    addTransaction,
+    updateTransaction,
+    addCategory,
+    addCompany,
     categories,
     companies,
     accounts,
     getAccountCards,
     projects
   } = useTransactionComposerSlice();
-  const [formData, setFormData] = useState({
-    description: '',
-    amount: '',
-    date: new Date(),
-    type: 'expense' as 'income' | 'expense',
-    category_id: null as number | null,
-    company_id: null as number | null,
-    project_id: null as number | null,
-    account_id: '' as number | '',
-    card_id: null as number | null,
-    is_recurring: false,
-  });
+  const isEdit = mode === 'edit' && transaction != null;
+  const [formData, setFormData] = useState({ ...EMPTY_FORM, date: new Date() });
   const [accountCards, setAccountCards] = useState<AccountCard[]>([]);
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [companyInput, setCompanyInput] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
+
+  // Prefill from the row being edited whenever the dialog opens in edit mode.
+  useEffect(() => {
+    if (!open || !isEdit || !transaction) return;
+    setFormData({
+      description: transaction.description,
+      amount: String(Math.abs(transaction.amount)),
+      date: parseISO(transaction.date),
+      type: transaction.type,
+      direction: transaction.amount < 0 ? 'out' : 'in',
+      category_id: transaction.category_id ?? null,
+      company_id: transaction.company_id ?? null,
+      project_id: transaction.project_id ?? null,
+      account_id: transaction.account_id,
+      card_id: transaction.card_id ?? null,
+      is_recurring: false,
+    });
+    setSubmitError(null);
+  }, [open, isEdit, transaction]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     setLoading(true);
+    setSubmitError(null);
     try {      // Validate required fields
       if (!formData.description.trim()) {
         throw new Error('Description is required');
@@ -79,7 +132,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
       if (!categoryId && categoryInput.trim()) {
         categoryId = await addCategory({
           name: categoryInput.trim(),
-          type: formData.type,
+          type: categoryTypeFor(formData.type),
           color: generateRandomColor(),
         });
       }
@@ -93,46 +146,52 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
         companyId = await addCompany(companyInput.trim());
       }
 
-      // Create the transaction
-      const transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'> = {
-        description: formData.description,
-        amount: formData.type === 'expense' ? -Math.abs(parseFloat(formData.amount)) : Math.abs(parseFloat(formData.amount)),
-        // Local calendar date: toISOString() would roll an evening entry to tomorrow.
-        date: toLocalDateOnly(formData.date),
-        type: formData.type,
-        category_id: categoryId || null,
-        company_id: companyId || null,
-        project_id: formData.project_id || null,
-        account_id: Number(formData.account_id),
-        card_id: formData.card_id,
-        trip_id: null, // Trip association handled separately
-      };
+      const amount = signedAmount(formData.type, parseFloat(formData.amount), formData.direction);
+      // Local calendar date: toISOString() would roll an evening entry to tomorrow.
+      const date = toLocalDateOnly(formData.date);
 
-      await addTransaction(transaction);
+      if (isEdit && transaction) {
+        await updateTransaction(transaction.id, {
+          description: formData.description,
+          amount,
+          date,
+          type: formData.type,
+          category_id: categoryId || null,
+          company_id: companyId || null,
+          project_id: formData.project_id || null,
+          account_id: Number(formData.account_id),
+          card_id: formData.card_id,
+        });
+      } else {
+        const newTransaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'> = {
+          description: formData.description,
+          amount,
+          date,
+          type: formData.type,
+          category_id: categoryId || null,
+          company_id: companyId || null,
+          project_id: formData.project_id || null,
+          account_id: Number(formData.account_id),
+          card_id: formData.card_id,
+          trip_id: null, // Trip association handled separately
+        };
+        await addTransaction(newTransaction);
+      }
       onSuccess();
       handleClose();
     } catch (error) {
-      console.error('Error adding transaction:', error);
+      console.error(isEdit ? 'Error updating transaction:' : 'Error adding transaction:', error);
+      setSubmitError(error instanceof Error ? error.message : 'The transaction could not be saved');
     } finally {
       setLoading(false);
     }
   };
   const handleClose = () => {
-    setFormData({
-      description: '',
-      amount: '',
-      date: new Date(),
-      type: 'expense',
-      category_id: null,
-      company_id: null,
-      project_id: null,
-      account_id: '',
-      card_id: null,
-      is_recurring: false,
-    });
+    setFormData({ ...EMPTY_FORM, date: new Date() });
     setAccountCards([]);
     setCompanyInput('');
     setCategoryInput('');
+    setSubmitError(null);
     onClose();
   };
 
@@ -141,7 +200,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
-  const filteredCategories = categories.filter(cat => cat.type === formData.type);
+  const filteredCategories = categories.filter(cat => cat.type === categoryTypeFor(formData.type));
 
   useEffect(() => {
     if (!formData.account_id) {
@@ -175,25 +234,51 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>Add New Transaction</DialogTitle>
+        <DialogTitle>{isEdit ? 'Edit Transaction' : 'Add New Transaction'}</DialogTitle>
         <form onSubmit={handleSubmit}>
           <DialogContent>
-            <Box display="flex" flexDirection="column" gap={2}>              <FormControl fullWidth>
+            <Box display="flex" flexDirection="column" gap={2}>
+              {submitError && <Alert severity="error">{submitError}</Alert>}
+              <FormControl fullWidth>
                 <InputLabel>Transaction Type</InputLabel>
                 <Select
                   value={formData.type}
                   label="Transaction Type"
-                  onChange={(e) =>                  setFormData({ 
-                    ...formData, 
-                    type: e.target.value as 'income' | 'expense', 
-                    category_id: null,
-                    project_id: e.target.value === 'income' ? null : formData.project_id
-                  })}
+                  onChange={(e) => {
+                    const nextType = e.target.value as TransactionType;
+                    setFormData({
+                      ...formData,
+                      type: nextType,
+                      category_id: categoryTypeFor(nextType) === categoryTypeFor(formData.type) ? formData.category_id : null,
+                      project_id: nextType === 'income' || nextType === 'transfer' ? null : formData.project_id,
+                    });
+                  }}
                 >
                   <MenuItem value="expense">Expense</MenuItem>
                   <MenuItem value="income">Income</MenuItem>
+                  <MenuItem value="refund">Refund (money back from a merchant)</MenuItem>
+                  <MenuItem value="transfer">Transfer (between your own accounts)</MenuItem>
                 </Select>
+                {formData.type === 'refund' && (
+                  <FormHelperText>Counts against spending in its category, not as income.</FormHelperText>
+                )}
+                {formData.type === 'transfer' && (
+                  <FormHelperText>Card payments, savings moves and loan payments. Counts as neither income nor spending.</FormHelperText>
+                )}
               </FormControl>
+              {formData.type === 'transfer' && (
+                <FormControl fullWidth>
+                  <InputLabel>Direction</InputLabel>
+                  <Select
+                    value={formData.direction}
+                    label="Direction"
+                    onChange={(e) => setFormData({ ...formData, direction: e.target.value as TransferDirection })}
+                  >
+                    <MenuItem value="out">Money out of this account</MenuItem>
+                    <MenuItem value="in">Money into this account</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
 
               <TextField
                 label="Description"
@@ -361,7 +446,7 @@ export default function AddTransaction({ open, onClose, onSuccess }: AddTransact
           <DialogActions>
             <Button onClick={handleClose}>Cancel</Button>
             <Button type="submit" variant="contained" disabled={loading}>
-              {loading ? 'Adding...' : 'Add Transaction'}
+              {loading ? (isEdit ? 'Saving...' : 'Adding...') : isEdit ? 'Save Changes' : 'Add Transaction'}
             </Button>
           </DialogActions>
         </form>

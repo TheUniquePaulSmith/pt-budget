@@ -11,6 +11,7 @@ import {
 
 import StatCard from '@/components/common/Charts/StatCard';
 import { monthlyEquivalent } from '@/lib/recurringCadence';
+import { addDaysISO, todayLocalISO } from '@/lib/dateOnly';
 import type { RecurringSeries } from '@/types/database';
 
 const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -26,8 +27,8 @@ const SubscriptionSummaryTiles: React.FC<SubscriptionSummaryTilesProps> = ({ ser
 
   const monthlyTotal = active.reduce((total, item) => total + monthlyEquivalent(item), 0);
 
-  const today = new Date().toISOString().split('T')[0];
-  const in30Days = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+  const today = todayLocalISO();
+  const in30Days = addDaysISO(today, 30);
   const dueSoon = active.filter(
     (item) =>
       item.next_expected_date &&

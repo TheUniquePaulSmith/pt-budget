@@ -23,6 +23,7 @@ import type { GridColDef } from '@mui/x-data-grid';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { cardColumn } from '@/components/common/DataGrid/columns';
+import { todayLocalISO } from '@/lib/dateOnly';
 import type { RecurringSeries } from '@/types/database';
 
 const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -44,7 +45,7 @@ function formatAmount(series: RecurringSeries): string {
 
 function isOverdue(series: RecurringSeries): boolean {
   if (!series.next_expected_date || series.status !== 'active') return false;
-  return series.next_expected_date < new Date().toISOString().split('T')[0];
+  return series.next_expected_date < todayLocalISO();
 }
 
 interface SeriesTableProps {

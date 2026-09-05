@@ -3,7 +3,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Box } from '@mui/material';
 import { useDashboardSlice } from '@/contexts/useDatabaseSlices';
-import { format, subDays, subMonths, startOfMonth, endOfMonth, differenceInCalendarDays } from 'date-fns';
+import { format, parseISO, subDays, subMonths, startOfMonth, endOfMonth, differenceInCalendarDays } from 'date-fns';
+import { todayLocalISO } from '@/lib/dateOnly';
 import AddTransaction from '@/components/transactions/AddTransaction';
 import CSVImport from '@/components/csv-import/CSVImport';
 import DateRangeSelector from './DateRangeSelector';
@@ -75,10 +76,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
     }
   }, [timeRange, customStartDate, customEndDate]);
 
-  const selectedRangeDayCount = useMemo(() => {
-    const start = new Date(dateRanges.start);
-    const end = new Date(dateRanges.end);
-    const days = differenceInCalendarDays(end, start) + 1;
+  // Days of the selected range that have actually elapsed. The Month range runs
+  // to month end, and dividing spend by days that have not happened yet would
+  // understate the daily average for most of the month.
+  const elapsedDayCount = useMemo(() => {
+    const today = todayLocalISO();
+    const effectiveEnd = dateRanges.end < today ? dateRanges.end : today;
+    const days = differenceInCalendarDays(parseISO(effectiveEnd), parseISO(dateRanges.start)) + 1;
     return Number.isFinite(days) && days > 0 ? days : 1;
   }, [dateRanges.end, dateRanges.start]);
 
@@ -172,7 +176,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
         summary={dashboardSummary}
         chartData={chartData}
         timeRangeLabel={getTimeRangeLabel()}
-        dayCount={selectedRangeDayCount}
+        dayCount={elapsedDayCount}
       />
 
       {(!budgetStatus || budgetStatus.budgetedTotal == null) && (

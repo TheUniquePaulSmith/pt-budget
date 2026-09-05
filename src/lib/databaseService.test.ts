@@ -1440,7 +1440,7 @@ describe('DatabaseService dashboard income summaries', () => {
 
   it('uses income sources for chart source, trend, and account-analysis income', async () => {
     const querySpy = vi.fn().mockImplementation(async (sql: string) => {
-      if (sql.includes('SUM(ABS(t.amount)) as total') && sql.includes("c.type = 'expense'")) {
+      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("t.type = 'expense'") && !sql.includes('strftime')) {
         return [];
       }
       if (sql.includes('COALESCE(comp.name') && sql.includes('mr.service_name')) {
@@ -1463,7 +1463,7 @@ describe('DatabaseService dashboard income summaries', () => {
           { month: '2026-07', income: 0, expense: 2500 },
         ];
       }
-      if (sql.includes('c.name as category_name') && sql.includes("strftime('%Y-%m', t.date) as month")) {
+      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("strftime('%Y-%m', t.date) as month")) {
         return [];
       }
       if (sql.includes('as committed') && sql.includes('as discretionary')) {
@@ -1472,10 +1472,11 @@ describe('DatabaseService dashboard income summaries', () => {
       if (sql === SUBSCRIPTION_QUERIES.GET_ACTIVE_SERIES) {
         return [];
       }
-      if (sql.includes('a.id as account_id') && sql.includes('as expenses')) {
+      if (sql.includes('as user_display_name') && sql.includes('as expenses')) {
         expect(sql).toContain("t.type = 'income' AND a.type != 'credit'");
+        expect(sql).toContain('GROUP BY COALESCE(card.user_id, a.owner_user_id)');
         return [
-          { account_id: 7, account_name: 'Credit Card', user_display_name: 'Pat', income: 0, expenses: 1250 },
+          { user_id: 1, user_display_name: 'Pat', income: 0, expenses: 1250 },
         ];
       }
       if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
@@ -1527,10 +1528,10 @@ describe('DatabaseService chart analytics extensions', () => {
   } = {}) {
     const currentStart = rows.currentStart ?? '2026-07-01';
     return vi.fn().mockImplementation(async (sql: string, params: any[] = []) => {
-      if (sql.includes('SUM(ABS(t.amount)) as total') && sql.includes("c.type = 'expense'")) {
+      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("t.type = 'expense'") && !sql.includes('strftime')) {
         return params[0] === currentStart ? (rows.currentSpending ?? []) : (rows.previousSpending ?? []);
       }
-      if (sql.includes('c.name as category_name') && sql.includes("strftime('%Y-%m', t.date) as month")) {
+      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("strftime('%Y-%m', t.date) as month")) {
         return rows.monthCategory ?? [];
       }
       if (sql.includes('as committed') && sql.includes('as discretionary')) {
@@ -1629,7 +1630,8 @@ describe('DatabaseService chart analytics extensions', () => {
     const comparisonCall = querySpy.mock.calls.find(
       (call: any[]) =>
         typeof call[0] === 'string' &&
-        call[0].includes("c.type = 'expense'") &&
+        call[0].includes("COALESCE(c.id, 'uncategorized')") &&
+        !call[0].includes('strftime') &&
         call[1]?.[0] === '2026-05-31'
     );
     expect(comparisonCall?.[1]).toEqual(['2026-05-31', '2026-06-30']);
@@ -2094,5 +2096,78 @@ describe('DatabaseService trip helpers', () => {
 
     await expect(service.bulkLinkTransactionsToSeries([], 3)).resolves.toEqual({ appliedCount: 0 });
     expect(query).not.toHaveBeenCalled();
+  });
+});
+describe('DatabaseService analytics consistency', () => {
+  it('decides income vs expense from transactions.type and never from the category type', () => {
+    for (const sql of [
+      ANALYTICS_QUERIES.SPENDING_BY_CATEGORY,
+      ANALYTICS_QUERIES.SPENDING_BY_MONTH_CATEGORY,
+      ANALYTICS_QUERIES.INCOME_BY_CATEGORY,
+      ANALYTICS_QUERIES.MONTHLY_TRENDS,
+    ]) {
+      expect(sql).not.toContain('c.type =');
+    }
+    expect(ANALYTICS_QUERIES.SPENDING_BY_CATEGORY).toContain("t.type = 'expense'");
+    expect(ANALYTICS_QUERIES.INCOME_BY_CATEGORY).toContain("t.type = 'income' AND a.type != 'credit'");
+    expect(ANALYTICS_QUERIES.MONTHLY_TRENDS).toContain("t.type = 'income' AND a.type != 'credit'");
+  });
+
+  it('keeps uncategorized spend as a bucket instead of dropping it through an inner join', () => {
+    for (const sql of [ANALYTICS_QUERIES.SPENDING_BY_CATEGORY, ANALYTICS_QUERIES.SPENDING_BY_MONTH_CATEGORY]) {
+      expect(sql).toContain('LEFT JOIN categories c');
+      expect(sql).toContain("COALESCE(c.id, 'uncategorized') as category_id");
+      expect(sql).toContain("COALESCE(c.name, 'Uncategorized') as category_name");
+    }
+  });
+
+  it('attributes user analysis to the card holder, falling back to the account owner', () => {
+    expect(ANALYTICS_QUERIES.ACCOUNT_ANALYSIS).toContain('COALESCE(card.user_id, a.owner_user_id) as user_id');
+    expect(ANALYTICS_QUERIES.ACCOUNT_ANALYSIS).toContain('LEFT JOIN account_cards card ON t.card_id = card.id');
+    expect(ANALYTICS_QUERIES.ACCOUNT_ANALYSIS).toContain('GROUP BY COALESCE(card.user_id, a.owner_user_id)');
+  });
+
+  it('maps uncategorized rows from both comparison windows onto one stable chart bucket', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string, params: any[] = []) => {
+      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("t.type = 'expense'") && !sql.includes('strftime')) {
+        return params[0] === '2026-08-01'
+          ? [
+              { category_id: 'uncategorized', category_name: 'Uncategorized', color: '#9e9e9e', total: 80 },
+              { category_id: 4, category_name: 'Travel', color: '#ffaa00', total: 20 },
+            ]
+          : [{ category_id: null, category_name: null, color: null, total: 30 }];
+      }
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) return [];
+      return [];
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const chartData = await service.getChartData('2026-08-01', '2026-08-31');
+
+    expect(chartData.spendingByCategory).toEqual([
+      { id: 'uncategorized', label: 'Uncategorized', value: 80, color: '#9e9e9e' },
+      { id: 4, label: 'Travel', value: 20, color: '#ffaa00' },
+    ]);
+    const uncategorizedDeltas = chartData.categoryDeltas.filter((delta) => delta.id === 'uncategorized');
+    expect(uncategorizedDeltas).toEqual([
+      { id: 'uncategorized', label: 'Uncategorized', color: '#9e9e9e', current: 80, previous: 30, delta: 50 },
+    ]);
+  });
+
+  it('does not duplicate the account_cards join when a user filter is applied to user analysis', async () => {
+    let accountAnalysisSql = '';
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('as user_display_name') && sql.includes('as expenses')) {
+        accountAnalysisSql = sql;
+      }
+      return [];
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.getChartData('2026-08-01', '2026-08-31', { userIds: [2] });
+
+    expect(accountAnalysisSql).not.toBe('');
+    expect(accountAnalysisSql.split('LEFT JOIN account_cards card').length - 1).toBe(1);
+    expect(accountAnalysisSql).toContain('COALESCE(card.user_id, a.owner_user_id) IN (?)');
   });
 });

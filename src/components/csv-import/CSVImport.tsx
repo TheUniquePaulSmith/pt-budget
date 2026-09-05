@@ -415,16 +415,16 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     });
 
     try {
-      const mappedTransactions = mapTransactionsFromCSV(
+      const { mapped: mappedTransactions, rejected } = mapTransactionsFromCSV(
         csvData,
         mapping,
         accountMatches,
         generateTransactionHash
       );
-      
+
       const totalRows = csvData.length;
       const mappableRows = mappedTransactions.length;
-      const skippedRows = totalRows - mappableRows;
+      const skippedRows = totalRows - mappableRows - rejected.length;
       
       // Insert ALL mapped transactions into temp table
       await truncateImportTable();
@@ -447,6 +447,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         internalDuplicates: internalDuplicateCount,
         uniqueCount,
         skippedRows,
+        rejectedRows: rejected,
         duplicateGroups: duplicateGroups.length > 0 ? duplicateGroups : undefined,
       });
     } catch (err) {
@@ -497,10 +498,10 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
       setImportResult({
         success: successCount,
-        failed: 0,
+        failed: analysisResult.rejectedRows.length,
         skipped: skippedCount,
         duplicates: duplicateCount,
-        errors: [],
+        errors: analysisResult.rejectedRows.map((row) => `Row ${row.rowNumber}: ${row.reason}`),
       });
 
       if (successCount > 0) {
@@ -866,6 +867,34 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                 <Typography variant="body2">
                   • Skipped (unmapped accounts): {analysisResult.skippedRows}
                 </Typography>
+                {analysisResult.rejectedRows.length > 0 && (
+                  <Box>
+                    <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', color: 'error.main' }}>
+                      • Rows that could not be read: {analysisResult.rejectedRows.length}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 2, display: 'block' }}>
+                      These rows will not be imported. Fix the date or amount in the CSV and import again.
+                    </Typography>
+                    <List dense disablePadding sx={{ ml: 2, maxHeight: 160, overflow: 'auto' }}>
+                      {analysisResult.rejectedRows.slice(0, 20).map((row) => (
+                        <ListItem key={row.rowNumber} disableGutters sx={{ py: 0 }}>
+                          <ListItemText
+                            primaryTypographyProps={{ variant: 'caption' }}
+                            primary={`Row ${row.rowNumber}: ${row.reason}`}
+                          />
+                        </ListItem>
+                      ))}
+                      {analysisResult.rejectedRows.length > 20 && (
+                        <ListItem disableGutters sx={{ py: 0 }}>
+                          <ListItemText
+                            primaryTypographyProps={{ variant: 'caption' }}
+                            primary={`…and ${analysisResult.rejectedRows.length - 20} more`}
+                          />
+                        </ListItem>
+                      )}
+                    </List>
+                  </Box>
+                )}
                 {analysisResult.internalDuplicates > 0 && (
                   <Box>
                     <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', color: 'warning.main' }}>

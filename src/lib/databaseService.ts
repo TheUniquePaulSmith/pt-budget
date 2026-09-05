@@ -19,6 +19,7 @@ import {
   readEncryptedArchiveMeta,
 } from './databaseEncryption';
 import { advanceByCadence } from './recurringCadence';
+import { addMonthsISO, todayLocalISO } from './dateOnly';
 import {
   TRANSACTION_QUERIES,
   CATEGORY_QUERIES,
@@ -136,6 +137,13 @@ export type DatabaseExportStage = 'exporting' | 'encrypting';
 export interface ExportDatabaseOptions {
   onStage?: (stage: DatabaseExportStage) => void;
 }
+
+// Spend with no category is a real bucket in every category view. The SQL emits
+// this same key (see ANALYTICS_QUERIES.SPENDING_BY_CATEGORY) so the pie, the month
+// pivot, and the period comparison agree on one id.
+export const UNCATEGORIZED_KEY = 'uncategorized';
+export const UNCATEGORIZED_LABEL = 'Uncategorized';
+export const UNCATEGORIZED_COLOR = '#9e9e9e';
 
 export class DatabaseService {
   private isInitialized = false;
@@ -819,7 +827,7 @@ export class DatabaseService {
     if (needsCardJoin && !sql.includes('accounts a')) {
       joins.push('LEFT JOIN accounts a ON t.account_id = a.id');
     }
-    if (needsCardJoin) {
+    if (needsCardJoin && !sql.includes('account_cards card')) {
       joins.push('LEFT JOIN account_cards card ON t.card_id = card.id');
     }
 
@@ -987,9 +995,7 @@ export class DatabaseService {
 
   async getChartData(startDate: string, endDate: string, filters?: TransactionScopeFilters): Promise<ChartData> {
     try {
-      const trendStart = new Date(endDate);
-      trendStart.setMonth(trendStart.getMonth() - 6);
-      const trendStartStr = trendStart.toISOString().split('T')[0];
+      const trendStartStr = addMonthsISO(endDate, -6);
 
       const comparison = this.getComparisonRange(startDate, endDate);
 
@@ -1031,10 +1037,10 @@ export class DatabaseService {
       const selectedRangeIncomeSources = this.getIncomeSourceChartRows(incomeSources, startDate, endDate, filters);
 
       const spendingByCategory = spendingRows.map((r: any) => ({
-        id: r.category_id,
-        label: r.category_name,
+        id: this.categoryKey(r.category_id),
+        label: r.category_name || UNCATEGORIZED_LABEL,
         value: Number(r.total),
-        color: r.color || '#999',
+        color: r.color || UNCATEGORIZED_COLOR,
       }));
 
       const spendingByCompany = companySpendingRows.map((r: any, index: number) => ({
@@ -1132,6 +1138,16 @@ export class DatabaseService {
     return { start, end, label: `previous ${spanDays} day${spanDays === 1 ? '' : 's'}` };
   }
 
+  /**
+   * Chart key for a category row. Uncategorized spend arrives as a NULL id (or the
+   * SQL-side 'uncategorized' placeholder); both collapse to one stable key so the
+   * pie, the month pivot, and the period comparison all agree on the bucket.
+   */
+  private categoryKey(categoryId: number | string | null | undefined): number | string {
+    if (categoryId == null || categoryId === UNCATEGORIZED_KEY) return UNCATEGORIZED_KEY;
+    return categoryId;
+  }
+
   /** Pivots month x category expense rows into stacked series, collapsing the tail into "Other". */
   private buildCategoryTrends(rows: any[], months: string[]): ChartCategoryTrends {
     const TOP_N = 8;
@@ -1141,12 +1157,12 @@ export class DatabaseService {
     for (const row of rows) {
       const index = monthIndex.get(row.month);
       if (index === undefined) continue; // outside the shared trend window
-      const key = row.category_id;
+      const key = this.categoryKey(row.category_id);
       let entry = byCategory.get(key);
       if (!entry) {
         entry = {
-          label: row.category_name || 'Uncategorized',
-          color: row.color || '#999',
+          label: row.category_name || UNCATEGORIZED_LABEL,
+          color: row.color || UNCATEGORIZED_COLOR,
           total: 0,
           data: new Array(months.length).fill(0),
         };
@@ -1195,9 +1211,9 @@ export class DatabaseService {
   private buildCategoryDeltas(current: ChartCategoryData[], previousRows: any[]): ChartCategoryDelta[] {
     const previous = new Map<number | string, { label: string; color: string; value: number }>();
     for (const row of previousRows) {
-      previous.set(row.category_id, {
-        label: row.category_name,
-        color: row.color || '#999',
+      previous.set(this.categoryKey(row.category_id), {
+        label: row.category_name || UNCATEGORIZED_LABEL,
+        color: row.color || UNCATEGORIZED_COLOR,
         value: Number(row.total || 0),
       });
     }
@@ -1240,8 +1256,9 @@ export class DatabaseService {
     const MONTHS_AHEAD = 3;
     const MAX_STEPS = 400; // guards against a pathological cadence/date combination
 
-    const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    // Anchor on the LOCAL calendar date, held as UTC midnight so the month
+    // bucketing below can stay in pure UTC arithmetic.
+    const today = new Date(`${todayLocalISO()}T00:00:00Z`);
     const months: string[] = [];
     for (let offset = 0; offset < MONTHS_AHEAD; offset += 1) {
       const month = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + offset, 1));
@@ -2295,10 +2312,10 @@ export class DatabaseService {
         [startDate, endDate]
       );
       return rows.map((row) => ({
-        category_id: row.category_id.toString(),
-        category_name: row.category_name,
+        category_id: String(this.categoryKey(row.category_id)),
+        category_name: row.category_name || UNCATEGORIZED_LABEL,
         total: row.total,
-        color: row.color,
+        color: row.color || UNCATEGORIZED_COLOR,
       }));
     } catch (error) {
       console.error("Failed to get spending by category:", error);
@@ -2323,10 +2340,10 @@ export class DatabaseService {
         [startDate, endDate]
       );
       return rows.map((row) => ({
-        category_id: row.category_id.toString(),
-        category_name: row.category_name,
+        category_id: String(this.categoryKey(row.category_id)),
+        category_name: row.category_name || UNCATEGORIZED_LABEL,
         total: row.total,
-        color: row.color,
+        color: row.color || UNCATEGORIZED_COLOR,
       }));
     } catch (error) {
       console.error("Failed to get income by category:", error);
@@ -2586,7 +2603,7 @@ export class DatabaseService {
   private getTransactionParamsDateRange(params: Partial<TransactionQueryParams>): { startDate: string; endDate: string } | null {
     if (!params.startDate && !params.endDate) return null;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayLocalISO();
     return {
       startDate: params.startDate ?? `${today.slice(0, 7)}-01`,
       endDate: params.endDate ?? today,

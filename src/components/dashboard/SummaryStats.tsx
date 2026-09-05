@@ -117,7 +117,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
           value={formatCurrency(averageDailySpend)}
           icon={<TrendingDown />}
           color="warning"
-          subtitle={`${dayCount} day period`}
+          subtitle={`${dayCount} day${dayCount === 1 ? '' : 's'} elapsed`}
         />
       </Box>
       <Box flex="1 1 300px">

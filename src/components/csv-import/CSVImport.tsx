@@ -65,6 +65,8 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     updateTempTransactionHashes,
     checkDuplicateTransactions,
     bulkInsertFromTempTable,
+    createImportBatch,
+    finalizeImportBatch,
     findAccountsByLastFour,
     findAccountsByFullNumber,
     getAccountCards,
@@ -475,8 +477,26 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     setError(null);
 
     try {
+      // Record the import run first so every inserted row can point at it
+      // (data freshness, "undo this import").
+      const batchId = await createImportBatch({
+        source: 'csv',
+        file_name: file?.name ?? null,
+        account_ids: accountMatches
+          .map((match) => match.selectedAccountId)
+          .filter((id): id is number => id != null),
+        total_rows: csvData.length,
+      });
+
       // Bulk insert from temp table (excludes duplicates)
-      const successCount = await bulkInsertFromTempTable();
+      const successCount = await bulkInsertFromTempTable(batchId);
+
+      await finalizeImportBatch(batchId, {
+        inserted_count: successCount,
+        duplicate_count: analysisResult.duplicateCount,
+        skipped_count: analysisResult.skippedRows,
+        rejected_count: analysisResult.rejectedRows.length,
+      });
 
       // Clean up import table after successful import
       await truncateImportTable();

@@ -26,7 +26,7 @@ vi.mock('@mui/x-date-pickers/DatePicker', () => ({
 
 import AddTransaction from './AddTransaction';
 import { useTransactionComposerSlice } from '@/contexts/useDatabaseSlices';
-import type { Account, Category, Company, Project } from '@/types/database';
+import type { Account, Category, Company, Project, Transaction } from '@/types/database';
 
 const mockedUseTransactionComposerSlice = vi.mocked(useTransactionComposerSlice);
 
@@ -183,5 +183,77 @@ describe('AddTransaction', () => {
         account_id: 1,
       })
     );
+  });
+});
+describe('AddTransaction in edit mode', () => {
+  beforeEach(() => {
+    mockedUseTransactionComposerSlice.mockReset();
+  });
+
+  it('prefills the row and saves changes through updateTransaction with a normalized amount', async () => {
+    const addTransaction = vi.fn().mockResolvedValue(undefined);
+    const updateTransaction = vi.fn().mockResolvedValue(undefined);
+
+    mockedUseTransactionComposerSlice.mockReturnValue({
+      addTransaction,
+      updateTransaction,
+      addCategory: vi.fn(),
+      addCompany: vi.fn(),
+      getAccountCards: vi.fn().mockResolvedValue([]),
+      categories: [] as Category[],
+      companies: [] as Company[],
+      accounts: defaultAccounts,
+      projects: defaultProjects,
+    } as never);
+
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+    const transaction: Transaction = {
+      id: 31,
+      date: '2026-04-22',
+      amount: -82.35,
+      description: 'Weekly grocery shopping',
+      account_id: 1,
+      card_id: null,
+      category_id: null,
+      company_id: null,
+      project_id: null,
+      trip_id: null,
+      type: 'expense',
+      created_at: '2026-04-22T00:00:00.000Z',
+      updated_at: '2026-04-22T00:00:00.000Z',
+    };
+
+    render(
+      <ThemeProvider theme={createTheme()}>
+        <AddTransaction open mode="edit" transaction={transaction} onClose={onClose} onSuccess={onSuccess} />
+      </ThemeProvider>
+    );
+    const user = userEvent.setup();
+
+    expect(screen.getByRole('heading', { name: 'Edit Transaction' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/description/i)).toHaveValue('Weekly grocery shopping');
+    expect(screen.getByLabelText(/amount/i)).toHaveValue(82.35);
+
+    await user.clear(screen.getByLabelText(/amount/i));
+    await user.type(screen.getByLabelText(/amount/i), '90.10');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => {
+      expect(updateTransaction).toHaveBeenCalledTimes(1);
+    });
+    expect(addTransaction).not.toHaveBeenCalled();
+    expect(updateTransaction).toHaveBeenCalledWith(
+      31,
+      expect.objectContaining({
+        description: 'Weekly grocery shopping',
+        amount: -90.1,
+        type: 'expense',
+        account_id: 1,
+        date: '2026-04-22',
+      })
+    );
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

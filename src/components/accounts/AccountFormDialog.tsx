@@ -9,9 +9,12 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   InputLabel,
   MenuItem,
   Select,
+  Stack,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -22,6 +25,11 @@ export interface AccountFormValues {
   name: string;
   type: AccountType;
   ownership: AccountOwnership;
+  institution: string | null;
+  opening_balance: number;
+  opening_balance_date: string | null;
+  credit_limit: number | null;
+  is_active: number;
 }
 
 const ACCOUNT_TYPE_OPTIONS: Array<{ value: AccountType; label: string }> = [
@@ -59,6 +67,11 @@ export function AccountFormDialog({
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('checking');
   const [ownership, setOwnership] = useState<AccountOwnership>('individual');
+  const [institution, setInstitution] = useState('');
+  const [openingBalance, setOpeningBalance] = useState('');
+  const [openingBalanceDate, setOpeningBalanceDate] = useState('');
+  const [creditLimit, setCreditLimit] = useState('');
+  const [isActive, setIsActive] = useState(true);
   const [ownerUserId, setOwnerUserId] = useState<number | null>(null);
   const [cardNumberInput, setCardNumberInput] = useState('');
   const [cardNickname, setCardNickname] = useState('');
@@ -73,10 +86,20 @@ export function AccountFormDialog({
       setName(editingAccount.name);
       setType(editingAccount.type);
       setOwnership(editingAccount.ownership ?? 'individual');
+      setInstitution(editingAccount.institution ?? '');
+      setOpeningBalance(editingAccount.opening_balance ? String(editingAccount.opening_balance) : '');
+      setOpeningBalanceDate(editingAccount.opening_balance_date ?? '');
+      setCreditLimit(editingAccount.credit_limit != null ? String(editingAccount.credit_limit) : '');
+      setIsActive((editingAccount.is_active ?? 1) === 1);
     } else {
       setName('');
       setType('checking');
       setOwnership('individual');
+      setInstitution('');
+      setOpeningBalance('');
+      setOpeningBalanceDate('');
+      setCreditLimit('');
+      setIsActive(true);
       setOwnerUserId(defaultOwnerUserId ?? null);
       setCardNumberInput('');
       setCardNickname('');
@@ -92,11 +115,28 @@ export function AccountFormDialog({
       return;
     }
 
+    const parsedOpeningBalance = openingBalance.trim() === '' ? 0 : Number(openingBalance);
+    const parsedCreditLimit = creditLimit.trim() === '' ? null : Number(creditLimit);
+    if (!Number.isFinite(parsedOpeningBalance) || (parsedCreditLimit != null && !Number.isFinite(parsedCreditLimit))) {
+      setError('Opening balance and credit limit must be numbers');
+      return;
+    }
+    const values: AccountFormValues = {
+      name: name.trim(),
+      type,
+      ownership,
+      institution: institution.trim() || null,
+      opening_balance: parsedOpeningBalance,
+      opening_balance_date: openingBalanceDate || null,
+      credit_limit: type === 'credit' ? parsedCreditLimit : null,
+      is_active: isActive ? 1 : 0,
+    };
+
     setSaving(true);
     setError(null);
     try {
       if (editingAccount) {
-        await onUpdate(editingAccount.id, { name: name.trim(), type, ownership });
+        await onUpdate(editingAccount.id, values);
       } else {
         if (!ownerUserId) {
           throw new Error('Owner is required');
@@ -106,7 +146,7 @@ export function AccountFormDialog({
           throw new Error(parsed.error);
         }
         await onAdd(
-          { name: name.trim(), type, ownership },
+          values,
           ownerUserId,
           {
             last_four: parsed.last_four,
@@ -181,6 +221,52 @@ export function AccountFormDialog({
             <MenuItem value="joint">Joint (shared by the household)</MenuItem>
           </Select>
         </FormControl>
+        <TextField
+          margin="dense"
+          label="Institution (Optional)"
+          fullWidth
+          value={institution}
+          onChange={(e) => setInstitution(e.target.value)}
+          placeholder="Bank or brokerage name"
+        />
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <TextField
+            margin="dense"
+            label="Opening Balance"
+            type="number"
+            fullWidth
+            value={openingBalance}
+            onChange={(e) => setOpeningBalance(e.target.value)}
+            inputProps={{ step: 0.01 }}
+            helperText="Balance before the first tracked transaction"
+          />
+          <TextField
+            margin="dense"
+            label="As Of"
+            type="date"
+            fullWidth
+            value={openingBalanceDate}
+            onChange={(e) => setOpeningBalanceDate(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+        </Stack>
+        {type === 'credit' && (
+          <TextField
+            margin="dense"
+            label="Credit Limit"
+            type="number"
+            fullWidth
+            value={creditLimit}
+            onChange={(e) => setCreditLimit(e.target.value)}
+            inputProps={{ step: 1, min: 0 }}
+            helperText="Used to show how much of the limit is in use"
+          />
+        )}
+        <FormControlLabel
+          sx={{ mt: 1 }}
+          control={<Switch checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />}
+          label={isActive ? 'Active' : 'Closed (kept for history)'}
+        />
         {!editingAccount && (
           <>
             <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>First Card</Typography>

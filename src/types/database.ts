@@ -53,6 +53,35 @@ export interface Transaction {
   trip_name?: string;
 }
 
+/** Fields a user may change on an existing transaction. Omitted fields keep their value. */
+export interface TransactionUpdateInput {
+  date?: string;
+  amount?: number;
+  description?: string;
+  comment?: string | null;
+  account_id?: number;
+  card_id?: number | null;
+  category_id?: number | null;
+  company_id?: number | null;
+  project_id?: number | null;
+  trip_id?: number | null;
+  type?: TransactionType;
+}
+
+export interface ImportBatchInput {
+  source: ImportBatch['source'];
+  file_name?: string | null;
+  account_ids?: number[];
+  total_rows: number;
+}
+
+export interface ImportBatchTotals {
+  inserted_count: number;
+  duplicate_count: number;
+  skipped_count: number;
+  rejected_count: number;
+}
+
 export interface Category {
   id: number;
   name: string;
@@ -111,6 +140,14 @@ export interface AccountCard {
 }
 
 // AccountUser removed; ownership is represented by Account.owner_user_id
+
+/** The account fields a user edits in the account form. */
+export type AccountEditableFields = Partial<
+  Pick<
+    Account,
+    'name' | 'type' | 'ownership' | 'institution' | 'opening_balance' | 'opening_balance_date' | 'credit_limit' | 'is_active'
+  >
+>;
 
 /** One import run; lets the app say how fresh its data is and undo an import. */
 export interface ImportBatch {
@@ -344,6 +381,10 @@ export interface TransactionQueryParams {
   missingCategory?: boolean;
   missingCompany?: boolean;
   missingProject?: boolean;
+  /** Only rows the user flagged for review. */
+  flaggedOnly?: boolean;
+  /** Rows excluded from reports are hidden unless this is set. */
+  includeExcluded?: boolean;
 }
 
 export interface TransactionsPaginatedResult {

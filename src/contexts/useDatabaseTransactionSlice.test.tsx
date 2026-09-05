@@ -12,6 +12,13 @@ type TransactionInput = Omit<Transaction, 'id' | 'created_at' | 'updated_at'>;
 function createServiceMock() {
   return {
     addTransaction: vi.fn().mockResolvedValue(undefined),
+    updateTransaction: vi.fn().mockResolvedValue(undefined),
+    deleteTransaction: vi.fn().mockResolvedValue(undefined),
+    setTransactionFlag: vi.fn().mockResolvedValue(undefined),
+    setTransactionExcluded: vi.fn().mockResolvedValue(undefined),
+    setTransactionType: vi.fn().mockResolvedValue(undefined),
+    createImportBatch: vi.fn().mockResolvedValue(7),
+    finalizeImportBatch: vi.fn().mockResolvedValue(undefined),
     getAllTransactionHashes: vi.fn().mockResolvedValue(['hash-1']),
     truncateImportTable: vi.fn().mockResolvedValue(undefined),
     insertIntoTempTable: vi.fn().mockResolvedValue([11, 12]),

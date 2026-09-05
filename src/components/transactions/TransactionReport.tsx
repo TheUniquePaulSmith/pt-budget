@@ -49,6 +49,7 @@ import type { GridColDef, GridColumnVisibilityModel, GridPaginationModel, GridRo
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
+import { useLongPress } from '@/components/common/DataGrid/useLongPress';
 import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
 import TransactionLabelDialog from './TransactionLabelDialog';
 import TransactionRowActionsMenu from './TransactionRowActionsMenu';
@@ -112,6 +113,8 @@ export default function TransactionReport() {
   const [missingCategory, setMissingCategory] = useState(false);
   const [missingCompany, setMissingCompany] = useState(false);
   const [missingProject, setMissingProject] = useState(false);
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const [includeExcluded, setIncludeExcluded] = useState(false);
 
   // Table state
   const [page, setPage] = useState(0);
@@ -129,8 +132,10 @@ export default function TransactionReport() {
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [commentTransaction, setCommentTransaction] = useState<Transaction | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  // Opened from the row's kebab (anchorEl) or from a right-click / long-press (anchorPosition).
   const [quickActions, setQuickActions] = useState<{
-    anchorEl: HTMLElement;
+    anchorEl?: HTMLElement | null;
+    anchorPosition?: { top: number; left: number } | null;
     transaction: Transaction;
   } | null>(null);
 
@@ -205,7 +210,7 @@ export default function TransactionReport() {
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     setPage(0);
-  }, [debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, rowsPerPage]);
+  }, [debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, rowsPerPage]);
 
   // Fetch from DB whenever page/filters/sort/version change
   useEffect(() => {
@@ -232,6 +237,8 @@ export default function TransactionReport() {
           missingCategory: missingCategory || undefined,
           missingCompany: missingCompany || undefined,
           missingProject: missingProject || undefined,
+          flaggedOnly: flaggedOnly || undefined,
+          includeExcluded: includeExcluded || undefined,
         });
         if (!cancelled) setResult(data);
       } catch (err) {
@@ -242,7 +249,7 @@ export default function TransactionReport() {
     };
     fetch();
     return () => { cancelled = true; };
-  }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, getTransactionsPaginated]);
+  }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, getTransactionsPaginated]);
 
   const columnLabels = {
     date: 'Date', description: 'Description', comment: 'Comment', category: 'Category',
@@ -277,6 +284,8 @@ export default function TransactionReport() {
     setMissingCategory(false);
     setMissingCompany(false);
     setMissingProject(false);
+    setFlaggedOnly(false);
+    setIncludeExcluded(false);
     setPage(0);
   };
 
@@ -318,6 +327,8 @@ export default function TransactionReport() {
         missingCategory: missingCategory || undefined,
         missingCompany: missingCompany || undefined,
         missingProject: missingProject || undefined,
+        flaggedOnly: flaggedOnly || undefined,
+        includeExcluded: includeExcluded || undefined,
       });
 
       const headers = Object.entries(columnLabels)
@@ -529,11 +540,31 @@ export default function TransactionReport() {
     setRowsPerPage(model.pageSize);
   };
 
-  const transactions = result?.data ?? [];
+  const transactions = React.useMemo(() => result?.data ?? [], [result]);
   const totalCount = result?.total ?? 0;
   const totalIncome = result?.totalIncome ?? 0;
   const totalExpenses = result?.totalExpenses ?? 0;
   const netIncome = totalIncome - totalExpenses;
+
+  // Right-click (desktop) and long-press (touch) open the same row menu as the
+  // kebab button. DataGrid rows carry the row id in data-id.
+  const openRowMenuAt = useCallback(
+    (rowId: number, position: { top: number; left: number }) => {
+      const transaction = transactions.find((row) => row.id === rowId);
+      if (transaction) setQuickActions({ anchorPosition: position, transaction });
+    },
+    [transactions]
+  );
+  const handleRowContextMenu = (event: React.MouseEvent<HTMLElement>) => {
+    const rowId = Number(event.currentTarget.getAttribute('data-id'));
+    if (!Number.isFinite(rowId)) return;
+    event.preventDefault();
+    openRowMenuAt(rowId, { top: event.clientY, left: event.clientX });
+  };
+  const longPressHandlers = useLongPress(({ target, clientX, clientY }) => {
+    const rowId = Number(target.getAttribute('data-id'));
+    if (Number.isFinite(rowId)) openRowMenuAt(rowId, { top: clientY, left: clientX });
+  });
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -685,6 +716,14 @@ export default function TransactionReport() {
                 control={<Checkbox checked={missingProject} onChange={(e) => setMissingProject(e.target.checked)} size="small" />}
                 label="Missing Project"
               />
+              <FormControlLabel
+                control={<Checkbox checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} size="small" />}
+                label="Flagged only"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={includeExcluded} onChange={(e) => setIncludeExcluded(e.target.checked)} size="small" />}
+                label="Show excluded"
+              />
             </FormGroup>
           </Box>
           </AccordionDetails>
@@ -724,6 +763,9 @@ export default function TransactionReport() {
               onRowSelectionModelChange={setRowSelectionModel}
               pageSizeOptions={isMobile ? [10, 25] : [10, 25, 50, 100]}
               height={gridHeight}
+              slotProps={{ row: { onContextMenu: handleRowContextMenu, ...longPressHandlers } }}
+              getRowClassName={(params) => (params.row.is_excluded ? 'transaction-row--excluded' : '')}
+              sx={{ '& .transaction-row--excluded': { opacity: 0.55 } }}
               footerSummary={
                 <Typography variant="body2" color="text.secondary">
                   Income <Typography component="span" variant="body2" color="success.main">{formatCurrency(totalIncome)}</Typography>
@@ -752,6 +794,7 @@ export default function TransactionReport() {
         />
         <TransactionRowActionsMenu
           anchorEl={quickActions?.anchorEl ?? null}
+          anchorPosition={quickActions?.anchorPosition ?? null}
           transaction={quickActions?.transaction ?? null}
           onClose={() => setQuickActions(null)}
         />

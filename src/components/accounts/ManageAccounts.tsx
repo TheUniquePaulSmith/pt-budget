@@ -6,7 +6,7 @@ import { Add as AddIcon, Person as PersonIcon } from '@mui/icons-material';
 import { useAccountManagementSlice } from '@/contexts/useDatabaseSlices';
 import { Account, AccountCard, User } from '@/types/database';
 import { UserAccountsAccordion } from './UserAccountsAccordion';
-import { AccountFormDialog } from './AccountFormDialog';
+import { AccountFormDialog, type AccountFormValues } from './AccountFormDialog';
 import { UserFormDialog } from './UserFormDialog';
 import { ManageCardsDialog } from './ManageCardsDialog';
 import { DeleteConfirmDialog, type DeleteTargetType } from './DeleteConfirmDialog';
@@ -152,7 +152,7 @@ export default function ManageAccounts() {
   };
 
   const handleAddAccount = async (
-    account: { name: string; type: Account['type']; ownership: NonNullable<Account['ownership']> },
+    account: AccountFormValues,
     ownerUserId: number,
     card: { last_four: string; full_number: string | null; nickname: string | null; user_id: number | null }
   ) => {

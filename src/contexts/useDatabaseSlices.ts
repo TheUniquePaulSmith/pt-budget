@@ -78,6 +78,7 @@ export function useTransactionComposerSlice() {
 
   return {
     addTransaction: transactions.addTransaction,
+    updateTransaction: transactions.updateTransaction,
     addCategory: categories.addCategory,
     addCompany: companies.addCompany,
     categories: collections.categories,
@@ -127,6 +128,10 @@ export function useTransactionQuickActionsSlice() {
     linkTransactionToSeries: transactions.linkTransactionToSeries,
     unlinkTransactionFromSeries: transactions.unlinkTransactionFromSeries,
     updateTransactionLabels: transactions.updateTransactionLabels,
+    deleteTransaction: transactions.deleteTransaction,
+    setTransactionFlag: transactions.setTransactionFlag,
+    setTransactionExcluded: transactions.setTransactionExcluded,
+    setTransactionType: transactions.setTransactionType,
     addCompany: companies.addCompany,
     updateCompany: companies.updateCompany,
   };
@@ -177,6 +182,8 @@ export function useCsvImportSlice() {
     updateTempTransactionHashes: transactions.updateTempTransactionHashes,
     checkDuplicateTransactions: transactions.checkDuplicateTransactions,
     bulkInsertFromTempTable: transactions.bulkInsertFromTempTable,
+    createImportBatch: transactions.createImportBatch,
+    finalizeImportBatch: transactions.finalizeImportBatch,
     findAccountsByLastFour: accounts.findAccountsByLastFour,
     findAccountsByFullNumber: accounts.findAccountsByFullNumber,
     getAccountCards: accounts.getAccountCards,

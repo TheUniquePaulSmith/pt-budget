@@ -4,7 +4,7 @@ import React from 'react';
 import type { ReactNode } from 'react';
 
 import { Box, Chip, Tooltip, Typography } from '@mui/material';
-import { CalendarMonth, CreditCard, Flag, Savings, Work } from '@mui/icons-material';
+import { CalendarMonth, CreditCard, Flag, Savings, SwapHoriz, Undo, VisibilityOff, Work } from '@mui/icons-material';
 import type { GridColDef, GridValidRowModel } from '@mui/x-data-grid';
 
 import type { Transaction } from '@/types/database';
@@ -135,10 +135,15 @@ export function indicatorsColumn(budgetedCategoryIds: Set<number>): GridColDef<T
     width: 150,
     renderCell: (params) => {
       const chips: ReactNode[] = [];
+      // Review and reporting state first: these change what the totals mean.
+      if (params.row.is_flagged) chips.push(<Chip key="flagged" size="small" color="warning" icon={<Flag />} label="Flagged" />);
+      if (params.row.is_excluded) chips.push(<Chip key="excluded" size="small" icon={<VisibilityOff />} label="Excluded" />);
+      if (params.row.type === 'refund') chips.push(<Chip key="refund" size="small" color="success" variant="outlined" icon={<Undo />} label="Refund" />);
+      if (params.row.type === 'transfer') chips.push(<Chip key="transfer" size="small" color="info" variant="outlined" icon={<SwapHoriz />} label="Transfer" />);
       if (params.row.category_id && budgetedCategoryIds.has(params.row.category_id)) chips.push(<Chip key="budget" size="small" icon={<Savings />} label="Budget" />);
       if (params.row.trip_id) chips.push(<Chip key="trip" size="small" icon={<CalendarMonth />} label="Trip" />);
       if (params.row.project_id) chips.push(<Chip key="project" size="small" icon={<Work />} label="Project" />);
-      if (params.row.series_id) chips.push(<Chip key="series" size="small" icon={<Flag />} label="Series" />);
+      if (params.row.series_id) chips.push(<Chip key="series" size="small" icon={<CalendarMonth />} label="Series" />);
       if (params.row.card_id) chips.push(<Chip key="card" size="small" icon={<CreditCard />} label="Card" />);
       return <Box sx={{ display: 'flex', gap: 0.5, overflow: 'hidden' }}>{chips}</Box>;
     },

@@ -8,9 +8,13 @@ import type {
   ApplyTransactionClassificationsResult,
 } from '../types/ai';
 import type {
+  ImportBatchInput,
+  ImportBatchTotals,
   Transaction,
   TransactionQueryParams,
   TransactionScopeFilters,
+  TransactionType,
+  TransactionUpdateInput,
   TransactionsPaginatedResult,
   DashboardSummary,
   ChartData,
@@ -20,6 +24,13 @@ export interface DatabaseTransactionSlice {
   addTransaction: (
     transaction: Omit<Transaction, "id" | "created_at" | "updated_at" | "card_id"> & { card_id?: number | null }
   ) => Promise<void>;
+  updateTransaction: (id: number, patch: TransactionUpdateInput) => Promise<void>;
+  deleteTransaction: (id: number) => Promise<void>;
+  setTransactionFlag: (id: number, flagged: boolean) => Promise<void>;
+  setTransactionExcluded: (id: number, excluded: boolean) => Promise<void>;
+  setTransactionType: (id: number, type: TransactionType) => Promise<void>;
+  createImportBatch: (input: ImportBatchInput) => Promise<number>;
+  finalizeImportBatch: (id: number, totals: ImportBatchTotals) => Promise<void>;
   getAllTransactionHashes: () => Promise<string[]>;
   truncateImportTable: () => Promise<void>;
   insertIntoTempTable: (
@@ -30,7 +41,7 @@ export interface DatabaseTransactionSlice {
     updates: Array<{ tempId: number; newHash: string; variationSeed: number }>
   ) => Promise<void>;
   checkDuplicateTransactions: () => Promise<string[]>;
-  bulkInsertFromTempTable: () => Promise<number>;
+  bulkInsertFromTempTable: (importBatchId?: number | null) => Promise<number>;
   updateTransactionLabels: (
     id: number,
     projectId: number | null,
@@ -65,6 +76,13 @@ export interface DatabaseTransactionSlice {
 type TransactionService = Pick<
   DatabaseService,
   | 'addTransaction'
+  | 'updateTransaction'
+  | 'deleteTransaction'
+  | 'setTransactionFlag'
+  | 'setTransactionExcluded'
+  | 'setTransactionType'
+  | 'createImportBatch'
+  | 'finalizeImportBatch'
   | 'getAllTransactionHashes'
   | 'truncateImportTable'
   | 'insertIntoTempTable'
@@ -120,6 +138,61 @@ export function useDatabaseTransactionSlice({
     [refreshTransactions, requireService]
   );
 
+  const updateTransaction = useCallback(
+    async (id: number, patch: TransactionUpdateInput): Promise<void> => {
+      await requireService().updateTransaction(id, patch);
+      await refreshTransactions();
+    },
+    [refreshTransactions, requireService]
+  );
+
+  const deleteTransaction = useCallback(
+    async (id: number): Promise<void> => {
+      await requireService().deleteTransaction(id);
+      // A deleted row may have been the last charge of a series.
+      await Promise.all([refreshTransactions(), refreshRecurringSeries?.() ?? Promise.resolve()]);
+    },
+    [refreshRecurringSeries, refreshTransactions, requireService]
+  );
+
+  const setTransactionFlag = useCallback(
+    async (id: number, flagged: boolean): Promise<void> => {
+      await requireService().setTransactionFlag(id, flagged);
+      await refreshTransactions();
+    },
+    [refreshTransactions, requireService]
+  );
+
+  const setTransactionExcluded = useCallback(
+    async (id: number, excluded: boolean): Promise<void> => {
+      await requireService().setTransactionExcluded(id, excluded);
+      await refreshTransactions();
+    },
+    [refreshTransactions, requireService]
+  );
+
+  const setTransactionType = useCallback(
+    async (id: number, type: TransactionType): Promise<void> => {
+      await requireService().setTransactionType(id, type);
+      await refreshTransactions();
+    },
+    [refreshTransactions, requireService]
+  );
+
+  const createImportBatch = useCallback(
+    async (input: ImportBatchInput): Promise<number> => {
+      return requireService().createImportBatch(input);
+    },
+    [requireService]
+  );
+
+  const finalizeImportBatch = useCallback(
+    async (id: number, totals: ImportBatchTotals): Promise<void> => {
+      await requireService().finalizeImportBatch(id, totals);
+    },
+    [requireService]
+  );
+
   const getAllTransactionHashes = useCallback(async (): Promise<string[]> => {
     return requireService().getAllTransactionHashes();
   }, [requireService]);
@@ -153,11 +226,14 @@ export function useDatabaseTransactionSlice({
     return requireService().checkDuplicateTransactions();
   }, [requireService]);
 
-  const bulkInsertFromTempTable = useCallback(async (): Promise<number> => {
-    const count = await requireService().bulkInsertFromTempTable();
-    await refreshTransactions();
-    return count;
-  }, [refreshTransactions, requireService]);
+  const bulkInsertFromTempTable = useCallback(
+    async (importBatchId: number | null = null): Promise<number> => {
+      const count = await requireService().bulkInsertFromTempTable(importBatchId);
+      await refreshTransactions();
+      return count;
+    },
+    [refreshTransactions, requireService]
+  );
 
   const updateTransactionLabels = useCallback(
     async (id: number, projectId: number | null, tripId: number | null): Promise<void> => {
@@ -300,6 +376,13 @@ export function useDatabaseTransactionSlice({
   return useMemo(
     () => ({
       addTransaction,
+      updateTransaction,
+      deleteTransaction,
+      setTransactionFlag,
+      setTransactionExcluded,
+      setTransactionType,
+      createImportBatch,
+      finalizeImportBatch,
       getAllTransactionHashes,
       truncateImportTable,
       insertIntoTempTable,
@@ -327,6 +410,13 @@ export function useDatabaseTransactionSlice({
     }),
     [
       addTransaction,
+      updateTransaction,
+      deleteTransaction,
+      setTransactionFlag,
+      setTransactionExcluded,
+      setTransactionType,
+      createImportBatch,
+      finalizeImportBatch,
       getAllTransactionHashes,
       truncateImportTable,
       insertIntoTempTable,

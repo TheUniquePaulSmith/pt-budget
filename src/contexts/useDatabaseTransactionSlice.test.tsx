@@ -133,7 +133,7 @@ describe('useDatabaseTransactionSlice', () => {
     expect(insertedCount).toBe(3);
   });
 
-  it('uses the shared transaction hash generator', () => {
+  it('uses the shared transaction hash generator', async () => {
     const refreshTransactions = vi.fn().mockResolvedValue(undefined);
     const service = createServiceMock();
 
@@ -144,22 +144,10 @@ describe('useDatabaseTransactionSlice', () => {
       })
     );
 
-    expect(
-      result.current.generateTransactionHash(
-        '5',
-        '2026-02-01',
-        -18.25,
-        'Coffee beans',
-        'row-1'
-      )
-    ).toBe(
-      DatabaseService.generateTransactionHashFromFields(
-        '5',
-        '2026-02-01',
-        -18.25,
-        'Coffee beans',
-        'row-1'
-      )
+    await expect(
+      result.current.generateTransactionHash(5, '2026-02-01', -18.25, 'Coffee beans', 1)
+    ).resolves.toBe(
+      await DatabaseService.generateTransactionHashFromFields(5, '2026-02-01', -18.25, 'Coffee beans', 1)
     );
   });
 

@@ -15,8 +15,23 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { Account, User } from '@/types/database';
+import { Account, AccountOwnership, AccountType, User } from '@/types/database';
 import { parseCardNumberInput } from './accountCardNumber';
+
+export interface AccountFormValues {
+  name: string;
+  type: AccountType;
+  ownership: AccountOwnership;
+}
+
+const ACCOUNT_TYPE_OPTIONS: Array<{ value: AccountType; label: string }> = [
+  { value: 'checking', label: 'Checking' },
+  { value: 'savings', label: 'Savings' },
+  { value: 'credit', label: 'Credit Card' },
+  { value: 'loan', label: 'Loan / Mortgage' },
+  { value: 'investment', label: 'Investment / Brokerage' },
+  { value: 'retirement', label: 'Retirement (401k, IRA, Roth)' },
+];
 
 interface AccountFormDialogProps {
   open: boolean;
@@ -25,11 +40,11 @@ interface AccountFormDialogProps {
   users: User[];
   onClose: () => void;
   onAdd: (
-    account: { name: string; type: Account['type'] },
+    account: AccountFormValues,
     ownerUserId: number,
     card: { last_four: string; full_number: string | null; nickname: string | null; user_id: number | null }
   ) => Promise<unknown>;
-  onUpdate: (id: number, updates: { name: string; type: Account['type'] }) => Promise<void>;
+  onUpdate: (id: number, updates: AccountFormValues) => Promise<void>;
 }
 
 export function AccountFormDialog({
@@ -42,7 +57,8 @@ export function AccountFormDialog({
   onUpdate,
 }: AccountFormDialogProps) {
   const [name, setName] = useState('');
-  const [type, setType] = useState<Account['type']>('checking');
+  const [type, setType] = useState<AccountType>('checking');
+  const [ownership, setOwnership] = useState<AccountOwnership>('individual');
   const [ownerUserId, setOwnerUserId] = useState<number | null>(null);
   const [cardNumberInput, setCardNumberInput] = useState('');
   const [cardNickname, setCardNickname] = useState('');
@@ -56,9 +72,11 @@ export function AccountFormDialog({
     if (editingAccount) {
       setName(editingAccount.name);
       setType(editingAccount.type);
+      setOwnership(editingAccount.ownership ?? 'individual');
     } else {
       setName('');
       setType('checking');
+      setOwnership('individual');
       setOwnerUserId(defaultOwnerUserId ?? null);
       setCardNumberInput('');
       setCardNickname('');
@@ -78,7 +96,7 @@ export function AccountFormDialog({
     setError(null);
     try {
       if (editingAccount) {
-        await onUpdate(editingAccount.id, { name: name.trim(), type });
+        await onUpdate(editingAccount.id, { name: name.trim(), type, ownership });
       } else {
         if (!ownerUserId) {
           throw new Error('Owner is required');
@@ -88,7 +106,7 @@ export function AccountFormDialog({
           throw new Error(parsed.error);
         }
         await onAdd(
-          { name: name.trim(), type },
+          { name: name.trim(), type, ownership },
           ownerUserId,
           {
             last_four: parsed.last_four,
@@ -145,12 +163,22 @@ export function AccountFormDialog({
           <Select
             value={type}
             label="Account Type"
-            onChange={(e) => setType(e.target.value as Account['type'])}
+            onChange={(e) => setType(e.target.value as AccountType)}
           >
-            <MenuItem value="checking">Checking</MenuItem>
-            <MenuItem value="savings">Savings</MenuItem>
-            <MenuItem value="credit">Credit Card</MenuItem>
-            <MenuItem value="joint">Joint Account</MenuItem>
+            {ACCOUNT_TYPE_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl fullWidth margin="dense">
+          <InputLabel>Ownership</InputLabel>
+          <Select
+            value={ownership}
+            label="Ownership"
+            onChange={(e) => setOwnership(e.target.value as AccountOwnership)}
+          >
+            <MenuItem value="individual">Individual</MenuItem>
+            <MenuItem value="joint">Joint (shared by the household)</MenuItem>
           </Select>
         </FormControl>
         {!editingAccount && (

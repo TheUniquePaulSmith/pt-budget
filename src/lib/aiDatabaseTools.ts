@@ -17,6 +17,7 @@ import type {
   MerchantRuleMatchType,
   Project,
   Transaction,
+  TransactionType,
   Trip,
   UnmatchedCluster,
 } from '@/types/database';
@@ -245,13 +246,15 @@ function buildBoundedSelect(sql: string, maxRows: number): string {
   return `SELECT * FROM (${trimmed}) LIMIT ${maxRows}`;
 }
 
+const TRANSACTION_TYPES: readonly TransactionType[] = ['income', 'expense', 'refund', 'transfer'];
+
 function asTransaction(row: any): Pick<Transaction, 'id' | 'date' | 'amount' | 'description' | 'type'> {
   return {
     id: Number(row.id),
     date: String(row.date),
     amount: Number(row.amount),
     description: String(row.description),
-    type: row.type === 'income' ? 'income' : 'expense',
+    type: TRANSACTION_TYPES.includes(row.type) ? (row.type as TransactionType) : 'expense',
   };
 }
 
@@ -394,7 +397,8 @@ async function suggestTransactionClassifications(
       `
         SELECT id, date, amount, description, type, category_id, company_id
         FROM transactions
-        WHERE category_id IS NULL OR company_id IS NULL
+        WHERE (category_id IS NULL OR company_id IS NULL)
+          AND type IN ('income', 'expense', 'refund')
         ORDER BY date DESC, id DESC
       `,
       limit
@@ -404,9 +408,12 @@ async function suggestTransactionClassifications(
 
   return rows.map((row) => {
     const transaction = asTransaction(row);
+    // A refund keeps the category of the spending it reverses, so it nets out
+    // of that category's total; only true income draws from income categories.
+    const categoryType: Category['type'] = transaction.type === 'income' ? 'income' : 'expense';
     const category = findNameMatch(
       transaction.description,
-      context.categories.filter((candidate) => candidate.type === transaction.type)
+      context.categories.filter((candidate) => candidate.type === categoryType)
     );
     const company = findNameMatch(transaction.description, context.companies);
 
@@ -414,7 +421,7 @@ async function suggestTransactionClassifications(
       transactionId: transaction.id,
       categoryId: category?.id,
       categoryName: category?.name,
-      categoryType: transaction.type,
+      categoryType,
       companyId: company?.id,
       companyName: company?.name,
       confidence: category || company ? 0.55 : 0.25,

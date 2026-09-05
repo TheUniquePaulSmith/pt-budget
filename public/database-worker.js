@@ -423,7 +423,9 @@ class DatabaseWorker {
           await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNTS);
           // ACCOUNT_USERS removed in favor of owner_user_id on accounts
           await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNT_CARDS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.IMPORT_BATCHES);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTIONS);
+          await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNT_BALANCE_SNAPSHOTS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.PROJECTS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TRIPS);
           await this.sqlite3.exec(this.db, CREATE_TABLES.TEMP_IMPORT_TRANSACTIONS);
@@ -464,32 +466,249 @@ class DatabaseWorker {
     console.info("[DB Worker] Indexes ready");
   }
 
+  // ---------------------------------------------------------------------------
+  // Schema migrations (see the MIGRATIONS notes in database-schema.js)
+  // ---------------------------------------------------------------------------
+
+  // Runs a statement and collects its rows as objects (PRAGMA / SELECT).
+  async readRows(sql) {
+    const rows = [];
+    await this.sqlite3.exec(this.db, sql, (row, columns) => {
+      const record = {};
+      columns.forEach((column, index) => {
+        record[column] = row[index];
+      });
+      rows.push(record);
+    });
+    return rows;
+  }
+
+  quoteIdentifier(name) {
+    return `"${String(name).replace(/"/g, '""')}"`;
+  }
+
+  async readUserVersion() {
+    const rows = await this.readRows('PRAGMA user_version');
+    return Number(rows[0]?.user_version) || 0;
+  }
+
+  async readTableColumns(table) {
+    const rows = await this.readRows(`PRAGMA table_info(${this.quoteIdentifier(table)})`);
+    return rows.map((row) => String(row.name));
+  }
+
+  // Every FK violation as a stable key, so a migration can be checked for the
+  // violations it *introduced* rather than pre-existing orphans (foreign keys
+  // are not enforced on reopened databases, so old orphans are possible).
+  async readForeignKeyViolations() {
+    const rows = await this.readRows('PRAGMA foreign_key_check');
+    return new Set(rows.map((row) => `${row.table}:${row.rowid}:${row.parent}:${row.fkid}`));
+  }
+
   // Applies schema migrations gated by PRAGMA user_version. Must run before
   // ensureIndexes() on existing databases so indexes on migrated tables succeed.
   async runMigrations() {
     const { MIGRATIONS } = await import('/database-schema.js');
 
-    let currentVersion = 0;
-    await this.sqlite3.exec(this.db, 'PRAGMA user_version', (row) => {
-      currentVersion = Number(row[0]) || 0;
-    });
-
+    const currentVersion = await this.readUserVersion();
     const pending = MIGRATIONS.filter((migration) => migration.version > currentVersion)
       .sort((a, b) => a.version - b.version);
+    if (pending.length === 0) {
+      return;
+    }
 
-    for (const migration of pending) {
-      const targetVersion = Number(migration.version);
-      if (!Number.isInteger(targetVersion) || targetVersion <= 0) {
-        throw new Error(`[DB Worker] Invalid migration version: ${migration.version}`);
+    // Table rebuilds DROP a parent table; with foreign keys on, that would
+    // cascade-delete every child row (e.g. transaction_series_links). PRAGMA
+    // foreign_keys is a no-op inside a transaction, so toggle it out here and
+    // restore the connection's previous setting afterwards.
+    const foreignKeyRows = await this.readRows('PRAGMA foreign_keys');
+    const foreignKeysWereOn = Number(foreignKeyRows[0]?.foreign_keys) === 1;
+    if (foreignKeysWereOn) {
+      await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=OFF');
+    }
+    try {
+      for (const migration of pending) {
+        await this.applyMigration(migration);
       }
-      console.info(`[DB Worker] Applying schema migration ${targetVersion}...`);
-      for (const sql of migration.statements) {
-        await this.sqlite3.exec(this.db, sql);
+    } finally {
+      if (foreignKeysWereOn) {
+        await this.sqlite3.exec(this.db, 'PRAGMA foreign_keys=ON');
       }
+    }
+  }
+
+  // One migration = one transaction: every op, the integrity check and the
+  // version stamp commit together or not at all.
+  async applyMigration(migration) {
+    const targetVersion = Number(migration.version);
+    if (!Number.isInteger(targetVersion) || targetVersion <= 0) {
+      throw new Error(`[DB Worker] Invalid migration version: ${migration.version}`);
+    }
+    console.info(`[DB Worker] Applying schema migration ${targetVersion}...`);
+
+    const violationsBefore = await this.readForeignKeyViolations();
+    await this.sqlite3.exec(this.db, 'BEGIN IMMEDIATE');
+    try {
+      for (const op of migration.statements) {
+        await this.runMigrationOp(op);
+      }
+
+      const violationsAfter = await this.readForeignKeyViolations();
+      const introduced = [...violationsAfter].filter((key) => !violationsBefore.has(key));
+      if (introduced.length > 0) {
+        throw new Error(
+          `Schema migration ${targetVersion} introduced ${introduced.length} foreign key violation(s): ` +
+            introduced.slice(0, 5).join('; ')
+        );
+      }
+
       // PRAGMA values cannot be parameter-bound; targetVersion is validated above.
       await this.sqlite3.exec(this.db, `PRAGMA user_version = ${targetVersion}`);
-      console.info(`[DB Worker] Schema migration ${targetVersion} applied`);
+      await this.sqlite3.exec(this.db, 'COMMIT');
+    } catch (error) {
+      try {
+        await this.sqlite3.exec(this.db, 'ROLLBACK');
+      } catch (rollbackError) {
+        console.error('[DB Worker] Failed to roll back schema migration:', rollbackError);
+      }
+      console.error(`[DB Worker] Schema migration ${targetVersion} failed:`, error);
+      throw error;
     }
+    console.info(`[DB Worker] Schema migration ${targetVersion} applied`);
+  }
+
+  async runMigrationOp(op) {
+    if (typeof op === 'string') {
+      await this.sqlite3.exec(this.db, op);
+      return;
+    }
+    switch (op?.op) {
+      case 'addColumn': {
+        // ALTER TABLE ... ADD COLUMN is not idempotent; guard on table_info.
+        const columns = await this.readTableColumns(op.table);
+        if (columns.includes(op.column)) {
+          return;
+        }
+        await this.sqlite3.exec(
+          this.db,
+          `ALTER TABLE ${this.quoteIdentifier(op.table)} ADD COLUMN ${op.ddl}`
+        );
+        return;
+      }
+      case 'dropTable':
+        await this.sqlite3.exec(this.db, `DROP TABLE IF EXISTS ${this.quoteIdentifier(op.table)}`);
+        return;
+      case 'rebuild':
+        await this.rebuildTable(op);
+        return;
+      case 'rehashTransactions':
+        await this.rehashTransactions();
+        return;
+      default:
+        throw new Error(`[DB Worker] Unknown migration op: ${JSON.stringify(op)}`);
+    }
+  }
+
+  // Recreates a table to change its constraints while preserving rows:
+  //   CREATE <table>_new (from the current CREATE_TABLES entry)
+  //   INSERT INTO <table>_new (...) SELECT ... FROM <table>
+  //   DROP <table>; ALTER TABLE <table>_new RENAME TO <table>
+  // The old table is dropped BEFORE the rename on purpose: renaming the old
+  // table out of the way first would make SQLite rewrite every foreign key in
+  // other tables to point at the renamed (soon deleted) copy.
+  // Columns are copied by name when the old table has them; columnExpressions
+  // supplies SQL for columns that need translating; anything else takes the
+  // new table's DEFAULT.
+  async rebuildTable({ table, guardColumn, create, columnExpressions = {} }) {
+    const existingColumns = await this.readTableColumns(table);
+    if (existingColumns.length === 0) {
+      // Table never existed on this database: the final shape is enough.
+      await this.sqlite3.exec(this.db, create);
+      return;
+    }
+    if (guardColumn && existingColumns.includes(guardColumn)) {
+      return; // already rebuilt (e.g. a retry after a crash past this step)
+    }
+
+    const newTable = `${table}_new`;
+    const createNew = create.replace(
+      /CREATE TABLE IF NOT EXISTS\s+(\w+)\s*\(/i,
+      `CREATE TABLE ${newTable} (`
+    );
+    if (createNew === create) {
+      throw new Error(`[DB Worker] Cannot derive a rebuild statement for ${table}`);
+    }
+
+    await this.sqlite3.exec(this.db, `DROP TABLE IF EXISTS ${this.quoteIdentifier(newTable)}`);
+    await this.sqlite3.exec(this.db, createNew);
+
+    const targetColumns = await this.readTableColumns(newTable);
+    const insertColumns = [];
+    const selectExpressions = [];
+    for (const column of targetColumns) {
+      if (Object.prototype.hasOwnProperty.call(columnExpressions, column)) {
+        insertColumns.push(this.quoteIdentifier(column));
+        selectExpressions.push(columnExpressions[column]);
+      } else if (existingColumns.includes(column)) {
+        insertColumns.push(this.quoteIdentifier(column));
+        selectExpressions.push(this.quoteIdentifier(column));
+      }
+    }
+
+    await this.sqlite3.exec(
+      this.db,
+      `INSERT INTO ${this.quoteIdentifier(newTable)} (${insertColumns.join(', ')}) ` +
+        `SELECT ${selectExpressions.join(', ')} FROM ${this.quoteIdentifier(table)}`
+    );
+    await this.sqlite3.exec(this.db, `DROP TABLE ${this.quoteIdentifier(table)}`);
+    await this.sqlite3.exec(
+      this.db,
+      `ALTER TABLE ${this.quoteIdentifier(newTable)} RENAME TO ${this.quoteIdentifier(table)}`
+    );
+  }
+
+  // Recomputes every pre-v2 transaction hash with the shared SHA-256 scheme
+  // (public/database-hash.js), keyed on the numeric account id. Two legacy rows
+  // that collapse onto one hash (a manual entry and its CSV twin, which the old
+  // scheme hashed differently) are both kept: the later row gets the next free
+  // variation seed and is flagged for the user to review. Rows that already
+  // carry a v2 hash are left alone, so the step is safe to re-run.
+  async rehashTransactions() {
+    const { computeTransactionHash, isLegacyTransactionHash } = await import('/database-hash.js');
+
+    const rows = await this.readRows(
+      'SELECT id, account_id, date, amount, description, transaction_hash, hash_variation_seed FROM transactions ORDER BY id'
+    );
+    const taken = new Set(
+      rows.filter((row) => !isLegacyTransactionHash(row.transaction_hash)).map((row) => row.transaction_hash)
+    );
+
+    const updates = [];
+    for (const row of rows) {
+      if (!isLegacyTransactionHash(row.transaction_hash)) {
+        continue;
+      }
+      let seed = Number(row.hash_variation_seed) || 0;
+      let hash = await computeTransactionHash(row.account_id, row.date, row.amount, row.description, seed);
+      let flagged = 0;
+      while (taken.has(hash)) {
+        seed += 1;
+        flagged = 1;
+        hash = await computeTransactionHash(row.account_id, row.date, row.amount, row.description, seed);
+      }
+      taken.add(hash);
+      updates.push([hash, seed, flagged, row.id]);
+    }
+
+    if (updates.length === 0) {
+      return;
+    }
+    await this.executeReusablePreparedStatement(
+      'UPDATE transactions SET transaction_hash = ?, hash_variation_seed = ?, is_flagged = CASE WHEN ? = 1 THEN 1 ELSE is_flagged END WHERE id = ?',
+      updates,
+      false
+    );
+    console.info(`[DB Worker] Rehashed ${updates.length} transaction(s)`);
   }
 
   // Queue management for sequential query processing
@@ -589,8 +808,10 @@ class DatabaseWorker {
         // Create database tables
         await this.createTables({ ensureIndexes: !deferIndexes });
 
-        // Stamp the schema version (tables already exist; statements are idempotent)
-        await this.runMigrations();
+        // A fresh database already has the current shape, so stamp the version
+        // directly instead of replaying migrations written for older shapes.
+        const { SCHEMA_VERSION } = await import('/database-schema.js');
+        await this.sqlite3.exec(this.db, `PRAGMA user_version = ${Number(SCHEMA_VERSION)}`);
       } else {
         // Migrations must run before indexes so indexes on new tables succeed
         await this.runMigrations();

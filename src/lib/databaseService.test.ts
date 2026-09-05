@@ -128,6 +128,13 @@ const expectedMappedTransaction: Transaction = {
   trip_id: null,
   type: 'expense',
   transaction_hash: 'fuel-123',
+  hash_variation_seed: 0,
+  external_id: null,
+  transfer_group_id: null,
+  type_locked: 0,
+  is_excluded: 0,
+  is_flagged: 0,
+  import_batch_id: null,
   created_at: '2026-04-20T10:00:00.000Z',
   updated_at: '2026-04-20T10:00:00.000Z',
   category_name: 'Travel',
@@ -168,7 +175,15 @@ const accountRow: Account = {
   id: 3,
   name: 'Credit Card',
   type: 'credit',
+  ownership: 'individual',
   owner_user_id: 7,
+  institution: null,
+  opening_balance: 0,
+  opening_balance_date: null,
+  credit_limit: null,
+  is_active: 1,
+  include_in_net_worth: 1,
+  import_sign_inverted: 0,
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
   owner_display_name: 'Pat Doe',
@@ -223,30 +238,39 @@ afterEach(() => {
 });
 
 describe('DatabaseService transaction helpers', () => {
-  it('creates a deterministic hash from transaction fields', () => {
-    const hash = DatabaseService.generateTransactionHashFromFields(
-      String(baseTransaction.account_id),
+  it('creates a deterministic SHA-256 hash from the numeric account id and content fields', async () => {
+    const hash = await DatabaseService.generateTransactionHashFromFields(
+      baseTransaction.account_id,
       baseTransaction.date,
       baseTransaction.amount,
       baseTransaction.description
     );
 
-    expect(hash).toBe('7e946247');
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    // Manual entry and CSV import both key on the numeric account id, so the
+    // string form of the same id must hash identically.
+    expect(hash).toBe(
+      await DatabaseService.generateTransactionHashFromFields(
+        String(baseTransaction.account_id),
+        baseTransaction.date,
+        baseTransaction.amount,
+        baseTransaction.description
+      )
+    );
   });
 
-  it('changes the hash when a variation seed is provided', () => {
-    const baseHash = DatabaseService.generateTransactionHashFromFields(
-      '7',
+  it('changes the hash when a variation seed is provided', async () => {
+    const baseHash = await DatabaseService.generateTransactionHashFromFields(
+      7,
       '2026-04-25',
       -42.5,
       'Hardware store purchase'
     );
-    const variantHash = DatabaseService.generateTransactionHashFromFields(
-      '7',
+    const variantHash = await DatabaseService.generateTransactionHashFromFields(
+      7,
       '2026-04-25',
       -42.5,
       'Hardware store purchase',
-      undefined,
       1
     );
 
@@ -264,8 +288,8 @@ describe('DatabaseService.addTransaction', () => {
     );
 
     const insertedId = await service.addTransaction(baseTransaction);
-    const expectedHash = DatabaseService.generateTransactionHashFromFields(
-      String(baseTransaction.account_id),
+    const expectedHash = await DatabaseService.generateTransactionHashFromFields(
+      baseTransaction.account_id,
       baseTransaction.date,
       baseTransaction.amount,
       baseTransaction.description
@@ -698,6 +722,7 @@ describe('DatabaseService batch and import helpers', () => {
           null,
           baseTransaction.type,
           null,
+          null,
         ],
         [
           baseTransaction.date,
@@ -712,6 +737,7 @@ describe('DatabaseService batch and import helpers', () => {
           null,
           baseTransaction.type,
           'airfare-123',
+          null,
         ],
       ]
     );
@@ -1113,11 +1139,11 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
       expected: undefined,
     },
     {
-      name: 'updates an account name and type',
+      name: 'updates an account name, type and ownership',
       call: (service: DatabaseService) =>
-        service.updateAccount(53, { name: 'Renamed Checking', type: 'savings' }),
+        service.updateAccount(53, { name: 'Renamed Checking', type: 'savings', ownership: 'joint' }),
       query: ACCOUNT_QUERIES.UPDATE,
-      parameters: ['Renamed Checking', 'savings', 53],
+      parameters: ['Renamed Checking', 'savings', 'joint', 53],
       response: [],
       expected: undefined,
     },
@@ -1353,7 +1379,7 @@ describe('DatabaseService budget income calculations', () => {
 describe('DatabaseService dashboard income summaries', () => {
   it('uses configured income-source totals when actual non-credit income is lower', async () => {
     const querySpy = vi.fn().mockImplementation(async (sql: string) => {
-      if (sql.includes('COUNT(*) as transaction_count')) {
+      if (sql.includes('as transaction_count')) {
         expect(sql).toContain("a.type != 'credit'");
         return [{ transaction_count: 0, total_income: 0, total_expenses: 1250 }];
       }
@@ -1376,7 +1402,7 @@ describe('DatabaseService dashboard income summaries', () => {
 
   it('only includes configured income in a week when the recurrence date falls inside that week', async () => {
     const querySpy = vi.fn().mockImplementation(async (sql: string) => {
-      if (sql.includes('COUNT(*) as transaction_count')) {
+      if (sql.includes('as transaction_count')) {
         return [{ transaction_count: 0, total_income: 0, total_expenses: 0 }];
       }
       if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
@@ -1400,7 +1426,7 @@ describe('DatabaseService dashboard income summaries', () => {
 
   it('counts weekly configured income occurrences inside a week span', async () => {
     const querySpy = vi.fn().mockImplementation(async (sql: string) => {
-      if (sql.includes('COUNT(*) as transaction_count')) {
+      if (sql.includes('as transaction_count')) {
         return [{ transaction_count: 0, total_income: 0, total_expenses: 0 }];
       }
       if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
@@ -1420,7 +1446,7 @@ describe('DatabaseService dashboard income summaries', () => {
 
   it('keeps actual income when it is higher than configured income-source totals', async () => {
     const querySpy = vi.fn().mockImplementation(async (sql: string) => {
-      if (sql.includes('COUNT(*) as transaction_count')) {
+      if (sql.includes('as transaction_count')) {
         return [{ transaction_count: 3, total_income: 9000, total_expenses: 1000 }];
       }
       if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
@@ -1440,7 +1466,7 @@ describe('DatabaseService dashboard income summaries', () => {
 
   it('uses income sources for chart source, trend, and account-analysis income', async () => {
     const querySpy = vi.fn().mockImplementation(async (sql: string) => {
-      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("t.type = 'expense'") && !sql.includes('strftime')) {
+      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("t.type IN ('expense', 'refund')") && !sql.includes('strftime')) {
         return [];
       }
       if (sql.includes('COALESCE(comp.name') && sql.includes('mr.service_name')) {
@@ -1455,7 +1481,7 @@ describe('DatabaseService dashboard income summaries', () => {
           { series_id: 3, series_name: 'StreamHouse', kind: 'subscription', total: 49.99 },
         ];
       }
-      if (sql.includes('SUM(t.amount) as total') && sql.includes("a.type != 'credit'")) {
+      if (sql.includes('a.id as account_id') && sql.includes("a.type != 'credit'")) {
         return [];
       }
       if (sql.includes("strftime('%Y-%m', t.date) as month") && sql.includes('as expense')) {
@@ -1473,7 +1499,7 @@ describe('DatabaseService dashboard income summaries', () => {
         return [];
       }
       if (sql.includes('as user_display_name') && sql.includes('as expenses')) {
-        expect(sql).toContain("t.type = 'income' AND a.type != 'credit'");
+        expect(sql).toContain("t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit'");
         expect(sql).toContain('GROUP BY COALESCE(card.user_id, a.owner_user_id)');
         return [
           { user_id: 1, user_display_name: 'Pat', income: 0, expenses: 1250 },
@@ -1528,7 +1554,7 @@ describe('DatabaseService chart analytics extensions', () => {
   } = {}) {
     const currentStart = rows.currentStart ?? '2026-07-01';
     return vi.fn().mockImplementation(async (sql: string, params: any[] = []) => {
-      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("t.type = 'expense'") && !sql.includes('strftime')) {
+      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("t.type IN ('expense', 'refund')") && !sql.includes('strftime')) {
         return params[0] === currentStart ? (rows.currentSpending ?? []) : (rows.previousSpending ?? []);
       }
       if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("strftime('%Y-%m', t.date) as month")) {
@@ -2108,9 +2134,9 @@ describe('DatabaseService analytics consistency', () => {
     ]) {
       expect(sql).not.toContain('c.type =');
     }
-    expect(ANALYTICS_QUERIES.SPENDING_BY_CATEGORY).toContain("t.type = 'expense'");
-    expect(ANALYTICS_QUERIES.INCOME_BY_CATEGORY).toContain("t.type = 'income' AND a.type != 'credit'");
-    expect(ANALYTICS_QUERIES.MONTHLY_TRENDS).toContain("t.type = 'income' AND a.type != 'credit'");
+    expect(ANALYTICS_QUERIES.SPENDING_BY_CATEGORY).toContain("t.type IN ('expense', 'refund') AND t.is_excluded = 0");
+    expect(ANALYTICS_QUERIES.INCOME_BY_CATEGORY).toContain("t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit'");
+    expect(ANALYTICS_QUERIES.MONTHLY_TRENDS).toContain("t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit'");
   });
 
   it('keeps uncategorized spend as a bucket instead of dropping it through an inner join', () => {
@@ -2129,7 +2155,7 @@ describe('DatabaseService analytics consistency', () => {
 
   it('maps uncategorized rows from both comparison windows onto one stable chart bucket', async () => {
     const querySpy = vi.fn().mockImplementation(async (sql: string, params: any[] = []) => {
-      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("t.type = 'expense'") && !sql.includes('strftime')) {
+      if (sql.includes("COALESCE(c.id, 'uncategorized')") && sql.includes("t.type IN ('expense', 'refund')") && !sql.includes('strftime')) {
         return params[0] === '2026-08-01'
           ? [
               { category_id: 'uncategorized', category_name: 'Uncategorized', color: '#9e9e9e', total: 80 },
@@ -2169,5 +2195,21 @@ describe('DatabaseService analytics consistency', () => {
     expect(accountAnalysisSql).not.toBe('');
     expect(accountAnalysisSql.split('LEFT JOIN account_cards card').length - 1).toBe(1);
     expect(accountAnalysisSql).toContain('COALESCE(card.user_id, a.owner_user_id) IN (?)');
+  });
+
+  it('never sums ABS(amount): refunds are stored positive and must net against spending', () => {
+    const analyticsSql = [
+      ...Object.values(ANALYTICS_QUERIES),
+      ...Object.values(BUDGET_PLAN_QUERIES),
+      ...Object.values(PROJECT_QUERIES),
+      ...Object.values(TRIP_QUERIES),
+      SUBSCRIPTION_QUERIES.GET_SERIES_WITH_STATS,
+    ].join('\n');
+    expect(analyticsSql).not.toMatch(/ABS\(/i);
+    // Every spend aggregate excludes transfers and hidden rows through the shared expression.
+    expect(ANALYTICS_QUERIES.DASHBOARD_SUMMARY).toContain("t.type IN ('expense', 'refund') AND t.is_excluded = 0 THEN -t.amount");
+    expect(ANALYTICS_QUERIES.DASHBOARD_SUMMARY).toContain("t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit' THEN t.amount");
+    expect(BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY).toContain("t.type IN ('expense', 'refund') AND t.is_excluded = 0");
+    expect(TRIP_QUERIES.GET_COSTS).toContain("tr.type IN ('expense', 'refund') AND tr.is_excluded = 0 THEN -tr.amount");
   });
 });

@@ -447,6 +447,7 @@ export class SampleDataService {
             row.id,
             row.name,
             row.type,
+            row.ownership ?? 'individual',
             row.owner_user_id,
             row.created_at,
             row.updated_at,

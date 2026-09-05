@@ -139,8 +139,8 @@ describe('csvImportService', () => {
     ]);
   });
 
-  it('maps transactions from CSV rows using a direct account selection', () => {
-    const generateTransactionHash = vi.fn().mockReturnValue('hash-1');
+  it('maps transactions from CSV rows using a direct account selection', async () => {
+    const generateTransactionHash = vi.fn().mockResolvedValue('hash-1');
     const mapping: CSVImportColumnMapping = {
       accountColumn: 'DIRECT_ACCOUNT:7',
       dateColumn: 'date',
@@ -157,7 +157,7 @@ describe('csvImportService', () => {
       },
     ];
 
-    const { mapped: mappedTransactions, rejected } = mapTransactionsFromCSV(
+    const { mapped: mappedTransactions, rejected } = await mapTransactionsFromCSV(
       [
         {
           date: '2026-04-26',
@@ -187,6 +187,7 @@ describe('csvImportService', () => {
           trip_id: null,
           type: 'expense',
           transaction_hash: 'hash-1',
+          external_id: 'ABC-1',
         },
         csvAccountValue: 'ALL_TRANSACTIONS',
         lastFourValue: '',
@@ -194,16 +195,13 @@ describe('csvImportService', () => {
         uniqueIdentifier: 'ABC-1',
       },
     ]);
-    expect(generateTransactionHash).toHaveBeenCalledWith(
-      'ALL_TRANSACTIONS',
-      '2026-04-26',
-      -12.5,
-      'Coffee shop',
-      'ABC-1'
-    );
+    // Hashed on the resolved numeric account id (not the CSV account value or
+    // the bank reference), so a direct-account import dedupes against manual
+    // entries and against imports of the same rows mapped by account column.
+    expect(generateTransactionHash).toHaveBeenCalledWith(7, '2026-04-26', -12.5, 'Coffee shop');
   });
 
-  it('groups internal duplicates and creates variation hash updates', () => {
+  it('groups internal duplicates and creates variation hash updates', async () => {
     const mappedTransactions = [
       {
         transaction: {
@@ -253,17 +251,17 @@ describe('csvImportService', () => {
     expect(internalDuplicateCount).toBe(1);
     expect(duplicateGroups).toHaveLength(1);
 
-    const { hashUpdates, tempIdsToDelete } = createHashUpdatesForSelectedDuplicates(
+    const { hashUpdates, tempIdsToDelete } = await createHashUpdatesForSelectedDuplicates(
       duplicateGroups,
       new Set([0, 1])
     );
 
-    const expectedVariationHash = DatabaseService.generateTransactionHashFromFields(
-      'Visa ending 1682',
+    // The kept duplicate is re-keyed on the numeric account id with seed 1.
+    const expectedVariationHash = await DatabaseService.generateTransactionHashFromFields(
+      7,
       '2026-04-26',
       -12.5,
       'Coffee shop',
-      'ABC-1',
       1
     );
 
@@ -328,10 +326,10 @@ describe('csvImportService row parsing', () => {
       selectedAccountId: accountFixture.id,
     },
   ];
-  const hash = () => 'h';
+  const hash = async () => 'h';
 
-  it('rejects rows with an unreadable date instead of defaulting them to today', () => {
-    const { mapped, rejected } = mapTransactionsFromCSV(
+  it('rejects rows with an unreadable date instead of defaulting them to today', async () => {
+    const { mapped, rejected } = await mapTransactionsFromCSV(
       [
         { date: 'Pending', amount: '-5.00', description: 'Card hold' },
         { date: '04/26/2026', amount: '-5.00', description: 'Coffee' },
@@ -348,8 +346,8 @@ describe('csvImportService row parsing', () => {
     ]);
   });
 
-  it('rejects rows with a non-numeric amount instead of importing $0', () => {
-    const { mapped, rejected } = mapTransactionsFromCSV(
+  it('rejects rows with a non-numeric amount instead of importing $0', async () => {
+    const { mapped, rejected } = await mapTransactionsFromCSV(
       [{ date: '2026-04-26', amount: 'n/a', description: 'Fee waived' }],
       mapping,
       accountMatches,
@@ -362,14 +360,14 @@ describe('csvImportService row parsing', () => {
     ]);
   });
 
-  it('skips unmapped-account rows silently and numbers rejected rows by CSV position', () => {
+  it('skips unmapped-account rows silently and numbers rejected rows by CSV position', async () => {
     const byAccountMapping: CSVImportColumnMapping = { ...mapping, accountColumn: 'account' };
     const matches: CSVAccountMatch[] = [
       { csvAccountValue: '1682', lastFourValue: '1682', matchingAccounts: [accountFixture], selectedAccountId: 7 },
       { csvAccountValue: '9999', lastFourValue: '9999', matchingAccounts: [], selectedAccountId: null },
     ];
 
-    const { mapped, rejected } = mapTransactionsFromCSV(
+    const { mapped, rejected } = await mapTransactionsFromCSV(
       [
         { account: '9999', date: '2026-04-26', amount: '-1.00', description: 'Other card' },
         { account: '1682', date: 'garbage', amount: '-1.00', description: 'Bad date' },

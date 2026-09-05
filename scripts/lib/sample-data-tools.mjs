@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -995,24 +996,28 @@ function getBaseRowsForTable(tableName, context) {
           id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
           name: 'Household Checking',
           type: 'checking',
+          ownership: 'individual',
           owner_user_id: 1,
         },
         {
           id: FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS,
           name: 'Rainy Day Savings',
           type: 'savings',
+          ownership: 'individual',
           owner_user_id: 1,
         },
         {
           id: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
           name: 'Rewards Visa',
           type: 'credit',
+          ownership: 'individual',
           owner_user_id: 1,
         },
         {
           id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT,
           name: 'Household Joint',
-          type: 'joint',
+          type: 'checking',
+          ownership: 'joint',
           owner_user_id: 2,
         },
       ];
@@ -2041,10 +2046,13 @@ function buildTimestamp(dateString, hour, minute) {
   return `${dateString}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`;
 }
 
+// Mirrors public/database-hash.js (schema hash version 2): SHA-256 hex over
+// "<accountId>-<date>-<amount>-<description>[-seed<n>]". Fixtures generated
+// here therefore dedupe against a real CSV import of the same rows.
 function buildTransactionHash(accountId, date, amount, description, variationSeed = 0) {
-  return variationSeed > 0
-    ? `${accountId}-${date}-${amount}-${description}-${variationSeed}`
-    : `${accountId}-${date}-${amount}-${description}`;
+  const base = `${accountId}-${date}-${amount}-${description}`;
+  const input = variationSeed > 0 ? `${base}-seed${variationSeed}` : base;
+  return createHash('sha256').update(input, 'utf8').digest('hex');
 }
 
 function normalizeReferenceDate(value) {

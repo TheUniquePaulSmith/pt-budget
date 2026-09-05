@@ -20,7 +20,11 @@ import {
 } from './databaseEncryption';
 import { advanceByCadence } from './recurringCadence';
 import { addMonthsISO, todayLocalISO } from './dateOnly';
+import { computeTransactionHash } from './transactionHash';
+import type { TransactionType } from '../types/database';
 import {
+  incomeExpr,
+  spendExpr,
   TRANSACTION_QUERIES,
   CATEGORY_QUERIES,
   COMPANY_QUERIES,
@@ -509,7 +513,7 @@ export class DatabaseService {
     transaction: Omit<Transaction, "id" | "created_at" | "updated_at" | "card_id"> & { card_id?: number | null }
   ): Promise<string> {
     try {
-      const hash = this.generateTransactionHash(transaction);
+      const hash = await this.generateTransactionHash(transaction);
 
       // Check for duplicate
       const existingCount = await this.workerService.query(
@@ -592,6 +596,7 @@ export class DatabaseService {
         transaction.trip_id || null,
         transaction.type,
         transaction.transaction_hash || null,
+        transaction.external_id ?? null,
       ]);
 
       const rows = await this.workerService.batchQueryReturning(
@@ -898,8 +903,8 @@ export class DatabaseService {
       const aggregateSql = `
         SELECT
           COUNT(*) as total,
-          SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END) as total_income,
-          SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as total_expenses
+          SUM(${incomeExpr()}) as total_income,
+          SUM(${spendExpr()}) as total_expenses
         FROM transactions t
         ${this.TRANSACTION_JOINS}
         ${where}
@@ -1384,7 +1389,7 @@ export class DatabaseService {
   async getTransactionsByDateRange(
     startDate: string,
     endDate: string,
-    type?: "income" | "expense"
+    type?: TransactionType
   ): Promise<Transaction[]> {
     try {
       let rows;
@@ -1549,6 +1554,7 @@ export class DatabaseService {
       const accountResult = await this.workerService.query(ACCOUNT_QUERIES.CREATE, [
         account.name,
         account.type,
+        account.ownership ?? 'individual',
         ownerUserId,
       ]);
       const accountId = Number(accountResult[0].id);
@@ -1577,11 +1583,12 @@ export class DatabaseService {
     }
   }
 
-  async updateAccount(id: number, updates: Partial<Pick<Account, 'name' | 'type'>>): Promise<void> {
+  async updateAccount(id: number, updates: Partial<Pick<Account, 'name' | 'type' | 'ownership'>>): Promise<void> {
     try {
       await this.workerService.query(ACCOUNT_QUERIES.UPDATE, [
         updates.name,
         updates.type,
+        updates.ownership ?? 'individual',
         id,
       ]);
     } catch (error) {
@@ -2419,6 +2426,13 @@ export class DatabaseService {
       project_id: row.project_id || null,
       type: row.type,
       transaction_hash: row.transaction_hash || undefined,
+      hash_variation_seed: Number(row.hash_variation_seed ?? 0),
+      external_id: row.external_id ?? null,
+      transfer_group_id: row.transfer_group_id ?? null,
+      type_locked: Number(row.type_locked ?? 0),
+      is_excluded: Number(row.is_excluded ?? 0),
+      is_flagged: Number(row.is_flagged ?? 0),
+      import_batch_id: row.import_batch_id ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at,
       // Joined fields from SQL queries
@@ -2467,7 +2481,15 @@ export class DatabaseService {
       id: row.id,
       name: row.name,
       type: row.type,
+      ownership: row.ownership === 'joint' ? 'joint' : 'individual',
       owner_user_id: row.owner_user_id,
+      institution: row.institution ?? null,
+      opening_balance: Number(row.opening_balance ?? 0),
+      opening_balance_date: row.opening_balance_date ?? null,
+      credit_limit: row.credit_limit ?? null,
+      is_active: Number(row.is_active ?? 1),
+      include_in_net_worth: Number(row.include_in_net_worth ?? 1),
+      import_sign_inverted: Number(row.import_sign_inverted ?? 0),
       created_at: row.created_at,
       updated_at: row.updated_at,
       owner_display_name: row.owner_display_name,
@@ -2899,50 +2921,31 @@ export class DatabaseService {
     };
   }
 
+  // Content hash for duplicate detection: SHA-256 over the numeric account id,
+  // date, signed amount and raw description (public/database-hash.js). Manual
+  // entry and CSV import use the same key so the two paths dedupe each other.
   private generateTransactionHash(
-    transaction: Pick<Transaction, "account_id" | "date" | "amount" | "description">
-  ): string {
-    const hashInput = `${transaction.account_id || "null"}-${
-      transaction.date
-    }-${transaction.amount}-${transaction.description}`;
-
-    // Use a simple hash for browser compatibility
-    let hash = 0;
-    for (let i = 0; i < hashInput.length; i++) {
-      const char = hashInput.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-
-    return Math.abs(hash).toString(16);
+    transaction: Pick<Transaction, "account_id" | "date" | "amount" | "description"> & { hash_variation_seed?: number }
+  ): Promise<string> {
+    return computeTransactionHash(
+      transaction.account_id,
+      transaction.date,
+      transaction.amount,
+      transaction.description,
+      transaction.hash_variation_seed ?? 0
+    );
   }
 
-  // Static method for generating transaction hash from CSV import
+  // Shared with the CSV import pipeline; `variationSeed` > 0 marks a
+  // deliberately kept duplicate of an otherwise identical row.
   static generateTransactionHashFromFields(
-    accountId: string,
+    accountId: number | string,
     date: string,
     amount: number,
     description: string,
-    uniqueIdentifier?: string,
-    variationSeed?: number
-  ): string {
-    const baseHashInput = uniqueIdentifier
-      ? `${accountId}-${date}-${amount}-${description}-${uniqueIdentifier}`
-      : `${accountId}-${date}-${amount}-${description}`;
-    
-    // Append variation seed to hash input if provided and non-zero
-    const hashInput = variationSeed && variationSeed > 0
-      ? `${baseHashInput}-seed${variationSeed}`
-      : baseHashInput;
-
-    let hash = 0;
-    for (let i = 0; i < hashInput.length; i++) {
-      const char = hashInput.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-
-    return Math.abs(hash).toString(16);
+    variationSeed = 0
+  ): Promise<string> {
+    return computeTransactionHash(accountId, date, amount, description, variationSeed);
   }
 
   async updateTransactionLabels(id: number, projectId: number | null, tripId: number | null): Promise<void> {

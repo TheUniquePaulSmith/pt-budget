@@ -14,7 +14,7 @@ export interface DatabaseAccountSlice {
   deleteAccount: (id: number) => Promise<void>;
   updateAccount: (
     id: number,
-    updates: Partial<Pick<Account, 'name' | 'type'>>
+    updates: Partial<Pick<Account, 'name' | 'type' | 'ownership'>>
   ) => Promise<void>;
   getAccountCards: (accountId: number) => Promise<any[]>;
   addAccountCard: (card: {
@@ -104,7 +104,7 @@ export function useDatabaseAccountManagementSlices({
   );
 
   const updateAccount = useCallback(
-    async (id: number, updates: Partial<Pick<Account, 'name' | 'type'>>): Promise<void> => {
+    async (id: number, updates: Partial<Pick<Account, 'name' | 'type' | 'ownership'>>): Promise<void> => {
       await requireService().updateAccount(id, updates);
       await refreshAccounts();
     },

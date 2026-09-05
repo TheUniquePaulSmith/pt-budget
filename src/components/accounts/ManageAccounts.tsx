@@ -152,7 +152,7 @@ export default function ManageAccounts() {
   };
 
   const handleAddAccount = async (
-    account: { name: string; type: Account['type'] },
+    account: { name: string; type: Account['type']; ownership: NonNullable<Account['ownership']> },
     ownerUserId: number,
     card: { last_four: string; full_number: string | null; nickname: string | null; user_id: number | null }
   ) => {

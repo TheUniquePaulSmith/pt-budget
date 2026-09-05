@@ -57,7 +57,7 @@ import BulkSetCategoryDialog from './BulkSetCategoryDialog';
 import BulkSetCompanyDialog from './BulkSetCompanyDialog';
 import BulkSetProjectDialog from './BulkSetProjectDialog';
 import BulkSubscriptionLinkDialog from './BulkSubscriptionLinkDialog';
-import { Transaction, Category, Company, Account, TransactionsPaginatedResult, User } from '@/types/database';
+import { Transaction, TransactionType, Category, Company, Account, TransactionsPaginatedResult, User } from '@/types/database';
 import { format, parseISO } from 'date-fns';
 
 type Order = 'asc' | 'desc';
@@ -99,7 +99,7 @@ export default function TransactionReport() {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | TransactionType>('all');
   const [categoryFilter, setCategoryFilter] = useState<number[]>([]);
   const [companyFilter, setCompanyFilter] = useState<number[]>([]);
   const [projectFilter, setProjectFilter] = useState<number[]>([]);
@@ -633,6 +633,8 @@ export default function TransactionReport() {
                   <MenuItem value="all">All</MenuItem>
                   <MenuItem value="income">Income</MenuItem>
                   <MenuItem value="expense">Expense</MenuItem>
+                  <MenuItem value="refund">Refund</MenuItem>
+                  <MenuItem value="transfer">Transfer</MenuItem>
                 </Select>
               </FormControl>
             </Box>

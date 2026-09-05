@@ -5,6 +5,32 @@
  * Keeping them centralized helps with debugging and maintenance.
  */
 
+// ---------------------------------------------------------------------------
+// Money expressions
+//
+// Every aggregate derives spending and income from these so the dashboard, the
+// budget, the transaction report and the recurring-series stats agree:
+//   spending = -(expense + refund amounts)   refunds are stored positive and net out
+//   income   = income amounts                transfers count toward neither side
+//   rows with is_excluded = 1 contribute nothing anywhere
+// Never use ABS(amount) in analytics: with refunds positive, ABS would turn a
+// refund into extra spend (guarded by databaseService.test.ts "analytics consistency").
+// ---------------------------------------------------------------------------
+export const spendExpr = (alias = 't') =>
+  `CASE WHEN ${alias}.type IN ('expense', 'refund') AND ${alias}.is_excluded = 0 THEN -${alias}.amount ELSE 0 END`;
+
+export const incomeExpr = (alias = 't') =>
+  `CASE WHEN ${alias}.type = 'income' AND ${alias}.is_excluded = 0 THEN ${alias}.amount ELSE 0 END`;
+
+// Income arriving on a credit account is a card payment or refund, never
+// earnings. Kept as a safety net until transfer pairing types those rows.
+export const depositoryIncomeExpr = (alias = 't', accountAlias = 'a') =>
+  `CASE WHEN ${alias}.type = 'income' AND ${alias}.is_excluded = 0 AND ${accountAlias}.type != 'credit' THEN ${alias}.amount ELSE 0 END`;
+
+/** WHERE fragment selecting the rows that count as spending. */
+export const spendingRowsPredicate = (alias = 't') =>
+  `${alias}.type IN ('expense', 'refund') AND ${alias}.is_excluded = 0`;
+
 // Transaction Queries
 export const TRANSACTION_QUERIES = {
   GET_ALL: `
@@ -181,8 +207,8 @@ export const TRANSACTION_QUERIES = {
   `,
 
   INSERT_TEMP_TRANSACTION: `
-    INSERT INTO temp_import_transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO temp_import_transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, external_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
 
   // RETURNING variant used by the batched temp-table load so a single
@@ -190,25 +216,38 @@ export const TRANSACTION_QUERIES = {
   // SQLite >= 3.35; bundled wa-sqlite is 3.50.x). Callers rely on the returned
   // ids being positionally aligned with the input rows.
   INSERT_TEMP_TRANSACTION_RETURNING_ID: `
-    INSERT INTO temp_import_transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO temp_import_transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, external_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     RETURNING id
   `,
 
+  // A staged row is a duplicate when its content hash already exists, or when
+  // the bank's own reference number already exists for the same account and
+  // amount (a second dedup key that survives description reformatting).
   CHECK_DUPLICATES_IN_TEMP: `
-    SELECT t.transaction_hash 
+    SELECT t.transaction_hash
     FROM transactions t
     WHERE EXISTS (
-      SELECT 1 FROM temp_import_transactions tmp WHERE tmp.transaction_hash = t.transaction_hash
+      SELECT 1 FROM temp_import_transactions tmp
+      WHERE tmp.transaction_hash = t.transaction_hash
+         OR (tmp.external_id IS NOT NULL AND tmp.external_id = t.external_id
+             AND tmp.account_id = t.account_id AND tmp.amount = t.amount)
     )
   `,
 
   BULK_INSERT_FROM_TEMP: `
-    INSERT INTO transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed)
-    SELECT date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed
+    INSERT INTO transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, external_id)
+    SELECT date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, external_id
     FROM temp_import_transactions
     WHERE NOT EXISTS (
       SELECT 1 FROM transactions t WHERE t.transaction_hash = temp_import_transactions.transaction_hash
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM transactions t
+      WHERE temp_import_transactions.external_id IS NOT NULL
+        AND t.external_id = temp_import_transactions.external_id
+        AND t.account_id = temp_import_transactions.account_id
+        AND t.amount = temp_import_transactions.amount
     )
   `,
 
@@ -262,7 +301,7 @@ export const ACCOUNT_QUERIES = {
     LEFT JOIN users u ON a.owner_user_id = u.id
     ORDER BY a.name
   `,
-  CREATE: `INSERT INTO accounts (name, type, owner_user_id) VALUES (?, ?, ?) RETURNING id`,
+  CREATE: `INSERT INTO accounts (name, type, ownership, owner_user_id) VALUES (?, ?, ?, ?) RETURNING id`,
   GET_BY_ID: `
     SELECT 
       a.*, 
@@ -278,7 +317,7 @@ export const ACCOUNT_QUERIES = {
     WHERE a.owner_user_id = ?
     ORDER BY a.name
   `,
-  UPDATE: `UPDATE accounts SET name = ?, type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  UPDATE: `UPDATE accounts SET name = ?, type = ?, ownership = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
   DELETE: `DELETE FROM accounts WHERE id = ?`,
 };
 
@@ -362,21 +401,21 @@ export const BUDGET_PLAN_QUERIES = {
   `,
   ACTUAL_EXPENSES_BY_MONTH_CATEGORY: `
     SELECT
-      strftime('%Y-%m', date) as month,
-      category_id,
-      SUM(ABS(amount)) as total
-    FROM transactions
-    WHERE type = 'expense' AND date BETWEEN ? AND ?
-    GROUP BY strftime('%Y-%m', date), category_id
+      strftime('%Y-%m', t.date) as month,
+      t.category_id,
+      SUM(${spendExpr()}) as total
+    FROM transactions t
+    WHERE ${spendingRowsPredicate()} AND t.date BETWEEN ? AND ?
+    GROUP BY strftime('%Y-%m', t.date), t.category_id
   `,
   ACTUAL_INCOME_LINKED_BY_MONTH: `
     SELECT
       strftime('%Y-%m', t.date) as month,
-      SUM(t.amount) as total
+      SUM(${incomeExpr()}) as total
     FROM transactions t
     JOIN accounts a ON a.id = t.account_id
     JOIN income_sources src ON src.kind = 'linked_account' AND src.account_id = t.account_id AND src.is_active = 1
-    WHERE t.type = 'income' AND a.type != 'credit' AND t.date BETWEEN ? AND ?
+    WHERE t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit' AND t.date BETWEEN ? AND ?
     GROUP BY strftime('%Y-%m', t.date)
   `,
 };
@@ -415,7 +454,7 @@ export const PROJECT_QUERIES = {
     SELECT
       p.estimated_cost,
       p.actual_cost,
-      COALESCE(SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as transactions_total
+      COALESCE(SUM(${spendExpr()}), 0) as transactions_total
     FROM projects p
     LEFT JOIN transactions t ON p.id = t.project_id
     WHERE p.id = ?
@@ -427,7 +466,7 @@ export const PROJECT_QUERIES = {
       p.id as project_id,
       COALESCE(p.estimated_cost, 0) as estimated,
       COALESCE(p.actual_cost, 0) as actual,
-      COALESCE(SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as transactions_total
+      COALESCE(SUM(${spendExpr()}), 0) as transactions_total
     FROM projects p
     LEFT JOIN transactions t ON p.id = t.project_id
     GROUP BY p.id, p.estimated_cost, p.actual_cost
@@ -465,7 +504,7 @@ export const TRIP_QUERIES = {
     SELECT 
       COALESCE(t.estimated_cost, 0) as estimated,
       COALESCE(t.actual_cost, 0) as actual,
-      COALESCE(SUM(ABS(tr.amount)), 0) as transactions_total
+      COALESCE(SUM(${spendExpr('tr')}), 0) as transactions_total
     FROM trips t
     LEFT JOIN transactions tr ON tr.trip_id = t.id
     WHERE t.id = ?
@@ -483,11 +522,11 @@ export const ANALYTICS_QUERIES = {
       COALESCE(c.id, 'uncategorized') as category_id,
       COALESCE(c.name, 'Uncategorized') as category_name,
       COALESCE(c.color, '#9e9e9e') as color,
-      SUM(ABS(t.amount)) as total
+      SUM(${spendExpr()}) as total
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     /*__FILTER_JOINS__*/
-    WHERE t.type = 'expense' AND t.date BETWEEN ? AND ?
+    WHERE ${spendingRowsPredicate()} AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
     GROUP BY c.id
     HAVING total > 0
@@ -499,7 +538,7 @@ export const ANALYTICS_QUERIES = {
       COALESCE(comp.id, 'unassigned') as company_id,
       COALESCE(comp.name, 'No Company') as company_name,
       mr.service_name as service_name,
-      SUM(ABS(t.amount)) as total
+      SUM(${spendExpr()}) as total
     FROM transactions t
     LEFT JOIN companies comp ON t.company_id = comp.id
     LEFT JOIN transaction_series_links tsl ON tsl.transaction_id = t.id
@@ -507,7 +546,7 @@ export const ANALYTICS_QUERIES = {
     LEFT JOIN merchant_rules mr ON mr.id = rs.rule_id
     LEFT JOIN accounts a ON t.account_id = a.id
     /*__FILTER_JOINS__*/
-    WHERE t.type = 'expense' AND t.date BETWEEN ? AND ?
+    WHERE ${spendingRowsPredicate()} AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
     GROUP BY comp.id, comp.name, mr.service_name
     HAVING total > 0
@@ -519,13 +558,13 @@ export const ANALYTICS_QUERIES = {
       rs.id as series_id,
       rs.name as series_name,
       rs.kind,
-      SUM(ABS(t.amount)) as total
+      SUM(${spendExpr()}) as total
     FROM transaction_series_links tsl
     JOIN recurring_series rs ON rs.id = tsl.series_id
     JOIN transactions t ON t.id = tsl.transaction_id
     LEFT JOIN accounts a ON t.account_id = a.id
     /*__FILTER_JOINS__*/
-    WHERE t.type = 'expense' AND t.date BETWEEN ? AND ?
+    WHERE ${spendingRowsPredicate()} AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
     GROUP BY rs.id, rs.name, rs.kind
     HAVING total > 0
@@ -537,12 +576,12 @@ export const ANALYTICS_QUERIES = {
       COALESCE(c.id, 'uncategorized') as category_id,
       COALESCE(c.name, 'Uncategorized') as category_name,
       COALESCE(c.color, '#9e9e9e') as color,
-      SUM(t.amount) as total
+      SUM(${incomeExpr()}) as total
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     LEFT JOIN accounts a ON t.account_id = a.id
     /*__FILTER_JOINS__*/
-    WHERE t.type = 'income' AND a.type != 'credit' AND t.date BETWEEN ? AND ?
+    WHERE t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit' AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
     GROUP BY c.id
     HAVING total > 0
@@ -552,8 +591,8 @@ export const ANALYTICS_QUERIES = {
   MONTHLY_TRENDS: `
     SELECT
       strftime('%Y-%m', t.date) as month,
-      SUM(CASE WHEN t.type = 'income' AND a.type != 'credit' THEN t.amount ELSE 0 END) as income,
-      SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as expense
+      SUM(${depositoryIncomeExpr()}) as income,
+      SUM(${spendExpr()}) as expense
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
     /*__FILTER_JOINS__*/
@@ -565,9 +604,9 @@ export const ANALYTICS_QUERIES = {
 
   DASHBOARD_SUMMARY: `
     SELECT
-      COUNT(*) as transaction_count,
-      SUM(CASE WHEN t.type = 'income' AND a.type != 'credit' THEN t.amount ELSE 0 END) as total_income,
-      SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as total_expenses
+      SUM(CASE WHEN t.is_excluded = 0 THEN 1 ELSE 0 END) as transaction_count,
+      SUM(${depositoryIncomeExpr()}) as total_income,
+      SUM(${spendExpr()}) as total_expenses
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
     /*__FILTER_JOINS__*/
@@ -583,13 +622,13 @@ export const ANALYTICS_QUERIES = {
       c.id as category_id,
       c.name as category_name,
       c.color as category_color,
-      SUM(t.amount) as total
+      SUM(${incomeExpr()}) as total
     FROM transactions t
     JOIN accounts a ON t.account_id = a.id
     LEFT JOIN users u ON a.owner_user_id = u.id
     LEFT JOIN categories c ON t.category_id = c.id
     /*__FILTER_JOINS__*/
-    WHERE t.type = 'income' AND a.type != 'credit' AND t.date BETWEEN ? AND ?
+    WHERE t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit' AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
     GROUP BY a.id, c.id
     HAVING total > 0
@@ -599,8 +638,8 @@ export const ANALYTICS_QUERIES = {
   TRENDS_BY_DATE_RANGE: `
     SELECT
       strftime('%Y-%m', t.date) as month,
-      SUM(CASE WHEN t.type = 'income' AND a.type != 'credit' THEN t.amount ELSE 0 END) as income,
-      SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as expense
+      SUM(${depositoryIncomeExpr()}) as income,
+      SUM(${spendExpr()}) as expense
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
     /*__FILTER_JOINS__*/
@@ -619,11 +658,11 @@ export const ANALYTICS_QUERIES = {
       COALESCE(c.id, 'uncategorized') as category_id,
       COALESCE(c.name, 'Uncategorized') as category_name,
       COALESCE(c.color, '#9e9e9e') as color,
-      SUM(ABS(t.amount)) as total
+      SUM(${spendExpr()}) as total
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     /*__FILTER_JOINS__*/
-    WHERE t.type = 'expense' AND t.date BETWEEN ? AND ?
+    WHERE ${spendingRowsPredicate()} AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
     GROUP BY strftime('%Y-%m', t.date), c.id
     HAVING total > 0
@@ -635,12 +674,12 @@ export const ANALYTICS_QUERIES = {
   SPENDING_COMMITTED_BY_MONTH: `
     SELECT
       strftime('%Y-%m', t.date) as month,
-      SUM(CASE WHEN tsl.transaction_id IS NOT NULL THEN ABS(t.amount) ELSE 0 END) as committed,
-      SUM(CASE WHEN tsl.transaction_id IS NULL THEN ABS(t.amount) ELSE 0 END) as discretionary
+      SUM(CASE WHEN tsl.transaction_id IS NOT NULL THEN ${spendExpr()} ELSE 0 END) as committed,
+      SUM(CASE WHEN tsl.transaction_id IS NULL THEN ${spendExpr()} ELSE 0 END) as discretionary
     FROM transactions t
     LEFT JOIN transaction_series_links tsl ON tsl.transaction_id = t.id
     /*__FILTER_JOINS__*/
-    WHERE t.type = 'expense' AND t.date BETWEEN ? AND ?
+    WHERE ${spendingRowsPredicate()} AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
     GROUP BY strftime('%Y-%m', t.date)
     ORDER BY month ASC
@@ -653,8 +692,8 @@ export const ANALYTICS_QUERIES = {
     SELECT
       COALESCE(card.user_id, a.owner_user_id) as user_id,
       COALESCE(card_user.display_name, owner_user.display_name) as user_display_name,
-      SUM(CASE WHEN t.type = 'income' AND a.type != 'credit' THEN t.amount ELSE 0 END) as income,
-      SUM(CASE WHEN t.type = 'expense' THEN ABS(t.amount) ELSE 0 END) as expenses
+      SUM(${depositoryIncomeExpr()}) as income,
+      SUM(${spendExpr()}) as expenses
     FROM transactions t
     JOIN accounts a ON t.account_id = a.id
     LEFT JOIN account_cards card ON t.card_id = card.id
@@ -726,7 +765,7 @@ export const SUBSCRIPTION_QUERIES = {
       rs.*,
       comp.name as company_name,
       COUNT(t.id) as transaction_count,
-      COALESCE(SUM(ABS(t.amount)), 0) as total_spent,
+      COALESCE(SUM(${spendExpr()}), 0) as total_spent,
       latest_card.last_four as card_last_four,
       latest_card.nickname as card_nickname
     FROM recurring_series rs
@@ -809,7 +848,7 @@ export const SUBSCRIPTION_QUERIES = {
   GET_EXPENSE_TRANSACTIONS_FOR_SCAN: `
     SELECT t.id, t.date, t.amount, t.description, t.company_id
     FROM transactions t
-    WHERE t.type = 'expense'
+    WHERE t.type = 'expense' AND t.is_excluded = 0
     ORDER BY t.date ASC
   `,
   UPDATE_TRANSACTION_COMPANY: `
@@ -836,7 +875,7 @@ export const UTILITY_QUERIES = {
 export const SAMPLE_DATA_QUERIES = {
   // Insert with explicit ID using REPLACE to handle conflicts (SQLite allows this when AUTOINCREMENT is used)
   INSERT_USER: `INSERT OR REPLACE INTO users (id, display_name, is_primary, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-  INSERT_ACCOUNT: `INSERT OR REPLACE INTO accounts (id, name, type, owner_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+  INSERT_ACCOUNT: `INSERT OR REPLACE INTO accounts (id, name, type, ownership, owner_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   INSERT_ACCOUNT_CARD: `INSERT OR REPLACE INTO account_cards (id, account_id, last_four, full_number, nickname, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   INSERT_CATEGORY: `INSERT OR REPLACE INTO categories (id, name, color, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
   INSERT_COMPANY: `INSERT OR REPLACE INTO companies (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,

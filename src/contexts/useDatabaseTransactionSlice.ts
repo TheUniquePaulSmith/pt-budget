@@ -46,12 +46,12 @@ export interface DatabaseTransactionSlice {
   unlinkTransactionFromSeries: (txId: number) => Promise<void>;
   bulkLinkTransactionsToSeries: (transactionIds: number[], seriesId: number) => Promise<{ appliedCount: number }>;
   generateTransactionHash: (
-    accountId: string,
+    accountId: number,
     date: string,
     amount: number,
     description: string,
-    uniqueIdentifier?: string
-  ) => string;
+    variationSeed?: number
+  ) => Promise<string>;
   getRecentTransactions: (limit: number, filters?: TransactionScopeFilters) => Promise<Transaction[]>;
   getDashboardSummary: (startDate: string, endDate: string, filters?: TransactionScopeFilters) => Promise<DashboardSummary>;
   getChartData: (startDate: string, endDate: string, filters?: TransactionScopeFilters) => Promise<ChartData>;
@@ -235,8 +235,8 @@ export function useDatabaseTransactionSlice({
   );
 
   const generateTransactionHash = useCallback(
-    (accountId: string, date: string, amount: number, description: string, uniqueIdentifier?: string): string => {
-      return DatabaseService.generateTransactionHashFromFields(accountId, date, amount, description, uniqueIdentifier);
+    (accountId: number, date: string, amount: number, description: string, variationSeed = 0): Promise<string> => {
+      return DatabaseService.generateTransactionHashFromFields(accountId, date, amount, description, variationSeed);
     },
     []
   );

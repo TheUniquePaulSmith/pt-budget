@@ -65,13 +65,15 @@ export interface CSVImportAnalysisResult {
   duplicateGroups?: CSVImportDuplicateGroup[];
 }
 
-type HashGenerator = (
-  accountId: string,
+// Keyed on the resolved numeric account id (never the raw CSV account string)
+// so a row imported from a file and the same row typed by hand dedupe.
+export type HashGenerator = (
+  accountId: number,
   date: string,
   amount: number,
   description: string,
-  uniqueIdentifier?: string
-) => string;
+  variationSeed?: number
+) => Promise<string>;
 
 export function autoDetectColumnMapping(
   headers: string[]
@@ -207,19 +209,19 @@ export async function createAccountMatches(
  * an unreadable date or amount are returned in `rejected` with a reason instead
  * of being defaulted to today / $0.
  */
-export function mapTransactionsFromCSV(
+export async function mapTransactionsFromCSV(
   data: any[],
   columnMapping: CSVImportColumnMapping,
   accountMappings: CSVAccountMatch[],
   generateTransactionHash: HashGenerator
-): CsvMappingResult {
+): Promise<CsvMappingResult> {
   const isDirectAccount = columnMapping.accountColumn.startsWith('DIRECT_ACCOUNT:');
   const directAccountMapping = isDirectAccount ? accountMappings[0] : null;
 
   const mapped: MappedCsvTransaction[] = [];
   const rejected: CsvRejectedRow[] = [];
 
-  data.forEach((row, index) => {
+  for (const [index, row] of data.entries()) {
     let csvAccountValue: string;
     let accountMapping: CSVAccountMatch | undefined | null;
     let lastFourValue: string;
@@ -237,15 +239,16 @@ export function mapTransactionsFromCSV(
     }
 
     // Unmapped account: skipped, not rejected (the account-mapping step already told the user).
-    if (!accountMapping?.selectedAccountId) return;
+    if (!accountMapping?.selectedAccountId) continue;
 
     const rowNumber = index + 1;
     const rawDate = row[columnMapping.dateColumn];
     const rawAmount = row[columnMapping.amountColumn];
     const description = String(row[columnMapping.descriptionColumn] ?? '');
-    const uniqueIdentifier = columnMapping.uniqueIdentifierColumn
-      ? String(row[columnMapping.uniqueIdentifierColumn])
-      : undefined;
+    const rawUniqueIdentifier = columnMapping.uniqueIdentifierColumn
+      ? String(row[columnMapping.uniqueIdentifierColumn] ?? '').trim()
+      : '';
+    const uniqueIdentifier = rawUniqueIdentifier || undefined;
 
     const date = parseCsvDate(rawDate);
     if (!date) {
@@ -253,7 +256,7 @@ export function mapTransactionsFromCSV(
         rowNumber,
         reason: `Unrecognized date "${String(rawDate ?? '').trim()}" in column "${columnMapping.dateColumn}"`,
       });
-      return;
+      continue;
     }
 
     const amount = parseCsvAmount(rawAmount);
@@ -262,14 +265,26 @@ export function mapTransactionsFromCSV(
         rowNumber,
         reason: `Unrecognized amount "${String(rawAmount ?? '').trim()}" in column "${columnMapping.amountColumn}"`,
       });
-      return;
+      continue;
     }
 
+    // Refund and transfer typing is a later step (transaction classifier);
+    // the import itself only knows the direction of the money.
     const type: 'income' | 'expense' = amount > 0 ? 'income' : 'expense';
+    const signedAmount = Math.abs(amount) * (type === 'expense' ? -1 : 1);
+
+    // The bank's reference number is a second dedup key, not part of the hash,
+    // so rows that predate this import can still be rehashed deterministically.
+    const hash = await generateTransactionHash(
+      accountMapping.selectedAccountId,
+      date,
+      signedAmount,
+      description
+    );
 
     const transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'> = {
       date,
-      amount: Math.abs(amount) * (type === 'expense' ? -1 : 1),
+      amount: signedAmount,
       description: description || 'Imported transaction',
       comment: null,
       account_id: accountMapping.selectedAccountId,
@@ -279,24 +294,18 @@ export function mapTransactionsFromCSV(
       project_id: null,
       trip_id: null,
       type,
+      transaction_hash: hash,
+      external_id: uniqueIdentifier ?? null,
     };
 
-    const hash = generateTransactionHash(
-      csvAccountValue,
-      date,
-      amount,
-      description,
-      uniqueIdentifier
-    );
-
     mapped.push({
-      transaction: { ...transaction, transaction_hash: hash },
+      transaction,
       csvAccountValue,
       lastFourValue,
       hash,
       uniqueIdentifier,
     });
-  });
+  }
 
   return { mapped, rejected };
 }
@@ -344,13 +353,14 @@ export function buildDuplicateGroups(
   return { duplicateGroups, internalDuplicateCount };
 }
 
-export function createHashUpdatesForSelectedDuplicates(
+export async function createHashUpdatesForSelectedDuplicates(
   duplicateGroups: CSVImportDuplicateGroup[],
-  selectedIndices: Set<number>
-): {
+  selectedIndices: Set<number>,
+  generateTransactionHash: HashGenerator = DatabaseService.generateTransactionHashFromFields
+): Promise<{
   hashUpdates: Array<{ tempId: number; newHash: string; variationSeed: number }>;
   tempIdsToDelete: number[];
-} {
+}> {
   const hashUpdates: Array<{
     tempId: number;
     newHash: string;
@@ -358,36 +368,35 @@ export function createHashUpdatesForSelectedDuplicates(
   }> = [];
   const tempIdsToDelete: number[] = [];
 
-  duplicateGroups.forEach((group) => {
+  for (const group of duplicateGroups) {
     const selectedInGroup = group.transactions.filter((item) =>
       selectedIndices.has(item.index)
     );
 
-    selectedInGroup.forEach((item, variationIndex) => {
+    for (const [variationIndex, item] of selectedInGroup.entries()) {
       if (variationIndex === 0) {
-        return;
+        continue;
       }
 
       hashUpdates.push({
         tempId: item.tempId,
-        newHash: DatabaseService.generateTransactionHashFromFields(
-          item.csvAccountValue,
+        newHash: await generateTransactionHash(
+          item.transaction.account_id,
           item.transaction.date,
           item.transaction.amount,
           item.transaction.description,
-          item.uniqueIdentifier,
           variationIndex
         ),
         variationSeed: variationIndex,
       });
-    });
+    }
 
-    group.transactions.forEach((item) => {
+    for (const item of group.transactions) {
       if (!selectedIndices.has(item.index)) {
         tempIdsToDelete.push(item.tempId);
       }
-    });
-  });
+    }
+  }
 
   return { hashUpdates, tempIdsToDelete };
 }

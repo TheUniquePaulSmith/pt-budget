@@ -325,15 +325,16 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   const handleResolveDuplicates = async (selectedIndices: Set<number>) => {
     if (!analysisResult || !analysisResult.duplicateGroups) return;
 
-    const { hashUpdates, tempIdsToDelete } = createHashUpdatesForSelectedDuplicates(
-      analysisResult.duplicateGroups,
-      selectedIndices
-    );
-    
     setDuplicateResolverOpen(false);
-    
+
     // Apply updates and deletions
     try {
+      const { hashUpdates, tempIdsToDelete } = await createHashUpdatesForSelectedDuplicates(
+        analysisResult.duplicateGroups,
+        selectedIndices,
+        generateTransactionHash
+      );
+
       // Update hashes for varied transactions
       if (hashUpdates.length > 0) {
         await updateTempTransactionHashes(hashUpdates);
@@ -415,7 +416,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     });
 
     try {
-      const { mapped: mappedTransactions, rejected } = mapTransactionsFromCSV(
+      const { mapped: mappedTransactions, rejected } = await mapTransactionsFromCSV(
         csvData,
         mapping,
         accountMatches,

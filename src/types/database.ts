@@ -1,5 +1,16 @@
 // Database type definitions for the budget tracker app
 
+/**
+ * What a money movement means. `amount` stays signed (negative = out):
+ * expense (out), income (in, earnings), refund (in, nets against spending),
+ * transfer (either direction, between the household's own accounts; counts
+ * toward neither income nor spending).
+ */
+export type TransactionType = 'income' | 'expense' | 'refund' | 'transfer';
+
+export type AccountType = 'checking' | 'savings' | 'credit' | 'loan' | 'investment' | 'retirement';
+export type AccountOwnership = 'individual' | 'joint';
+
 export interface Transaction {
   id: number;
   date: string;
@@ -12,9 +23,15 @@ export interface Transaction {
   company_id: number | null;
   project_id: number | null;
   trip_id: number | null;
-  type: 'income' | 'expense';
+  type: TransactionType;
   transaction_hash?: string; // For duplicate detection
   hash_variation_seed?: number; // Variation seed for handling legitimate duplicates
+  external_id?: string | null; // Bank reference number, a second dedup key
+  transfer_group_id?: string | null; // Shared by both legs of a paired transfer
+  type_locked?: number; // SQLite boolean: user set the type; automatic re-typing must not touch it
+  is_excluded?: number; // SQLite boolean: leave out of every report and total
+  is_flagged?: number; // SQLite boolean: marked for review
+  import_batch_id?: number | null;
   created_at: string;
   updated_at: string;
   // Joined fields from SQL queries
@@ -63,8 +80,16 @@ export interface User {
 export interface Account {
   id: number;
   name: string; // User-friendly name for the account
-  type: 'checking' | 'savings' | 'credit' | 'joint';
+  type: AccountType;
+  ownership?: AccountOwnership; // Always present on rows read from the database; optional for inputs
   owner_user_id: number;
+  institution?: string | null;
+  opening_balance?: number;
+  opening_balance_date?: string | null;
+  credit_limit?: number | null;
+  is_active?: number; // SQLite boolean
+  include_in_net_worth?: number; // SQLite boolean
+  import_sign_inverted?: number; // SQLite boolean: this bank exports charges as positive numbers
   created_at: string;
   updated_at: string;
   // Joined fields from SQL queries
@@ -86,6 +111,32 @@ export interface AccountCard {
 }
 
 // AccountUser removed; ownership is represented by Account.owner_user_id
+
+/** One import run; lets the app say how fresh its data is and undo an import. */
+export interface ImportBatch {
+  id: number;
+  imported_at: string;
+  source: 'csv' | 'manual' | 'sample';
+  file_name: string | null;
+  account_ids_json: string | null;
+  total_rows: number;
+  inserted_count: number;
+  duplicate_count: number;
+  skipped_count: number;
+  rejected_count: number;
+  min_date: string | null;
+  max_date: string | null;
+}
+
+/** Statement balance for accounts valued rather than transacted (investment, retirement, loan). */
+export interface AccountBalanceSnapshot {
+  id: number;
+  account_id: number;
+  as_of_date: string;
+  balance: number;
+  note?: string | null;
+  created_at: string;
+}
 
 export interface BudgetPlan {
   id: number;
@@ -123,6 +174,8 @@ export interface IncomeSource {
   end_date: string | null;
   is_active: number;
   notes?: string | null;
+  deposit_account_id?: number | null; // Where the pay lands; null = an account the app does not track
+  match_pattern?: string | null; // Description text that identifies the payroll deposit
   created_at: string;
   updated_at: string;
   account_name?: string;
@@ -212,6 +265,7 @@ export interface MerchantRule {
   enabled: number; // SQLite boolean (0/1)
   user_modified: number; // SQLite boolean (0/1); guards community reseeds
   notes?: string | null;
+  default_category_id?: number | null; // Category to assign to matching rows at import time
   created_at: string;
   updated_at: string;
 }
@@ -277,7 +331,7 @@ export interface TransactionQueryParams {
   sortBy: string;
   sortOrder: 'asc' | 'desc';
   search?: string;
-  type?: 'income' | 'expense';
+  type?: TransactionType;
   categoryIds?: number[];
   companyIds?: number[];
   projectIds?: number[];

@@ -129,9 +129,49 @@ describe('DatabaseService budget plans', () => {
     expect(sql[sql.length - 1]).toBe('COMMIT');
     expect(query).toHaveBeenCalledWith(BUDGET_PLAN_QUERIES.UPSERT_PLAN, ['2026-08', 3000, 'raise month']);
     expect(query).toHaveBeenCalledWith(BUDGET_PLAN_QUERIES.DELETE_PLAN_CATEGORIES, [9]);
-    expect(query).toHaveBeenCalledWith(BUDGET_PLAN_QUERIES.INSERT_PLAN_CATEGORY, [9, 4, 500]);
-    expect(query).toHaveBeenCalledWith(BUDGET_PLAN_QUERIES.INSERT_PLAN_CATEGORY, [9, 6, 200]);
+    expect(query).toHaveBeenCalledWith(BUDGET_PLAN_QUERIES.INSERT_PLAN_CATEGORY, [9, 4, 500, 'none', 0]);
+    expect(query).toHaveBeenCalledWith(BUDGET_PLAN_QUERIES.INSERT_PLAN_CATEGORY, [9, 6, 200, 'none', 0]);
     expect(sql).not.toContain('ROLLBACK');
+  });
+
+  it('persists per-category carry mode and reset marker when provided', async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql === BUDGET_PLAN_QUERIES.UPSERT_PLAN) return [{ id: 9 }];
+      return [];
+    });
+    const service = createService(query);
+
+    await service.saveBudgetPlan({
+      effectiveMonth: '2026-08',
+      categories: [
+        { category_id: 4, amount: 500, carry_mode: 'surplus' },
+        { category_id: 6, amount: 200, carry_mode: 'both', carry_reset: true },
+      ],
+    });
+
+    expect(query).toHaveBeenCalledWith(BUDGET_PLAN_QUERIES.INSERT_PLAN_CATEGORY, [9, 4, 500, 'surplus', 0]);
+    expect(query).toHaveBeenCalledWith(BUDGET_PLAN_QUERIES.INSERT_PLAN_CATEGORY, [9, 6, 200, 'both', 1]);
+  });
+
+  it('maps carry fields from plan category rows, defaulting legacy rows to none', async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql === BUDGET_PLAN_QUERIES.GET_ALL_PLANS) return [planRowJuly];
+      if (sql === BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES) {
+        return [
+          { ...planCategoryRows[0], carry_mode: 'deficit', carry_reset: 1 },
+          { ...planCategoryRows[0], id: 99, category_id: 5 },
+        ];
+      }
+      return [];
+    });
+    const service = createService(query);
+
+    const [plan] = await service.getBudgetPlans();
+
+    expect(plan.categories.map((c) => [c.category_id, c.carry_mode, c.carry_reset])).toEqual([
+      [4, 'deficit', 1],
+      [5, 'none', 0],
+    ]);
   });
 
   it('rolls back when a category insert fails mid-save', async () => {

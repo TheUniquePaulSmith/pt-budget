@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./DatabaseContext', () => ({
   useDatabaseAccounts: vi.fn(),
+  useDatabaseAiTools: vi.fn(),
   useDatabaseBudget: vi.fn(),
+  useDatabaseBudgetFunds: vi.fn(),
+  useDatabaseNotifications: vi.fn(),
   useDatabaseCategories: vi.fn(),
   useDatabaseCollections: vi.fn(),
   useDatabaseCompanies: vi.fn(),
@@ -110,6 +113,7 @@ function mockDatabaseHooks() {
       trips: [{ id: 7, name: 'Seattle' }],
       merchantRules: [],
       recurringSeries: [],
+      notifications: [],
     },
     lifecycle: {
       createOrOpenDatabase: vi.fn(),

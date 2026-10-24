@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react';
 
 import type { DatabaseService } from '../lib/databaseService';
 import type {
+  BudgetCarryMode,
   BudgetPeriod,
   BudgetPlanWithCategories,
   BudgetStatus,
@@ -14,7 +15,12 @@ export interface BudgetPlanInput {
   effectiveMonth: string;
   totalAmount?: number | null;
   notes?: string | null;
-  categories: Array<{ category_id: number; amount: number }>;
+  categories: Array<{
+    category_id: number;
+    amount: number;
+    carry_mode?: BudgetCarryMode;
+    carry_reset?: boolean | number;
+  }>;
 }
 
 export type IncomeSourceInput = Omit<

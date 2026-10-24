@@ -153,6 +153,11 @@ export const CREATE_TABLES = {
       plan_id INTEGER NOT NULL,
       category_id INTEGER NOT NULL,
       amount REAL NOT NULL,
+      -- Roll-over of unused (surplus) or overspent (deficit) budget into the
+      -- following month; carry_reset = 1 zeroes the carried balance from this
+      -- plan's effective_month onward.
+      carry_mode TEXT CHECK(carry_mode IN ('none', 'surplus', 'deficit', 'both')) NOT NULL DEFAULT 'none',
+      carry_reset INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (plan_id) REFERENCES budget_plans (id) ON DELETE CASCADE,
@@ -199,6 +204,11 @@ export const CREATE_TABLES = {
       estimated_cost REAL DEFAULT 0,
       actual_cost REAL DEFAULT 0,
       notes TEXT,
+      -- Optional savings fund: contributions accrue monthly into the linked
+      -- budget category from contribution_start_month ('YYYY-MM').
+      budget_category_id INTEGER REFERENCES categories (id) ON DELETE SET NULL,
+      monthly_contribution REAL,
+      contribution_start_month TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -217,6 +227,10 @@ export const CREATE_TABLES = {
       estimated_cost REAL DEFAULT 0,
       actual_cost REAL DEFAULT 0,
       notes TEXT,
+      -- Optional savings fund (see projects).
+      budget_category_id INTEGER REFERENCES categories (id) ON DELETE SET NULL,
+      monthly_contribution REAL,
+      contribution_start_month TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -297,6 +311,10 @@ export const CREATE_TABLES = {
       last_seen_date DATE,
       next_expected_date DATE,
       notes TEXT,
+      -- Payment reminders: non-autopay series are surfaced as notifications;
+      -- due_day (1-31) overrides the detected next_expected_date when set.
+      is_autopay INTEGER NOT NULL DEFAULT 0,
+      due_day INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL,
@@ -320,6 +338,74 @@ export const CREATE_TABLES = {
     CREATE TABLE IF NOT EXISTS app_metadata (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `,
+
+  // Reminders (user-created: birthdays, anniversaries, seasonal chores) and
+  // alerts (system-generated: overdue non-autopay payments, budget overspend).
+  // A reminder's due_date is its next occurrence; `recurrence` advances it.
+  // System alerts upsert on dedupe_key so rescans are idempotent.
+  NOTIFICATIONS: `
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT CHECK(kind IN ('reminder', 'alert')) NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT,
+      due_date DATE,
+      recurrence TEXT CHECK(recurrence IN ('once', 'monthly', 'yearly')) NOT NULL DEFAULT 'once',
+      lead_days INTEGER,
+      status TEXT CHECK(status IN ('active', 'snoozed', 'dismissed', 'done')) NOT NULL DEFAULT 'active',
+      snoozed_until DATE,
+      source TEXT CHECK(source IN ('user', 'system')) NOT NULL DEFAULT 'user',
+      dedupe_key TEXT UNIQUE,
+      entity_table TEXT,
+      entity_id INTEGER,
+      payload_json TEXT,
+      last_notified_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `,
+
+  // Per-type notification defaults; `type` uses the notifications.type
+  // vocabulary. Missing rows fall back to built-in defaults in the app.
+  NOTIFICATION_SETTINGS: `
+    CREATE TABLE IF NOT EXISTS notification_settings (
+      type TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      lead_days INTEGER NOT NULL DEFAULT 7,
+      os_notify INTEGER NOT NULL DEFAULT 0,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `,
+
+  // User-imported AI tool packs (declarative MCP-style tool definitions).
+  // Built-in packs ship as static JSON and are not stored here.
+  AI_TOOL_PACKS: `
+    CREATE TABLE IF NOT EXISTS ai_tool_packs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pack_key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      version TEXT,
+      source TEXT CHECK(source IN ('builtin', 'user')) NOT NULL DEFAULT 'user',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      definition_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `,
+
+  // Per-tool enable flag and persisted consent policy; pack_key is NULL for
+  // built-in TypeScript tools. 'ask' prompts inline, 'always' skips the
+  // prompt, 'deny' blocks the tool entirely.
+  AI_TOOL_SETTINGS: `
+    CREATE TABLE IF NOT EXISTS ai_tool_settings (
+      tool_name TEXT PRIMARY KEY,
+      pack_key TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      consent TEXT CHECK(consent IN ('ask', 'always', 'deny')) NOT NULL DEFAULT 'ask',
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `
@@ -363,6 +449,13 @@ export const CREATE_INDEXES = [
   // last_four is only the trailing column of the composite unique index
   // above, so restore a plain leading index for lookup-by-last-four alone.
   `CREATE INDEX IF NOT EXISTS idx_account_cards_last_four ON account_cards(last_four)`,
+  // Version 3: notifications, payment reminders, budget funds, AI tool packs.
+  `CREATE INDEX IF NOT EXISTS idx_notifications_status_due ON notifications(status, due_date)`,
+  `CREATE INDEX IF NOT EXISTS idx_notifications_entity ON notifications(entity_table, entity_id) WHERE entity_id IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_recurring_series_autopay ON recurring_series(is_autopay, status)`,
+  `CREATE INDEX IF NOT EXISTS idx_projects_budget_category ON projects(budget_category_id) WHERE budget_category_id IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_trips_budget_category ON trips(budget_category_id) WHERE budget_category_id IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_ai_tool_settings_pack ON ai_tool_settings(pack_key) WHERE pack_key IS NOT NULL`,
 ];
 
 // Schema versioning — applied by runMigrations() in database-worker.js.
@@ -383,7 +476,7 @@ export const CREATE_INDEXES = [
 //       table also has, or a SQL expression from columnExpressions) -> DROP old
 //       -> RENAME. Skipped when the table already has `guardColumn`.
 //   - { op: 'rehashTransactions' }                     recomputes legacy hashes
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export const MIGRATIONS = [
   {
     version: 1,
@@ -445,6 +538,44 @@ export const MIGRATIONS = [
       // Version-1 hashes were 32-bit and keyed differently on the CSV path;
       // recompute every legacy hash as SHA-256 keyed on the numeric account id.
       { op: 'rehashTransactions' },
+    ],
+  },
+  {
+    version: 3,
+    statements: [
+      // Notifications / reminders and the AI tool registry.
+      CREATE_TABLES.NOTIFICATIONS,
+      CREATE_TABLES.NOTIFICATION_SETTINGS,
+      CREATE_TABLES.AI_TOOL_PACKS,
+      CREATE_TABLES.AI_TOOL_SETTINGS,
+      // recurring_series: autopay flag and explicit due day for payment reminders.
+      { op: 'addColumn', table: 'recurring_series', column: 'is_autopay', ddl: 'is_autopay INTEGER NOT NULL DEFAULT 0' },
+      { op: 'addColumn', table: 'recurring_series', column: 'due_day', ddl: 'due_day INTEGER' },
+      // budget_plan_categories: per-category roll-over mode and reset marker.
+      {
+        op: 'addColumn',
+        table: 'budget_plan_categories',
+        column: 'carry_mode',
+        ddl: "carry_mode TEXT CHECK(carry_mode IN ('none', 'surplus', 'deficit', 'both')) NOT NULL DEFAULT 'none'",
+      },
+      { op: 'addColumn', table: 'budget_plan_categories', column: 'carry_reset', ddl: 'carry_reset INTEGER NOT NULL DEFAULT 0' },
+      // projects / trips: optional savings fund linked to a budget category.
+      {
+        op: 'addColumn',
+        table: 'projects',
+        column: 'budget_category_id',
+        ddl: 'budget_category_id INTEGER REFERENCES categories (id) ON DELETE SET NULL',
+      },
+      { op: 'addColumn', table: 'projects', column: 'monthly_contribution', ddl: 'monthly_contribution REAL' },
+      { op: 'addColumn', table: 'projects', column: 'contribution_start_month', ddl: 'contribution_start_month TEXT' },
+      {
+        op: 'addColumn',
+        table: 'trips',
+        column: 'budget_category_id',
+        ddl: 'budget_category_id INTEGER REFERENCES categories (id) ON DELETE SET NULL',
+      },
+      { op: 'addColumn', table: 'trips', column: 'monthly_contribution', ddl: 'monthly_contribution REAL' },
+      { op: 'addColumn', table: 'trips', column: 'contribution_start_month', ddl: 'contribution_start_month TEXT' },
     ],
   },
 ];

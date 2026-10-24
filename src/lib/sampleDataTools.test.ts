@@ -292,7 +292,7 @@ describe('sample data tools', () => {
         force: true,
       });
     }
-  });
+  }, 30_000); // streams ~MBs of fixtures; the 5s default is exceeded under coverage instrumentation
 
   it('chunks extreme transaction fixture output into a manifest and part files', async () => {
     const outputDir = path.join(

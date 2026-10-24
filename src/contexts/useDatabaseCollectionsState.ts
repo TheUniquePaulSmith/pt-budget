@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { DatabaseService } from '../lib/databaseService';
 import type {
   Account,
+  AppNotification,
   Category,
   Company,
   MerchantRule,
@@ -25,6 +26,7 @@ export interface DatabaseCollectionsSlice {
   trips: Trip[];
   merchantRules: MerchantRule[];
   recurringSeries: RecurringSeries[];
+  notifications: AppNotification[];
 }
 
 type CollectionDataService = Pick<
@@ -37,6 +39,7 @@ type CollectionDataService = Pick<
   | 'getTrips'
   | 'getMerchantRules'
   | 'getRecurringSeriesWithStats'
+  | 'getNotifications'
   | 'seedCommunityMerchantRules'
 >;
 
@@ -57,6 +60,7 @@ interface UseDatabaseCollectionsStateResult {
   refreshTrips: () => Promise<void>;
   refreshMerchantRules: () => Promise<void>;
   refreshRecurringSeries: () => Promise<void>;
+  refreshNotifications: () => Promise<void>;
 }
 
 export function useDatabaseCollectionsState({
@@ -72,6 +76,7 @@ export function useDatabaseCollectionsState({
   const [trips, setTrips] = useState<Trip[]>([]);
   const [merchantRules, setMerchantRules] = useState<MerchantRule[]>([]);
   const [recurringSeries, setRecurringSeries] = useState<RecurringSeries[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const loadAllData = useCallback(async (service: CollectionDataService) => {
     // Seed/refresh the bundled community merchant rules before reading
@@ -94,6 +99,7 @@ export function useDatabaseCollectionsState({
         tripsData,
         merchantRulesData,
         recurringSeriesData,
+        notificationsData,
       ] = await Promise.all([
         service.getCategories(),
         service.getCompanies(),
@@ -103,6 +109,7 @@ export function useDatabaseCollectionsState({
         service.getTrips(),
         service.getMerchantRules(),
         service.getRecurringSeriesWithStats(),
+        service.getNotifications(),
       ]);
 
       setCategories(categoriesData);
@@ -113,6 +120,7 @@ export function useDatabaseCollectionsState({
       setTrips(tripsData);
       setMerchantRules(merchantRulesData);
       setRecurringSeries(recurringSeriesData);
+      setNotifications(notificationsData);
     } catch (err) {
       console.error('Failed to load data:', err);
       throw err;
@@ -224,6 +232,18 @@ export function useDatabaseCollectionsState({
     }
   }, [getDatabaseService]);
 
+  const refreshNotifications = useCallback(async () => {
+    const databaseService = getDatabaseService();
+    if (!databaseService) return;
+
+    try {
+      const data = await databaseService.getNotifications();
+      setNotifications(data);
+    } catch (err) {
+      console.error('Failed to refresh notifications:', err);
+    }
+  }, [getDatabaseService]);
+
   const collections = useMemo(
     () => ({
       transactionVersion,
@@ -236,8 +256,9 @@ export function useDatabaseCollectionsState({
       trips,
       merchantRules,
       recurringSeries,
+      notifications,
     }),
-    [transactionVersion, budgetVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries]
+    [transactionVersion, budgetVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries, notifications]
   );
 
   return {
@@ -253,5 +274,6 @@ export function useDatabaseCollectionsState({
     refreshTrips,
     refreshMerchantRules,
     refreshRecurringSeries,
+    refreshNotifications,
   };
 }

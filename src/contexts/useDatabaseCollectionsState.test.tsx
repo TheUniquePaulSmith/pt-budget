@@ -15,6 +15,7 @@ function createServiceMock() {
     getTrips: vi.fn().mockResolvedValue([{ id: 7, name: 'Seattle' }]),
     getMerchantRules: vi.fn().mockResolvedValue([{ id: 8, rule_key: 'community:netflix' }]),
     getRecurringSeriesWithStats: vi.fn().mockResolvedValue([{ id: 9, name: 'Netflix' }]),
+    getNotifications: vi.fn().mockResolvedValue([{ id: 10, title: 'Pay rent' }]),
     seedCommunityMerchantRules: vi.fn().mockResolvedValue({ skipped: true }),
   };
 }
@@ -44,6 +45,7 @@ describe('useDatabaseCollectionsState', () => {
       trips: [{ id: 7, name: 'Seattle' }],
       merchantRules: [{ id: 8, rule_key: 'community:netflix' }],
       recurringSeries: [{ id: 9, name: 'Netflix' }],
+      notifications: [{ id: 10, title: 'Pay rent' }],
     });
     expect(service.seedCommunityMerchantRules).toHaveBeenCalledTimes(1);
   });

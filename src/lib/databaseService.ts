@@ -23,6 +23,8 @@ import { addMonthsISO, todayLocalISO } from './dateOnly';
 import { computeTransactionHash } from './transactionHash';
 import type {
   AccountEditableFields,
+  AppNotification,
+  BudgetCarryMode,
   ImportBatch,
   ImportBatchInput,
   ImportBatchTotals,
@@ -46,6 +48,10 @@ import {
   ANALYTICS_QUERIES,
   SUBSCRIPTION_QUERIES
 } from './sqlQueries';
+import { AppMetadataService } from './databaseServiceAppMetadata';
+import { NotificationsService } from './databaseServiceNotifications';
+import { AiToolsService } from './databaseServiceAiTools';
+import { BudgetFundsService } from './databaseServiceBudgetFunds';
 import {
   Transaction,
   Category,
@@ -161,9 +167,22 @@ export class DatabaseService {
   private isInitialized = false;
   public dbExistsBeforeInit = false;
 
+  // Domain sub-services (schema v3). New domains are composed here instead of
+  // growing this class: each feature owns its databaseService<Domain>.ts and
+  // sqlQueries<Domain>.ts files, and shares this transport.
+  readonly appMetadata: AppMetadataService;
+  readonly notifications: NotificationsService;
+  readonly aiTools: AiToolsService;
+  readonly budgetFunds: BudgetFundsService;
+
   constructor(
     private readonly workerService: DatabaseWorkerTransport = databaseWorkerService
-  ) {}
+  ) {
+    this.appMetadata = new AppMetadataService(workerService);
+    this.notifications = new NotificationsService(workerService);
+    this.aiTools = new AiToolsService(workerService, this.appMetadata);
+    this.budgetFunds = new BudgetFundsService(workerService);
+  }
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
@@ -2029,11 +2048,20 @@ export class DatabaseService {
     }
   }
 
+  // #region budget-carry (owner: F)
+  // The budgets feature agent edits only inside this region: carry-over of
+  // surplus/deficit between months and the reset marker. Everyone else treats
+  // this file as read-only after the foundation lands.
   async saveBudgetPlan(input: {
     effectiveMonth: string;
     totalAmount?: number | null;
     notes?: string | null;
-    categories: Array<{ category_id: number; amount: number }>;
+    categories: Array<{
+      category_id: number;
+      amount: number;
+      carry_mode?: BudgetCarryMode;
+      carry_reset?: boolean | number;
+    }>;
   }): Promise<number> {
     await this.workerService.query('BEGIN TRANSACTION');
     try {
@@ -2049,6 +2077,8 @@ export class DatabaseService {
           planId,
           category.category_id,
           category.amount,
+          category.carry_mode ?? 'none',
+          category.carry_reset ? 1 : 0,
         ]);
       }
       await this.workerService.query('COMMIT');
@@ -2179,6 +2209,7 @@ export class DatabaseService {
       throw error;
     }
   }
+  // #endregion budget-carry
 
   async getIncomeSources(): Promise<IncomeSource[]> {
     try {
@@ -2269,6 +2300,9 @@ export class DatabaseService {
         project.estimated_cost || 0,
         project.actual_cost || 0,
         project.notes || null,
+        project.budget_category_id ?? null,
+        project.monthly_contribution ?? null,
+        project.contribution_start_month ?? null,
       ]);
       return result[0].id;
     } catch (error) {
@@ -2311,6 +2345,9 @@ export class DatabaseService {
         updates.estimated_cost ?? existing.estimated_cost,
         updates.actual_cost ?? existing.actual_cost,
         updates.notes ?? existing.notes,
+        updates.budget_category_id !== undefined ? updates.budget_category_id : existing.budget_category_id ?? null,
+        updates.monthly_contribution !== undefined ? updates.monthly_contribution : existing.monthly_contribution ?? null,
+        updates.contribution_start_month !== undefined ? updates.contribution_start_month : existing.contribution_start_month ?? null,
         id,
       ]);
     } catch (error) {
@@ -2376,6 +2413,9 @@ export class DatabaseService {
       trip.estimated_cost || null,
       trip.actual_cost || null,
       trip.notes || null,
+      trip.budget_category_id ?? null,
+      trip.monthly_contribution ?? null,
+      trip.contribution_start_month ?? null,
     ]);
     return (result[0].id);
   }
@@ -2403,6 +2443,9 @@ export class DatabaseService {
       updates.estimated_cost !== undefined ? updates.estimated_cost : trip.estimated_cost,
       updates.actual_cost !== undefined ? updates.actual_cost : trip.actual_cost,
       updates.notes !== undefined ? updates.notes : trip.notes,
+      updates.budget_category_id !== undefined ? updates.budget_category_id : trip.budget_category_id ?? null,
+      updates.monthly_contribution !== undefined ? updates.monthly_contribution : trip.monthly_contribution ?? null,
+      updates.contribution_start_month !== undefined ? updates.contribution_start_month : trip.contribution_start_month ?? null,
       id,
     ]);
   }
@@ -2757,6 +2800,8 @@ export class DatabaseService {
       plan_id: row.plan_id,
       category_id: row.category_id,
       amount: Number(row.amount || 0),
+      carry_mode: row.carry_mode ?? 'none',
+      carry_reset: Number(row.carry_reset || 0),
       created_at: row.created_at,
       updated_at: row.updated_at,
       category_name: row.category_name,
@@ -3118,6 +3163,9 @@ export class DatabaseService {
       estimated_cost: row.estimated_cost,
       actual_cost: row.actual_cost,
       notes: row.notes,
+      budget_category_id: row.budget_category_id ?? null,
+      monthly_contribution: row.monthly_contribution != null ? Number(row.monthly_contribution) : null,
+      contribution_start_month: row.contribution_start_month ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
@@ -3146,6 +3194,9 @@ export class DatabaseService {
       estimated_cost: row.estimated_cost ? Number(row.estimated_cost) : null,
       actual_cost: row.actual_cost ? Number(row.actual_cost) : null,
       notes: row.notes,
+      budget_category_id: row.budget_category_id ?? null,
+      monthly_contribution: row.monthly_contribution != null ? Number(row.monthly_contribution) : null,
+      contribution_start_month: row.contribution_start_month ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
@@ -3368,6 +3419,12 @@ export class DatabaseService {
 
   async setAppMetadata(key: string, value: string): Promise<void> {
     await this.workerService.query(SUBSCRIPTION_QUERIES.SET_METADATA, [key, value]);
+  }
+
+  // --- Sub-service facades (cached collections take Pick<DatabaseService, ...>) ---
+
+  async getNotifications(): Promise<AppNotification[]> {
+    return this.notifications.list();
   }
 
   // --- Merchant rules ---
@@ -3749,6 +3806,9 @@ export class DatabaseService {
       expected_amount: number | null;
       status: RecurringSeriesStatus;
       notes?: string | null;
+      // Optional: omit to leave the stored values untouched.
+      is_autopay?: boolean | number;
+      due_day?: number | null;
     }
   ): Promise<void> {
     try {
@@ -3759,6 +3819,9 @@ export class DatabaseService {
         updates.expected_amount,
         updates.status,
         updates.notes ?? null,
+        updates.is_autopay === undefined ? null : updates.is_autopay ? 1 : 0,
+        updates.due_day === undefined ? 0 : 1,
+        updates.due_day ?? null,
         id,
       ]);
     } catch (error) {
@@ -3951,6 +4014,8 @@ export class DatabaseService {
       last_seen_date: row.last_seen_date ?? null,
       next_expected_date: row.next_expected_date ?? null,
       notes: row.notes ?? null,
+      is_autopay: Number(row.is_autopay || 0),
+      due_day: row.due_day != null ? Number(row.due_day) : null,
       created_at: row.created_at,
       updated_at: row.updated_at,
       company_name: row.company_name || undefined,

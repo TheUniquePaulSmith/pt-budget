@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Typography,
@@ -27,8 +27,21 @@ import {
   Delete as DeleteIcon,
   FlightTakeoff as TripIcon,
 } from '@mui/icons-material';
-import { useTripsSlice } from '@/contexts/useDatabaseSlices';
+import { useBudgetFundsSlice, useTripsSlice } from '@/contexts/useDatabaseSlices';
 import { Trip } from '@/types/database';
+import type { BudgetFundStatus } from '@/types/budgetCarry';
+import { currentMonthKey } from '@/lib/budgetCarry';
+import { logger } from '@/lib/logging';
+import {
+  EMPTY_BUDGET_FUND_FORM,
+  budgetFundColumnsFromForm,
+  budgetFundFormFromEntity,
+  type BudgetFundFormValue,
+} from '@/components/budget/BudgetFundFields';
+import { BudgetFundSummary } from '@/components/budget/BudgetFundSummary';
+import { TripBudgetFields } from './TripBudgetFields';
+
+const log = logger.child({ component: 'ManageTrips' });
 
 export default function ManageTrips() {
   const { 
@@ -37,6 +50,7 @@ export default function ManageTrips() {
     updateTrip,
     deleteTrip, 
   } = useTripsSlice();
+  const { categories, budgetVersion, transactionVersion, getFundStatus } = useBudgetFundsSlice();
   
   const [tripDialogOpen, setTripDialogOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
@@ -44,6 +58,23 @@ export default function ManageTrips() {
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tripToDelete, setTripToDelete] = useState<Trip | null>(null);
+  const [fundStatus, setFundStatus] = useState<Record<number, BudgetFundStatus>>({});
+
+  // Savings-fund balances for linked trips, as of the current month
+  useEffect(() => {
+    let cancelled = false;
+    getFundStatus(currentMonthKey()).then((funds) => {
+      if (cancelled) return;
+      const map: Record<number, BudgetFundStatus> = {};
+      for (const fund of funds) {
+        if (fund.entity_type === 'trip') map[fund.entity_id] = fund;
+      }
+      setFundStatus(map);
+    }).catch((error) => {
+      log.error('Failed to load trip fund status', { operation: 'loadTripFunds', error });
+    });
+    return () => { cancelled = true; };
+  }, [trips, transactionVersion, budgetVersion, getFundStatus]);
   
   const [tripFormData, setTripFormData] = useState({
     name: '',
@@ -55,6 +86,7 @@ export default function ManageTrips() {
     end_date: '',
     estimated_cost: '',
     notes: '',
+    fund: EMPTY_BUDGET_FUND_FORM as BudgetFundFormValue,
   });
 
   const handleOpenTripDialog = (trip?: Trip) => {
@@ -70,6 +102,7 @@ export default function ManageTrips() {
         end_date: trip.end_date || '',
         estimated_cost: trip.estimated_cost?.toString() || '',
         notes: trip.notes || '',
+        fund: budgetFundFormFromEntity(trip),
       });
     } else {
       setEditingTrip(null);
@@ -83,6 +116,7 @@ export default function ManageTrips() {
         end_date: '',
         estimated_cost: '',
         notes: '',
+        fund: EMPTY_BUDGET_FUND_FORM,
       });
     }
     setError(null);
@@ -116,6 +150,7 @@ export default function ManageTrips() {
         estimated_cost: tripFormData.estimated_cost ? parseFloat(tripFormData.estimated_cost) : null,
         actual_cost: null,
         notes: tripFormData.notes || null,
+        ...budgetFundColumnsFromForm(tripFormData.fund),
       };
 
       if (editingTrip) {
@@ -250,10 +285,12 @@ export default function ManageTrips() {
                 )}
 
                 {trip.estimated_cost && (
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: fundStatus[trip.id] ? 1.5 : 0 }}>
                     <strong>Estimated Cost:</strong> ${trip.estimated_cost.toFixed(2)}
                   </Typography>
                 )}
+
+                {fundStatus[trip.id] && <BudgetFundSummary fund={fundStatus[trip.id]} />}
               </CardContent>
             </Card>
         ))}
@@ -387,6 +424,13 @@ export default function ManageTrips() {
                 rows={3}
                 value={tripFormData.notes}
                 onChange={(e) => setTripFormData({ ...tripFormData, notes: e.target.value })}
+              />
+
+              <TripBudgetFields
+                categories={categories}
+                value={tripFormData.fund}
+                onChange={(fund) => setTripFormData({ ...tripFormData, fund })}
+                startDate={tripFormData.start_date}
               />
             </Box>
           </DialogContent>

@@ -4,11 +4,11 @@ import { useCallback, useMemo } from 'react';
 
 import type { DatabaseService } from '../lib/databaseService';
 import type { BudgetFundLink } from '../types/database';
+import type { BudgetFundStatus } from '../types/budgetCarry';
 
 /**
  * Provider-domain slice for savings funds (projects/trips linked to a budget
- * category, schema v3). Owned by the budgets feature after the foundation
- * lands; fund balance math is added there.
+ * category, schema v3). Owned by the budgets feature.
  */
 export interface DatabaseBudgetFundsSlice {
   listLinkedFunds: () => Promise<BudgetFundLink[]>;
@@ -17,6 +17,8 @@ export interface DatabaseBudgetFundsSlice {
     entityId: number,
     month: string
   ) => Promise<number>;
+  /** Every linked fund with contributed / spent / balance as of a month ('YYYY-MM'). */
+  getFundStatus: (month: string) => Promise<BudgetFundStatus[]>;
 }
 
 type BudgetFundsService = Pick<DatabaseService, 'budgetFunds'>;
@@ -44,5 +46,13 @@ export function useDatabaseBudgetFundsSlice({
     [requireService]
   );
 
-  return useMemo(() => ({ listLinkedFunds, getFundSpendSince }), [getFundSpendSince, listLinkedFunds]);
+  const getFundStatus = useCallback(
+    async (month: string) => requireService().getFundStatus(month),
+    [requireService]
+  );
+
+  return useMemo(
+    () => ({ listLinkedFunds, getFundSpendSince, getFundStatus }),
+    [getFundSpendSince, getFundStatus, listLinkedFunds]
+  );
 }

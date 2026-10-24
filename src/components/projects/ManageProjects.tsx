@@ -36,8 +36,21 @@ import {
   ExpandMore as ExpandMoreIcon,
   Home as HomeIcon,
 } from '@mui/icons-material';
-import { useProjectsSlice } from '@/contexts/useDatabaseSlices';
+import { useBudgetFundsSlice, useProjectsSlice } from '@/contexts/useDatabaseSlices';
 import { Project, Transaction, ProjectCosts } from '@/types/database';
+import type { BudgetFundStatus } from '@/types/budgetCarry';
+import { currentMonthKey } from '@/lib/budgetCarry';
+import { logger } from '@/lib/logging';
+import {
+  EMPTY_BUDGET_FUND_FORM,
+  budgetFundColumnsFromForm,
+  budgetFundFormFromEntity,
+  type BudgetFundFormValue,
+} from '@/components/budget/BudgetFundFields';
+import { BudgetFundSummary } from '@/components/budget/BudgetFundSummary';
+import { ProjectBudgetFields } from './ProjectBudgetFields';
+
+const log = logger.child({ component: 'ManageProjects' });
 
 const PROJECT_CATEGORIES = [
   { value: 'plumbing', label: 'Plumbing' },
@@ -69,6 +82,7 @@ interface ProjectFormData {
   estimated_cost: string;
   actual_cost: string;
   notes: string;
+  fund: BudgetFundFormValue;
 }
 
 const INITIAL_FORM_DATA: ProjectFormData = {
@@ -82,6 +96,7 @@ const INITIAL_FORM_DATA: ProjectFormData = {
   estimated_cost: '',
   actual_cost: '',
   notes: '',
+  fund: EMPTY_BUDGET_FUND_FORM,
 };
 
 const PAGE_SIZE = 10;
@@ -103,6 +118,7 @@ export default function ManageProjects() {
     updateProject,
     deleteProject,
   } = useProjectsSlice();
+  const { categories, budgetVersion, getFundStatus } = useBudgetFundsSlice();
 
   const [open, setOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -111,6 +127,23 @@ export default function ManageProjects() {
   const [allCosts, setAllCosts] = useState<Record<number, ProjectCosts>>({});
   const [expandedProject, setExpandedProject] = useState<number | false>(false);
   const [projectTx, setProjectTx] = useState<Record<number, ProjectTxState>>({});
+  const [fundStatus, setFundStatus] = useState<Record<number, BudgetFundStatus>>({});
+
+  // Savings-fund balances for linked projects, as of the current month
+  useEffect(() => {
+    let cancelled = false;
+    getFundStatus(currentMonthKey()).then((funds) => {
+      if (cancelled) return;
+      const map: Record<number, BudgetFundStatus> = {};
+      for (const fund of funds) {
+        if (fund.entity_type === 'project') map[fund.entity_id] = fund;
+      }
+      setFundStatus(map);
+    }).catch((error) => {
+      log.error('Failed to load project fund status', { operation: 'loadProjectFunds', error });
+    });
+    return () => { cancelled = true; };
+  }, [projects, transactionVersion, budgetVersion, getFundStatus]);
 
   // Load all project costs whenever projects or transactions change
   useEffect(() => {
@@ -167,6 +200,7 @@ export default function ManageProjects() {
         estimated_cost: project.estimated_cost?.toString() || '',
         actual_cost: project.actual_cost?.toString() || '',
         notes: project.notes || '',
+        fund: budgetFundFormFromEntity(project),
       });
     } else {
       setEditingProject(null);
@@ -194,6 +228,7 @@ export default function ManageProjects() {
         estimated_cost: formData.estimated_cost.trim() ? parseFloat(formData.estimated_cost) : undefined,
         actual_cost: formData.actual_cost.trim() ? parseFloat(formData.actual_cost) : undefined,
         notes: formData.notes.trim() || undefined,
+        ...budgetFundColumnsFromForm(formData.fund),
       };
 
       if (editingProject) {
@@ -303,6 +338,8 @@ export default function ManageProjects() {
                     </Box>
                   </Box>
 
+                  {fundStatus[project.id] && <BudgetFundSummary fund={fundStatus[project.id]} />}
+
                   <Accordion expanded={isExpanded} onChange={handleAccordionChange(project.id)}>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                       <Typography variant="subtitle2">
@@ -400,6 +437,12 @@ export default function ManageProjects() {
               <TextField sx={{ flex: 1, minWidth: 250 }} label="Actual Cost" type="number" value={formData.actual_cost} onChange={handleInputChange('actual_cost')} InputProps={{ startAdornment: '$' }} />
             </Box>
             <TextField fullWidth label="Notes" value={formData.notes} onChange={handleInputChange('notes')} multiline rows={3} placeholder="Additional notes about the project..." />
+            <ProjectBudgetFields
+              categories={categories}
+              value={formData.fund}
+              onChange={(fund) => setFormData(prev => ({ ...prev, fund }))}
+              startDate={formData.start_date}
+            />
           </Box>
         </DialogContent>
         <DialogActions>

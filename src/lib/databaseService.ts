@@ -2111,72 +2111,86 @@ export class DatabaseService {
     }
   }
 
-  async getBudgetStatus(period: BudgetPeriod): Promise<BudgetStatus> {
+  /**
+   * Budget status for a period. Each category reports the plan amount, the
+   * balance carried in from earlier months (per its carry mode and reset
+   * marker) and the spend committed against it; linked savings funds count
+   * their monthly contribution as planned spend and the spend they paid is
+   * excluded, so the category view and the fund view agree. The carry math
+   * itself is pure (src/lib/budgetCarry.ts) and reached through
+   * `this.budgetFunds` because this region cannot add imports.
+   */
+  async getBudgetStatus(period: BudgetPeriod): Promise<import('../types/budgetCarry').BudgetStatusWithCarry> {
     try {
       const months = this.expandBudgetPeriod(period);
-      const startDate = `${months[0]}-01`;
+      const periodStartDate = `${months[0]}-01`;
       const endDate = this.endOfMonth(months[months.length - 1]);
-      const [planRows, categoryRows, expenseRows, linkedIncomeRows, incomeSourceRows] = await Promise.all([
+
+      // Plans first: how far back the ledger must start depends on them.
+      const [planRows, categoryRows] = await Promise.all([
         this.workerService.query(BUDGET_PLAN_QUERIES.GET_ALL_PLANS),
         this.workerService.query(BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES),
-        this.workerService.query(BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY, [startDate, endDate]),
-        this.workerService.query(BUDGET_PLAN_QUERIES.ACTUAL_INCOME_LINKED_BY_MONTH, [startDate, endDate]),
-        this.workerService.query(INCOME_SOURCE_QUERIES.GET_ALL),
       ]);
       const plans = this.stitchBudgetPlans(planRows.map(this.mapToBudgetPlan), categoryRows.map(this.mapToBudgetPlanCategory))
         .sort((a, b) => a.effective_month.localeCompare(b.effective_month));
+      const rangeStart = this.budgetFunds.resolveCarryRangeStart(plans, months[0]);
+      const rangeStartDate = `${rangeStart}-01`;
+      const rangeMonths = this.monthsForDateRange(rangeStartDate, endDate);
+
+      const [expenseRows, linkedIncomeRows, incomeSourceRows, funds, fundSpendByMonthCategory] = await Promise.all([
+        this.workerService.query(BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY, [rangeStartDate, endDate]),
+        this.workerService.query(BUDGET_PLAN_QUERIES.ACTUAL_INCOME_LINKED_BY_MONTH, [periodStartDate, endDate]),
+        this.workerService.query(INCOME_SOURCE_QUERIES.GET_ALL),
+        this.budgetFunds.listLinkedFunds(),
+        this.budgetFunds.getFundLinkedSpendByMonthCategory(rangeStartDate, endDate),
+      ]);
+
       const planForMonth = new Map<string, BudgetPlanWithCategories>();
       for (const month of months) {
         const effectivePlan = [...plans].reverse().find((plan) => plan.effective_month <= month);
         if (effectivePlan) planForMonth.set(month, effectivePlan);
       }
-
       const monthsWithPlan = months.filter((month) => planForMonth.has(month));
+
+      const periodMonthSet = new Set(months);
       const expensesByMonthCategory = new Map<string, number>();
       let actualExpenses = 0;
       for (const row of expenseRows) {
-        const key = `${row.month}:${row.category_id ?? 'uncategorized'}`;
+        const month = String(row.month);
+        const key = `${month}:${row.category_id == null ? 'uncategorized' : Number(row.category_id)}`;
         const total = Number(row.total || 0);
-        expensesByMonthCategory.set(key, total);
-        actualExpenses += total;
+        expensesByMonthCategory.set(key, (expensesByMonthCategory.get(key) ?? 0) + total);
+        if (periodMonthSet.has(month)) actualExpenses += total;
       }
 
-      const categoryStatuses = new Map<number, BudgetStatus['categories'][number]>();
       let budgetedTotal = 0;
       let unbudgetedSpend = 0;
       for (const month of months) {
         const plan = planForMonth.get(month);
         if (!plan) continue;
-        const categoryIds = new Set<number>();
         const planCategoryTotal = plan.categories.reduce((sum, category) => sum + Number(category.amount || 0), 0);
         budgetedTotal += Number(plan.total_amount ?? planCategoryTotal);
-        for (const category of plan.categories) {
-          categoryIds.add(category.category_id);
-          const actual = Number(expensesByMonthCategory.get(`${month}:${category.category_id}`) || 0);
-          const existing = categoryStatuses.get(category.category_id) ?? {
-            category_id: category.category_id,
-            category_name: category.category_name,
-            category_color: category.category_color,
-            budgetedAmount: 0,
-            actualExpenses: 0,
-            remaining: 0,
-            isOverBudget: false,
-          };
-          existing.budgetedAmount += Number(category.amount || 0);
-          existing.actualExpenses += actual;
-          existing.remaining = existing.budgetedAmount - existing.actualExpenses;
-          existing.isOverBudget = existing.remaining < 0;
-          categoryStatuses.set(category.category_id, existing);
-        }
-
+        const categoryIds = new Set(plan.categories.map((category) => category.category_id));
         for (const row of expenseRows) {
-          if (row.month !== month) continue;
+          if (String(row.month) !== month) continue;
           const categoryId = row.category_id == null ? null : Number(row.category_id);
           if (categoryId == null || !categoryIds.has(categoryId)) {
-            unbudgetedSpend += Number(row.total || 0);
+            // Spend a linked fund paid for is the fund's, not unbudgeted spend.
+            const key = `${month}:${categoryId == null ? 'uncategorized' : categoryId}`;
+            unbudgetedSpend += Number(row.total || 0) - (fundSpendByMonthCategory.get(key) ?? 0);
           }
         }
       }
+
+      const carry = this.budgetFunds.computeCarryStatus({
+        periodMonths: months,
+        rangeStart,
+        rangeMonths,
+        plans,
+        expensesByMonthCategory,
+        fundSpendByMonthCategory,
+        funds,
+      });
 
       const linkedIncomeByMonth = new Map<string, number>();
       for (const row of linkedIncomeRows) {
@@ -2190,6 +2204,9 @@ export class DatabaseService {
       const hasPlan = monthsWithPlan.length > 0;
       const totalBudget = hasPlan ? budgetedTotal : null;
       const remaining = totalBudget == null ? null : totalBudget - actualExpenses;
+      const effectiveBudgetTotal = totalBudget == null ? null : totalBudget + carry.carriedInTotal;
+      const committedTotal = actualExpenses - carry.fundSpendTotal + carry.fundContributionsTotal;
+      const effectiveRemaining = effectiveBudgetTotal == null ? null : effectiveBudgetTotal - committedTotal;
 
       return {
         period,
@@ -2197,12 +2214,18 @@ export class DatabaseService {
         budgetedTotal: totalBudget,
         actualExpenses,
         remaining,
-        isOverBudget: remaining != null ? remaining < 0 : false,
-        categories: Array.from(categoryStatuses.values()),
+        isOverBudget: effectiveRemaining != null ? effectiveRemaining < 0 : false,
+        categories: carry.categories,
         unbudgetedSpend,
         expectedIncome,
         actualLinkedIncome,
         monthsWithPlan,
+        carryRangeStart: rangeStart,
+        carriedInTotal: carry.carriedInTotal,
+        effectiveBudgetTotal,
+        fundContributionsTotal: carry.fundContributionsTotal,
+        fundSpendTotal: carry.fundSpendTotal,
+        effectiveRemaining,
       };
     } catch (error) {
       log.error('Failed to get budget status', { operation: 'getBudgetStatus', error });

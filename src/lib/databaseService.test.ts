@@ -12,6 +12,7 @@ import {
   ACCOUNT_CARD_QUERIES,
   ACCOUNT_QUERIES,
   ANALYTICS_QUERIES,
+  BUDGET_FUND_QUERIES,
   BUDGET_PLAN_QUERIES,
   CATEGORY_QUERIES,
   COMPANY_QUERIES,
@@ -1340,6 +1341,9 @@ describe('DatabaseService budget income calculations', () => {
         case BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES:
           return [{ id: 1, plan_id: 1, category_id: 2, amount: 500, created_at: 'now', updated_at: 'now', category_name: 'Groceries', category_color: '#43A047' }];
         case BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY:
+        case BUDGET_FUND_QUERIES.LINKED_PROJECTS:
+        case BUDGET_FUND_QUERIES.LINKED_TRIPS:
+        case BUDGET_FUND_QUERIES.FUND_LINKED_SPEND_BY_MONTH_CATEGORY:
           return [];
         case BUDGET_PLAN_QUERIES.ACTUAL_INCOME_LINKED_BY_MONTH:
           expect(sql).toContain("a.type != 'credit'");
@@ -1368,6 +1372,9 @@ describe('DatabaseService budget income calculations', () => {
         case BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES:
         case BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY:
         case BUDGET_PLAN_QUERIES.ACTUAL_INCOME_LINKED_BY_MONTH:
+        case BUDGET_FUND_QUERIES.LINKED_PROJECTS:
+        case BUDGET_FUND_QUERIES.LINKED_TRIPS:
+        case BUDGET_FUND_QUERIES.FUND_LINKED_SPEND_BY_MONTH_CATEGORY:
           return [];
         case INCOME_SOURCE_QUERIES.GET_ALL:
           return [

@@ -18,5 +18,6 @@ export function useBudgetFundsSlice() {
     transactionVersion: collections.transactionVersion,
     listLinkedFunds: budgetFunds.listLinkedFunds,
     getFundSpendSince: budgetFunds.getFundSpendSince,
+    getFundStatus: budgetFunds.getFundStatus,
   };
 }

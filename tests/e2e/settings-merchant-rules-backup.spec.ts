@@ -11,7 +11,7 @@ test('exports custom merchant rules to JSON and re-imports them from Settings', 
 
   // Create one user rule via the Subscriptions page rule editor.
   await page.getByRole('button', { name: 'Subscriptions' }).click();
-  await expect(page.getByRole('heading', { name: 'Subscriptions' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })).toBeVisible({
     timeout: 120_000,
   });
 

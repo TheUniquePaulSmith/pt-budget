@@ -11,6 +11,10 @@ import type {
   TransactionClassificationSuggestion,
 } from '@/types/ai';
 import type {
+  Account,
+  AppNotificationInput,
+  BudgetPeriod,
+  BudgetStatus,
   Category,
   Company,
   MerchantRuleKind,
@@ -18,9 +22,11 @@ import type {
   Project,
   Transaction,
   TransactionType,
+  TransactionUpdateInput,
   Trip,
   UnmatchedCluster,
 } from '@/types/database';
+import type { AiToolPackResultMode } from '@/types/aiTools';
 
 const DEFAULT_QUERY_LIMIT = 100;
 const MAX_QUERY_LIMIT = 500;
@@ -36,7 +42,36 @@ export interface AiDatabaseToolContext {
   projects: Project[];
   trips: Trip[];
   writeMode: AiWriteMode;
+  // Optional capabilities used by the extended built-in tools (src/lib/aiTools/builtinTools.ts)
+  // and by JSON tool packs. A tool whose capability is missing reports an error to the model.
+  accounts?: Account[];
+  getBudgetStatus?: (period: BudgetPeriod) => Promise<BudgetStatus>;
+  addTransaction?: (
+    transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'card_id'> & { card_id?: number | null }
+  ) => Promise<void>;
+  updateTransaction?: (id: number, patch: TransactionUpdateInput) => Promise<void>;
+  deleteTransaction?: (id: number) => Promise<void>;
+  addCategory?: (category: Omit<Category, 'id' | 'created_at' | 'updated_at'>) => Promise<number>;
+  setTransactionCategory?: (txId: number, categoryId: number | null) => Promise<void>;
+  createNotification?: (input: AppNotificationInput) => Promise<number>;
+  executeToolPackSql?: (
+    sql: string,
+    params: Array<string | number | boolean | null>,
+    resultMode: AiToolPackResultMode
+  ) => Promise<unknown>;
 }
+
+/** Output of one tool executor before it is wrapped into a tool-call record. */
+export interface AiToolExecutionOutcome {
+  result: unknown;
+  classificationSuggestions?: TransactionClassificationSuggestion[];
+  merchantRuleSuggestions?: MerchantRuleSuggestion[];
+}
+
+export type AiToolExecutor = (
+  args: Record<string, unknown>,
+  context: AiDatabaseToolContext
+) => Promise<AiToolExecutionOutcome>;
 
 export interface AiDatabaseToolResult {
   content: string;
@@ -210,7 +245,7 @@ export const AI_DATABASE_TOOLS: ChatCompletionTool[] = [
   },
 ];
 
-function parseToolArguments(toolCall: ChatCompletionToolCall): Record<string, unknown> {
+export function parseToolArguments(toolCall: ChatCompletionToolCall): Record<string, unknown> {
   if (!toolCall.function.arguments.trim()) {
     return {};
   }
@@ -223,7 +258,7 @@ function parseToolArguments(toolCall: ChatCompletionToolCall): Record<string, un
   return parsed as Record<string, unknown>;
 }
 
-function boundedLimit(value: unknown, fallback = DEFAULT_QUERY_LIMIT): number {
+export function boundedLimit(value: unknown, fallback = DEFAULT_QUERY_LIMIT): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return fallback;
   }
@@ -231,7 +266,7 @@ function boundedLimit(value: unknown, fallback = DEFAULT_QUERY_LIMIT): number {
   return Math.max(1, Math.min(Math.trunc(value), MAX_QUERY_LIMIT));
 }
 
-function buildBoundedSelect(sql: string, maxRows: number): string {
+export function buildBoundedSelect(sql: string, maxRows: number): string {
   const trimmed = sql.trim().replace(/;+$/, '');
   const normalized = trimmed.toLowerCase();
 
@@ -498,9 +533,37 @@ async function applyTransactionClassifications(
   };
 }
 
+/** Executors for the six original tools, keyed by tool name. */
+export const AI_DATABASE_TOOL_EXECUTORS: Record<string, AiToolExecutor> = {
+  query_transactions: async (args, context) => ({ result: await queryTransactions(args, context) }),
+  find_recurring_subscriptions: async (args, context) => ({ result: await findRecurringSubscriptions(args, context) }),
+  suggest_transaction_classifications: async (args, context) => {
+    const classificationSuggestions = await suggestTransactionClassifications(args, context);
+    return { result: { classifications: classificationSuggestions }, classificationSuggestions };
+  },
+  get_unmatched_merchant_clusters: async (args, context) => ({ result: await getUnmatchedMerchantClusters(args, context) }),
+  propose_merchant_rules: async (args) => {
+    const proposeResult = proposeMerchantRules(args);
+    return { result: proposeResult, merchantRuleSuggestions: proposeResult.rules };
+  },
+  apply_transaction_classifications: async (args, context) => {
+    const applyResult = await applyTransactionClassifications(args, context);
+    return {
+      result: applyResult,
+      classificationSuggestions: applyResult.requiresReview ? applyResult.classifications : [],
+    };
+  },
+};
+
+/**
+ * Runs one tool call and wraps the outcome into the record the chat shows.
+ * `executor` defaults to the six original tools; the registry passes the
+ * executor for built-in extensions and JSON packs.
+ */
 export async function executeAiDatabaseToolCall(
   toolCall: ChatCompletionToolCall,
-  context: AiDatabaseToolContext
+  context: AiDatabaseToolContext,
+  executor?: AiToolExecutor
 ): Promise<AiDatabaseToolResult> {
   const record: AiToolCallRecord = {
     id: toolCall.id,
@@ -511,41 +574,21 @@ export async function executeAiDatabaseToolCall(
 
   try {
     const args = parseToolArguments(toolCall);
-    let result: unknown;
-    let classificationSuggestions: TransactionClassificationSuggestion[] = [];
-    let merchantRuleSuggestions: MerchantRuleSuggestion[] = [];
-
-    if (toolCall.function.name === 'query_transactions') {
-      result = await queryTransactions(args, context);
-    } else if (toolCall.function.name === 'find_recurring_subscriptions') {
-      result = await findRecurringSubscriptions(args, context);
-    } else if (toolCall.function.name === 'suggest_transaction_classifications') {
-      classificationSuggestions = await suggestTransactionClassifications(args, context);
-      result = { classifications: classificationSuggestions };
-    } else if (toolCall.function.name === 'get_unmatched_merchant_clusters') {
-      result = await getUnmatchedMerchantClusters(args, context);
-    } else if (toolCall.function.name === 'propose_merchant_rules') {
-      const proposeResult = proposeMerchantRules(args);
-      result = proposeResult;
-      merchantRuleSuggestions = proposeResult.rules;
-    } else if (toolCall.function.name === 'apply_transaction_classifications') {
-      const applyResult = await applyTransactionClassifications(args, context);
-      result = applyResult;
-      if (applyResult.requiresReview) {
-        classificationSuggestions = applyResult.classifications;
-      }
-    } else {
+    const resolvedExecutor = executor ?? AI_DATABASE_TOOL_EXECUTORS[toolCall.function.name];
+    if (!resolvedExecutor) {
       throw new Error(`Unknown AI tool: ${toolCall.function.name}`);
     }
 
+    const outcome = await resolvedExecutor(args, context);
+
     record.status = 'completed';
-    record.result = result;
+    record.result = outcome.result;
 
     return {
-      content: JSON.stringify(result),
+      content: JSON.stringify(outcome.result),
       toolCall: record,
-      classificationSuggestions,
-      merchantRuleSuggestions,
+      classificationSuggestions: outcome.classificationSuggestions ?? [],
+      merchantRuleSuggestions: outcome.merchantRuleSuggestions ?? [],
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'AI tool call failed';
@@ -559,4 +602,21 @@ export async function executeAiDatabaseToolCall(
       merchantRuleSuggestions: [],
     };
   }
+}
+
+/** Result handed back to the model when the user (or policy) refuses a call. */
+export function createDeniedToolResult(toolCall: ChatCompletionToolCall, reason: string): AiDatabaseToolResult {
+  const message = `Tool call denied: ${reason}`;
+  return {
+    content: JSON.stringify({ error: message, denied: true }),
+    toolCall: {
+      id: toolCall.id,
+      name: toolCall.function.name,
+      argumentsJson: toolCall.function.arguments,
+      status: 'denied',
+      error: message,
+    },
+    classificationSuggestions: [],
+    merchantRuleSuggestions: [],
+  };
 }

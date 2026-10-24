@@ -3,14 +3,18 @@ import type {
   ChatCompletionMessage,
   ChatCompletionParams,
   ChatCompletionResponse,
+  ChatCompletionTool,
   ChatCompletionToolCall,
 } from '@wllama/wllama/esm';
 
 import {
-  AI_DATABASE_TOOLS,
-  executeAiDatabaseToolCall,
+  createDeniedToolResult,
   type AiDatabaseToolContext,
+  type AiDatabaseToolResult,
 } from '@/lib/aiDatabaseTools';
+import { executeRegistryToolCall } from '@/lib/aiTools/executeTool';
+import { createDefaultToolRegistry, type AiToolRegistry } from '@/lib/aiTools/toolRegistry';
+import { logger } from '@/lib/logging';
 import type {
   AiChatMessage,
   AiChatRunResult,
@@ -20,10 +24,15 @@ import type {
   TransactionClassificationSuggestion,
 } from '@/types/ai';
 import { AI_OUTPUT_LIMIT_PRESETS } from '@/types/ai';
+import type { AiConsentDecision, AiConsentRequest, AiConsentVerdict, AiResolvedTool } from '@/types/aiTools';
 
-const SYSTEM_PROMPT = `You are a local-only personal finance assistant running in the browser. Use tools to inspect the user's local SQLite budget database before making claims about transactions. Arbitrary database mutations are not allowed. For classification writes, call apply_transaction_classifications and respect the application's review mode. To name unmatched recurring merchants, call get_unmatched_merchant_clusters and then propose_merchant_rules; proposed rules are always staged for user review.
+const log = logger.child({ component: 'AiChatService' });
+
+const SYSTEM_PROMPT = `You are a personal finance assistant for a budget-tracking app whose data lives in a local SQLite database in the user's browser. Use tools to inspect the database before making claims about transactions. Only the listed tools can change data; every write tool may ask the user for consent first, and a denied call returns an error you must respect rather than retry. For classification writes, call apply_transaction_classifications and respect the application's review mode. To name unmatched recurring merchants, call get_unmatched_merchant_clusters and then propose_merchant_rules; proposed rules are always staged for user review.
 
 When you call suggest_transaction_classifications or propose_merchant_rules, the results are automatically staged in the app's Automation tab for the user to review and apply — do not repeat the full list or a table of the suggestions in your reply. Just briefly state how many suggestions you staged and tell the user to check the Automation tab to review and apply them.`;
+
+const TOOL_LIMIT_MESSAGE = 'I reached the tool-call limit before producing a final answer. Try a narrower question.';
 const DATABASE_SCHEMA_TIMEOUT_MS = 10000;
 
 const DATABASE_SCHEMA_COLUMNS_QUERY = `
@@ -75,10 +84,32 @@ export interface RunAiChatOptions {
   createChatCompletion: (params: ChatCompletionParams) => Promise<ChatCompletionResponse>;
   createChatCompletionStream?: (params: ChatCompletionParams) => Promise<AsyncIterable<ChatCompletionChunk>>;
   databaseToolContext: AiDatabaseToolContext;
+  /** Tools offered to the model; defaults to the built-in registry with safe defaults. */
+  registry?: AiToolRegistry;
+  /** Policy check for a tool; defaults to the tool's stored/default consent with no session grants. */
+  evaluateConsent?: (tool: AiResolvedTool) => AiConsentVerdict;
+  /**
+   * Called when a tool needs the user's consent. The loop pauses until it
+   * resolves. When omitted, calls that would ask are denied.
+   */
+  requestConsent?: (request: AiConsentRequest) => Promise<AiConsentDecision>;
+  /** Progress callback for tool-call records (awaiting-consent, running, completed, failed, denied). */
+  onToolCallUpdate?: (record: AiToolCallRecord) => void;
   abortSignal?: AbortSignal;
   maxToolIterations?: number;
   maxOutputTokens?: number;
   onAssistantDelta?: (delta: string) => void;
+}
+
+function defaultEvaluateConsent(tool: AiResolvedTool): AiConsentVerdict {
+  if (tool.consent === 'deny') {
+    return 'deny';
+  }
+  return tool.consent === 'always' ? 'allow' : 'ask';
+}
+
+function createConsentRequestId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `consent-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function isTruthySqlFlag(value: unknown): boolean {
@@ -233,6 +264,7 @@ async function streamAssistantTurn({
   onAssistantDelta,
   tokenUsage,
   maxOutputTokens,
+  tools,
 }: {
   conversation: ChatCompletionMessage[];
   createChatCompletionStream: (params: ChatCompletionParams) => Promise<AsyncIterable<ChatCompletionChunk>>;
@@ -240,6 +272,7 @@ async function streamAssistantTurn({
   onAssistantDelta?: (delta: string) => void;
   tokenUsage: Required<AiChatTokenUsage>;
   maxOutputTokens: number;
+  tools: ChatCompletionTool[];
 }): Promise<StreamedAssistantTurn> {
   let content = '';
   const toolCallParts = new Map<number, StreamedToolCallPart>();
@@ -250,7 +283,7 @@ async function streamAssistantTurn({
   };
   const stream = await createChatCompletionStream({
     messages: conversation,
-    tools: AI_DATABASE_TOOLS,
+    tools,
     tool_choice: 'auto',
     temperature: 0.2,
     max_tokens: maxOutputTokens,
@@ -291,11 +324,95 @@ async function streamAssistantTurn({
   };
 }
 
+interface ToolCallHandlingOptions {
+  registry: AiToolRegistry;
+  databaseToolContext: AiDatabaseToolContext;
+  evaluateConsent: (tool: AiResolvedTool) => AiConsentVerdict;
+  requestConsent?: (request: AiConsentRequest) => Promise<AiConsentDecision>;
+  onToolCallUpdate?: (record: AiToolCallRecord) => void;
+  abortSignal?: AbortSignal;
+}
+
+/**
+ * Resolves consent for one tool call, then runs it. Unknown or disabled tools
+ * and denied calls return an error result so the model can recover.
+ */
+export async function handleToolCall(
+  toolCall: ChatCompletionToolCall,
+  options: ToolCallHandlingOptions
+): Promise<AiDatabaseToolResult> {
+  const { registry, databaseToolContext, evaluateConsent, requestConsent, onToolCallUpdate } = options;
+  const name = toolCall.function.name;
+  const tool = registry.getTool(name);
+
+  if (!tool) {
+    log.warn('Model called an unknown tool', { operation: 'handleToolCall', tool: name });
+    return createDeniedToolResult(toolCall, `"${name}" is not an available tool.`);
+  }
+  if (!tool.enabled) {
+    return createDeniedToolResult(toolCall, `"${name}" is disabled in the Tools tab.`);
+  }
+
+  let verdict = evaluateConsent(tool);
+
+  if (verdict === 'ask') {
+    if (!requestConsent) {
+      return createDeniedToolResult(toolCall, `"${name}" requires the user's consent, which could not be requested.`);
+    }
+
+    onToolCallUpdate?.({
+      id: toolCall.id,
+      name,
+      argumentsJson: toolCall.function.arguments,
+      status: 'awaiting-consent',
+    });
+
+    const decision = await requestConsent({
+      id: createConsentRequestId(),
+      toolCallId: toolCall.id,
+      toolName: name,
+      crud: tool.crud,
+      description: tool.description,
+      argumentsJson: toolCall.function.arguments,
+      source: tool.source,
+      packKey: tool.packKey,
+    });
+    verdict = decision === 'deny' ? 'deny' : 'allow';
+  }
+
+  if (verdict === 'deny') {
+    const result = createDeniedToolResult(toolCall, 'the user did not allow this call.');
+    onToolCallUpdate?.(result.toolCall);
+    return result;
+  }
+
+  onToolCallUpdate?.({
+    id: toolCall.id,
+    name,
+    argumentsJson: toolCall.function.arguments,
+    status: 'running',
+  });
+
+  const result = await executeRegistryToolCall(toolCall, registry, databaseToolContext);
+  onToolCallUpdate?.(result.toolCall);
+  return result;
+}
+
+interface AssistantTurn {
+  content: string;
+  toolCalls: ChatCompletionToolCall[];
+  missingResponse?: boolean;
+}
+
 export async function runAiChatCompletion({
   messages,
   createChatCompletion,
   createChatCompletionStream,
   databaseToolContext,
+  registry = createDefaultToolRegistry(),
+  evaluateConsent = defaultEvaluateConsent,
+  requestConsent,
+  onToolCallUpdate,
   abortSignal,
   maxToolIterations = 4,
   maxOutputTokens = AI_OUTPUT_LIMIT_PRESETS.medium.tokens,
@@ -303,6 +420,7 @@ export async function runAiChatCompletion({
 }: RunAiChatOptions): Promise<AiChatRunResult> {
   const systemPrompt = await buildSystemPrompt(databaseToolContext);
   const conversation = toWllamaMessages(messages, systemPrompt);
+  const tools = registry.toChatTools();
   const toolCalls: AiToolCallRecord[] = [];
   const classificationSuggestions: TransactionClassificationSuggestion[] = [];
   const merchantRuleSuggestions: MerchantRuleSuggestion[] = [];
@@ -312,61 +430,30 @@ export async function runAiChatCompletion({
     totalTokens: 0,
   };
 
-  if (createChatCompletionStream) {
-    for (let iteration = 0; iteration <= maxToolIterations; iteration += 1) {
-      const assistantTurn = await streamAssistantTurn({
+  const finish = (assistantMessage: string): AiChatRunResult => ({
+    assistantMessage,
+    toolCalls,
+    classificationSuggestions,
+    merchantRuleSuggestions,
+    tokenUsage,
+  });
+
+  const nextAssistantTurn = async (): Promise<AssistantTurn> => {
+    if (createChatCompletionStream) {
+      return streamAssistantTurn({
         conversation,
         createChatCompletionStream,
         abortSignal,
         onAssistantDelta,
         tokenUsage,
         maxOutputTokens,
+        tools,
       });
-
-      if (assistantTurn.toolCalls.length === 0) {
-        return {
-          assistantMessage: assistantTurn.content,
-          toolCalls,
-          classificationSuggestions,
-          merchantRuleSuggestions,
-          tokenUsage,
-        };
-      }
-
-      conversation.push({
-        role: 'assistant',
-        content: assistantTurn.content || null,
-        tool_calls: assistantTurn.toolCalls,
-      });
-
-      for (const toolCall of assistantTurn.toolCalls) {
-        const result = await executeAiDatabaseToolCall(toolCall, databaseToolContext);
-        toolCalls.push(result.toolCall);
-        classificationSuggestions.push(...result.classificationSuggestions);
-        merchantRuleSuggestions.push(...result.merchantRuleSuggestions);
-        conversation.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          content: result.content,
-        });
-      }
     }
 
-    onAssistantDelta?.('I reached the tool-call limit before producing a final answer. Try a narrower question.');
-
-    return {
-      assistantMessage: 'I reached the tool-call limit before producing a final answer. Try a narrower question.',
-      toolCalls,
-      classificationSuggestions,
-      merchantRuleSuggestions,
-      tokenUsage,
-    };
-  }
-
-  for (let iteration = 0; iteration <= maxToolIterations; iteration += 1) {
     const response = await createChatCompletion({
       messages: conversation,
-      tools: AI_DATABASE_TOOLS,
+      tools,
       tool_choice: 'auto',
       temperature: 0.2,
       max_tokens: maxOutputTokens,
@@ -376,33 +463,44 @@ export async function runAiChatCompletion({
 
     const assistantMessage = response.choices[0]?.message;
     if (!assistantMessage) {
-      return {
-        assistantMessage: 'The model did not return a response.',
-        toolCalls,
-        classificationSuggestions,
-        merchantRuleSuggestions,
-        tokenUsage,
-      };
+      return { content: '', toolCalls: [], missingResponse: true };
+    }
+    return {
+      content: assistantMessage.content ?? '',
+      toolCalls: assistantMessage.tool_calls ?? [],
+    };
+  };
+
+  for (let iteration = 0; iteration <= maxToolIterations; iteration += 1) {
+    const assistantTurn = await nextAssistantTurn();
+
+    if (assistantTurn.missingResponse) {
+      return finish('The model did not return a response.');
     }
 
-    if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
-      return {
-        assistantMessage: assistantMessage.content || '',
-        toolCalls,
-        classificationSuggestions,
-        merchantRuleSuggestions,
-        tokenUsage,
-      };
+    if (assistantTurn.toolCalls.length === 0) {
+      return finish(assistantTurn.content);
     }
 
     conversation.push({
       role: 'assistant',
-      content: assistantMessage.content,
-      tool_calls: assistantMessage.tool_calls,
+      content: assistantTurn.content || null,
+      tool_calls: assistantTurn.toolCalls,
     });
 
-    for (const toolCall of assistantMessage.tool_calls) {
-      const result = await executeAiDatabaseToolCall(toolCall, databaseToolContext);
+    for (const toolCall of assistantTurn.toolCalls) {
+      if (abortSignal?.aborted) {
+        throw new DOMException('The AI request was aborted', 'AbortError');
+      }
+
+      const result = await handleToolCall(toolCall, {
+        registry,
+        databaseToolContext,
+        evaluateConsent,
+        requestConsent,
+        onToolCallUpdate,
+        abortSignal,
+      });
       toolCalls.push(result.toolCall);
       classificationSuggestions.push(...result.classificationSuggestions);
       merchantRuleSuggestions.push(...result.merchantRuleSuggestions);
@@ -414,13 +512,6 @@ export async function runAiChatCompletion({
     }
   }
 
-  onAssistantDelta?.('I reached the tool-call limit before producing a final answer. Try a narrower question.');
-
-  return {
-    assistantMessage: 'I reached the tool-call limit before producing a final answer. Try a narrower question.',
-    toolCalls,
-    classificationSuggestions,
-    merchantRuleSuggestions,
-    tokenUsage,
-  };
+  onAssistantDelta?.(TOOL_LIMIT_MESSAGE);
+  return finish(TOOL_LIMIT_MESSAGE);
 }

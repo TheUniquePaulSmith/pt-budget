@@ -2,6 +2,7 @@ import type { DatabaseWorkerTransport } from './databaseService';
 import type { AppMetadataService } from './databaseServiceAppMetadata';
 import { AI_TOOL_QUERIES } from './sqlQueriesAiTools';
 import type { AiToolPack, AiToolPackInput, AiToolSetting } from '../types/database';
+import type { AiToolPackResultMode } from '../types/aiTools';
 
 type AiToolsTransport = Pick<DatabaseWorkerTransport, 'query'>;
 
@@ -71,6 +72,26 @@ export class AiToolsService {
 
   async deleteToolSetting(toolName: string): Promise<void> {
     await this.worker.query(AI_TOOL_QUERIES.SETTINGS_DELETE, [toolName]);
+  }
+
+  /**
+   * Runs one validated, parameter-bound statement from a JSON tool pack.
+   * The registry validates the SQL and binds `:param` values positionally
+   * before this is called; nothing here interpolates argument text.
+   * `rows` returns the result set; `changes` returns `{ changes }` from
+   * `changes()` on the same worker connection.
+   */
+  async executePackSql(
+    sql: string,
+    params: Array<string | number | boolean | null>,
+    resultMode: AiToolPackResultMode
+  ): Promise<unknown> {
+    const rows = await this.worker.query(sql, params);
+    if (resultMode === 'rows') {
+      return rows;
+    }
+    const changed = await this.worker.query('SELECT changes() AS changes');
+    return { changes: Number(changed[0]?.changes ?? 0) };
   }
 
   /** Provider profiles document; `null` until the user configures a provider. */

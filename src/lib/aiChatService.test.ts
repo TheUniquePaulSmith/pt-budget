@@ -121,3 +121,129 @@ describe('runAiChatCompletion', () => {
     expect(systemMessage.content).toContain('database unavailable');
   });
 });
+describe('runAiChatCompletion tool consent', () => {
+  function createToolCallResponse(name: string, args: Record<string, unknown>): ChatCompletionResponse {
+    return {
+      id: 'chatcmpl-tool',
+      object: 'chat.completion',
+      created: 0,
+      model: 'local-test-model',
+      choices: [
+        {
+          index: 0,
+          finish_reason: 'tool_calls',
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: [{ id: 'call-1', type: 'function', function: { name, arguments: JSON.stringify(args) } }],
+          },
+        },
+      ],
+    } as ChatCompletionResponse;
+  }
+
+  const userMessages = [{ id: 'user-1', role: 'user' as const, content: 'Add a Fuel category', createdAt: '2026-07-13T00:00:00.000Z' }];
+
+  it('only offers enabled registry tools to the model', async () => {
+    const createChatCompletion = vi.fn(async (_params: ChatCompletionParams) => createChatResponse('ok'));
+    await runAiChatCompletion({ messages: userMessages, createChatCompletion, databaseToolContext: createDatabaseToolContext() });
+
+    const offered = (createChatCompletion.mock.calls[0][0].tools ?? []).map((tool) => tool.function.name);
+    expect(offered).toContain('create_category');
+    expect(offered).not.toContain('delete_transaction');
+  });
+
+  it('pauses for consent and returns a denial to the model when the user denies', async () => {
+    const createChatCompletion = vi.fn(async (params: ChatCompletionParams) => (
+      params.messages.some((message) => message.role === 'tool')
+        ? createChatResponse('Understood, I will not create it.')
+        : createToolCallResponse('create_category', { name: 'Fuel', type: 'expense' })
+    ));
+    const addCategory = vi.fn().mockResolvedValue(1);
+    const requestConsent = vi.fn(async () => 'deny' as const);
+    const updates: string[] = [];
+
+    const result = await runAiChatCompletion({
+      messages: userMessages,
+      createChatCompletion,
+      databaseToolContext: createDatabaseToolContext({ addCategory }),
+      requestConsent,
+      onToolCallUpdate: (record) => updates.push(record.status),
+    });
+
+    expect(requestConsent).toHaveBeenCalledWith(expect.objectContaining({ toolName: 'create_category', crud: 'create', toolCallId: 'call-1' }));
+    expect(addCategory).not.toHaveBeenCalled();
+    expect(updates).toEqual(['awaiting-consent', 'denied']);
+    expect(result.toolCalls[0]).toMatchObject({ name: 'create_category', status: 'denied' });
+    const toolMessage = createChatCompletion.mock.calls[1][0].messages.find((message) => message.role === 'tool');
+    expect(toolMessage && 'content' in toolMessage ? toolMessage.content : '').toMatch(/denied/);
+    expect(result.assistantMessage).toBe('Understood, I will not create it.');
+  });
+
+  it('runs the tool after the user allows it', async () => {
+    const createChatCompletion = vi.fn(async (params: ChatCompletionParams) => (
+      params.messages.some((message) => message.role === 'tool')
+        ? createChatResponse('Created.')
+        : createToolCallResponse('create_category', { name: 'Fuel', type: 'expense' })
+    ));
+    const addCategory = vi.fn().mockResolvedValue(7);
+
+    const result = await runAiChatCompletion({
+      messages: userMessages,
+      createChatCompletion,
+      databaseToolContext: createDatabaseToolContext({ addCategory }),
+      requestConsent: async () => 'allow_once',
+    });
+
+    expect(addCategory).toHaveBeenCalledWith({ name: 'Fuel', type: 'expense', color: '#607d8b' });
+    expect(result.toolCalls[0]).toMatchObject({ status: 'completed', result: { created: true, categoryId: 7 } });
+  });
+
+  it('denies ask-policy tools when no consent handler is available and skips consent for always-allowed reads', async () => {
+    const requestConsent = vi.fn();
+    const createChatCompletion = vi.fn(async (params: ChatCompletionParams) => (
+      params.messages.some((message) => message.role === 'tool')
+        ? createChatResponse('done')
+        : createToolCallResponse('list_categories', {})
+    ));
+
+    const read = await runAiChatCompletion({
+      messages: userMessages,
+      createChatCompletion,
+      databaseToolContext: createDatabaseToolContext(),
+      requestConsent,
+    });
+    expect(requestConsent).not.toHaveBeenCalled();
+    expect(read.toolCalls[0].status).toBe('completed');
+
+    const writeCompletion = vi.fn(async (params: ChatCompletionParams) => (
+      params.messages.some((message) => message.role === 'tool')
+        ? createChatResponse('done')
+        : createToolCallResponse('create_category', { name: 'X', type: 'expense' })
+    ));
+    const write = await runAiChatCompletion({
+      messages: userMessages,
+      createChatCompletion: writeCompletion,
+      databaseToolContext: createDatabaseToolContext({ addCategory: vi.fn() }),
+    });
+    expect(write.toolCalls[0].status).toBe('denied');
+  });
+
+  it('refuses disabled and unknown tools', async () => {
+    const createChatCompletion = vi.fn(async (params: ChatCompletionParams) => (
+      params.messages.some((message) => message.role === 'tool')
+        ? createChatResponse('ok')
+        : createToolCallResponse('delete_transaction', { transactionId: 1 })
+    ));
+    const deleteTransaction = vi.fn();
+    const result = await runAiChatCompletion({
+      messages: userMessages,
+      createChatCompletion,
+      databaseToolContext: createDatabaseToolContext({ deleteTransaction }),
+      requestConsent: async () => 'allow_once',
+    });
+    expect(deleteTransaction).not.toHaveBeenCalled();
+    expect(result.toolCalls[0]).toMatchObject({ status: 'denied' });
+    expect(result.toolCalls[0].error).toMatch(/disabled/);
+  });
+});

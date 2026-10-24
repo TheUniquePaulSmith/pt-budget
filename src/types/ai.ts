@@ -131,6 +131,8 @@ export interface AiChatMessage {
   tokenUsage?: AiChatTokenUsage;
   isError?: boolean;
   toolCalls?: AiToolCallRecord[];
+  /** Label of the provider that produced an assistant message. */
+  providerLabel?: string;
 }
 
 export interface AiChatTokenUsage {
@@ -143,7 +145,7 @@ export interface AiToolCallRecord {
   id: string;
   name: string;
   argumentsJson: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'awaiting-consent' | 'running' | 'completed' | 'failed' | 'denied';
   result?: unknown;
   error?: string;
 }

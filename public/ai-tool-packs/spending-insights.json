@@ -1,0 +1,59 @@
+{
+  "id": "spending-insights",
+  "name": "Spending insights",
+  "version": "1.0.0",
+  "author": "ptbudget",
+  "description": "Read-only summaries of spending by category, merchant and month.",
+  "tools": [
+    {
+      "name": "spend_by_category",
+      "description": "Total spending per category between two dates (inclusive, YYYY-MM-DD). Expenses are returned as positive amounts.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "startDate": { "type": "string", "description": "First day, YYYY-MM-DD." },
+          "endDate": { "type": "string", "description": "Last day, YYYY-MM-DD." }
+        },
+        "required": ["startDate", "endDate"],
+        "additionalProperties": false
+      },
+      "crud": "read",
+      "consent": "always",
+      "sql": "SELECT COALESCE(c.name, 'Uncategorized') AS category, COUNT(*) AS transactions, ROUND(SUM(-t.amount), 2) AS spent FROM transactions t LEFT JOIN categories c ON c.id = t.category_id WHERE t.type = 'expense' AND t.is_excluded = 0 AND t.date BETWEEN :startDate AND :endDate GROUP BY category ORDER BY spent DESC",
+      "resultMode": "rows"
+    },
+    {
+      "name": "top_merchants",
+      "description": "Merchants (companies, or raw descriptions when unmatched) ranked by total spend between two dates.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "startDate": { "type": "string", "description": "First day, YYYY-MM-DD." },
+          "endDate": { "type": "string", "description": "Last day, YYYY-MM-DD." },
+          "limit": { "type": "integer", "description": "How many merchants to return (default 10)." }
+        },
+        "required": ["startDate", "endDate"],
+        "additionalProperties": false
+      },
+      "crud": "read",
+      "consent": "always",
+      "sql": "SELECT COALESCE(comp.name, t.description) AS merchant, COUNT(*) AS transactions, ROUND(SUM(-t.amount), 2) AS spent FROM transactions t LEFT JOIN companies comp ON comp.id = t.company_id WHERE t.type = 'expense' AND t.is_excluded = 0 AND t.date BETWEEN :startDate AND :endDate GROUP BY merchant ORDER BY spent DESC LIMIT COALESCE(:limit, 10)",
+      "resultMode": "rows"
+    },
+    {
+      "name": "monthly_totals",
+      "description": "Income and expense totals per month (YYYY-MM) for the last N months.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "months": { "type": "integer", "description": "How many months back to include (default 6)." }
+        },
+        "additionalProperties": false
+      },
+      "crud": "read",
+      "consent": "always",
+      "sql": "SELECT substr(t.date, 1, 7) AS month, ROUND(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 2) AS income, ROUND(SUM(CASE WHEN t.type = 'expense' THEN -t.amount ELSE 0 END), 2) AS expenses FROM transactions t WHERE t.is_excluded = 0 AND t.date >= date('now', 'start of month', '-' || (COALESCE(:months, 6) - 1) || ' months') GROUP BY month ORDER BY month DESC",
+      "resultMode": "rows"
+    }
+  ]
+}

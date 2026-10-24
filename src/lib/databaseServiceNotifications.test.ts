@@ -30,7 +30,7 @@ const notificationRow = {
 };
 
 function createQuerySpy(rowsBySql: Record<string, unknown[]> = {}) {
-  return vi.fn(async (sql: string) => rowsBySql[sql] ?? []);
+  return vi.fn(async (sql: string, _params?: unknown[]) => rowsBySql[sql] ?? []);
 }
 
 describe('NotificationsService', () => {

@@ -415,27 +415,14 @@ class DatabaseWorker {
     const {CREATE_TABLES, CREATE_INDEXES, DEFAULT_DATA} = await import('/database-schema.js');
     const { ensureIndexes = true } = options;
 
-    // Create all tables
+    // Create all tables. Every entry of CREATE_TABLES is created, in
+    // declaration order, so a table added to the schema file cannot be
+    // forgotten here (SQLite does not require referenced parent tables to
+    // exist at CREATE time).
       try {
-          await this.sqlite3.exec(this.db, CREATE_TABLES.CATEGORIES);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.COMPANIES);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.USERS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNTS);
-          // ACCOUNT_USERS removed in favor of owner_user_id on accounts
-          await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNT_CARDS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.IMPORT_BATCHES);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTIONS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.ACCOUNT_BALANCE_SNAPSHOTS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.PROJECTS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.TRIPS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.TEMP_IMPORT_TRANSACTIONS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.MERCHANT_RULES);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.RECURRING_SERIES);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.TRANSACTION_SERIES_LINKS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGET_PLANS);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.BUDGET_PLAN_CATEGORIES);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.INCOME_SOURCES);
-          await this.sqlite3.exec(this.db, CREATE_TABLES.APP_METADATA);
+          for (const createTableSql of Object.values(CREATE_TABLES)) {
+            await this.sqlite3.exec(this.db, createTableSql);
+          }
 
           // Insert default data
           await this.sqlite3.exec(this.db, DEFAULT_DATA.CATEGORIES);

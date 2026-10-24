@@ -290,7 +290,7 @@ class FakeSubscriptionDb {
       }
 
       case SUBSCRIPTION_QUERIES.UPDATE_SERIES: {
-        const series = this.series.find((candidate) => candidate.id === params[6]);
+        const series = this.series.find((candidate) => candidate.id === params[9]);
         if (series) {
           Object.assign(series, {
             name: params[0],
@@ -299,6 +299,9 @@ class FakeSubscriptionDb {
             expected_amount: params[3],
             status: params[4],
             notes: params[5],
+            // COALESCE(?, is_autopay) and CASE WHEN ? = 1 THEN ? ELSE due_day END
+            is_autopay: params[6] ?? series.is_autopay,
+            due_day: params[7] === 1 ? params[8] : series.due_day,
           });
         }
         return [];
@@ -897,6 +900,35 @@ describe('DatabaseService recurring series operations', () => {
     });
     expect(heuristic.name).toBe('Cycle Studio Membership');
     expect(heuristic.status).toBe('active');
+    // Omitted payment-reminder fields leave the stored values untouched.
+    expect(heuristic.is_autopay).toBeUndefined();
+
+    await service.updateRecurringSeries(heuristic.id, {
+      name: 'Cycle Studio Membership',
+      kind: 'subscription',
+      cadence: 'monthly',
+      expected_amount: 53.48,
+      status: 'active',
+      is_autopay: true,
+      due_day: 15,
+    });
+    expect(heuristic.is_autopay).toBe(1);
+    expect(heuristic.due_day).toBe(15);
+
+    await service.updateRecurringSeries(heuristic.id, {
+      name: 'Cycle Studio Membership',
+      kind: 'subscription',
+      cadence: 'monthly',
+      expected_amount: 53.48,
+      status: 'active',
+      due_day: null,
+    });
+    expect(heuristic.is_autopay).toBe(1);
+    expect(heuristic.due_day).toBeNull();
+
+    const mapped = (await service.getRecurringSeriesWithStats()).find((series) => series.id === heuristic.id)!;
+    expect(mapped.is_autopay).toBe(1);
+    expect(mapped.due_day).toBeNull();
 
     await service.updateRecurringSeriesStatus(heuristic.id, 'inactive');
     expect(heuristic.status).toBe('inactive');

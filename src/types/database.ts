@@ -189,6 +189,10 @@ export interface BudgetPlanCategory {
   plan_id: number;
   category_id: number;
   amount: number;
+  // Roll-over mode for unused/overspent budget; carry_reset = 1 zeroes the
+  // carried balance from this plan's effective_month (schema v3).
+  carry_mode: BudgetCarryMode;
+  carry_reset: number; // SQLite boolean (0/1)
   created_at: string;
   updated_at: string;
   category_name?: string;
@@ -266,6 +270,11 @@ export interface Project {
   estimated_cost?: number | null;
   actual_cost?: number | null;
   notes?: string | null;
+  // Optional savings fund (schema v3): monthly_contribution accrues into the
+  // linked budget category from contribution_start_month ('YYYY-MM').
+  budget_category_id?: number | null;
+  monthly_contribution?: number | null;
+  contribution_start_month?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -282,6 +291,10 @@ export interface Trip {
   estimated_cost?: number | null;
   actual_cost?: number | null;
   notes?: string | null;
+  // Optional savings fund (schema v3), see Project.
+  budget_category_id?: number | null;
+  monthly_contribution?: number | null;
+  contribution_start_month?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -325,6 +338,10 @@ export interface RecurringSeries {
   last_seen_date: string | null;
   next_expected_date: string | null;
   notes?: string | null;
+  // Payment reminders (schema v3): non-autopay series surface as notifications;
+  // due_day (1-31) overrides next_expected_date for the reminder date when set.
+  is_autopay: number; // SQLite boolean (0/1)
+  due_day: number | null;
   created_at: string;
   updated_at: string;
   // Joined fields from SQL queries
@@ -480,4 +497,98 @@ export interface TripCosts {
   estimated: number;
   actual: number;
   transactions_total: number;
+}
+// ---------------------------------------------------------------------------
+// Schema v3: budget carry-over, savings funds, notifications, AI tool registry.
+// Row shapes only; feature-derived types live in feature-owned type modules.
+// ---------------------------------------------------------------------------
+
+/** Roll-over of unused ('surplus') or overspent ('deficit') budget into the next month. */
+export type BudgetCarryMode = 'none' | 'surplus' | 'deficit' | 'both';
+
+/** A project or trip linked to a budget category as a savings fund. */
+export interface BudgetFundLink {
+  entity_type: 'project' | 'trip';
+  entity_id: number;
+  name: string;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  estimated_cost: number | null;
+  budget_category_id: number;
+  category_name?: string;
+  category_color?: string;
+  monthly_contribution: number | null;
+  contribution_start_month: string | null; // 'YYYY-MM'
+}
+
+export type NotificationKind = 'reminder' | 'alert';
+export type NotificationRecurrence = 'once' | 'monthly' | 'yearly';
+export type NotificationStatus = 'active' | 'snoozed' | 'dismissed' | 'done';
+export type NotificationSource = 'user' | 'system';
+
+/**
+ * Row of `notifications`. Named AppNotification so it never shadows the DOM
+ * `Notification` API, which the notifications feature also uses.
+ */
+export interface AppNotification {
+  id: number;
+  kind: NotificationKind;
+  /** reminder: birthday | anniversary | seasonal | custom; alert: overdue_payment | budget_overspend */
+  type: string;
+  title: string;
+  body: string | null;
+  due_date: string | null; // 'YYYY-MM-DD'
+  recurrence: NotificationRecurrence;
+  lead_days: number | null; // null = notification_settings default for `type`
+  status: NotificationStatus;
+  snoozed_until: string | null;
+  source: NotificationSource;
+  dedupe_key: string | null;
+  entity_table: string | null;
+  entity_id: number | null;
+  payload_json: string | null;
+  last_notified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AppNotificationInput = Pick<AppNotification, 'kind' | 'type' | 'title'> &
+  Partial<Omit<AppNotification, 'id' | 'kind' | 'type' | 'title' | 'created_at' | 'updated_at' | 'last_notified_at'>>;
+
+/** Row of `notification_settings`; `type` uses the notifications.type vocabulary. */
+export interface NotificationSetting {
+  type: string;
+  enabled: number; // SQLite boolean (0/1)
+  lead_days: number;
+  os_notify: number; // SQLite boolean (0/1)
+  updated_at?: string;
+}
+
+export type AiToolConsent = 'ask' | 'always' | 'deny';
+export type AiToolPackSource = 'builtin' | 'user';
+
+/** Row of `ai_tool_packs`; definition_json holds the pack document owned by the AI feature. */
+export interface AiToolPack {
+  id: number;
+  pack_key: string;
+  name: string;
+  version: string | null;
+  source: AiToolPackSource;
+  enabled: number; // SQLite boolean (0/1)
+  definition_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AiToolPackInput = Pick<AiToolPack, 'pack_key' | 'name' | 'definition_json'> &
+  Partial<Pick<AiToolPack, 'version' | 'source'>> & { enabled?: boolean | number };
+
+/** Row of `ai_tool_settings`; pack_key is null for built-in TypeScript tools. */
+export interface AiToolSetting {
+  tool_name: string;
+  pack_key: string | null;
+  enabled: number; // SQLite boolean (0/1)
+  consent: AiToolConsent;
+  updated_at?: string;
 }

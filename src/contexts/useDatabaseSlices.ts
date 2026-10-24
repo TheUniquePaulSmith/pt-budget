@@ -16,6 +16,16 @@ import {
   useDatabaseUsers,
 } from './DatabaseContext';
 
+// Feature-owned page slices (schema v3). This file is the hub: feature agents
+// add page-facing hooks in their own module and re-export them from here.
+export {
+  useNotificationsPageSlice,
+  useNotificationBadgeSlice,
+  useNotificationsRuntimeSlice,
+} from './useNotificationsSlices';
+export { useAiToolsSlice, useAiProviderSlice } from './useAiToolsSlices';
+export { useBudgetFundsSlice } from './useBudgetFundsSlices';
+
 export function useAppShellSlice() {
   const status = useDatabaseStatus();
   const lifecycle = useDatabaseLifecycle();
@@ -171,10 +181,15 @@ export function useCsvImportSlice() {
   const collections = useDatabaseCollections();
   const transactions = useDatabaseTransactions();
   const accounts = useDatabaseAccounts();
+  const users = useDatabaseUsers();
   const subscriptions = useDatabaseSubscriptions();
 
   return {
     accounts: collections.accounts,
+    users: collections.users,
+    // Inline account / person creation during import (mutations refresh the collections).
+    addAccountWithCard: accounts.addAccountWithCard,
+    addUser: users.addUser,
     generateTransactionHash: transactions.generateTransactionHash,
     truncateImportTable: transactions.truncateImportTable,
     insertIntoTempTable: transactions.insertIntoTempTable,

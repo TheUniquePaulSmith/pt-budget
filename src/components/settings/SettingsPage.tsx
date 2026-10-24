@@ -52,11 +52,11 @@ import { CloudConflictDialog } from './CloudConflictDialog';
 import { ChangePasswordSection } from './ChangePasswordSection';
 import { CloudFilePickerDialog } from '@/components/setup/CloudFilePickerDialog';
 import { EncryptionProgress } from '@/components/setup/EncryptionProgress';
-import { ResetAppButton } from '@/components/common/ResetAppButton';
+import NotificationsSettingsTab from '@/components/notifications/NotificationsSettingsTab';
+import DeveloperSettingsTab from '@/components/common/Console/DeveloperSettingsTab';
 import { useSettingsSlice } from '@/contexts/useDatabaseSlices';
 import { ThemePresetId, useThemePreferences } from '@/theme/theme';
 import { isDebugMode } from '@/lib/debugMode';
-import { resetApp } from '@/lib/resetApp';
 import type { AutoSyncSnapshot } from '@/lib/cloudAutoSyncScheduler';
 import type { CloudProvider, DatabaseSource } from '@/lib/databaseSourceStorage';
 
@@ -120,7 +120,6 @@ interface SettingsPageProps {
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const [tabValue, setTabValue] = useState(0);
-  const [notifications, setNotifications] = useState(true);
   const debugMode = isDebugMode();
 
   const {
@@ -999,68 +998,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
             </Stack>
           </TabPanel>
 
-          {/* Notifications Tab */}
+          {/* Notifications Tab — body owned by the notifications feature */}
           <TabPanel value={tabValue} index={5}>
-            <Stack spacing={3}>
-              <Box>
-                <Typography variant="h5" gutterBottom>
-                  Notifications
-                </Typography>
-                <Typography variant="body2" color="text.secondary" paragraph>
-                  Configure when and how you receive notifications.
-                </Typography>
-              </Box>
-
-              <Divider />
-
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Notification Preferences
-                </Typography>
-                <Stack spacing={2}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={notifications}
-                        onChange={(e) => setNotifications(e.target.checked)}
-                      />
-                    }
-                    label="Enable notifications"
-                  />
-                  <Typography variant="body2" color="text.secondary">
-                    Receive alerts for budget limits, storage warnings, and other important events
-                  </Typography>
-                </Stack>
-              </Box>
-            </Stack>
+            <NotificationsSettingsTab />
           </TabPanel>
 
-          {/* Developer Tab — only visible with ?debug */}
+          {/* Developer Tab — only visible with ?debug; body owned by the logging feature */}
           {debugMode && (
             <TabPanel value={tabValue} index={6}>
-              <Stack spacing={3}>
-                <Box>
-                  <Typography variant="h5" gutterBottom>
-                    Developer
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" paragraph>
-                    Debug-only tools, visible because the app was opened with <code>?debug</code>.
-                  </Typography>
-                </Box>
-
-                <Divider />
-
-                <Box>
-                  <Typography variant="h6" gutterBottom>
-                    Reset App
-                  </Typography>
-                  <Alert severity="warning" sx={{ mb: 2 }}>
-                    Deletes the database, all settings, and cookies, then reloads the app to its
-                    original, first-run state. This cannot be undone.
-                  </Alert>
-                  <ResetAppButton onReset={() => resetApp(disconnectWorker)} />
-                </Box>
-              </Stack>
+              <DeveloperSettingsTab />
             </TabPanel>
           )}
         </Paper>

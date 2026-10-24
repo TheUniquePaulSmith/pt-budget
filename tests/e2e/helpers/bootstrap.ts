@@ -145,6 +145,44 @@ export async function reloadAndUnlock(page: Page, password: string = TEST_PASSWO
   );
 }
 
+/**
+ * Ids from the shell's page registry (src/components/common/Layout/pageRegistry.tsx).
+ * Every control that navigates to a page carries `data-testid="nav-<id>"`.
+ */
+export type AppPageId =
+  | 'dashboard'
+  | 'projects'
+  | 'trips'
+  | 'budget'
+  | 'accounts'
+  | 'transactions'
+  | 'subscriptions'
+  | 'notifications'
+  | 'sql-query'
+  | 'settings'
+  | 'developer-console';
+
+/**
+ * Navigates via the shell's registry-driven controls. Works for the header
+ * buttons, the sidebar and the mobile menu alike, because they all carry the
+ * same test id; when several are rendered (e.g. a mobile drawer plus a
+ * bottom bar) the first visible one is used.
+ */
+export async function navigateToPage(page: Page, id: AppPageId) {
+  const controls = page.getByTestId(`nav-${id}`);
+  const count = await controls.count();
+  for (let index = 0; index < count; index += 1) {
+    const control = controls.nth(index);
+    if (await control.isVisible().catch(() => false)) {
+      await control.click();
+      return;
+    }
+  }
+  // Nothing visible: open the mobile menu and retry once.
+  await page.getByRole('button', { name: 'open drawer' }).click();
+  await controls.first().click();
+}
+
 export async function runQuery(page: Page, sql: string) {
   await page.getByRole('button', { name: 'SQL Query' }).click();
   // The query box is a CodeMirror editor: `sql-query-input` tags its outer

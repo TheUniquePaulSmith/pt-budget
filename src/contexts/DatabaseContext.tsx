@@ -56,6 +56,20 @@ import {
   useDatabaseBudgetSlice,
   type DatabaseBudgetSlice,
 } from './useDatabaseBudgetSlice';
+// Schema v3 domain slices. Each interface is imported from its feature-owned
+// hook file, so feature agents extend their slice without editing this file.
+import {
+  useDatabaseNotificationsSlice,
+  type DatabaseNotificationsSlice,
+} from './useDatabaseNotificationsSlice';
+import {
+  useDatabaseAiToolsSlice,
+  type DatabaseAiToolsSlice,
+} from './useDatabaseAiToolsSlice';
+import {
+  useDatabaseBudgetFundsSlice,
+  type DatabaseBudgetFundsSlice,
+} from './useDatabaseBudgetFundsSlice';
 import { useDatabaseInitialization } from './useDatabaseInitialization';
 import { isDebugMode } from '../lib/debugMode';
 import { resetApp } from '../lib/resetApp';
@@ -132,6 +146,9 @@ interface DatabaseContextType {
   subscriptions: DatabaseSubscriptionsSlice;
   budgets: DatabaseBudgetSlice;
   diagnostics: DatabaseDiagnosticsSlice;
+  notifications: DatabaseNotificationsSlice;
+  aiTools: DatabaseAiToolsSlice;
+  budgetFunds: DatabaseBudgetFundsSlice;
 }
 
 const DatabaseStatusContext = createContext<DatabaseStatusSlice | null>(null);
@@ -156,6 +173,11 @@ const DatabaseSubscriptionsContext =
 const DatabaseBudgetContext = createContext<DatabaseBudgetSlice | null>(null);
 const DatabaseDiagnosticsContext =
   createContext<DatabaseDiagnosticsSlice | null>(null);
+const DatabaseNotificationsContext =
+  createContext<DatabaseNotificationsSlice | null>(null);
+const DatabaseAiToolsContext = createContext<DatabaseAiToolsSlice | null>(null);
+const DatabaseBudgetFundsContext =
+  createContext<DatabaseBudgetFundsSlice | null>(null);
 
 function useRequiredContext<T>(
   context: React.Context<T | null>,
@@ -208,6 +230,15 @@ export const useDatabaseBudget = () =>
 export const useDatabaseDiagnostics = () =>
   useRequiredContext(DatabaseDiagnosticsContext, 'useDatabaseDiagnostics');
 
+export const useDatabaseNotifications = () =>
+  useRequiredContext(DatabaseNotificationsContext, 'useDatabaseNotifications');
+
+export const useDatabaseAiTools = () =>
+  useRequiredContext(DatabaseAiToolsContext, 'useDatabaseAiTools');
+
+export const useDatabaseBudgetFunds = () =>
+  useRequiredContext(DatabaseBudgetFundsContext, 'useDatabaseBudgetFunds');
+
 export const useDatabaseContext = (): DatabaseContextType => ({
   status: useDatabaseStatus(),
   collections: useDatabaseCollections(),
@@ -222,6 +253,9 @@ export const useDatabaseContext = (): DatabaseContextType => ({
   subscriptions: useDatabaseSubscriptions(),
   budgets: useDatabaseBudget(),
   diagnostics: useDatabaseDiagnostics(),
+  notifications: useDatabaseNotifications(),
+  aiTools: useDatabaseAiTools(),
+  budgetFunds: useDatabaseBudgetFunds(),
 });
 
 interface DatabaseProviderProps {
@@ -244,6 +278,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     refreshTrips,
     refreshMerchantRules,
     refreshRecurringSeries,
+    refreshNotifications,
   } = useDatabaseCollectionsState({
     getDatabaseService: () => databaseService,
   });
@@ -426,6 +461,12 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     databaseService,
     refreshBudgets,
   });
+  const notificationsSlice = useDatabaseNotificationsSlice({
+    databaseService,
+    refreshNotifications,
+  });
+  const aiToolsSlice = useDatabaseAiToolsSlice({ databaseService });
+  const budgetFundsSlice = useDatabaseBudgetFundsSlice({ databaseService });
 
   // Custom SQL query execution
   const executeCustomQuery = useCallback(async (sql: string, timeoutMs?: number): Promise<any[]> => {
@@ -577,7 +618,13 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
                         <DatabaseSubscriptionsContext.Provider value={subscriptionsSlice}>
                           <DatabaseBudgetContext.Provider value={budgetSlice}>
                             <DatabaseDiagnosticsContext.Provider value={diagnosticsValue}>
+                            <DatabaseNotificationsContext.Provider value={notificationsSlice}>
+                            <DatabaseAiToolsContext.Provider value={aiToolsSlice}>
+                            <DatabaseBudgetFundsContext.Provider value={budgetFundsSlice}>
                               {children}
+                            </DatabaseBudgetFundsContext.Provider>
+                            </DatabaseAiToolsContext.Provider>
+                            </DatabaseNotificationsContext.Provider>
                             </DatabaseDiagnosticsContext.Provider>
                           </DatabaseBudgetContext.Provider>
                         </DatabaseSubscriptionsContext.Provider>

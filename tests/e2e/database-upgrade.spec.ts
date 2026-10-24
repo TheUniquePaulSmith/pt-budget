@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
@@ -13,8 +14,11 @@ import {
 // one-off Playwright run against the pre-migration build whenever a new
 // baseline is needed; do not edit by hand.
 const V1_ARCHIVE_PATH = path.join(__dirname, 'fixtures', 'v1-budget-tracker.zip');
+// Same procedure from the schema-version-2 build (devel/latest at 75f6835):
+// sample data plus a completed subscription scan, password TEST_PASSWORD.
+const V2_ARCHIVE_PATH = path.join(__dirname, 'fixtures', 'v2-budget-tracker.zip');
 
-async function loadArchiveAndUnlock(page: Page) {
+async function loadArchiveAndUnlock(page: Page, archivePath: string = V1_ARCHIVE_PATH) {
   await seedBrowserCompatibility(page);
   await page.goto('/');
 
@@ -27,7 +31,7 @@ async function loadArchiveAndUnlock(page: Page) {
     page.waitForEvent('filechooser', { timeout: 10_000 }),
     loadButton.click(),
   ]);
-  await fileChooser.setFiles(V1_ARCHIVE_PATH);
+  await fileChooser.setFiles(archivePath);
 
   await expect(page.getByText('Enter Password')).toBeVisible({ timeout: 30_000 });
   await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
@@ -44,7 +48,7 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
 
   // Opening an older database runs the pending migrations before the app
   // reports Connected, so the version is already current here.
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('2');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('3');
 
   // Rebuilt tables carry the new columns...
   expect(
@@ -116,4 +120,112 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
       "SELECT COUNT(*) FROM pragma_table_info('merchant_rules') WHERE name = 'default_category_id'"
     )
   ).toBe('1');
+
+  // Version 3: notification and AI tool tables, plus nullable/defaulted
+  // columns on tables that version 2 had already created fresh.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('notifications', 'notification_settings', 'ai_tool_packs', 'ai_tool_settings')"
+    )
+  ).toBe('4');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('recurring_series') WHERE name IN ('is_autopay', 'due_day')"
+    )
+  ).toBe('2');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('budget_plan_categories') WHERE name IN ('carry_mode', 'carry_reset')"
+    )
+  ).toBe('2');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name IN ('budget_category_id', 'monthly_contribution', 'contribution_start_month')"
+    )
+  ).toBe('3');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('trips') WHERE name IN ('budget_category_id', 'monthly_contribution', 'contribution_start_month')"
+    )
+  ).toBe('3');
+  // Existing series default to "not autopay" so payment reminders can start from them.
+  expect(
+    await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM recurring_series WHERE is_autopay != 0')
+  ).toBe('0');
+  // The v3 indexes exist after the post-migration ensureIndexes pass.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('idx_notifications_status_due', 'idx_recurring_series_autopay')"
+    )
+  ).toBe('2');
+});
+
+test('upgrades a schema v2 archive to version 3, keeping rows and adding only the v3 changes', async ({ page }) => {
+  test.skip(!fs.existsSync(V2_ARCHIVE_PATH), 'v2 baseline archive not captured (see tests/e2e-tools)');
+  await loadArchiveAndUnlock(page, V2_ARCHIVE_PATH);
+
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('3');
+
+  // Rows survive: the v2 archive carries transactions, series and links.
+  expect(Number(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM transactions'))).toBeGreaterThan(0);
+  expect(Number(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM recurring_series'))).toBeGreaterThan(0);
+  expect(
+    Number(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM transaction_series_links'))
+  ).toBeGreaterThan(0);
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      'SELECT COUNT(*) FROM transaction_series_links l LEFT JOIN transactions t ON t.id = l.transaction_id WHERE t.id IS NULL'
+    )
+  ).toBe('0');
+  // Version 3 does not rehash: every row keeps the hash the archive carried.
+  // (The baseline was exported from sample fixtures, so hash length is not asserted here.)
+  expect(
+    await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM transactions WHERE transaction_hash IS NULL')
+  ).toBe('0');
+
+  // v3 additions on a database whose v2 tables were created by the v2 migration
+  // itself (CREATE TABLE IF NOT EXISTS must be a no-op for them here).
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('notifications', 'notification_settings', 'ai_tool_packs', 'ai_tool_settings')"
+    )
+  ).toBe('4');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('recurring_series') WHERE name IN ('is_autopay', 'due_day')"
+    )
+  ).toBe('2');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('budget_plan_categories') WHERE name IN ('carry_mode', 'carry_reset')"
+    )
+  ).toBe('2');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name IN ('budget_category_id', 'monthly_contribution', 'contribution_start_month')"
+    )
+  ).toBe('3');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('trips') WHERE name IN ('budget_category_id', 'monthly_contribution', 'contribution_start_month')"
+    )
+  ).toBe('3');
+  // Legacy plan categories default to no carry-over.
+  expect(
+    await runQueryAndReadFirstCell(page, "SELECT COUNT(*) FROM budget_plan_categories WHERE carry_mode != 'none' OR carry_reset != 0")
+  ).toBe('0');
+  // Nothing was notified yet.
+  expect(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM notifications')).toBe('0');
 });

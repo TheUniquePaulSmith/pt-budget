@@ -46,6 +46,9 @@ export interface RecurringSeriesUpdate {
   expected_amount: number | null;
   status: RecurringSeriesStatus;
   notes?: string | null;
+  // Payment reminders (schema v3); omit either to leave it unchanged.
+  is_autopay?: boolean | number;
+  due_day?: number | null;
 }
 
 export interface RecurringSeriesCompanyInput {

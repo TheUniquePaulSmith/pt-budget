@@ -17,8 +17,8 @@ type MigrationOp =
 const migrations = MIGRATIONS as Array<{ version: number; statements: MigrationOp[] }>;
 
 describe('database schema', () => {
-  it('is at version 2 with migrations in ascending order ending at the current version', () => {
-    expect(SCHEMA_VERSION).toBe(2);
+  it('is at version 3 with migrations in ascending order ending at the current version', () => {
+    expect(SCHEMA_VERSION).toBe(3);
     const versions = migrations.map((migration) => migration.version);
     expect(versions).toEqual([...versions].sort((a, b) => a - b));
     expect(versions.at(-1)).toBe(SCHEMA_VERSION);
@@ -98,10 +98,55 @@ describe('database schema', () => {
     expect(v2.statements.at(-1)).toEqual({ op: 'rehashTransactions' });
   });
 
+  it('version 3 adds the notification and AI tool tables plus nullable-or-defaulted columns', () => {
+    const v3 = migrations.find((migration) => migration.version === 3)!;
+    expect(v3.statements).toContain(CREATE_TABLES.NOTIFICATIONS);
+    expect(v3.statements).toContain(CREATE_TABLES.NOTIFICATION_SETTINGS);
+    expect(v3.statements).toContain(CREATE_TABLES.AI_TOOL_PACKS);
+    expect(v3.statements).toContain(CREATE_TABLES.AI_TOOL_SETTINGS);
+
+    const addColumns = v3.statements.filter(
+      (op): op is Extract<MigrationOp, { op: 'addColumn' }> => typeof op !== 'string' && op.op === 'addColumn'
+    );
+    expect(addColumns.map((op) => `${op.table}.${op.column}`)).toEqual([
+      'recurring_series.is_autopay',
+      'recurring_series.due_day',
+      'budget_plan_categories.carry_mode',
+      'budget_plan_categories.carry_reset',
+      'projects.budget_category_id',
+      'projects.monthly_contribution',
+      'projects.contribution_start_month',
+      'trips.budget_category_id',
+      'trips.monthly_contribution',
+      'trips.contribution_start_month',
+    ]);
+
+    // Every added column must be nullable or defaulted: ALTER TABLE ADD COLUMN
+    // requires it, and the sample-data validator treats NOT NULL columns
+    // without a DEFAULT as required fixture fields.
+    for (const op of addColumns) {
+      const nullable = !/NOT NULL/.test(op.ddl) || /DEFAULT/.test(op.ddl);
+      expect(nullable, `${op.table}.${op.column} must be nullable or defaulted`).toBe(true);
+      // The CREATE statement for fresh databases carries the same column.
+      const createKey = op.table.toUpperCase() as keyof typeof CREATE_TABLES;
+      expect(CREATE_TABLES[createKey]).toContain(` ${op.column} `);
+    }
+
+    const carryMode = addColumns.find((op) => op.column === 'carry_mode')!;
+    expect(carryMode.ddl).toContain("CHECK(carry_mode IN ('none', 'surplus', 'deficit', 'both'))");
+    expect(CREATE_TABLES.BUDGET_PLAN_CATEGORIES).toContain("CHECK(carry_mode IN ('none', 'surplus', 'deficit', 'both'))");
+    expect(CREATE_TABLES.NOTIFICATIONS).toContain('dedupe_key TEXT UNIQUE');
+    expect(CREATE_TABLES.AI_TOOL_SETTINGS).toContain("CHECK(consent IN ('ask', 'always', 'deny'))");
+  });
+
   it('indexes the new sparse columns', () => {
     const indexes = CREATE_INDEXES.join('\n');
     expect(indexes).toContain('ON transactions(transfer_group_id) WHERE transfer_group_id IS NOT NULL');
     expect(indexes).toContain('ON transactions(import_batch_id) WHERE import_batch_id IS NOT NULL');
     expect(indexes).toContain('ON transactions(account_id, external_id) WHERE external_id IS NOT NULL');
+    expect(indexes).toContain('ON notifications(status, due_date)');
+    expect(indexes).toContain('ON recurring_series(is_autopay, status)');
+    expect(indexes).toContain('ON projects(budget_category_id) WHERE budget_category_id IS NOT NULL');
+    expect(indexes).toContain('ON trips(budget_category_id) WHERE budget_category_id IS NOT NULL');
   });
 });

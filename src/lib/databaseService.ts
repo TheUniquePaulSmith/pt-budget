@@ -23,6 +23,8 @@ import { addMonthsISO, todayLocalISO } from './dateOnly';
 import { computeTransactionHash } from './transactionHash';
 import type {
   AccountEditableFields,
+  AppNotification,
+  BudgetCarryMode,
   ImportBatch,
   ImportBatchInput,
   ImportBatchTotals,
@@ -46,6 +48,11 @@ import {
   ANALYTICS_QUERIES,
   SUBSCRIPTION_QUERIES
 } from './sqlQueries';
+import { AppMetadataService } from './databaseServiceAppMetadata';
+import { NotificationsService } from './databaseServiceNotifications';
+import { AiToolsService } from './databaseServiceAiTools';
+import { BudgetFundsService } from './databaseServiceBudgetFunds';
+import { logger } from './logging';
 import {
   Transaction,
   Category,
@@ -157,32 +164,46 @@ export const UNCATEGORIZED_KEY = 'uncategorized';
 export const UNCATEGORIZED_LABEL = 'Uncategorized';
 export const UNCATEGORIZED_COLOR = '#9e9e9e';
 
+// Structured logger for this service; every record carries the method name as
+// `operation` so the Developer Console can trace which call produced it.
+const log = logger.child({ component: 'DatabaseService' });
+
 export class DatabaseService {
   private isInitialized = false;
   public dbExistsBeforeInit = false;
 
+  // Domain sub-services (schema v3). New domains are composed here instead of
+  // growing this class: each feature owns its databaseService<Domain>.ts and
+  // sqlQueries<Domain>.ts files, and shares this transport.
+  readonly appMetadata: AppMetadataService;
+  readonly notifications: NotificationsService;
+  readonly aiTools: AiToolsService;
+  readonly budgetFunds: BudgetFundsService;
+
   constructor(
     private readonly workerService: DatabaseWorkerTransport = databaseWorkerService
-  ) {}
+  ) {
+    this.appMetadata = new AppMetadataService(workerService);
+    this.notifications = new NotificationsService(workerService);
+    this.aiTools = new AiToolsService(workerService, this.appMetadata);
+    this.budgetFunds = new BudgetFundsService(workerService);
+  }
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
     try {
       // Before initializing, check if the database already exists
-      console.info("[DB Service] Initializing database service...");
+      log.info('Initializing database service', { operation: 'initialize' });
       if (await this.databaseAlreadyExists()) {
         this.dbExistsBeforeInit = true;
       }
 
       await this.workerService.initialize();
       this.isInitialized = true;
-      console.info("[DB Service] Database service initialized successfully");
+      log.info('Database service initialized successfully', { operation: 'initialize' });
     } catch (error) {
-      console.error(
-        "[DB Service] Failed to initialize database service:",
-        error
-      );
+      log.error('Failed to initialize database service', { operation: 'initialize', error });
       throw error;
     }
   }
@@ -194,11 +215,11 @@ export class DatabaseService {
     }
 
     try {
-      console.debug('Creating new encrypted database...');
+      log.debug('Creating new encrypted database', { operation: 'createNewDatabase' });
       await this.workerService.createNewDatabase(password, undefined, options);
-      console.debug('Database created successfully');
+      log.debug('Database created successfully', { operation: 'createNewDatabase' });
     } catch (error) {
-      console.error('Failed to create database:', error);
+      log.error('Failed to create database', { operation: 'createNewDatabase', error });
       throw error;
     }
   }
@@ -210,11 +231,11 @@ export class DatabaseService {
     }
 
     try {
-      console.debug('Unlocking database...');
+      log.debug('Unlocking database', { operation: 'unlockDatabase' });
       await this.workerService.unlockDatabase(password);
-      console.debug('Database unlocked successfully');
+      log.debug('Database unlocked successfully', { operation: 'unlockDatabase' });
     } catch (error) {
-      console.error('Failed to unlock database:', error);
+      log.error('Failed to unlock database', { operation: 'unlockDatabase', error });
       throw error;
     }
   }
@@ -231,7 +252,7 @@ export class DatabaseService {
 
   async loadDatabaseFromFile(file: File): Promise<void> {
     try {
-      console.info("Loading database from file through worker...");
+      log.info('Loading database from file through worker', { operation: 'loadDatabaseFromFile' });
 
       const arrayBuffer = await file.arrayBuffer();
       const fileData = new Uint8Array(arrayBuffer);
@@ -239,7 +260,7 @@ export class DatabaseService {
       let plainArchiveBytes: Uint8Array;
 
       if (isEncryptedArchive(fileData)) {
-        console.info("Detected encrypted archive — decrypting...");
+        log.info('Detected encrypted archive — decrypting', { operation: 'loadDatabaseFromFile' });
         plainArchiveBytes = await this.workerService.decryptArchive(fileData);
       } else {
         throw new Error(
@@ -258,16 +279,16 @@ export class DatabaseService {
         );
       }
 
-      console.info("Database loaded successfully from file");
+      log.info('Database loaded successfully from file', { operation: 'loadDatabaseFromFile' });
     } catch (error) {
-      console.error("Failed to load database from file:", error);
+      log.error('Failed to load database from file', { operation: 'loadDatabaseFromFile', error });
       throw error;
     }
   }
 
   async exportDatabase(options?: ExportDatabaseOptions): Promise<Uint8Array> {
     try {
-      console.info("Exporting database through worker...");
+      log.info('Exporting database through worker', { operation: 'exportDatabase' });
       const databaseStatus = await this.getDatabaseStatus();
       const lastWriteTimestamp =
         databaseStatus.lastWriteTimestamp ?? new Date().toISOString();
@@ -294,10 +315,10 @@ export class DatabaseService {
         lastWriteTimestamp
       );
 
-      console.info("Database exported and encrypted successfully");
+      log.info('Database exported and encrypted successfully', { operation: 'exportDatabase' });
       return encryptedBytes;
     } catch (error) {
-      console.error("Failed to export database:", error);
+      log.error('Failed to export database', { operation: 'exportDatabase', error });
       throw error;
     }
   }
@@ -306,7 +327,7 @@ export class DatabaseService {
     let plainArchiveBytes: Uint8Array;
 
     if (isEncryptedArchive(archiveBytes)) {
-      console.info("Detected encrypted archive — decrypting...");
+      log.info('Detected encrypted archive — decrypting', { operation: 'importDatabaseArchiveData' });
       plainArchiveBytes = await this.workerService.decryptArchive(archiveBytes);
     } else {
       throw new Error(
@@ -438,9 +459,9 @@ export class DatabaseService {
   async ensureIndexes(): Promise<void> {
     try {
       await this.workerService.ensureIndexes();
-      console.info('Database indexes ensured successfully');
+      log.info('Database indexes ensured successfully', { operation: 'ensureIndexes' });
     } catch (error) {
-      console.error('Failed to ensure database indexes:', error);
+      log.error('Failed to ensure database indexes', { operation: 'ensureIndexes', error });
       throw error;
     }
   }
@@ -448,11 +469,11 @@ export class DatabaseService {
   /** Recreates the schema on the already-unlocked current connection (e.g. after an aborted sample-data import). */
   async clearAndRecreateDatabase(): Promise<void> {
     try {
-      console.warn("Clearing corrupted database...");
+      log.warn('Clearing corrupted database', { operation: 'clearAndRecreateDatabase' });
       await this.workerService.recreateDatabase();
-      console.info("Database cleared and recreated successfully");
+      log.info('Database cleared and recreated successfully', { operation: 'clearAndRecreateDatabase' });
     } catch (error) {
-      console.error("Failed to clear and recreate database:", error);
+      log.error('Failed to clear and recreate database', { operation: 'clearAndRecreateDatabase', error });
       throw error;
     }
   }
@@ -463,7 +484,7 @@ export class DatabaseService {
    * already has an encrypted database to unlock, vs. needing fresh setup.
    */
   async databaseAlreadyExists(): Promise<boolean> {
-    console.info("[DB Service] Checking for existing database...");
+    log.info('Checking for existing database', { operation: 'databaseAlreadyExists' });
     try {
       const databases = await indexedDB.databases();
       const exists = databases.some((db) => db.name === "ptbudgetapp-keys");
@@ -474,9 +495,7 @@ export class DatabaseService {
           request.onsuccess = (event) => {
             const target = event.target as IDBRequest | null;
             if (!target) {
-              console.warn(
-                "[DB Service] IndexedDB onsuccess event.target is null"
-              );
+              log.warn('IndexedDB onsuccess event.target is null', { operation: 'databaseAlreadyExists' });
               resolve(false);
               return;
             }
@@ -491,12 +510,12 @@ export class DatabaseService {
               resolve(header.result != null);
             };
             header.onerror = () => {
-              console.warn("[DB Service] Error reading encryption header store");
+              log.warn('Error reading encryption header store', { operation: 'databaseAlreadyExists' });
               resolve(false);
             };
           };
           request.onerror = () => {
-            console.warn("[DB Service] Error opening encryption header database");
+            log.warn('Error opening encryption header database', { operation: 'databaseAlreadyExists' });
             resolve(false);
           };
         });
@@ -505,7 +524,7 @@ export class DatabaseService {
       //Does not exist
       return false;
     } catch (error) {
-      console.error("Failed to check for existing database:", error);
+      log.error('Failed to check for existing database', { operation: 'databaseAlreadyExists', error });
       return false;
     }
   }
@@ -552,7 +571,7 @@ export class DatabaseService {
 
       return result[0].id.toString();
     } catch (error) {
-      console.error("Failed to add transaction:", error);
+      log.error('Failed to add transaction', { operation: 'addTransaction', error });
       throw error;
     }
   }
@@ -564,7 +583,7 @@ export class DatabaseService {
       );
       return rows.map(row => row.transaction_hash);
     } catch (error) {
-      console.error("Failed to get all transaction hashes:", error);
+      log.error('Failed to get all transaction hashes', { operation: 'getAllTransactionHashes', error });
       throw error;
     }
   }
@@ -573,7 +592,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(TRANSACTION_QUERIES.TRUNCATE_IMPORT_TABLE);
     } catch (error) {
-      console.error("Failed to truncate import table:", error);
+      log.error('Failed to truncate import table', { operation: 'truncateImportTable', error });
       throw error;
     }
   }
@@ -614,7 +633,7 @@ export class DatabaseService {
 
       return rows.map((row) => row.id as number);
     } catch (error) {
-      console.error("Failed to insert into temp table:", error);
+      log.error('Failed to insert into temp table', { operation: 'insertIntoTempTable', error });
       throw error;
     }
   }
@@ -644,7 +663,7 @@ export class DatabaseService {
       const rows = await this.workerService.query(TRANSACTION_QUERIES.CHECK_DUPLICATES_IN_TEMP);
       return rows.map(row => row.transaction_hash);
     } catch (error) {
-      console.error("Failed to check duplicate transactions:", error);
+      log.error('Failed to check duplicate transactions', { operation: 'checkDuplicateTransactions', error });
       throw error;
     }
   }
@@ -660,7 +679,7 @@ export class DatabaseService {
       );
       return result[0]?.count || 0;
     } catch (error) {
-      console.error("Failed to bulk insert from temp table:", error);
+      log.error('Failed to bulk insert from temp table', { operation: 'bulkInsertFromTempTable', error });
       throw error;
     }
   }
@@ -675,7 +694,7 @@ export class DatabaseService {
       
       await this.workerService.query(deleteQuery);
     } catch (error) {
-      console.error("Failed to delete from temp table:", error);
+      log.error('Failed to delete from temp table', { operation: 'deleteFromTempTable', error });
       throw error;
     }
   }
@@ -685,7 +704,7 @@ export class DatabaseService {
       // Clear the temp import table after import
       await this.workerService.query(TRANSACTION_QUERIES.TRUNCATE_IMPORT_TABLE);
     } catch (error) {
-      console.error("Failed to clear temp import table:", error);
+      log.error('Failed to clear temp import table', { operation: 'dropTempImportTable', error });
       // Don't throw on cleanup failure
     }
   }
@@ -716,7 +735,7 @@ export class DatabaseService {
       );
       return rows.map(this.mapToTransaction);
     } catch (error) {
-      console.error("Failed to get transactions:", error);
+      log.error('Failed to get transactions', { operation: 'getTransactions', error });
       throw error;
     }
   }
@@ -738,7 +757,7 @@ export class DatabaseService {
       );
       return rows.map(this.mapToTransaction);
     } catch (error) {
-      console.error("Failed to get recent transactions:", error);
+      log.error('Failed to get recent transactions', { operation: 'getRecentTransactions', error });
       throw error;
     }
   }
@@ -953,7 +972,7 @@ export class DatabaseService {
 
       return { data: rows.map(this.mapToTransaction), total, totalIncome, totalExpenses };
     } catch (error) {
-      console.error("Failed to get paginated transactions:", error);
+      log.error('Failed to get paginated transactions', { operation: 'getTransactionsPaginated', error });
       throw error;
     }
   }
@@ -976,7 +995,7 @@ export class DatabaseService {
       const rows = await this.workerService.query(sql, filterParams);
       return rows.map(this.mapToTransaction);
     } catch (error) {
-      console.error("Failed to get transactions for export:", error);
+      log.error('Failed to get transactions for export', { operation: 'getTransactionsForExport', error });
       throw error;
     }
   }
@@ -1008,7 +1027,7 @@ export class DatabaseService {
         transactionCount: Number(row.transaction_count || 0),
       };
     } catch (error) {
-      console.error("Failed to get dashboard summary:", error);
+      log.error('Failed to get dashboard summary', { operation: 'getDashboardSummary', error });
       throw error;
     }
   }
@@ -1136,7 +1155,7 @@ export class DatabaseService {
         comparisonPeriodLabel: comparison.label,
       };
     } catch (error) {
-      console.error("Failed to get chart data:", error);
+      log.error('Failed to get chart data', { operation: 'getChartData', error });
       throw error;
     }
   }
@@ -1319,7 +1338,7 @@ export class DatabaseService {
         transactions_total: Number(r.transactions_total || 0),
       }));
     } catch (error) {
-      console.error("Failed to get all project costs:", error);
+      log.error('Failed to get all project costs', { operation: 'getAllProjectCosts', error });
       throw error;
     }
   }
@@ -1351,7 +1370,7 @@ export class DatabaseService {
       const rows = await this.workerService.query(sql, [projectId, pageSize, page * pageSize]);
       return { data: rows.map(this.mapToTransaction), total };
     } catch (error) {
-      console.error("Failed to get transactions by project paginated:", error);
+      log.error('Failed to get transactions by project paginated', { operation: 'getTransactionsByProjectPaginated', error });
       throw error;
     }
   }
@@ -1383,7 +1402,7 @@ export class DatabaseService {
       const rows = await this.workerService.query(sql, [tripId, pageSize, page * pageSize]);
       return { data: rows.map(this.mapToTransaction), total };
     } catch (error) {
-      console.error("Failed to get transactions by trip paginated:", error);
+      log.error('Failed to get transactions by trip paginated', { operation: 'getTransactionsByTripPaginated', error });
       throw error;
     }
   }
@@ -1396,7 +1415,7 @@ export class DatabaseService {
       );
       return rows.map(this.mapToTransaction);
     } catch (error) {
-      console.error("Failed to get transactions by project:", error);
+      log.error('Failed to get transactions by project', { operation: 'getTransactionsByProject', error });
       throw error;
     }
   }
@@ -1421,7 +1440,7 @@ export class DatabaseService {
       }
       return rows.map(this.mapToTransaction);
     } catch (error) {
-      console.error("Failed to get transactions by date range:", error);
+      log.error('Failed to get transactions by date range', { operation: 'getTransactionsByDateRange', error });
       throw error;
     }
   }
@@ -1432,7 +1451,7 @@ export class DatabaseService {
       const rows = await this.workerService.query(CATEGORY_QUERIES.GET_ALL);
       return rows.map(this.mapToCategory);
     } catch (error) {
-      console.error("Failed to get categories:", error);
+      log.error('Failed to get categories', { operation: 'getCategories', error });
       throw error;
     }
   }
@@ -1447,7 +1466,7 @@ export class DatabaseService {
       );
       return result[0].id;
     } catch (error) {
-      console.error("Failed to add category:", error);
+      log.error('Failed to add category', { operation: 'addCategory', error });
       throw error;
     }
   }
@@ -1460,7 +1479,7 @@ export class DatabaseService {
       );
       return rows.length > 0 ? this.mapToCategory(rows[0]) : null;
     } catch (error) {
-      console.error("Failed to find category by name:", error);
+      log.error('Failed to find category by name', { operation: 'findCategoryByName', error });
       throw error;
     }
   }
@@ -1485,7 +1504,7 @@ export class DatabaseService {
         color: category.color || '#1976d2',
       });
     } catch (error) {
-      console.error("Failed to find or create category:", error);
+      log.error('Failed to find or create category', { operation: 'findOrCreateCategory', error });
       throw error;
     }
   }
@@ -1496,7 +1515,7 @@ export class DatabaseService {
       const rows = await this.workerService.query(COMPANY_QUERIES.GET_ALL);
       return rows.map(this.mapToCompany);
     } catch (error) {
-      console.error("Failed to get companies:", error);
+      log.error('Failed to get companies', { operation: 'getCompanies', error });
       throw error;
     }
   }
@@ -1508,7 +1527,7 @@ export class DatabaseService {
       ]);
       return result[0].id;
     } catch (error) {
-      console.error("Failed to add company:", error);
+      log.error('Failed to add company', { operation: 'addCompany', error });
       throw error;
     }
   }
@@ -1517,7 +1536,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(COMPANY_QUERIES.UPDATE, [name.trim(), id]);
     } catch (error) {
-      console.error("Failed to update company:", error);
+      log.error('Failed to update company', { operation: 'updateCompany', error });
       throw error;
     }
   }
@@ -1530,7 +1549,7 @@ export class DatabaseService {
       );
       return rows.length > 0 ? this.mapToCompany(rows[0]) : null;
     } catch (error) {
-      console.error("Failed to find company by name:", error);
+      log.error('Failed to find company by name', { operation: 'findCompanyByName', error });
       throw error;
     }
   }
@@ -1543,7 +1562,7 @@ export class DatabaseService {
       }
       return await this.addCompany(name);
     } catch (error) {
-      console.error("Failed to find or create company:", error);
+      log.error('Failed to find or create company', { operation: 'findOrCreateCompany', error });
       throw error;
     }
   }
@@ -1554,7 +1573,7 @@ export class DatabaseService {
       const rows = await this.workerService.query(ACCOUNT_QUERIES.GET_ALL);
       return rows.map(this.mapToAccount);
     } catch (error) {
-      console.error("Failed to get accounts:", error);
+      log.error('Failed to get accounts', { operation: 'getAccounts', error });
       throw error;
     }
   }
@@ -1598,7 +1617,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(ACCOUNT_QUERIES.DELETE, [id]);
     } catch (error) {
-      console.error("Failed to delete account:", error);
+      log.error('Failed to delete account', { operation: 'deleteAccount', error });
       throw error;
     }
   }
@@ -1619,7 +1638,7 @@ export class DatabaseService {
         id,
       ]);
     } catch (error) {
-      console.error("Failed to update account:", error);
+      log.error('Failed to update account', { operation: 'updateAccount', error });
       throw error;
     }
   }
@@ -1636,7 +1655,7 @@ export class DatabaseService {
       }
       return new Error('This account already has a card with that last four.');
     }
-    console.error(`${logMessage}:`, error);
+    log.error(`${logMessage}`, { operation: 'translateAccountCardUniqueError', error });
     return error;
   }
 
@@ -1649,7 +1668,7 @@ export class DatabaseService {
       );
       return rows.map(this.mapToAccountCard);
     } catch (error) {
-      console.error("Failed to get account cards:", error);
+      log.error('Failed to get account cards', { operation: 'getAccountCards', error });
       throw error;
     }
   }
@@ -1684,7 +1703,7 @@ export class DatabaseService {
       await this.workerService.query('COMMIT');
     } catch (error) {
       await this.workerService.query('ROLLBACK');
-      console.error("Failed to delete account card:", error);
+      log.error('Failed to delete account card', { operation: 'deleteAccountCard', error });
       throw error;
     }
   }
@@ -1711,7 +1730,7 @@ export class DatabaseService {
       );
       return rows.map(this.mapToAccount);
     } catch (error) {
-      console.error("Failed to find accounts by last four:", error);
+      log.error('Failed to find accounts by last four', { operation: 'findAccountsByLastFour', error });
       throw error;
     }
   }
@@ -1724,7 +1743,7 @@ export class DatabaseService {
       );
       return rows.map(this.mapToAccount);
     } catch (error) {
-      console.error("Failed to find accounts by full number:", error);
+      log.error('Failed to find accounts by full number', { operation: 'findAccountsByFullNumber', error });
       throw error;
     }
   }
@@ -1744,7 +1763,7 @@ export class DatabaseService {
       }
       await this.workerService.query(TRANSACTION_QUERIES.SET_CATEGORY, [categoryId, txId]);
     } catch (error) {
-      console.error("Failed to set transaction category:", error);
+      log.error('Failed to set transaction category', { operation: 'setTransactionCategory', error });
       throw error;
     }
   }
@@ -1761,7 +1780,7 @@ export class DatabaseService {
       }
       await this.workerService.query(TRANSACTION_QUERIES.SET_COMPANY, [companyId, txId]);
     } catch (error) {
-      console.error("Failed to set transaction company:", error);
+      log.error('Failed to set transaction company', { operation: 'setTransactionCompany', error });
       throw error;
     }
   }
@@ -1783,7 +1802,7 @@ export class DatabaseService {
       );
       return rows[0] ? this.mapToTransaction(rows[0]) : null;
     } catch (error) {
-      console.error('Failed to get transaction:', error);
+      log.error('Failed to get transaction', { operation: 'getTransactionById', error });
       throw error;
     }
   }
@@ -1861,7 +1880,7 @@ export class DatabaseService {
         id,
       ]);
     } catch (error) {
-      console.error('Failed to update transaction:', error);
+      log.error('Failed to update transaction', { operation: 'updateTransaction', error });
       throw error;
     }
   }
@@ -1876,7 +1895,7 @@ export class DatabaseService {
       await this.workerService.query('COMMIT');
     } catch (error) {
       await this.workerService.query('ROLLBACK');
-      console.error('Failed to delete transaction:', error);
+      log.error('Failed to delete transaction', { operation: 'deleteTransaction', error });
       throw error;
     }
   }
@@ -1885,7 +1904,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(TRANSACTION_QUERIES.SET_FLAG, [flagged ? 1 : 0, id]);
     } catch (error) {
-      console.error('Failed to set transaction flag:', error);
+      log.error('Failed to set transaction flag', { operation: 'setTransactionFlag', error });
       throw error;
     }
   }
@@ -1894,7 +1913,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(TRANSACTION_QUERIES.SET_EXCLUDED, [excluded ? 1 : 0, id]);
     } catch (error) {
-      console.error('Failed to set transaction exclusion:', error);
+      log.error('Failed to set transaction exclusion', { operation: 'setTransactionExcluded', error });
       throw error;
     }
   }
@@ -1909,7 +1928,7 @@ export class DatabaseService {
       this.assertTypeMatchesSign(type, Number(rows[0].amount));
       await this.workerService.query(TRANSACTION_QUERIES.SET_TYPE, [type, id]);
     } catch (error) {
-      console.error('Failed to set transaction type:', error);
+      log.error('Failed to set transaction type', { operation: 'setTransactionType', error });
       throw error;
     }
   }
@@ -1926,7 +1945,7 @@ export class DatabaseService {
       ]);
       return Number(rows[0].id);
     } catch (error) {
-      console.error('Failed to create import batch:', error);
+      log.error('Failed to create import batch', { operation: 'createImportBatch', error });
       throw error;
     }
   }
@@ -1941,7 +1960,7 @@ export class DatabaseService {
         id,
       ]);
     } catch (error) {
-      console.error('Failed to finalize import batch:', error);
+      log.error('Failed to finalize import batch', { operation: 'finalizeImportBatch', error });
       throw error;
     }
   }
@@ -1964,7 +1983,7 @@ export class DatabaseService {
         max_date: row.max_date ?? null,
       }));
     } catch (error) {
-      console.error('Failed to get import batches:', error);
+      log.error('Failed to get import batches', { operation: 'getRecentImportBatches', error });
       throw error;
     }
   }
@@ -1974,7 +1993,7 @@ export class DatabaseService {
       const trimmedComment = comment.trim();
       await this.workerService.query(TRANSACTION_QUERIES.SET_COMMENT, [trimmedComment || null, txId]);
     } catch (error) {
-      console.error('Failed to set transaction comment:', error);
+      log.error('Failed to set transaction comment', { operation: 'setTransactionComment', error });
       throw error;
     }
   }
@@ -1983,7 +2002,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(SUBSCRIPTION_QUERIES.LINK_TRANSACTION_MANUAL, [txId, seriesId]);
     } catch (error) {
-      console.error('Failed to link transaction to series:', error);
+      log.error('Failed to link transaction to series', { operation: 'linkTransactionToSeries', error });
       throw error;
     }
   }
@@ -1992,7 +2011,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(SUBSCRIPTION_QUERIES.DELETE_LINK_FOR_TRANSACTION, [txId]);
     } catch (error) {
-      console.error('Failed to unlink transaction from series:', error);
+      log.error('Failed to unlink transaction from series', { operation: 'unlinkTransactionFromSeries', error });
       throw error;
     }
   }
@@ -2011,7 +2030,7 @@ export class DatabaseService {
       return { appliedCount: transactionIds.length };
     } catch (error) {
       await this.workerService.query('ROLLBACK');
-      console.error('Failed to bulk link transactions to series:', error);
+      log.error('Failed to bulk link transactions to series', { operation: 'bulkLinkTransactionsToSeries', error });
       throw error;
     }
   }
@@ -2024,16 +2043,25 @@ export class DatabaseService {
       ]);
       return this.stitchBudgetPlans(planRows.map(this.mapToBudgetPlan), categoryRows.map(this.mapToBudgetPlanCategory));
     } catch (error) {
-      console.error('Failed to get budget plans:', error);
+      log.error('Failed to get budget plans', { operation: 'getBudgetPlans', error });
       throw error;
     }
   }
 
+  // #region budget-carry (owner: F)
+  // The budgets feature agent edits only inside this region: carry-over of
+  // surplus/deficit between months and the reset marker. Everyone else treats
+  // this file as read-only after the foundation lands.
   async saveBudgetPlan(input: {
     effectiveMonth: string;
     totalAmount?: number | null;
     notes?: string | null;
-    categories: Array<{ category_id: number; amount: number }>;
+    categories: Array<{
+      category_id: number;
+      amount: number;
+      carry_mode?: BudgetCarryMode;
+      carry_reset?: boolean | number;
+    }>;
   }): Promise<number> {
     await this.workerService.query('BEGIN TRANSACTION');
     try {
@@ -2049,13 +2077,15 @@ export class DatabaseService {
           planId,
           category.category_id,
           category.amount,
+          category.carry_mode ?? 'none',
+          category.carry_reset ? 1 : 0,
         ]);
       }
       await this.workerService.query('COMMIT');
       return planId;
     } catch (error) {
       await this.workerService.query('ROLLBACK');
-      console.error('Failed to save budget plan:', error);
+      log.error('Failed to save budget plan', { operation: 'saveBudgetPlan', error });
       throw error;
     }
   }
@@ -2064,7 +2094,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(BUDGET_PLAN_QUERIES.DELETE_PLAN, [id]);
     } catch (error) {
-      console.error('Failed to delete budget plan:', error);
+      log.error('Failed to delete budget plan', { operation: 'deleteBudgetPlan', error });
       throw error;
     }
   }
@@ -2076,7 +2106,7 @@ export class DatabaseService {
       const categoryRows = await this.workerService.query(BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES);
       return this.stitchBudgetPlans(planRows.map(this.mapToBudgetPlan), categoryRows.map(this.mapToBudgetPlanCategory))[0] ?? null;
     } catch (error) {
-      console.error('Failed to get effective budget plan:', error);
+      log.error('Failed to get effective budget plan', { operation: 'getEffectiveBudgetPlan', error });
       throw error;
     }
   }
@@ -2175,17 +2205,18 @@ export class DatabaseService {
         monthsWithPlan,
       };
     } catch (error) {
-      console.error('Failed to get budget status:', error);
+      log.error('Failed to get budget status', { operation: 'getBudgetStatus', error });
       throw error;
     }
   }
+  // #endregion budget-carry
 
   async getIncomeSources(): Promise<IncomeSource[]> {
     try {
       const rows = await this.workerService.query(INCOME_SOURCE_QUERIES.GET_ALL);
       return rows.map(this.mapToIncomeSource);
     } catch (error) {
-      console.error('Failed to get income sources:', error);
+      log.error('Failed to get income sources', { operation: 'getIncomeSources', error });
       throw error;
     }
   }
@@ -2207,7 +2238,7 @@ export class DatabaseService {
       ]);
       return Number(result[0].id);
     } catch (error) {
-      console.error('Failed to add income source:', error);
+      log.error('Failed to add income source', { operation: 'addIncomeSource', error });
       throw error;
     }
   }
@@ -2229,7 +2260,7 @@ export class DatabaseService {
         id,
       ]);
     } catch (error) {
-      console.error('Failed to update income source:', error);
+      log.error('Failed to update income source', { operation: 'updateIncomeSource', error });
       throw error;
     }
   }
@@ -2238,7 +2269,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(INCOME_SOURCE_QUERIES.DELETE, [id]);
     } catch (error) {
-      console.error('Failed to delete income source:', error);
+      log.error('Failed to delete income source', { operation: 'deleteIncomeSource', error });
       throw error;
     }
   }
@@ -2249,7 +2280,7 @@ export class DatabaseService {
       const rows = await this.workerService.query(PROJECT_QUERIES.GET_ALL);
       return rows.map(this.mapToProject);
     } catch (error) {
-      console.error("Failed to get projects:", error);
+      log.error('Failed to get projects', { operation: 'getProjects', error });
       throw error;
     }
   }
@@ -2269,10 +2300,13 @@ export class DatabaseService {
         project.estimated_cost || 0,
         project.actual_cost || 0,
         project.notes || null,
+        project.budget_category_id ?? null,
+        project.monthly_contribution ?? null,
+        project.contribution_start_month ?? null,
       ]);
       return result[0].id;
     } catch (error) {
-      console.error("Failed to add project:", error);
+      log.error('Failed to add project', { operation: 'addProject', error });
       throw error;
     }
   }
@@ -2285,7 +2319,7 @@ export class DatabaseService {
       );
       return rows.length > 0 ? this.mapToProject(rows[0]) : null;
     } catch (error) {
-      console.error("Failed to get project by id:", error);
+      log.error('Failed to get project by id', { operation: 'getProjectById', error });
       throw error;
     }
   }
@@ -2311,10 +2345,13 @@ export class DatabaseService {
         updates.estimated_cost ?? existing.estimated_cost,
         updates.actual_cost ?? existing.actual_cost,
         updates.notes ?? existing.notes,
+        updates.budget_category_id !== undefined ? updates.budget_category_id : existing.budget_category_id ?? null,
+        updates.monthly_contribution !== undefined ? updates.monthly_contribution : existing.monthly_contribution ?? null,
+        updates.contribution_start_month !== undefined ? updates.contribution_start_month : existing.contribution_start_month ?? null,
         id,
       ]);
     } catch (error) {
-      console.error("Failed to update project:", error);
+      log.error('Failed to update project', { operation: 'updateProject', error });
       throw error;
     }
   }
@@ -2323,7 +2360,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(PROJECT_QUERIES.DELETE, [id]);
     } catch (error) {
-      console.error("Failed to delete project:", error);
+      log.error('Failed to delete project', { operation: 'deleteProject', error });
       throw error;
     }
   }
@@ -2351,7 +2388,7 @@ export class DatabaseService {
         transactions_total: result.transactions_total || 0,
       };
     } catch (error) {
-      console.error("Failed to get project costs:", error);
+      log.error('Failed to get project costs', { operation: 'getProjectCosts', error });
       throw error;
     }
   }
@@ -2376,6 +2413,9 @@ export class DatabaseService {
       trip.estimated_cost || null,
       trip.actual_cost || null,
       trip.notes || null,
+      trip.budget_category_id ?? null,
+      trip.monthly_contribution ?? null,
+      trip.contribution_start_month ?? null,
     ]);
     return (result[0].id);
   }
@@ -2403,6 +2443,9 @@ export class DatabaseService {
       updates.estimated_cost !== undefined ? updates.estimated_cost : trip.estimated_cost,
       updates.actual_cost !== undefined ? updates.actual_cost : trip.actual_cost,
       updates.notes !== undefined ? updates.notes : trip.notes,
+      updates.budget_category_id !== undefined ? updates.budget_category_id : trip.budget_category_id ?? null,
+      updates.monthly_contribution !== undefined ? updates.monthly_contribution : trip.monthly_contribution ?? null,
+      updates.contribution_start_month !== undefined ? updates.contribution_start_month : trip.contribution_start_month ?? null,
       id,
     ]);
   }
@@ -2437,7 +2480,7 @@ export class DatabaseService {
       const rows = await this.workerService.query(USER_QUERIES.GET_ALL);
       return rows.map(this.mapToUser);
     } catch (error) {
-      console.error("Failed to get users:", error);
+      log.error('Failed to get users', { operation: 'getUsers', error });
       throw error;
     }
   }
@@ -2449,7 +2492,7 @@ export class DatabaseService {
       ]);
       return rows.length > 0 ? this.mapToUser(rows[0]) : null;
     } catch (error) {
-      console.error("Failed to get user by id:", error);
+      log.error('Failed to get user by id', { operation: 'getUserById', error });
       throw error;
     }
   }
@@ -2464,7 +2507,7 @@ export class DatabaseService {
       ]);
       return result[0].id;
     } catch (error) {
-      console.error("Failed to add user:", error);
+      log.error('Failed to add user', { operation: 'addUser', error });
       throw error;
     }
   }
@@ -2485,7 +2528,7 @@ export class DatabaseService {
       return Number(result[0].id);
     } catch (error) {
       await this.workerService.query('ROLLBACK');
-      console.error("Failed to ensure primary user:", error);
+      log.error('Failed to ensure primary user', { operation: 'ensurePrimaryUser', error });
       throw error;
     }
   }
@@ -2500,7 +2543,7 @@ export class DatabaseService {
         id,
       ]);
     } catch (error) {
-      console.error("Failed to update user:", error);
+      log.error('Failed to update user', { operation: 'updateUser', error });
       throw error;
     }
   }
@@ -2513,7 +2556,7 @@ export class DatabaseService {
       }
       await this.workerService.query(USER_QUERIES.DELETE, [id]);
     } catch (error) {
-      console.error("Failed to delete user:", error);
+      log.error('Failed to delete user', { operation: 'deleteUser', error });
       throw error;
     }
   }
@@ -2526,7 +2569,7 @@ export class DatabaseService {
       );
       return rows.map(this.mapToAccount);
     } catch (error) {
-      console.error("Failed to get accounts by user id:", error);
+      log.error('Failed to get accounts by user id', { operation: 'getAccountsByUserId', error });
       throw error;
     }
   }
@@ -2555,7 +2598,7 @@ export class DatabaseService {
         color: row.color || UNCATEGORIZED_COLOR,
       }));
     } catch (error) {
-      console.error("Failed to get spending by category:", error);
+      log.error('Failed to get spending by category', { operation: 'getSpendingByCategory', error });
       throw error;
     }
   }
@@ -2583,7 +2626,7 @@ export class DatabaseService {
         color: row.color || UNCATEGORIZED_COLOR,
       }));
     } catch (error) {
-      console.error("Failed to get income by category:", error);
+      log.error('Failed to get income by category', { operation: 'getIncomeByCategory', error });
       throw error;
     }
   }
@@ -2602,7 +2645,7 @@ export class DatabaseService {
         expense: row.expense || 0,
       }));
     } catch (error) {
-      console.error("Failed to get monthly trends:", error);
+      log.error('Failed to get monthly trends', { operation: 'getMonthlyTrends', error });
       throw error;
     }
   }
@@ -2615,7 +2658,7 @@ export class DatabaseService {
       );
       return Number(rows[0]?.count || 0) > 0;
     } catch (error) {
-      console.error("Failed to check transaction hash:", error);
+      log.error('Failed to check transaction hash', { operation: 'checkTransactionHashExists', error });
       throw error;
     }
   }
@@ -2623,20 +2666,20 @@ export class DatabaseService {
   // Custom SQL query execution
   async executeCustomQuery(sql: string): Promise<any[]> {
     try {
-      console.debug("Executing custom query:", sql);
+      log.debug('Executing custom query', { operation: 'executeCustomQuery', sql });
       return await this.workerService.query(sql);
     } catch (error) {
-      console.error("Failed to execute custom query:", error);
+      log.error('Failed to execute custom query', { operation: 'executeCustomQuery', error });
       throw error;
     }
   }
 
   async executeCustomQueryWithTimeout(sql: string, timeoutMs: number): Promise<any[]> {
     try {
-      console.debug("Executing custom query with timeout:", sql, timeoutMs);
+      log.debug('Executing custom query with timeout', { operation: 'executeCustomQueryWithTimeout', sql, timeoutMs });
       return await this.workerService.queryWithTimeout(sql, [], timeoutMs);
     } catch (error) {
-      console.error("Failed to execute custom query:", error);
+      log.error('Failed to execute custom query', { operation: 'executeCustomQueryWithTimeout', error });
       throw error;
     }
   }
@@ -2757,6 +2800,8 @@ export class DatabaseService {
       plan_id: row.plan_id,
       category_id: row.category_id,
       amount: Number(row.amount || 0),
+      carry_mode: row.carry_mode ?? 'none',
+      carry_reset: Number(row.carry_reset || 0),
       created_at: row.created_at,
       updated_at: row.updated_at,
       category_name: row.category_name,
@@ -3118,6 +3163,9 @@ export class DatabaseService {
       estimated_cost: row.estimated_cost,
       actual_cost: row.actual_cost,
       notes: row.notes,
+      budget_category_id: row.budget_category_id ?? null,
+      monthly_contribution: row.monthly_contribution != null ? Number(row.monthly_contribution) : null,
+      contribution_start_month: row.contribution_start_month ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
@@ -3146,6 +3194,9 @@ export class DatabaseService {
       estimated_cost: row.estimated_cost ? Number(row.estimated_cost) : null,
       actual_cost: row.actual_cost ? Number(row.actual_cost) : null,
       notes: row.notes,
+      budget_category_id: row.budget_category_id ?? null,
+      monthly_contribution: row.monthly_contribution != null ? Number(row.monthly_contribution) : null,
+      contribution_start_month: row.contribution_start_month ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
@@ -3249,7 +3300,7 @@ export class DatabaseService {
       };
     } catch (error) {
       await this.workerService.query('ROLLBACK');
-      console.error('Failed to apply transaction classifications:', error);
+      log.error('Failed to apply transaction classifications', { operation: 'applyTransactionClassifications', error });
       throw error;
     }
   }
@@ -3370,6 +3421,12 @@ export class DatabaseService {
     await this.workerService.query(SUBSCRIPTION_QUERIES.SET_METADATA, [key, value]);
   }
 
+  // --- Sub-service facades (cached collections take Pick<DatabaseService, ...>) ---
+
+  async getNotifications(): Promise<AppNotification[]> {
+    return this.notifications.list();
+  }
+
   // --- Merchant rules ---
 
   async getMerchantRules(): Promise<MerchantRule[]> {
@@ -3377,7 +3434,7 @@ export class DatabaseService {
       const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_ALL_RULES);
       return rows.map(this.mapToMerchantRule);
     } catch (error) {
-      console.error('Failed to get merchant rules:', error);
+      log.error('Failed to get merchant rules', { operation: 'getMerchantRules', error });
       throw error;
     }
   }
@@ -3411,7 +3468,7 @@ export class DatabaseService {
       ]);
       return result[0].id;
     } catch (error) {
-      console.error('Failed to add merchant rule:', error);
+      log.error('Failed to add merchant rule', { operation: 'addMerchantRule', error });
       throw error;
     }
   }
@@ -3446,7 +3503,7 @@ export class DatabaseService {
         id,
       ]);
     } catch (error) {
-      console.error('Failed to update merchant rule:', error);
+      log.error('Failed to update merchant rule', { operation: 'updateMerchantRule', error });
       throw error;
     }
   }
@@ -3463,7 +3520,7 @@ export class DatabaseService {
         await this.workerService.query(SUBSCRIPTION_QUERIES.DISABLE_RULE, [id]);
       }
     } catch (error) {
-      console.error('Failed to delete merchant rule:', error);
+      log.error('Failed to delete merchant rule', { operation: 'deleteMerchantRule', error });
       throw error;
     }
   }
@@ -3544,7 +3601,7 @@ export class DatabaseService {
       await this.workerService.query('COMMIT');
     } catch (error) {
       await this.workerService.query('ROLLBACK');
-      console.error('Failed to apply merchant matching:', error);
+      log.error('Failed to apply merchant matching', { operation: 'applyMerchantMatching', error });
       throw error;
     }
 
@@ -3670,7 +3727,7 @@ export class DatabaseService {
       await this.workerService.query('COMMIT');
     } catch (error) {
       await this.workerService.query('ROLLBACK');
-      console.error('Failed to run subscription scan:', error);
+      log.error('Failed to run subscription scan', { operation: 'runSubscriptionScan', error });
       throw error;
     }
 
@@ -3700,7 +3757,7 @@ export class DatabaseService {
       ]);
       return rows.map(this.mapToRecurringSeries);
     } catch (error) {
-      console.error('Failed to get recurring series:', error);
+      log.error('Failed to get recurring series', { operation: 'getRecurringSeriesWithStats', error });
       throw error;
     }
   }
@@ -3723,7 +3780,7 @@ export class DatabaseService {
       );
       return rows.map((row) => this.mapToTransaction(row));
     } catch (error) {
-      console.error('Failed to get transactions by ids:', error);
+      log.error('Failed to get transactions by ids', { operation: 'getTransactionsByIds', error });
       throw error;
     }
   }
@@ -3735,7 +3792,7 @@ export class DatabaseService {
       ]);
       return rows.map((row) => this.mapToTransaction(row));
     } catch (error) {
-      console.error('Failed to get series transactions:', error);
+      log.error('Failed to get series transactions', { operation: 'getSeriesTransactions', error });
       throw error;
     }
   }
@@ -3749,6 +3806,9 @@ export class DatabaseService {
       expected_amount: number | null;
       status: RecurringSeriesStatus;
       notes?: string | null;
+      // Optional: omit to leave the stored values untouched.
+      is_autopay?: boolean | number;
+      due_day?: number | null;
     }
   ): Promise<void> {
     try {
@@ -3759,10 +3819,13 @@ export class DatabaseService {
         updates.expected_amount,
         updates.status,
         updates.notes ?? null,
+        updates.is_autopay === undefined ? null : updates.is_autopay ? 1 : 0,
+        updates.due_day === undefined ? 0 : 1,
+        updates.due_day ?? null,
         id,
       ]);
     } catch (error) {
-      console.error('Failed to update recurring series:', error);
+      log.error('Failed to update recurring series', { operation: 'updateRecurringSeries', error });
       throw error;
     }
   }
@@ -3771,7 +3834,7 @@ export class DatabaseService {
     try {
       await this.workerService.query(SUBSCRIPTION_QUERIES.UPDATE_SERIES_STATUS, [status, id]);
     } catch (error) {
-      console.error('Failed to update recurring series status:', error);
+      log.error('Failed to update recurring series status', { operation: 'updateRecurringSeriesStatus', error });
       throw error;
     }
   }
@@ -3791,7 +3854,7 @@ export class DatabaseService {
       }
       await this.workerService.query(SUBSCRIPTION_QUERIES.UPDATE_SERIES_COMPANY, [companyId, id]);
     } catch (error) {
-      console.error('Failed to set recurring series company:', error);
+      log.error('Failed to set recurring series company', { operation: 'setRecurringSeriesCompany', error });
       throw error;
     }
   }
@@ -3807,7 +3870,7 @@ export class DatabaseService {
       await this.workerService.query('COMMIT');
     } catch (error) {
       await this.workerService.query('ROLLBACK');
-      console.error('Failed to delete recurring series:', error);
+      log.error('Failed to delete recurring series', { operation: 'deleteRecurringSeries', error });
       throw error;
     }
   }
@@ -3951,6 +4014,8 @@ export class DatabaseService {
       last_seen_date: row.last_seen_date ?? null,
       next_expected_date: row.next_expected_date ?? null,
       notes: row.notes ?? null,
+      is_autopay: Number(row.is_autopay || 0),
+      due_day: row.due_day != null ? Number(row.due_day) : null,
       created_at: row.created_at,
       updated_at: row.updated_at,
       company_name: row.company_name || undefined,

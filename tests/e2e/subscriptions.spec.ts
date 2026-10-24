@@ -28,7 +28,7 @@ test('@smoke seeds community merchant rules and renders the Subscriptions page',
 
   await page.getByRole('button', { name: 'Subscriptions' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Subscriptions' })
+    page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })
   ).toBeVisible({ timeout: 120_000 });
 });
 
@@ -37,7 +37,7 @@ test('runs a subscription scan and persists a user-created merchant rule', async
 
   await page.getByRole('button', { name: 'Subscriptions' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Subscriptions' })
+    page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })
   ).toBeVisible({ timeout: 120_000 });
 
   // The header Rescan button always exists (the empty-state CTA can detach
@@ -78,7 +78,7 @@ test('shows a Card column on the series table and links a series to a newly crea
 
   await page.getByRole('button', { name: 'Subscriptions' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Subscriptions' })
+    page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })
   ).toBeVisible({ timeout: 120_000 });
 
   await page.getByRole('button', { name: 'Rescan' }).click();

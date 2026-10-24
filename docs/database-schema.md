@@ -58,6 +58,9 @@ erDiagram
         float estimated_cost
         float actual_cost
         string notes
+        int budget_category_id FK
+        float monthly_contribution
+        string contribution_start_month
         datetime created_at
         datetime updated_at
     }
@@ -74,6 +77,9 @@ erDiagram
         float estimated_cost
         float actual_cost
         string notes
+        int budget_category_id FK
+        float monthly_contribution
+        string contribution_start_month
         datetime created_at
         datetime updated_at
     }
@@ -148,6 +154,8 @@ erDiagram
         date last_seen_date
         date next_expected_date
         string notes
+        int is_autopay
+        int due_day
         datetime created_at
         datetime updated_at
     }
@@ -166,6 +174,75 @@ erDiagram
         datetime updated_at
     }
 
+    BUDGET_PLANS {
+        int id PK
+        string effective_month UK
+        float total_amount
+        string notes
+        datetime created_at
+        datetime updated_at
+    }
+
+    BUDGET_PLAN_CATEGORIES {
+        int id PK
+        int plan_id FK
+        int category_id FK
+        float amount
+        string carry_mode
+        int carry_reset
+        datetime created_at
+        datetime updated_at
+    }
+
+    NOTIFICATIONS {
+        int id PK
+        string kind
+        string type
+        string title
+        string body
+        date due_date
+        string recurrence
+        int lead_days
+        string status
+        date snoozed_until
+        string source
+        string dedupe_key UK
+        string entity_table
+        int entity_id
+        string payload_json
+        datetime last_notified_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    NOTIFICATION_SETTINGS {
+        string type PK
+        int enabled
+        int lead_days
+        int os_notify
+        datetime updated_at
+    }
+
+    AI_TOOL_PACKS {
+        int id PK
+        string pack_key UK
+        string name
+        string version
+        string source
+        int enabled
+        string definition_json
+        datetime created_at
+        datetime updated_at
+    }
+
+    AI_TOOL_SETTINGS {
+        string tool_name PK
+        string pack_key
+        int enabled
+        string consent
+        datetime updated_at
+    }
+
     USERS ||--o{ ACCOUNTS : owns
     ACCOUNTS ||--o{ ACCOUNT_CARDS : has
     USERS ||--o{ ACCOUNT_CARDS : carries
@@ -179,6 +256,10 @@ erDiagram
     MERCHANT_RULES ||--o{ RECURRING_SERIES : derives
     RECURRING_SERIES ||--o{ TRANSACTION_SERIES_LINKS : groups
     TRANSACTIONS ||--o| TRANSACTION_SERIES_LINKS : linked_by
+    BUDGET_PLANS ||--o{ BUDGET_PLAN_CATEGORIES : allocates
+    CATEGORIES ||--o{ BUDGET_PLAN_CATEGORIES : budgeted_as
+    CATEGORIES ||--o{ PROJECTS : funds
+    CATEGORIES ||--o{ TRIPS : funds
 ```
 
 ## Key Features:
@@ -191,7 +272,11 @@ erDiagram
 6. **Merchant Rules**: Community-seeded + user-defined description patterns that map raw bank charge descriptions to merchants (`companies`), optional services, and a default kind (subscription / bill / purchase). Community reseeds respect `user_modified`
 7. **Recurring Series**: Detected subscriptions and recurring bills with cadence, expected amount, status lifecycle (candidate → active / inactive / ignored), and idempotent rescans via unique `match_key`
 8. **Transaction–Series Links**: Join table connecting transactions to their recurring series (avoids altering the transactions table)
-9. **App Metadata**: Key/value store for versioned assets such as the community merchant-rules seed version
+9. **App Metadata**: Key/value store for versioned assets such as the community merchant-rules seed version. Feature code namespaces its keys (`notifications.*`, `ai.*`, `logging.*`); `ai.provider.config` holds the AI provider profiles (including API keys, which is why they live in the encrypted database)
+10. **Budget Carry-over** (v3): `budget_plan_categories.carry_mode` rolls unused (`surplus`), overspent (`deficit`) or both into the next month; `carry_reset = 1` zeroes the carried balance from that plan's `effective_month`
+11. **Savings Funds** (v3): a project or trip may link to a budget category (`budget_category_id`) with a `monthly_contribution` accruing from `contribution_start_month`; the fund balance is contributions minus linked spend
+12. **Notifications** (v3): user reminders (birthday / anniversary / seasonal / custom; once, monthly, yearly) and system alerts (overdue non-autopay payments, budget overspend). Alerts upsert on `dedupe_key` so rescans are idempotent; `notification_settings` holds per-type lead-time defaults. `recurring_series.is_autopay` / `due_day` drive payment reminders
+13. **AI Tool Registry** (v3): `ai_tool_packs` stores user-imported declarative tool packs; `ai_tool_settings` stores the per-tool enable flag and consent policy (`ask` / `always` / `deny`)
 
 ## Relationships:
 
@@ -203,4 +288,10 @@ erDiagram
 
 ## Schema Versioning:
 
-Schema changes are delivered by a `PRAGMA user_version`-gated migration runner in `public/database-worker.js` (`runMigrations()`), driven by the `MIGRATIONS` export in `public/database-schema.js`. Migration statements must be idempotent (`CREATE TABLE IF NOT EXISTS`) because fresh databases already receive all tables from `createTables()`.
+Schema changes are delivered by a `PRAGMA user_version`-gated migration runner in `public/database-worker.js` (`runMigrations()`), driven by the `MIGRATIONS` export in `public/database-schema.js`. Migration statements must be idempotent (`CREATE TABLE IF NOT EXISTS`) because fresh databases already receive all tables from `createTables()`, which creates every entry of `CREATE_TABLES` in declaration order.
+
+| Version | Contents |
+|---|---|
+| 1 | merchant_rules, recurring_series, transaction_series_links, app_metadata |
+| 2 | budget tables and income_sources (back-filled), import_batches, account_balance_snapshots, accounts/transactions rebuilds, SHA-256 rehash |
+| 3 | notifications, notification_settings, ai_tool_packs, ai_tool_settings; `recurring_series.is_autopay` / `due_day`; `budget_plan_categories.carry_mode` / `carry_reset`; `projects` and `trips` fund columns (`budget_category_id`, `monthly_contribution`, `contribution_start_month`). Every added column is nullable or defaulted, so sample-data fixtures need no regeneration |

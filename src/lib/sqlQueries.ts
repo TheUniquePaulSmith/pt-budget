@@ -5,31 +5,17 @@
  * Keeping them centralized helps with debugging and maintenance.
  */
 
-// ---------------------------------------------------------------------------
-// Money expressions
-//
-// Every aggregate derives spending and income from these so the dashboard, the
-// budget, the transaction report and the recurring-series stats agree:
-//   spending = -(expense + refund amounts)   refunds are stored positive and net out
-//   income   = income amounts                transfers count toward neither side
-//   rows with is_excluded = 1 contribute nothing anywhere
-// Never use ABS(amount) in analytics: with refunds positive, ABS would turn a
-// refund into extra spend (guarded by databaseService.test.ts "analytics consistency").
-// ---------------------------------------------------------------------------
-export const spendExpr = (alias = 't') =>
-  `CASE WHEN ${alias}.type IN ('expense', 'refund') AND ${alias}.is_excluded = 0 THEN -${alias}.amount ELSE 0 END`;
+// Money expressions live in sqlMoneyExpressions.ts (see the rules there:
+// never ABS(amount)); they are re-exported here so existing imports keep working.
+import { depositoryIncomeExpr, incomeExpr, spendExpr, spendingRowsPredicate } from './sqlMoneyExpressions';
+export { depositoryIncomeExpr, incomeExpr, spendExpr, spendingRowsPredicate };
 
-export const incomeExpr = (alias = 't') =>
-  `CASE WHEN ${alias}.type = 'income' AND ${alias}.is_excluded = 0 THEN ${alias}.amount ELSE 0 END`;
-
-// Income arriving on a credit account is a card payment or refund, never
-// earnings. Kept as a safety net until transfer pairing types those rows.
-export const depositoryIncomeExpr = (alias = 't', accountAlias = 'a') =>
-  `CASE WHEN ${alias}.type = 'income' AND ${alias}.is_excluded = 0 AND ${accountAlias}.type != 'credit' THEN ${alias}.amount ELSE 0 END`;
-
-/** WHERE fragment selecting the rows that count as spending. */
-export const spendingRowsPredicate = (alias = 't') =>
-  `${alias}.type IN ('expense', 'refund') AND ${alias}.is_excluded = 0`;
+// Feature-owned query groups (schema v3). This file is the hub: feature
+// agents add SQL in their own module and it is re-exported from here.
+export { APP_METADATA_QUERIES } from './sqlQueriesAppMetadata';
+export { NOTIFICATION_QUERIES } from './sqlQueriesNotifications';
+export { AI_TOOL_QUERIES } from './sqlQueriesAiTools';
+export { BUDGET_FUND_QUERIES } from './sqlQueriesBudgetFunds';
 
 // Transaction Queries
 export const TRANSACTION_QUERIES = {
@@ -450,8 +436,8 @@ export const BUDGET_PLAN_QUERIES = {
   `,
   DELETE_PLAN_CATEGORIES: `DELETE FROM budget_plan_categories WHERE plan_id = ?`,
   INSERT_PLAN_CATEGORY: `
-    INSERT INTO budget_plan_categories (plan_id, category_id, amount)
-    VALUES (?, ?, ?)
+    INSERT INTO budget_plan_categories (plan_id, category_id, amount, carry_mode, carry_reset)
+    VALUES (?, ?, ?, ?, ?)
   `,
   ACTUAL_EXPENSES_BY_MONTH_CATEGORY: `
     SELECT
@@ -500,9 +486,9 @@ export const INCOME_SOURCE_QUERIES = {
 // Project Queries
 export const PROJECT_QUERIES = {
   GET_ALL: `SELECT * FROM projects ORDER BY created_at DESC`,
-  CREATE: `INSERT INTO projects (name, company_name, contact_details, project_category, status, start_date, end_date, estimated_cost, actual_cost, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+  CREATE: `INSERT INTO projects (name, company_name, contact_details, project_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
   GET_BY_ID: `SELECT * FROM projects WHERE id = ?`,
-  UPDATE: `UPDATE projects SET name = ?, company_name = ?, contact_details = ?, project_category = ?, status = ?, start_date = ?, end_date = ?, estimated_cost = ?, actual_cost = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  UPDATE: `UPDATE projects SET name = ?, company_name = ?, contact_details = ?, project_category = ?, status = ?, start_date = ?, end_date = ?, estimated_cost = ?, actual_cost = ?, notes = ?, budget_category_id = ?, monthly_contribution = ?, contribution_start_month = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
   DELETE: `DELETE FROM projects WHERE id = ?`,
   GET_COSTS: `
     SELECT
@@ -535,8 +521,8 @@ export const TRIP_QUERIES = {
   `,
 
   CREATE: `
-    INSERT INTO trips (name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO trips (name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     RETURNING id
   `,
 
@@ -546,7 +532,7 @@ export const TRIP_QUERIES = {
 
   UPDATE: `
     UPDATE trips 
-    SET name = ?, destination = ?, purpose = ?, trip_category = ?, status = ?, start_date = ?, end_date = ?, estimated_cost = ?, actual_cost = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+    SET name = ?, destination = ?, purpose = ?, trip_category = ?, status = ?, start_date = ?, end_date = ?, estimated_cost = ?, actual_cost = ?, notes = ?, budget_category_id = ?, monthly_contribution = ?, contribution_start_month = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `,
 
@@ -860,9 +846,14 @@ export const SUBSCRIPTION_QUERIES = {
     SET cadence = ?, expected_amount = ?, amount_is_variable = ?, last_seen_date = ?, next_expected_date = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `,
+  // is_autopay / due_day are optional in the update: NULL keeps is_autopay,
+  // and due_day only changes when the "set due_day" flag parameter is 1.
   UPDATE_SERIES: `
     UPDATE recurring_series
-    SET name = ?, kind = ?, cadence = ?, expected_amount = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+    SET name = ?, kind = ?, cadence = ?, expected_amount = ?, status = ?, notes = ?,
+        is_autopay = COALESCE(?, is_autopay),
+        due_day = CASE WHEN ? = 1 THEN ? ELSE due_day END,
+        updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `,
   UPDATE_SERIES_STATUS: `UPDATE recurring_series SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,

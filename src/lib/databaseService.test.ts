@@ -61,6 +61,9 @@ const existingProject: Project = {
   estimated_cost: 5000,
   actual_cost: 1000,
   notes: 'Initial scope',
+  budget_category_id: null,
+  monthly_contribution: null,
+  contribution_start_month: null,
   created_at: '2026-03-01T00:00:00.000Z',
   updated_at: '2026-03-01T00:00:00.000Z',
 };
@@ -77,6 +80,9 @@ const existingTrip: Trip = {
   estimated_cost: 1400,
   actual_cost: 250,
   notes: 'Book hotel near office',
+  budget_category_id: null,
+  monthly_contribution: null,
+  contribution_start_month: null,
   created_at: '2026-04-01T00:00:00.000Z',
   updated_at: '2026-04-01T00:00:00.000Z',
 };
@@ -1211,6 +1217,9 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
         0,
         0,
         null,
+        null,
+        null,
+        null,
       ],
       response: [{ id: 56 }],
       expected: 56,
@@ -1846,6 +1855,9 @@ describe('DatabaseService company and project helpers', () => {
       existingProject.estimated_cost,
       1500,
       existingProject.notes,
+      null,
+      null,
+      null,
       existingProject.id,
     ]);
   });
@@ -1948,6 +1960,9 @@ describe('DatabaseService trip helpers', () => {
       existingTrip.estimated_cost,
       existingTrip.actual_cost,
       existingTrip.notes,
+      null,
+      null,
+      null,
     ]);
     expect(worker.query).toHaveBeenNthCalledWith(2, TRIP_QUERIES.GET_BY_ID, [
       existingTrip.id,
@@ -1979,6 +1994,9 @@ describe('DatabaseService trip helpers', () => {
       existingTrip.estimated_cost,
       900.5,
       existingTrip.notes,
+      null,
+      null,
+      null,
       existingTrip.id,
     ]);
   });

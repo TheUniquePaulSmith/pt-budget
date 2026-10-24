@@ -1,14 +1,36 @@
 'use client';
 
-import React, { useState } from 'react';
-import { 
-  Box, 
-  AppBar, 
-  Toolbar, 
-  IconButton, 
-  Typography, 
-  Menu, 
-  MenuItem, 
+/**
+ * Application shell.
+ *
+ * Pages come from `pageRegistry.tsx`; nothing here names a page id except
+ * the default. The shell rewrite (sidebar + bottom navigation) replaces the
+ * header buttons and mobile drawer below but MUST keep these invariants,
+ * which feature slots and the e2e suite rely on:
+ *
+ *   - `<AiPanelProvider>` wraps the shell (AI panel state lives there).
+ *   - `<NotificationsRuntime />` is mounted exactly once, outside any page.
+ *   - `<NotificationBellSlot />` and `<AiLauncherSlot />` are rendered in the
+ *     header (and in the mobile menu as `menuItem` variants).
+ *   - `<ManageData />` and `<DatabaseStatusBar />` are rendered.
+ *   - Pages render through `getPage(id).render(...)` inside `<Suspense>`.
+ *   - Every control that navigates to a page carries
+ *     `data-testid={page.testId}` AND an accessible name equal to
+ *     `page.label` at desktop width (a collapsed icon rail must use
+ *     aria-label / Tooltip so `getByRole('button', { name: 'SQL Query' })`
+ *     still resolves).
+ *   - A `Settings`-named control stays in the header; full-screen pages
+ *     (settings, developer console) render without the chrome and close
+ *     via `goBack`.
+ */
+
+import React, { Suspense, useCallback, useRef, useState } from 'react';
+import {
+  Box,
+  AppBar,
+  Toolbar,
+  IconButton,
+  Typography,
   Button,
   useTheme,
   useMediaQuery,
@@ -18,44 +40,43 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Divider
+  Divider,
 } from '@mui/material';
-import { 
-  Settings, 
-  Menu as MenuIcon, 
-  Dashboard as DashboardIcon,
-  Home as ProjectsIcon,
-  Receipt as TransactionsIcon,
+import {
+  Settings as SettingsIcon,
+  Menu as MenuIcon,
   Storage as ManageDataIcon,
   BugReport,
-  Code as SQLIcon,
-  AccountBalance as AccountIcon,
-  FlightTakeoff as TripsIcon,
-  SmartToy as AiIcon,
-  Autorenew as SubscriptionsIcon,
-  Savings as BudgetIcon
 } from '@mui/icons-material';
-import Dashboard from '@/components/dashboard/Dashboard';
-import BudgetPage from '@/components/budget/BudgetPage';
-import ManageProjects from '@/components/projects/ManageProjects';
-import ManageTrips from '@/components/trips/ManageTrips';
-import ManageAccounts from '@/components/accounts/ManageAccounts';
-import SubscriptionsPage from '@/components/subscriptions/SubscriptionsPage';
-import TransactionReport from '@/components/transactions/TransactionReport';
-import SettingsPage from '@/components/settings/SettingsPage';
+
 import ManageData from '@/components/data-management/ManageData';
-import DeveloperConsolePage from '@/components/common/Console/DeveloperConsolePage';
-import SQLQueryPage from '@/components/sql-query/SQLQueryPage';
 import DatabaseStatusBar from '@/components/common/StatusBar/DatabaseStatusBar';
-import AiSidePanel from '@/components/ai/AiSidePanel';
+import { AiPanelProvider } from '@/components/ai/AiPanelProvider';
+import NotificationsRuntime from '@/components/notifications/NotificationsRuntime';
 import { useAppShellSlice } from '@/contexts/useDatabaseSlices';
-//import { appLogger } from '../lib/logger';
+import AiLauncherSlot from './slots/AiLauncherSlot';
+import NotificationBellSlot from './slots/NotificationBellSlot';
+import PageFallback from './PageFallback';
+import {
+  DEFAULT_PAGE_ID,
+  getNavigationPages,
+  getPage,
+  type PageId,
+} from './pageRegistry';
 
 /**
  * Main application component that handles all the routing and state management
  * This is separated from the page.tsx to prevent SSR issues
  */
 export default function AppContent() {
+  return (
+    <AiPanelProvider>
+      <AppShell />
+    </AiPanelProvider>
+  );
+}
+
+function AppShell() {
   const {
     isDatabaseLoaded,
     workerStatus,
@@ -64,31 +85,33 @@ export default function AppContent() {
     reconnectCloudSource,
     resolveCloudConflict,
   } = useAppShellSlice();
-  const [currentPage, setCurrentPage] = useState('dashboard');
-  const [showSettings, setShowSettings] = useState(false);
+  const [currentPage, setCurrentPage] = useState<PageId>(DEFAULT_PAGE_ID);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageDataOpen, setManageDataOpen] = useState(false);
-  const [showDeveloperConsole, setShowDeveloperConsole] = useState(false);
-  const [aiPanelOpen, setAiPanelOpen] = useState(false);
-  
+  // The page that was showing before a full-screen page (settings / developer
+  // console) opened, so `goBack` returns there.
+  const previousPageRef = useRef<PageId>(DEFAULT_PAGE_ID);
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  const navigationItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
-    { id: 'projects', label: 'Projects', icon: <ProjectsIcon /> },
-    { id: 'trips', label: 'Trips', icon: <TripsIcon /> },
-    { id: 'budget', label: 'Budget', icon: <BudgetIcon /> },
-    { id: 'accounts', label: 'Accounts', icon: <AccountIcon /> },
-    { id: 'transactions', label: 'Transactions', icon: <TransactionsIcon /> },
-    { id: 'subscriptions', label: 'Subscriptions', icon: <SubscriptionsIcon /> },
-    { id: 'sql-query', label: 'SQL Query', icon: <SQLIcon /> },
-  ];
+  const navigationPages = getNavigationPages();
+  const settingsPage = getPage('settings');
+  const developerConsolePage = getPage('developer-console');
 
-  const handlePageChange = (page: string) => {
-    setCurrentPage(page);
+  const navigate = useCallback((page: PageId) => {
+    setCurrentPage((current) => {
+      if (getPage(page).fullScreen && !getPage(current).fullScreen) {
+        previousPageRef.current = current;
+      }
+      return page;
+    });
     setMobileMenuOpen(false);
-  };
+  }, []);
+
+  const goBack = useCallback(() => {
+    setCurrentPage(previousPageRef.current);
+  }, []);
 
   const handleMobileMenuToggle = () => {
     setMobileMenuOpen(!mobileMenuOpen);
@@ -99,33 +122,44 @@ export default function AppContent() {
     return null; // The context will show initialization UI
   }
 
-  if (showSettings) {
-    return <SettingsPage onClose={() => setShowSettings(false)} />;
-  }
+  const page = getPage(currentPage);
+  const pageContent = (
+    <Suspense fallback={<PageFallback />}>{page.render({ navigate, goBack })}</Suspense>
+  );
 
-  if (showDeveloperConsole) {
-    return <DeveloperConsolePage onClose={() => setShowDeveloperConsole(false)} />;
+  if (page.fullScreen) {
+    return (
+      <>
+        <NotificationsRuntime />
+        {pageContent}
+      </>
+    );
   }
 
   const renderNavigationButtons = () => (
     <>
-      {navigationItems.map((item) => (
-        <Button
-          key={item.id}
-          color="inherit"
-          startIcon={item.icon}
-          onClick={() => handlePageChange(item.id)}
-          sx={{
-            mx: 1,
-            bgcolor: currentPage === item.id ? 'action.selected' : 'transparent',
-            '&:hover': {
-              bgcolor: 'action.hover',
-            },
-          }}
-        >
-          {item.label}
-        </Button>
-      ))}
+      {navigationPages.map((item) => {
+        const Icon = item.icon;
+        return (
+          <Button
+            key={item.id}
+            color="inherit"
+            startIcon={<Icon />}
+            onClick={() => navigate(item.id)}
+            data-testid={item.testId}
+            aria-current={currentPage === item.id ? 'page' : undefined}
+            sx={{
+              mx: 1,
+              bgcolor: currentPage === item.id ? 'action.selected' : 'transparent',
+              '&:hover': {
+                bgcolor: 'action.hover',
+              },
+            }}
+          >
+            {item.label}
+          </Button>
+        );
+      })}
     </>
   );
 
@@ -149,19 +183,23 @@ export default function AppContent() {
         </Box>
         <Divider />
         <List>
-          {navigationItems.map((item) => (
-            <ListItem key={item.id} disablePadding>
-              <ListItemButton
-                selected={currentPage === item.id}
-                onClick={() => handlePageChange(item.id)}
-              >
-                <ListItemIcon>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText primary={item.label} />
-              </ListItemButton>
-            </ListItem>
-          ))}
+          {navigationPages.map((item) => {
+            const Icon = item.icon;
+            return (
+              <ListItem key={item.id} disablePadding>
+                <ListItemButton
+                  selected={currentPage === item.id}
+                  onClick={() => navigate(item.id)}
+                  data-testid={item.testId}
+                >
+                  <ListItemIcon>
+                    <Icon />
+                  </ListItemIcon>
+                  <ListItemText primary={item.label} />
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
         </List>
         <Divider />
         <List>
@@ -175,28 +213,24 @@ export default function AppContent() {
               </ListItemButton>
             </ListItem>
           )}
+          <AiLauncherSlot variant="menuItem" onActivate={() => setMobileMenuOpen(false)} />
           <ListItem disablePadding>
-            <ListItemButton onClick={() => { setAiPanelOpen(true); setMobileMenuOpen(false); }}>
-              <ListItemIcon>
-                <AiIcon />
-              </ListItemIcon>
-              <ListItemText primary="Local AI" />
-            </ListItemButton>
-          </ListItem>
-          <ListItem disablePadding>
-            <ListItemButton onClick={() => { setShowDeveloperConsole(true); setMobileMenuOpen(false); }}>
+            <ListItemButton
+              onClick={() => navigate(developerConsolePage.id)}
+              data-testid={developerConsolePage.testId}
+            >
               <ListItemIcon>
                 <BugReport />
               </ListItemIcon>
-              <ListItemText primary="Developer Console" />
+              <ListItemText primary={developerConsolePage.label} />
             </ListItemButton>
           </ListItem>
           <ListItem disablePadding>
-            <ListItemButton onClick={() => { setShowSettings(true); setMobileMenuOpen(false); }}>
+            <ListItemButton onClick={() => navigate(settingsPage.id)} data-testid={settingsPage.testId}>
               <ListItemIcon>
-                <Settings />
+                <SettingsIcon />
               </ListItemIcon>
-              <ListItemText primary="Settings" />
+              <ListItemText primary={settingsPage.label} />
             </ListItemButton>
           </ListItem>
         </List>
@@ -206,6 +240,8 @@ export default function AppContent() {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+      <NotificationsRuntime />
+
       {/* Responsive App Bar */}
       <AppBar position="sticky" color="default" elevation={1}>
         <Toolbar sx={{ minHeight: 64 }}>
@@ -220,7 +256,7 @@ export default function AppContent() {
               <MenuIcon />
             </IconButton>
           )}
-          
+
           <Typography
             variant="h6"
             component="div"
@@ -241,6 +277,7 @@ export default function AppContent() {
           )}
 
           <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 'fit-content' }}>
+            <NotificationBellSlot variant="header" onNavigate={() => navigate('notifications')} />
             {!isMobile && isDatabaseLoaded && (
               <IconButton
                 color="inherit"
@@ -251,22 +288,14 @@ export default function AppContent() {
                 <ManageDataIcon />
               </IconButton>
             )}
+            {!isMobile && <AiLauncherSlot variant="header" />}
             {!isMobile && (
               <IconButton
                 color="inherit"
-                onClick={() => setAiPanelOpen(true)}
+                onClick={() => navigate(developerConsolePage.id)}
                 sx={{ ml: 2 }}
-                title="Local AI"
-              >
-                <AiIcon />
-              </IconButton>
-            )}
-            {!isMobile && (
-              <IconButton
-                color="inherit"
-                onClick={() => setShowDeveloperConsole(true)}
-                sx={{ ml: 2 }}
-                title="Developer Console"
+                title={developerConsolePage.label}
+                data-testid={developerConsolePage.testId}
               >
                 <BugReport />
               </IconButton>
@@ -274,11 +303,12 @@ export default function AppContent() {
             {!isMobile && (
               <IconButton
                 color="inherit"
-                onClick={() => setShowSettings(true)}
+                onClick={() => navigate(settingsPage.id)}
                 sx={{ ml: 2 }}
-                title="Settings"
+                title={settingsPage.label}
+                data-testid={settingsPage.testId}
               >
-                <Settings />
+                <SettingsIcon />
               </IconButton>
             )}
           </Box>
@@ -287,49 +317,14 @@ export default function AppContent() {
 
       {/* Mobile Navigation Drawer */}
       {isMobile && renderMobileDrawer()}
-      
+
       {/* Page Content */}
-      {currentPage === 'dashboard' && (
-        <Dashboard onNavigateToBudget={() => setCurrentPage('budget')} />
-      )}
-      
-      {currentPage === 'projects' && (
-        <ManageProjects />
-      )}
-      
-      {currentPage === 'trips' && (
-        <ManageTrips />
-      )}
-
-      {currentPage === 'budget' && (
-        <BudgetPage />
-      )}
-      
-      {currentPage === 'accounts' && (
-        <ManageAccounts />
-      )}
-      
-      {currentPage === 'transactions' && (
-        <TransactionReport />
-      )}
-
-      {currentPage === 'subscriptions' && (
-        <SubscriptionsPage onOpenAiPanel={() => setAiPanelOpen(true)} />
-      )}
-
-      {currentPage === 'sql-query' && (
-        <SQLQueryPage />
-      )}
+      {pageContent}
 
       {/* Manage Data Dialog */}
       <ManageData
         open={manageDataOpen}
         onClose={() => setManageDataOpen(false)}
-      />
-
-      <AiSidePanel
-        open={aiPanelOpen}
-        onClose={() => setAiPanelOpen(false)}
       />
 
       {/* Database Status Bar */}
@@ -344,7 +339,7 @@ export default function AppContent() {
         syncStatus={syncStatus}
         onSyncNow={() => void syncNow()}
         onReconnectCloudSource={() => void reconnectCloudSource()}
-        onResolveCloudConflict={() => setShowSettings(true)}
+        onResolveCloudConflict={() => navigate('settings')}
       />
     </Box>
   );

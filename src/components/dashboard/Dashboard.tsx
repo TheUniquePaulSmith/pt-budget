@@ -7,6 +7,7 @@ import { format, parseISO, subDays, subMonths, startOfMonth, endOfMonth, differe
 import { todayLocalISO } from '@/lib/dateOnly';
 import AddTransaction from '@/components/transactions/AddTransaction';
 import CSVImport from '@/components/csv-import/CSVImport';
+import NotificationsDashboardCard from '@/components/notifications/NotificationsDashboardCard';
 import DateRangeSelector from './DateRangeSelector';
 import SummaryStats from './SummaryStats';
 import ChartsSection from './ChartsSection';
@@ -178,6 +179,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
         timeRangeLabel={getTimeRangeLabel()}
         dayCount={elapsedDayCount}
       />
+
+      {/* Slot owned by the notifications feature; renders nothing while there is nothing due. */}
+      <NotificationsDashboardCard />
 
       {(!budgetStatus || budgetStatus.budgetedTotal == null) && (
         <BudgetStatusCard

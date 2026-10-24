@@ -6,6 +6,7 @@ import type {
   NotificationSetting,
   NotificationStatus,
 } from '../types/database';
+import type { SeriesPaymentRow } from '../types/notifications';
 
 type NotificationsTransport = Pick<DatabaseWorkerTransport, 'query'>;
 
@@ -84,6 +85,12 @@ export class NotificationsService {
   /** Drop system alerts whose dedupe_key starts with `prefix` (e.g. 'overdue:series:12:'). */
   async removeSystemByDedupePrefix(prefix: string): Promise<void> {
     await this.worker.query(NOTIFICATION_QUERIES.DELETE_BY_DEDUPE_PREFIX, [`${prefix}%`]);
+  }
+
+  /** Linked series payments dated on/after `sinceDate`, for the payment-alert scan. */
+  async listSeriesPaymentsSince(sinceDate: string): Promise<SeriesPaymentRow[]> {
+    const rows = await this.worker.query(NOTIFICATION_QUERIES.SERIES_PAYMENTS_SINCE, [sinceDate]);
+    return rows.map((row: any) => ({ series_id: Number(row.series_id), date: String(row.date) }));
   }
 
   /** Stored rows merged over DEFAULT_NOTIFICATION_SETTINGS, so every known type is present. */

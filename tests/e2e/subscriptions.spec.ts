@@ -113,3 +113,46 @@ test('shows a Card column on the series table and links a series to a newly crea
   );
   expect(linkedCount).toBe(1);
 });
+
+test('stores autopay and due day from the series dialog and shows them in the Payment column', async ({ page }) => {
+  await bootstrapDatabase(page);
+
+  await page.getByRole('button', { name: 'Subscriptions' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })
+  ).toBeVisible({ timeout: 120_000 });
+
+  await page.getByRole('button', { name: 'Rescan' }).click();
+  await expect(page.getByText(/Scan complete/)).toBeVisible({ timeout: 120_000 });
+
+  // Every series starts as manually paid (schema default is_autopay = 0).
+  await expect(page.getByRole('columnheader', { name: 'Payment' }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Manual', { exact: true }).first()).toBeVisible();
+
+  await page.getByRole('button', { name: 'View transactions' }).first().click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible({ timeout: 30_000 });
+
+  const autopay = dialog.getByTestId('series-autopay-switch');
+  await expect(autopay).not.toBeChecked();
+  await autopay.check();
+  await dialog.getByTestId('series-due-day').fill('15');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toBeHidden({ timeout: 30_000 });
+
+  await expect(page.getByText('Autopay', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+
+  const storedCount = Number(
+    await runQueryAndReadFirstCell(
+      page,
+      `SELECT COUNT(*) AS count FROM recurring_series WHERE is_autopay = 1 AND due_day = 15;`
+    )
+  );
+  expect(storedCount).toBe(1);
+
+  // Reopening the dialog shows the stored values.
+  await page.getByRole('button', { name: 'Subscriptions' }).click();
+  await page.getByRole('button', { name: 'View transactions' }).first().click();
+  await expect(page.getByRole('dialog').getByTestId('series-autopay-switch')).toBeChecked({ timeout: 30_000 });
+  await expect(page.getByRole('dialog').getByTestId('series-due-day')).toHaveValue('15');
+});

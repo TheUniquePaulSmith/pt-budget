@@ -149,6 +149,24 @@ describe('NotificationsService', () => {
     await expect(service.getByDedupeKey('nope')).resolves.toBeNull();
   });
 
+  it('lists linked series payments since a date as (series_id, date) pairs', async () => {
+    const query = createQuerySpy({
+      [NOTIFICATION_QUERIES.SERIES_PAYMENTS_SINCE]: [
+        { series_id: '12', date: '2026-10-02' },
+        { series_id: 13, date: '2026-10-05' },
+      ],
+    });
+    const service = new NotificationsService({ query });
+
+    const rows = await service.listSeriesPaymentsSince('2026-04-01');
+
+    expect(query).toHaveBeenCalledWith(NOTIFICATION_QUERIES.SERIES_PAYMENTS_SINCE, ['2026-04-01']);
+    expect(rows).toEqual([
+      { series_id: 12, date: '2026-10-02' },
+      { series_id: 13, date: '2026-10-05' },
+    ]);
+  });
+
   it('merges stored settings over the built-in defaults and keeps unknown types', async () => {
     const query = createQuerySpy({
       [NOTIFICATION_QUERIES.SETTINGS_LIST]: [

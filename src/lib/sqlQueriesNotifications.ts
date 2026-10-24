@@ -54,6 +54,16 @@ export const NOTIFICATION_QUERIES = {
   DELETE: `DELETE FROM notifications WHERE id = ?`,
   DELETE_BY_DEDUPE_PREFIX: `DELETE FROM notifications WHERE source = 'system' AND dedupe_key LIKE ?`,
 
+  // Linked payments the payment scan compares against a series' due date.
+  // One row per (series, transaction date) from `sinceDate` on.
+  SERIES_PAYMENTS_SINCE: `
+    SELECT tsl.series_id AS series_id, t.date AS date
+    FROM transaction_series_links tsl
+    JOIN transactions t ON t.id = tsl.transaction_id
+    WHERE t.date >= ?
+    ORDER BY t.date ASC, tsl.series_id ASC
+  `,
+
   // --- notification_settings ---
   SETTINGS_LIST: `SELECT * FROM notification_settings ORDER BY type`,
   SETTINGS_UPSERT: `

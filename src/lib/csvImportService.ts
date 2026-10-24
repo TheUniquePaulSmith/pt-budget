@@ -14,9 +14,37 @@ export interface CSVImportColumnMapping {
 export interface CSVAccountMatch {
   csvAccountValue: string;
   lastFourValue: string;
+  /** Accounts whose card number matches the CSV value; a single match is auto-selected. */
   matchingAccounts: Account[];
+  /**
+   * Accounts whose name / institution text resembles the CSV value. Shown as
+   * a hint in the mapping UI only; never auto-selected.
+   */
+  hintedAccounts: Account[];
   selectedAccountId: number | null;
   selectedCardId?: number | null;
+  /** The user explicitly chose "Skip this account"; its rows are left out of the import. */
+  skipped?: boolean;
+}
+
+/** Field prefill for the inline "Create new account…" dialog during import. */
+export interface CsvAccountPrefill {
+  name: string;
+  institution: string;
+  cardNumberInput: string;
+}
+
+/** Row accounting for the account-mapping step, shown before Analyze. */
+export interface CsvAccountResolutionSummary {
+  totalRows: number;
+  /** Rows whose CSV account value is linked to an account. */
+  importableRows: number;
+  /** Rows whose CSV account value the user explicitly skipped. */
+  skippedRows: number;
+  /** Rows whose CSV account value is neither linked nor skipped yet. */
+  unresolvedRows: number;
+  skippedValues: string[];
+  unresolvedValues: string[];
 }
 
 export interface MappedCsvTransaction {
@@ -169,13 +197,89 @@ function extractDigitsValue(csvValue: string): string {
   return csvValue.replace(/\D/g, '');
 }
 
+// Words that appear in bank-export account labels and file names but say
+// nothing about which account or institution is meant.
+const ACCOUNT_TEXT_STOPWORDS = new Set([
+  'account', 'accounts', 'acct', 'card', 'ending', 'number', 'no', 'xxxx', 'the', 'and', 'for',
+  'export', 'exports', 'transaction', 'transactions', 'statement', 'statements', 'download',
+  'downloads', 'history', 'data', 'csv', 'activity', 'report', 'file', 'details', 'detail',
+  'list', 'all', 'my', 'import', 'sample',
+  // Account-type words are shared by unrelated accounts, so they are not a hint either.
+  'checking', 'savings', 'credit', 'debit', 'loan', 'mortgage', 'investment', 'retirement',
+]);
+
+// Filler dropped from the CSV value when it is reused as the account name.
+const NAME_PREFILL_FILLER = new Set(['ending', 'number', 'no', 'xxxx', 'acct']);
+
+function textTokens(text: string): string[] {
+  return text
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((token) => token.length >= 3 && !ACCOUNT_TEXT_STOPWORDS.has(token));
+}
+
+/**
+ * Accounts whose name or institution shares a meaningful word with the CSV
+ * account value ("Huntington Checking 1234" → the Huntington accounts). A hint
+ * for the mapping UI only: text is too weak to pick an account on its own.
+ */
+export function findTextHintedAccounts(csvValue: string, accounts: Account[]): Account[] {
+  const valueTokens = new Set(textTokens(csvValue));
+  if (valueTokens.size === 0) return [];
+  return accounts.filter((account) => {
+    const accountTokens = textTokens(`${account.name} ${account.institution ?? ''}`);
+    return accountTokens.some((token) => valueTokens.has(token));
+  });
+}
+
+/**
+ * Guesses the institution from an export's file name ("HuntingtonExport.csv"
+ * → "Huntington"). Only a prefill: the user can clear or change it.
+ */
+export function deriveInstitutionHint(fileName: string | null | undefined): string {
+  if (!fileName) return '';
+  const base = fileName.replace(/\.[^.]+$/, '');
+  const [first] = textTokens(base);
+  if (!first) return '';
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
+
+/**
+ * Prefill for "Create new account…" from the import: the CSV value's digits
+ * become the card / account number, its words (if any) the account name, and
+ * the file name hints the institution.
+ */
+export function buildAccountPrefillFromCsv(
+  csvValue: string,
+  fileName: string | null | undefined
+): CsvAccountPrefill {
+  const digits = extractDigitsValue(csvValue);
+  const words = csvValue
+    .replace(/\d+/g, ' ')
+    .split(/[^A-Za-z]+/)
+    .filter((word) => word && !NAME_PREFILL_FILLER.has(word.toLowerCase()));
+  return {
+    name: words.join(' ').trim(),
+    institution: deriveInstitutionHint(fileName),
+    cardNumberInput: digits.length >= 4 ? digits : '',
+  };
+}
+
+export interface CreateAccountMatchesOptions {
+  /** All of the user's accounts, used for the text hint. */
+  accounts?: Account[];
+}
+
 export async function createAccountMatches(
   data: any[],
   accountColumn: string,
   findAccountsByLastFour: (lastFour: string) => Promise<Account[]>,
-  findAccountsByFullNumber: (fullNumber: string) => Promise<Account[]>
+  findAccountsByFullNumber: (fullNumber: string) => Promise<Account[]>,
+  options: CreateAccountMatchesOptions = {}
 ): Promise<CSVAccountMatch[]> {
   const uniqueAccountValues = [...new Set(data.map((row) => String(row[accountColumn])))];
+  const allAccounts = options.accounts ?? [];
 
   return Promise.all(
     uniqueAccountValues.map(async (csvValue) => {
@@ -191,16 +295,96 @@ export async function createAccountMatches(
         matchingAccounts = await findAccountsByLastFour(lastFourValue);
       }
 
+      const matchedIds = new Set(matchingAccounts.map((account) => account.id));
+      const hintedAccounts = findTextHintedAccounts(csvValue, allAccounts).filter(
+        (account) => !matchedIds.has(account.id)
+      );
+
       return {
         csvAccountValue: csvValue,
         lastFourValue,
         matchingAccounts,
+        hintedAccounts,
+        // Only a card-number match may auto-select; text hints never do.
         selectedAccountId:
           matchingAccounts.length === 1 ? matchingAccounts[0].id : null,
         selectedCardId: null,
       };
     })
   );
+}
+
+/**
+ * Links a CSV account value to an account (typically one just created from
+ * the import), clearing any skip; `cardId` is the card the rows attach to.
+ */
+export function applyAccountSelection(
+  matches: CSVAccountMatch[],
+  csvValue: string,
+  accountId: number,
+  cardId: number | null
+): CSVAccountMatch[] {
+  return matches.map((match) =>
+    match.csvAccountValue === csvValue
+      ? { ...match, selectedAccountId: accountId, selectedCardId: cardId, skipped: false }
+      : match
+  );
+}
+
+/** Marks a CSV account value as explicitly skipped (its rows are not imported). */
+export function applyAccountSkip(matches: CSVAccountMatch[], csvValue: string): CSVAccountMatch[] {
+  return matches.map((match) =>
+    match.csvAccountValue === csvValue
+      ? { ...match, selectedAccountId: null, selectedCardId: null, skipped: true }
+      : match
+  );
+}
+
+/**
+ * Counts rows per resolution state so the mapping step can say how many rows
+ * will be skipped (and which values still need a decision) before Analyze.
+ */
+export function summarizeAccountResolutions(
+  csvData: any[],
+  columnMapping: CSVImportColumnMapping,
+  accountMatches: CSVAccountMatch[]
+): CsvAccountResolutionSummary {
+  const totalRows = csvData.length;
+  const empty: CsvAccountResolutionSummary = {
+    totalRows,
+    importableRows: 0,
+    skippedRows: 0,
+    unresolvedRows: 0,
+    skippedValues: [],
+    unresolvedValues: [],
+  };
+  if (!totalRows || !columnMapping.accountColumn) {
+    return empty;
+  }
+  if (columnMapping.accountColumn.startsWith('DIRECT_ACCOUNT:')) {
+    return { ...empty, importableRows: accountMatches.length ? totalRows : 0 };
+  }
+
+  const rowsByValue = new Map<string, number>();
+  for (const row of csvData) {
+    const csvValue = String(row[columnMapping.accountColumn]);
+    rowsByValue.set(csvValue, (rowsByValue.get(csvValue) ?? 0) + 1);
+  }
+
+  const summary: CsvAccountResolutionSummary = { ...empty, skippedValues: [], unresolvedValues: [] };
+  for (const [csvValue, rows] of rowsByValue) {
+    const match = accountMatches.find((candidate) => candidate.csvAccountValue === csvValue);
+    if (match?.selectedAccountId) {
+      summary.importableRows += rows;
+    } else if (match?.skipped) {
+      summary.skippedRows += rows;
+      summary.skippedValues.push(csvValue);
+    } else {
+      summary.unresolvedRows += rows;
+      summary.unresolvedValues.push(csvValue);
+    }
+  }
+  return summary;
 }
 
 /**

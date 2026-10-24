@@ -1,4 +1,5 @@
 import { getDebugFlags } from '../debugMode';
+import { getAmbientLogContext } from './ambientContext';
 import { ConsoleEchoSink } from './consoleEchoSink';
 import { MemorySink } from './memorySink';
 import {
@@ -13,9 +14,11 @@ import {
 
 // ---------------------------------------------------------------------------
 // Identity: one tabId per page load, one sessionId per app session. The
-// logging feature may persist the session id (sessionStorage) so a reload
-// stays correlated; the foundation keeps both in memory.
+// session id is kept in sessionStorage so a reload of the same tab stays
+// correlated with the records written before it.
 // ---------------------------------------------------------------------------
+
+const SESSION_ID_STORAGE_KEY = 'ptbudget.logs.sessionId';
 
 function randomId(length = 8): string {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -31,16 +34,39 @@ function randomId(length = 8): string {
   return id;
 }
 
+function resolveSessionId(): string {
+  if (typeof window === 'undefined') return randomId(10);
+  try {
+    const existing = window.sessionStorage.getItem(SESSION_ID_STORAGE_KEY);
+    if (existing) return existing;
+    const created = randomId(10);
+    window.sessionStorage.setItem(SESSION_ID_STORAGE_KEY, created);
+    return created;
+  } catch {
+    return randomId(10);
+  }
+}
+
 export const LOG_TAB_ID = randomId(6);
-export const LOG_SESSION_ID = randomId(10);
+export const LOG_SESSION_ID = resolveSessionId();
 
 let recordCounter = 0;
 let correlationCounter = 0;
 
-/** Next correlation id: `<tabId>.<n>`; the worker transport embeds this in message ids. */
+/**
+ * Next correlation id: `<tabId>:<n>`. The worker transport uses it as the
+ * message id of every request, and the worker stamps it on the records it
+ * writes while handling that request, so app and worker rows join on it.
+ */
 export function nextCorrelationId(): string {
   correlationCounter += 1;
-  return `${LOG_TAB_ID}.${correlationCounter}`;
+  return `${LOG_TAB_ID}:${correlationCounter}`;
+}
+
+/** The tab a correlation id was minted in (`<tabId>:<n>` → `<tabId>`). */
+export function tabIdFromCorrelationId(correlationId: string): string | undefined {
+  const separator = correlationId.indexOf(':');
+  return separator > 0 ? correlationId.slice(0, separator) : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,7 +75,7 @@ export function nextCorrelationId(): string {
 
 export const defaultMemorySink = new MemorySink(1000);
 
-class CompositeSink implements LogSink {
+export class CompositeSink implements LogSink {
   constructor(private readonly sinks: LogSink[]) {}
   write(record: LogRecord): void {
     for (const sink of this.sinks) {
@@ -69,8 +95,13 @@ function createDefaultSink(): LogSink {
   return new CompositeSink([defaultMemorySink, new ConsoleEchoSink()]);
 }
 
+/** `trace` under `?debug` (trace and debug are stored), `info` otherwise. */
+export function defaultLogLevel(): LogLevel {
+  return getDebugFlags().debug ? 'trace' : 'info';
+}
+
 let activeSink: LogSink = createDefaultSink();
-let activeLevel: LogLevel = getDebugFlags().debug ? 'debug' : 'info';
+let activeLevel: LogLevel = defaultLogLevel();
 
 /** Replace the sink (returns the previous one). The logging feature installs its IndexedDB sink here. */
 export function setLogSink(sink: LogSink): LogSink {
@@ -127,7 +158,12 @@ export function normalizeError(value: unknown): LogErrorInfo | undefined {
   return { name: 'Error', message: String(value) };
 }
 
-function buildRecord(level: LogLevel, message: string, context: LogContext): LogRecord {
+/**
+ * Builds a record: identity, then the ambient context (current page, last UI
+ * interaction), then the explicit context. Exported for the console capture
+ * sink, which records raw console calls through the same shape.
+ */
+export function createRecord(level: LogLevel, message: string, context: LogContext): LogRecord {
   const { error, ...rest } = context;
   recordCounter += 1;
   const record: LogRecord = {
@@ -139,6 +175,7 @@ function buildRecord(level: LogLevel, message: string, context: LogContext): Log
       source: 'app',
       tabId: LOG_TAB_ID,
       sessionId: LOG_SESSION_ID,
+      ...getAmbientLogContext(),
       ...rest,
     },
   };
@@ -153,7 +190,7 @@ class LoggerImpl implements Logger {
   private emit(level: LogLevel, message: string, context?: LogContext): void {
     if (!isLevelEnabled(level)) return;
     try {
-      activeSink.write(buildRecord(level, message, { ...this.context, ...context }));
+      activeSink.write(createRecord(level, message, { ...this.context, ...context }));
     } catch {
       // Logging must never throw into application code.
     }

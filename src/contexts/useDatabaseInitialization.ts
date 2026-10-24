@@ -29,6 +29,9 @@ import {
 import { SampleDataService } from '@/lib/sampleDataService';
 import type { SampleDataImportProgress } from '@/lib/sampleDataService';
 import type { Account } from '@/types/database';
+import { logger } from '@/lib/logging';
+
+const log = logger.child({ component: 'DatabaseInitialization' });
 
 export type InitializationState =
   | 'checking'
@@ -204,10 +207,10 @@ export function useDatabaseInitialization({
         const persistedSourceState = loadPersistedDatabaseSourceState();
         const service = new DatabaseService();
 
-        console.debug('[DB Context] Calling initialize to worker service...');
+        log.debug('Calling initialize on the worker service', { operation: 'initialize' });
         await service.initialize();
 
-        console.info('[DB Context] Monitoring database worker service...');
+        log.debug('Monitoring database worker service', { operation: 'initialize' });
         const workerService = service.getWorkerService();
         workerService.onStatusChange(setWorkerStatus);
 
@@ -221,7 +224,7 @@ export function useDatabaseInitialization({
           // just load what's already open.
           const alreadyUnlocked = await service.isEncryptionReady().catch(() => false);
           if (alreadyUnlocked) {
-            console.info('[DB Context] Database already unlocked by another tab this session');
+            log.info('Database already unlocked by another tab this session', { operation: 'initialize' });
             await loadAllData(service);
             setInitializationState('initialized');
           } else {
@@ -230,19 +233,19 @@ export function useDatabaseInitialization({
             // engine can't open it without the password. Reconciling with
             // the cloud source (if linked) happens after a successful
             // unlock, in handleUnlockSubmitted.
-            console.info('[DB Context] Found an existing encrypted database, needs unlock');
+            log.info('Found an existing encrypted database, needs unlock', { operation: 'initialize' });
             setInitializationState('needs-unlock');
           }
         } else if (persistedSourceState.source !== 'local') {
           setInitializationState('needs-cloud-auth');
         } else {
-          console.info('[DB Context] No existing database found');
+          log.info('No existing database found', { operation: 'initialize' });
           setInitializationState('needs-setup');
         }
 
         hasCheckedDatabase.current = true;
       } catch (err) {
-        console.error('Failed to initialize database:', err);
+        log.error('Failed to initialize database', { operation: 'initialize', error: err });
         setError(
           err instanceof Error ? err.message : 'Failed to initialize database'
         );
@@ -269,17 +272,17 @@ export function useDatabaseInitialization({
         try {
           const savedResults = JSON.parse(previousTestResults) as TestResults;
           if (savedResults.overallCompatible) {
-            console.log(
-              '[DB Context] Using cached browser compatibility results, skipping test'
-            );
+            log.debug('Using cached browser compatibility results, skipping test', {
+              operation: 'browserTest',
+            });
             await handleBrowserTestComplete(true, savedResults);
             return;
           }
         } catch (err) {
-          console.warn(
-            '[DB Context] Failed to parse cached test results, running test again',
-            err
-          );
+          log.warn('Failed to parse cached test results, running test again', {
+            operation: 'browserTest',
+            error: err,
+          });
           localStorage.removeItem(BROWSER_TEST_STORAGE_KEY);
         }
       }
@@ -336,7 +339,7 @@ export function useDatabaseInitialization({
         await loadAllData(databaseService);
         setInitializationState('initialized');
       } catch (err) {
-        console.error('Failed to load already-open database:', err);
+        log.error('Failed to load already-open database', { operation: 'loadOpenDatabase', error: err });
         setError(err instanceof Error ? err.message : 'Failed to open database');
         throw err;
       } finally {
@@ -379,7 +382,7 @@ export function useDatabaseInitialization({
         await loadAllData(databaseService);
         setInitializationState('initialized');
       } catch (err) {
-        console.error('Failed to load database from file:', err);
+        log.error('Failed to load database from file', { operation: 'loadDatabaseFile', error: err });
         setError(
           err instanceof Error ? err.message : 'Failed to load database file'
         );
@@ -589,7 +592,7 @@ export function useDatabaseInitialization({
         });
 
         if (shouldLoadSampleData) {
-          console.info('[DB Context] Loading sample data...');
+          log.info('Loading sample data', { operation: 'createDatabase', process: 'sample-data' });
           const abortController = new AbortController();
           sampleDataImportAbortControllerRef.current = abortController;
           setSampleDataImportProgress({
@@ -613,7 +616,7 @@ export function useDatabaseInitialization({
             if (isAbortError(sampleError)) {
               await databaseService.clearAndRecreateDatabase();
             } else {
-              console.error('[DB Context] Failed to load sample data:', sampleError);
+              log.error('Failed to load sample data', { operation: 'createDatabase', process: 'sample-data', error: sampleError });
               setError('Database created but sample data failed to load');
             }
           } finally {
@@ -631,7 +634,7 @@ export function useDatabaseInitialization({
         // skipped) so the freshly-created account is picked up too.
         setInitializationState('needs-initial-account');
       } catch (err) {
-        console.error('Failed to create database with password:', err);
+        log.error('Failed to create database with password', { operation: 'createDatabase', error: err });
         setError(err instanceof Error ? err.message : 'Failed to create database');
         // Return the user to the password setup screen so they can retry.
       } finally {
@@ -668,7 +671,7 @@ export function useDatabaseInitialization({
         await loadAllData(databaseService);
         setInitializationState('needs-storage-choice');
       } catch (err) {
-        console.error('Failed to create initial account:', err);
+        log.error('Failed to create initial account', { operation: 'createInitialAccount', error: err });
         setError(err instanceof Error ? err.message : 'Failed to create account');
         // Stay on the initial-account screen so the user can retry.
       } finally {
@@ -688,7 +691,7 @@ export function useDatabaseInitialization({
     try {
       await loadAllData(databaseService);
     } catch (err) {
-      console.error('[DB Context] Failed to load data after skipping initial account:', err);
+      log.error('Failed to load data after skipping initial account', { operation: 'skipInitialAccount', error: err });
     }
     setInitializationState('needs-storage-choice');
   }, [databaseService, loadAllData]);
@@ -789,7 +792,7 @@ export function useDatabaseInitialization({
         await loadAllData(databaseService);
         setInitializationState('initialized');
       } catch (err) {
-        console.error('Failed to decrypt/import database:', err);
+        log.error('Failed to decrypt/import database', { operation: 'importDatabase', error: err });
         const message = err instanceof Error ? err.message : 'Failed to open database';
         setError(message);
       } finally {
@@ -838,7 +841,7 @@ export function useDatabaseInitialization({
           try {
             outcome = await reconcileOnOpen({ provider });
           } catch (err) {
-            console.error('[DB Context] Failed to reconcile cloud state:', err);
+            log.error('Failed to reconcile cloud state', { operation: 'unlockDatabase', process: 'cloud-sync', error: err });
             outcome = 'auth-required';
           }
 
@@ -849,7 +852,7 @@ export function useDatabaseInitialization({
                 const { bytes, freshMeta } = await downloadCloudArchive({ provider, file: linkedFile });
                 await applyDownloadedArchive({ databaseService, provider, file: freshMeta, bytes });
               } catch (err) {
-                console.error('[DB Context] Failed to pull the newer cloud copy:', err);
+                log.error('Failed to pull the newer cloud copy', { operation: 'unlockDatabase', process: 'cloud-sync', error: err });
                 setError(err instanceof Error ? err.message : 'Failed to sync from the cloud');
               }
             }
@@ -861,7 +864,7 @@ export function useDatabaseInitialization({
         await loadAllData(databaseService);
         setInitializationState('initialized');
       } catch (err) {
-        console.error('[DB Context] Failed to unlock database:', err);
+        log.error('Failed to unlock database', { operation: 'unlockDatabase', error: err });
         setError(err instanceof Error ? err.message : 'Incorrect password');
       } finally {
         setIsLoading(false);

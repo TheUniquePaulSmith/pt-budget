@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // vi.mock factories are hoisted above the imports, so the helper must be hoisted too.
@@ -63,6 +63,7 @@ vi.mock('@/contexts/useDatabaseSlices', () => ({
 
 import AppContent from './AppContent';
 import { getNavigationPages } from './pageRegistry';
+import { SIDEBAR_EXPANDED_STORAGE_KEY } from './sidebarPreference';
 
 function installMatchMedia(matches = false) {
   Object.defineProperty(window, 'matchMedia', {
@@ -82,6 +83,7 @@ function installMatchMedia(matches = false) {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   installMatchMedia(false);
   mockUseAppShellSlice.mockReturnValue({
     isDatabaseLoaded: true,
@@ -197,13 +199,68 @@ describe('AppContent shell', () => {
     expect(container.querySelector('[data-testid^="nav-"]')).toBeNull();
   });
 
-  it('uses the mobile drawer with the same registry controls below the md breakpoint', async () => {
+  it('uses the bottom navigation and the More sheet with the same registry controls below the md breakpoint', async () => {
     installMatchMedia(true);
     render(<AppContent />);
 
+    // No rail on phones; the bar carries the first mobileNav pages.
+    expect(screen.queryByTestId('sidebar-rail')).not.toBeInTheDocument();
+    const bar = screen.getByTestId('mobile-bottom-nav');
+    expect(within(bar).getByTestId('nav-dashboard')).toHaveAccessibleName('Dashboard');
+    expect(within(bar).getByTestId('nav-transactions')).toHaveAccessibleName('Transactions');
+    expect(within(bar).getByTestId('nav-budget')).toHaveAccessibleName('Budget');
+    expect(within(bar).getByTestId('nav-accounts')).toHaveAccessibleName('Accounts');
+    expect(within(bar).queryByTestId('nav-sql-query')).not.toBeInTheDocument();
+
+    fireEvent.click(within(bar).getByTestId('nav-transactions'));
+    expect(await screen.findByTestId('page-transactions')).toBeInTheDocument();
+    expect(within(bar).getByTestId('nav-transactions')).toHaveAttribute('aria-current', 'page');
+
+    // Everything else is one tap away in the More sheet, including Settings.
     expect(screen.queryByRole('button', { name: 'SQL Query' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'open drawer' }));
-    fireEvent.click(await screen.findByTestId('nav-sql-query'));
+    fireEvent.click(screen.getByTestId('nav-more'));
+    const sheet = await screen.findByTestId('mobile-more-sheet');
+    expect(within(sheet).getByTestId('nav-settings')).toHaveAccessibleName('Settings');
+    expect(within(sheet).getByTestId('ai-launcher-menu-item')).toBeInTheDocument();
+    fireEvent.click(within(sheet).getByTestId('nav-sql-query'));
     expect(await screen.findByTestId('page-sql-query')).toBeInTheDocument();
+  });
+
+  it('collapses the rail to icons that keep their accessible names and remembers the choice', async () => {
+    render(<AppContent />);
+
+    const rail = screen.getByTestId('sidebar-rail');
+    expect(rail).toHaveAttribute('data-expanded', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    expect(rail).toHaveAttribute('data-expanded', 'false');
+    expect(window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe('false');
+
+    // Collapsed items are icon-only yet still resolve by their page label.
+    for (const page of getNavigationPages()) {
+      expect(screen.getByTestId(page.testId)).toHaveAccessibleName(page.label);
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'SQL Query' }));
+    expect(await screen.findByTestId('page-sql-query')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    expect(rail).toHaveAttribute('data-expanded', 'true');
+    expect(window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe('true');
+  });
+
+  it('starts collapsed when the stored preference says so', () => {
+    window.localStorage.setItem(SIDEBAR_EXPANDED_STORAGE_KEY, 'false');
+    render(<AppContent />);
+
+    expect(screen.getByTestId('sidebar-rail')).toHaveAttribute('data-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+  });
+
+  it('shows the current page label in the app bar', async () => {
+    render(<AppContent />);
+
+    expect(screen.getByTestId('app-bar-title')).toHaveTextContent('Dashboard');
+    fireEvent.click(screen.getByRole('button', { name: 'Budget' }));
+    await waitFor(() => expect(screen.getByTestId('app-bar-title')).toHaveTextContent('Budget'));
   });
 });

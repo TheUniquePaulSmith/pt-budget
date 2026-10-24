@@ -17,7 +17,10 @@ import React, {
   useState,
 } from 'react';
 
-type ThemeDensity = 'comfortable' | 'compact';
+export type ThemeDensity = 'comfortable' | 'compact';
+
+/** `auto` = compact on desktop widths (md and up), comfortable below. */
+export type ThemeDensityPreference = ThemeDensity | 'auto';
 
 export type ThemePresetId = 'light' | 'dark' | 'compact' | 'system';
 
@@ -33,12 +36,20 @@ interface ThemePreferencesContextValue {
   availableThemes: ThemePresetDefinition[];
   selectedThemeId: ThemePresetId;
   setSelectedThemeId: (themeId: ThemePresetId) => void;
+  /** The density in effect after resolving `auto` against the viewport. */
+  density: ThemeDensity;
+  densityPreference: ThemeDensityPreference;
+  setDensityPreference: (preference: ThemeDensityPreference) => void;
 }
 
 export const THEME_PREFERENCE_STORAGE_KEY = 'budgetTracker_themePreset';
+export const THEME_DENSITY_STORAGE_KEY = 'budgetTracker_themeDensity';
 
 const DEFAULT_THEME_PRESET_ID: ThemePresetId = 'light';
+const DEFAULT_DENSITY_PREFERENCE: ThemeDensityPreference = 'auto';
 const SYSTEM_COLOR_SCHEME_QUERY = '(prefers-color-scheme: dark)';
+/** MUI's `md` breakpoint: desktop widths default to the compact density. */
+export const DESKTOP_DENSITY_QUERY = '(min-width: 900px)';
 
 export const BUILT_IN_THEME_PRESETS: ThemePresetDefinition[] = [
   {
@@ -84,6 +95,10 @@ function isThemePresetId(value: string | null): value is ThemePresetId {
   );
 }
 
+function isThemeDensityPreference(value: string | null): value is ThemeDensityPreference {
+  return value === 'auto' || value === 'comfortable' || value === 'compact';
+}
+
 function getThemePreset(themeId: ThemePresetId): ThemePresetDefinition {
   return (
     BUILT_IN_THEME_PRESETS.find((preset) => preset.id === themeId) ??
@@ -109,6 +124,46 @@ function readStoredThemePreference(): ThemePresetId {
   }
 }
 
+function readStoredDensityPreference(): ThemeDensityPreference {
+  if (typeof window === 'undefined') {
+    return DEFAULT_DENSITY_PREFERENCE;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(THEME_DENSITY_STORAGE_KEY);
+    return isThemeDensityPreference(stored) ? stored : DEFAULT_DENSITY_PREFERENCE;
+  } catch {
+    return DEFAULT_DENSITY_PREFERENCE;
+  }
+}
+
+function readIsDesktopWidth(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return true;
+  }
+
+  return window.matchMedia(DESKTOP_DENSITY_QUERY).matches;
+}
+
+/**
+ * Resolves the density preference: an explicit choice wins; `auto` is compact
+ * on desktop widths and comfortable below, except that the Compact preset is
+ * always compact.
+ */
+export function resolveThemeDensity(
+  preference: ThemeDensityPreference,
+  themeId: ThemePresetId,
+  isDesktopWidth: boolean
+): ThemeDensity {
+  if (preference !== 'auto') {
+    return preference;
+  }
+  if (getThemePreset(themeId).density === 'compact') {
+    return 'compact';
+  }
+  return isDesktopWidth ? 'compact' : 'comfortable';
+}
+
 function readSystemPaletteMode(): PaletteMode {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
     return 'light';
@@ -119,7 +174,8 @@ function readSystemPaletteMode(): PaletteMode {
 
 export function createAppTheme(
   themeId: ThemePresetId,
-  systemPaletteMode?: PaletteMode
+  systemPaletteMode?: PaletteMode,
+  density?: ThemeDensity
 ) {
   const preset = getThemePreset(themeId);
   const resolvedPaletteMode: PaletteMode =
@@ -127,7 +183,9 @@ export function createAppTheme(
       ? (systemPaletteMode ?? readSystemPaletteMode())
       : preset.paletteMode;
   const isDarkMode = resolvedPaletteMode === 'dark';
-  const isCompact = preset.density === 'compact';
+  // Density is independent of the colour preset; the preset only supplies the
+  // default when the caller does not pass one.
+  const isCompact = (density ?? preset.density) === 'compact';
   const borderRadius = isCompact ? 6 : 8;
   const cardBorderRadius = isCompact ? 10 : 12;
   const buttonPadding = isCompact ? '6px 16px' : '8px 24px';
@@ -308,11 +366,22 @@ export function createAppTheme(
         },
       },
       MuiTextField: {
+        defaultProps: isCompact ? { size: 'small' } : {},
         styleOverrides: {
           root: {
             '& .MuiOutlinedInput-root': {
               borderRadius,
             },
+          },
+        },
+      },
+      MuiFormControl: {
+        defaultProps: isCompact ? { size: 'small' } : {},
+      },
+      MuiTableRow: {
+        styleOverrides: {
+          root: {
+            height: isCompact ? 36 : undefined,
           },
         },
       },
@@ -361,7 +430,10 @@ export function createAppTheme(
       MuiTableCell: {
         styleOverrides: {
           root: {
-            padding: isCompact ? '10px 12px' : undefined,
+            padding: isCompact ? '6px 10px' : undefined,
+          },
+          head: {
+            fontWeight: 700,
           },
         },
       },
@@ -414,6 +486,10 @@ export const CustomThemeProvider: React.FC<CustomThemeProviderProps> = ({
   const [systemPaletteMode, setSystemPaletteMode] = useState<PaletteMode>(
     readSystemPaletteMode
   );
+  const [densityPreference, setDensityPreference] = useState<ThemeDensityPreference>(
+    readStoredDensityPreference
+  );
+  const [isDesktopWidth, setIsDesktopWidth] = useState<boolean>(readIsDesktopWidth);
 
   useEffect(() => {
     const storedThemeId = readStoredThemePreference();
@@ -421,6 +497,39 @@ export const CustomThemeProvider: React.FC<CustomThemeProviderProps> = ({
     setSelectedThemeId((currentThemeId) =>
       currentThemeId === storedThemeId ? currentThemeId : storedThemeId
     );
+
+    const storedDensity = readStoredDensityPreference();
+    setDensityPreference((current) => (current === storedDensity ? current : storedDensity));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(THEME_DENSITY_STORAGE_KEY, densityPreference);
+    } catch {
+      // Ignore persistence failures so density selection remains usable.
+    }
+  }, [densityPreference]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const mediaQueryList = window.matchMedia(DESKTOP_DENSITY_QUERY);
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsDesktopWidth(event.matches);
+    };
+
+    setIsDesktopWidth(mediaQueryList.matches);
+    mediaQueryList.addEventListener('change', handleChange);
+
+    return () => {
+      mediaQueryList.removeEventListener('change', handleChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -444,6 +553,14 @@ export const CustomThemeProvider: React.FC<CustomThemeProviderProps> = ({
     }
 
     const handleStorage = (event: StorageEvent) => {
+      if (event.key === THEME_DENSITY_STORAGE_KEY) {
+        const nextDensity = isThemeDensityPreference(event.newValue)
+          ? event.newValue
+          : DEFAULT_DENSITY_PREFERENCE;
+        setDensityPreference((current) => (current === nextDensity ? current : nextDensity));
+        return;
+      }
+
       if (event.key !== THEME_PREFERENCE_STORAGE_KEY) {
         return;
       }
@@ -486,9 +603,11 @@ export const CustomThemeProvider: React.FC<CustomThemeProviderProps> = ({
     };
   }, [selectedThemeId]);
 
+  const density = resolveThemeDensity(densityPreference, selectedThemeId, isDesktopWidth);
+
   const theme = useMemo(
-    () => createAppTheme(selectedThemeId, systemPaletteMode),
-    [selectedThemeId, systemPaletteMode]
+    () => createAppTheme(selectedThemeId, systemPaletteMode, density),
+    [selectedThemeId, systemPaletteMode, density]
   );
 
   useEffect(() => {
@@ -505,6 +624,9 @@ export const CustomThemeProvider: React.FC<CustomThemeProviderProps> = ({
         availableThemes: BUILT_IN_THEME_PRESETS,
         selectedThemeId,
         setSelectedThemeId,
+        density,
+        densityPreference,
+        setDensityPreference,
       }}
     >
       <ThemeProvider theme={theme}>

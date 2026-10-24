@@ -157,7 +157,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
   );
 
   return (
-    <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
+    <Box sx={{ flexGrow: 1, p: { xs: 1.5, sm: 2, md: 2.5 } }}>
       <DateRangeSelector
         timeRange={timeRange}
         onTimeRangeChange={setTimeRange}

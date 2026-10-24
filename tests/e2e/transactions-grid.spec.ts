@@ -96,12 +96,15 @@ test('marks the primary user and blocks deleting them', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Accounts' }).click();
 
-  const primarySummary = page.getByRole('button', { name: new RegExp(TEST_PRIMARY_USER_NAME) });
-  await expect(primarySummary).toBeVisible({ timeout: 30_000 });
-  await expect(primarySummary.getByText('Primary', { exact: true })).toBeVisible();
+  // The People panel of the Accounts page lists every user; the primary one
+  // carries a star and a disabled delete control.
+  const peoplePanel = page.getByTestId('people-panel');
+  const primaryRow = peoplePanel.locator('[data-testid^="person-row-"]').filter({ hasText: TEST_PRIMARY_USER_NAME });
+  await expect(primaryRow).toBeVisible({ timeout: 30_000 });
+  await expect(primaryRow.getByTestId('primary-user-star')).toBeVisible();
 
-  const deleteControl = primarySummary.getByTitle('Delete User');
-  await expect(deleteControl).toHaveClass(/Mui-disabled/);
+  const deleteControl = primaryRow.getByTitle('Delete User');
+  await expect(deleteControl).toBeDisabled();
 });
 
 test('edits, flags and deletes a transaction from the right-click row menu', async ({ page }) => {

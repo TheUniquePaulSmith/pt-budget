@@ -31,7 +31,7 @@ async function expectNoHorizontalPageOverflow(page: Page, context: string) {
 
 test('@smoke dashboard charts and tabs fit a phone viewport without horizontal overflow', async ({ page }, testInfo) => {
   // The bootstrap helper waits for the desktop nav ("SQL Query" button), which
-  // the app shell moves into the drawer on mobile widths — so create the
+  // the app shell moves into the "More" sheet on mobile widths — so create the
   // database at desktop size first, then shrink the viewport.
   await bootstrapDatabase(page, {
     sampleDataTransactionLimit: SAMPLE_DATA_TRANSACTION_LIMIT,
@@ -44,6 +44,12 @@ test('@smoke dashboard charts and tabs fit a phone viewport without horizontal o
   });
 
   await page.setViewportSize(MOBILE_VIEWPORT);
+
+  // The shell itself must fit: bottom navigation visible, no rail, and the
+  // status bar docked above the bar.
+  await expect(page.getByTestId('mobile-bottom-nav')).toBeVisible();
+  await expect(page.getByTestId('sidebar-rail')).toHaveCount(0);
+  await expectNoHorizontalPageOverflow(page, 'dashboard shell');
 
   for (const tabName of CHART_TABS) {
     const tab = page.getByRole('tab', { name: tabName });

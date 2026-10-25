@@ -40,6 +40,7 @@ vi.mock('./AiToolsContext', () => ({
     evaluateConsent: () => 'ask',
     consentManager: { applyDecision: mockApplyDecision },
     setToolConsent: mockSetToolConsent,
+    toolCallLimit: 3,
   }),
 }));
 
@@ -128,6 +129,32 @@ describe('AiChat error rendering', () => {
       }
       expect(matched).toBe(true);
     });
+  });
+});
+
+describe('AiChat tool-call limit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    panelState.messages = [];
+  });
+
+  it('passes the limit from the Tools tab to the chat loop', async () => {
+    mockedRunAiChatCompletion.mockResolvedValue({
+      assistantMessage: 'Done.',
+      toolCalls: [],
+      classificationSuggestions: [],
+      merchantRuleSuggestions: [],
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+    });
+
+    const user = userEvent.setup();
+    renderAiChat();
+
+    await user.type(screen.getByLabelText('Ask about transactions'), 'Why is net income negative?');
+    await user.click(screen.getByRole('button', { name: 'Send AI prompt' }));
+
+    await waitFor(() => expect(mockedRunAiChatCompletion).toHaveBeenCalledTimes(1));
+    expect(mockedRunAiChatCompletion).toHaveBeenCalledWith(expect.objectContaining({ maxToolRounds: 3 }));
   });
 });
 

@@ -25,6 +25,8 @@ export interface DatabaseAiToolsSlice {
     params: Array<string | number | boolean | null>,
     resultMode: AiToolPackResultMode
   ) => Promise<unknown>;
+  getToolCallLimit: () => Promise<number>;
+  setToolCallLimit: (limit: number) => Promise<void>;
   getAiProviderConfig: <T = unknown>() => Promise<T | null>;
   setAiProviderConfig: (config: unknown) => Promise<void>;
   clearAiProviderConfig: () => Promise<void>;
@@ -72,6 +74,11 @@ export function useDatabaseAiToolsSlice({
       requireService().executePackSql(sql, params, resultMode),
     [requireService]
   );
+  const getToolCallLimit = useCallback(async () => requireService().getToolCallLimit(), [requireService]);
+  const setToolCallLimit = useCallback(
+    async (limit: number) => requireService().setToolCallLimit(limit),
+    [requireService]
+  );
   const getAiProviderConfig = useCallback(
     async <T = unknown,>() => requireService().getProviderConfig<T>(),
     [requireService]
@@ -93,6 +100,8 @@ export function useDatabaseAiToolsSlice({
       upsertToolSetting,
       deleteToolSetting,
       executeToolPackSql,
+      getToolCallLimit,
+      setToolCallLimit,
       getAiProviderConfig,
       setAiProviderConfig,
       clearAiProviderConfig,
@@ -103,10 +112,12 @@ export function useDatabaseAiToolsSlice({
       deleteToolSetting,
       executeToolPackSql,
       getAiProviderConfig,
+      getToolCallLimit,
       getToolPack,
       listToolPacks,
       listToolSettings,
       setAiProviderConfig,
+      setToolCallLimit,
       setToolPackEnabled,
       upsertToolPack,
       upsertToolSetting,

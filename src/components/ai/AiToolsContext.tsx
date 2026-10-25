@@ -12,6 +12,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { useAiToolsSlice } from '@/contexts/useAiToolsSlices';
 import { AiToolPackError, parseToolPack } from '@/lib/aiTools/jsonToolPack';
 import { ConsentManager } from '@/lib/aiTools/consentManager';
+import { DEFAULT_TOOL_CALL_LIMIT, normalizeToolCallLimit } from '@/lib/aiTools/toolCallLimit';
 import { composeToolRegistry, type AiToolRegistry } from '@/lib/aiTools/toolRegistry';
 import { logger } from '@/lib/logging';
 import type { AiToolConsent, AiToolPack, AiToolSetting } from '@/types/database';
@@ -30,7 +31,10 @@ export interface AiToolsContextValue {
   consentManager: ConsentManager;
   bypassAllConsent: boolean;
   sessionGrants: string[];
+  /** Rounds of tool calls the assistant may run for one question. */
+  toolCallLimit: number;
   evaluateConsent: (tool: AiResolvedTool) => AiConsentVerdict;
+  setToolCallLimit: (limit: number) => Promise<void>;
   setToolEnabled: (toolName: string, enabled: boolean) => Promise<void>;
   setToolConsent: (toolName: string, consent: AiToolConsent) => Promise<void>;
   importPack: (json: string) => Promise<void>;
@@ -110,6 +114,7 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
   const [shippedRows, setShippedRows] = useState<AiToolPack[]>([]);
   const [shippedPackErrors, setShippedPackErrors] = useState<AiToolPackLoadError[]>([]);
   const [settings, setSettings] = useState<AiToolSetting[]>([]);
+  const [toolCallLimit, setToolCallLimitState] = useState(DEFAULT_TOOL_CALL_LIMIT);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const loadRunRef = useRef(0);
@@ -129,7 +134,11 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
     loadRunRef.current = runId;
     setIsLoading(true);
     try {
-      const [rows, storedSettings] = await Promise.all([slice.listToolPacks(), slice.listToolSettings()]);
+      const [rows, storedSettings, storedLimit] = await Promise.all([
+        slice.listToolPacks(),
+        slice.listToolSettings(),
+        slice.getToolCallLimit(),
+      ]);
       if (!shippedLoadedRef.current) {
         const shipped = await fetchShippedPacks();
         if (loadRunRef.current === runId) {
@@ -141,6 +150,7 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
       if (loadRunRef.current === runId) {
         setPackRows(rows);
         setSettings(storedSettings);
+        setToolCallLimitState(storedLimit);
         setError(null);
       }
     } catch (err) {
@@ -198,6 +208,16 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
       await upsertSetting(toolName, { consent });
     },
     [upsertSetting]
+  );
+
+  const setToolCallLimit = useCallback(
+    async (limit: number) => {
+      const next = normalizeToolCallLimit(limit);
+      log.info('Tool call limit changed', { operation: 'setToolCallLimit', limit: next });
+      await slice.setToolCallLimit(next);
+      setToolCallLimitState(next);
+    },
+    [slice]
   );
 
   const importPack = useCallback(
@@ -287,7 +307,9 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
       consentManager,
       bypassAllConsent: consentManager.bypassAll,
       sessionGrants: consentManager.listSessionGrants(),
+      toolCallLimit,
       evaluateConsent,
+      setToolCallLimit,
       setToolEnabled,
       setToolConsent,
       importPack,
@@ -300,7 +322,7 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
     }),
     // consentVersion changes whenever the manager's state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [consentManager, consentVersion, error, evaluateConsent, importPack, isLoading, registry, reload, removePack, resetToSafeDefaults, setBypassAllConsent, setPackEnabled, setToolConsent, setToolEnabled, settings, shippedPackErrors, revokeSessionGrant]
+    [consentManager, consentVersion, error, evaluateConsent, importPack, isLoading, registry, reload, removePack, resetToSafeDefaults, setBypassAllConsent, setPackEnabled, setToolCallLimit, setToolConsent, setToolEnabled, settings, shippedPackErrors, revokeSessionGrant, toolCallLimit]
   );
 
   return <AiToolsContext.Provider value={value}>{children}</AiToolsContext.Provider>;

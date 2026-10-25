@@ -3,6 +3,7 @@ import type { ChatCompletionParams, ChatCompletionResponse } from '@wllama/wllam
 
 import { runAiChatCompletion } from './aiChatService';
 import type { AiDatabaseToolContext } from './aiDatabaseTools';
+import { DEFAULT_TOOL_CALL_LIMIT } from './aiTools/toolCallLimit';
 
 function createDatabaseToolContext(overrides: Partial<AiDatabaseToolContext> = {}): AiDatabaseToolContext {
   return {
@@ -245,5 +246,84 @@ describe('runAiChatCompletion tool consent', () => {
     expect(deleteTransaction).not.toHaveBeenCalled();
     expect(result.toolCalls[0]).toMatchObject({ status: 'denied' });
     expect(result.toolCalls[0].error).toMatch(/disabled/);
+  });
+});
+
+describe('runAiChatCompletion tool-call limit', () => {
+  const userMessages = [{ id: 'user-1', role: 'user' as const, content: 'Why is net income negative?', createdAt: '2026-07-13T00:00:00.000Z' }];
+
+  let callCounter = 0;
+  function createListCategoriesResponse(): ChatCompletionResponse {
+    callCounter += 1;
+    return {
+      id: 'chatcmpl-tool',
+      object: 'chat.completion',
+      created: 0,
+      model: 'local-test-model',
+      choices: [
+        {
+          index: 0,
+          finish_reason: 'tool_calls',
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: [{ id: `call-${callCounter}`, type: 'function', function: { name: 'list_categories', arguments: '{}' } }],
+          },
+        },
+      ],
+    } as ChatCompletionResponse;
+  }
+
+  it('runs the allowed rounds, then gives the model a tool-free turn to answer', async () => {
+    const createChatCompletion = vi.fn(async (params: ChatCompletionParams) => (
+      params.tool_choice === 'none' ? createChatResponse('Net income is negative because of transfers.') : createListCategoriesResponse()
+    ));
+
+    const result = await runAiChatCompletion({
+      messages: userMessages,
+      createChatCompletion,
+      databaseToolContext: createDatabaseToolContext(),
+      maxToolRounds: 2,
+    });
+
+    expect(result.toolCalls).toHaveLength(2);
+    expect(createChatCompletion).toHaveBeenCalledTimes(3);
+    expect(createChatCompletion.mock.calls.map(([params]) => params.tool_choice)).toEqual(['auto', 'auto', 'none']);
+    const finalMessages = createChatCompletion.mock.calls[2][0].messages;
+    const nudge = finalMessages[finalMessages.length - 1];
+    expect(nudge).toMatchObject({ role: 'user' });
+    expect('content' in nudge ? nudge.content : '').toMatch(/all 2 allowed rounds.*Do not call any more tools/);
+    expect(result.assistantMessage).toBe('Net income is negative because of transfers.');
+  });
+
+  it('falls back to the limit message when the model still asks for tools after the limit', async () => {
+    const createChatCompletion = vi.fn(async (_params: ChatCompletionParams) => createListCategoriesResponse());
+    const deltas: string[] = [];
+
+    const result = await runAiChatCompletion({
+      messages: userMessages,
+      createChatCompletion,
+      databaseToolContext: createDatabaseToolContext(),
+      maxToolRounds: 1,
+      onAssistantDelta: (delta) => deltas.push(delta),
+    });
+
+    expect(result.toolCalls).toHaveLength(1);
+    expect(createChatCompletion).toHaveBeenCalledTimes(2);
+    expect(result.assistantMessage).toMatch(/tool-call limit.*Tools tab/);
+    expect(deltas.join('')).toBe(result.assistantMessage);
+  });
+
+  it('uses the default limit when none is passed', async () => {
+    const createChatCompletion = vi.fn(async (_params: ChatCompletionParams) => createListCategoriesResponse());
+
+    const result = await runAiChatCompletion({
+      messages: userMessages,
+      createChatCompletion,
+      databaseToolContext: createDatabaseToolContext(),
+    });
+
+    expect(result.toolCalls).toHaveLength(DEFAULT_TOOL_CALL_LIMIT);
+    expect(createChatCompletion).toHaveBeenCalledTimes(DEFAULT_TOOL_CALL_LIMIT + 1);
   });
 });

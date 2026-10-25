@@ -5,6 +5,7 @@ import {
   ACCOUNT_CARD_QUERIES,
   ACCOUNT_QUERIES,
   ANALYTICS_QUERIES,
+  BUDGET_FUND_QUERIES,
   BUDGET_PLAN_QUERIES,
   CATEGORY_QUERIES,
   COMPANY_QUERIES,
@@ -814,5 +815,290 @@ describe('DatabaseService delegate wrappers', () => {
     expect(result.total).toBe(3);
     const dataCall = query.mock.calls.find((call) => !String(call[0]).includes('COUNT'));
     expect(dataCall?.[1]).toEqual([12, 25, 0]);
+  });
+});
+
+describe('DatabaseService budget status carry-over and funds', () => {
+  const groceriesRow = (planId: number, overrides: Record<string, unknown> = {}) => ({
+    id: planId * 10,
+    plan_id: planId,
+    category_id: 4,
+    amount: 400,
+    carry_mode: 'none',
+    carry_reset: 0,
+    category_name: 'Groceries',
+    category_color: '#4caf50',
+    created_at: 'now',
+    updated_at: 'now',
+    ...overrides,
+  });
+  const plan = (id: number, effectiveMonth: string, totalAmount: number | null = null) => ({
+    id,
+    effective_month: effectiveMonth,
+    total_amount: totalAmount,
+    notes: null,
+    created_at: 'now',
+    updated_at: 'now',
+  });
+
+  interface StubRows {
+    plans: unknown[];
+    planCategories: unknown[];
+    expenses?: unknown[];
+    linkedProjects?: unknown[];
+    linkedTrips?: unknown[];
+    fundSpend?: unknown[];
+  }
+
+  function carryStatusStub(rows: StubRows): QuerySpy {
+    return vi.fn(async (sql: string) => {
+      switch (sql) {
+        case BUDGET_PLAN_QUERIES.GET_ALL_PLANS:
+          return rows.plans;
+        case BUDGET_PLAN_QUERIES.GET_ALL_PLAN_CATEGORIES:
+          return rows.planCategories;
+        case BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY:
+          return rows.expenses ?? [];
+        case BUDGET_FUND_QUERIES.LINKED_PROJECTS:
+          return rows.linkedProjects ?? [];
+        case BUDGET_FUND_QUERIES.LINKED_TRIPS:
+          return rows.linkedTrips ?? [];
+        case BUDGET_FUND_QUERIES.FUND_LINKED_SPEND_BY_MONTH_CATEGORY:
+          return rows.fundSpend ?? [];
+        default:
+          return [];
+      }
+    });
+  }
+
+  function expenseRangeArgs(query: QuerySpy): unknown[] | undefined {
+    return query.mock.calls.find((call) => call[0] === BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY)?.[1];
+  }
+
+  it('keeps the period range and neutral carry fields when no category carries', async () => {
+    const query = carryStatusStub({
+      plans: [plan(1, '2026-01', 1000)],
+      planCategories: [groceriesRow(1)],
+      expenses: [{ month: '2026-07', category_id: 4, total: 450 }],
+    });
+    const service = createService(query);
+
+    const status = await service.getBudgetStatus({ type: 'month', key: '2026-07' });
+
+    expect(expenseRangeArgs(query)).toEqual(['2026-07-01', '2026-07-31']);
+    expect(status.carryRangeStart).toBe('2026-07');
+    expect(status.budgetedTotal).toBe(1000);
+    expect(status.actualExpenses).toBe(450);
+    expect(status.remaining).toBe(550);
+    expect(status.carriedInTotal).toBe(0);
+    expect(status.effectiveBudgetTotal).toBe(1000);
+    expect(status.effectiveRemaining).toBe(550);
+    expect(status.isOverBudget).toBe(false);
+    expect(status.categories).toEqual([
+      expect.objectContaining({
+        category_id: 4,
+        category_name: 'Groceries',
+        budgetedAmount: 400,
+        actualExpenses: 450,
+        remaining: -50,
+        isOverBudget: true,
+        carryMode: 'none',
+        carriedIn: 0,
+        carriedOut: 0,
+        effectiveBudget: 400,
+        committedSpend: 450,
+        effectiveRemaining: -50,
+        carryResetMonth: null,
+      }),
+    ]);
+  });
+
+  it('walks back to the first plan month and carries surplus into the period', async () => {
+    const query = carryStatusStub({
+      plans: [plan(1, '2026-05')],
+      planCategories: [groceriesRow(1, { carry_mode: 'surplus' })],
+      expenses: [
+        { month: '2026-05', category_id: 4, total: 300 },
+        { month: '2026-06', category_id: 4, total: 350 },
+        { month: '2026-07', category_id: 4, total: 500 },
+      ],
+    });
+    const service = createService(query);
+
+    const status = await service.getBudgetStatus({ type: 'month', key: '2026-07' });
+
+    // May leaves 100; June has 500, spends 350, leaves 150 for July.
+    expect(expenseRangeArgs(query)).toEqual(['2026-05-01', '2026-07-31']);
+    expect(query).toHaveBeenCalledWith(BUDGET_PLAN_QUERIES.ACTUAL_INCOME_LINKED_BY_MONTH, ['2026-07-01', '2026-07-31']);
+    expect(status.carryRangeStart).toBe('2026-05');
+    expect(status.actualExpenses).toBe(500);
+    expect(status.categories[0]).toMatchObject({
+      carryMode: 'surplus',
+      carriedIn: 150,
+      effectiveBudget: 550,
+      committedSpend: 500,
+      effectiveRemaining: 50,
+      remaining: -100,
+      isOverBudget: false,
+      carriedOut: 50,
+    });
+    expect(status.carriedInTotal).toBe(150);
+    expect(status.effectiveBudgetTotal).toBe(550);
+    expect(status.effectiveRemaining).toBe(50);
+    expect(status.isOverBudget).toBe(false);
+  });
+
+  it('carries a deficit and flags the category over budget', async () => {
+    const query = carryStatusStub({
+      plans: [plan(1, '2026-06')],
+      planCategories: [groceriesRow(1, { carry_mode: 'deficit' })],
+      expenses: [
+        { month: '2026-06', category_id: 4, total: 520 },
+        { month: '2026-07', category_id: 4, total: 300 },
+      ],
+    });
+    const service = createService(query);
+
+    const status = await service.getBudgetStatus({ type: 'month', key: '2026-07' });
+
+    expect(status.categories[0]).toMatchObject({
+      carryMode: 'deficit',
+      carriedIn: -120,
+      effectiveBudget: 280,
+      effectiveRemaining: -20,
+      isOverBudget: true,
+      carriedOut: -20,
+    });
+    expect(status.isOverBudget).toBe(true);
+  });
+
+  it('starts the range at a full reset and zeroes the carried balance from that month', async () => {
+    const query = carryStatusStub({
+      plans: [plan(1, '2026-03'), plan(2, '2026-07')],
+      planCategories: [
+        groceriesRow(1, { carry_mode: 'both' }),
+        groceriesRow(2, { carry_mode: 'both', carry_reset: 1 }),
+      ],
+      expenses: [
+        { month: '2026-06', category_id: 4, total: 10 },
+        { month: '2026-07', category_id: 4, total: 100 },
+      ],
+    });
+    const service = createService(query);
+
+    const status = await service.getBudgetStatus({ type: 'month', key: '2026-07' });
+
+    expect(expenseRangeArgs(query)).toEqual(['2026-07-01', '2026-07-31']);
+    expect(status.carryRangeStart).toBe('2026-07');
+    expect(status.categories[0]).toMatchObject({
+      carriedIn: 0,
+      effectiveBudget: 400,
+      carryResetMonth: '2026-07',
+      carriedOut: 300,
+    });
+  });
+
+  it('caps the look-back at 36 months before the period', async () => {
+    const query = carryStatusStub({
+      plans: [plan(1, '2019-01')],
+      planCategories: [groceriesRow(1, { carry_mode: 'surplus' })],
+    });
+    const service = createService(query);
+
+    const status = await service.getBudgetStatus({ type: 'month', key: '2026-07' });
+
+    expect(expenseRangeArgs(query)).toEqual(['2023-07-01', '2026-07-31']);
+    expect(status.carryRangeStart).toBe('2023-07');
+    // 36 untouched months of 400 each roll into July.
+    expect(status.categories[0].carriedIn).toBe(36 * 400);
+  });
+
+  it('counts fund contributions as committed spend and excludes spend the fund paid', async () => {
+    const query = carryStatusStub({
+      plans: [plan(1, '2026-01')],
+      planCategories: [groceriesRow(1)],
+      expenses: [
+        { month: '2026-07', category_id: 4, total: 300 },
+        { month: '2026-07', category_id: 9, total: 80 },
+        { month: '2026-07', category_id: null, total: 20 },
+      ],
+      linkedTrips: [{
+        id: 5,
+        name: 'Beach week',
+        status: 'planning',
+        start_date: null,
+        end_date: null,
+        estimated_cost: 1200,
+        budget_category_id: 4,
+        monthly_contribution: 100,
+        contribution_start_month: '2026-06',
+        category_name: 'Groceries',
+        category_color: '#4caf50',
+      }],
+      fundSpend: [
+        { month: '2026-07', category_id: 4, total: 50 },
+        { month: '2026-07', category_id: 9, total: 30 },
+      ],
+    });
+    const service = createService(query);
+
+    const status = await service.getBudgetStatus({ type: 'month', key: '2026-07' });
+
+    expect(query).toHaveBeenCalledWith(BUDGET_FUND_QUERIES.FUND_LINKED_SPEND_BY_MONTH_CATEGORY, ['2026-07-01', '2026-07-31']);
+    expect(status.categories[0]).toMatchObject({
+      actualExpenses: 300,
+      fundSpend: 50,
+      fundContributions: 100,
+      committedSpend: 350,
+      effectiveBudget: 400,
+      effectiveRemaining: 50,
+      isOverBudget: false,
+    });
+    expect(status.fundContributionsTotal).toBe(100);
+    expect(status.fundSpendTotal).toBe(50);
+    expect(status.actualExpenses).toBe(400);
+    // Travel (9) and uncategorized spend are unbudgeted, minus the 30 the fund paid.
+    expect(status.unbudgetedSpend).toBe(70);
+    expect(status.effectiveRemaining).toBe(400 - (400 - 50 + 100));
+  });
+
+  it('reports a quarter with the balance carried into its first month and out of its last', async () => {
+    const query = carryStatusStub({
+      plans: [plan(1, '2026-03')],
+      planCategories: [groceriesRow(1, { carry_mode: 'surplus' })],
+      expenses: [
+        { month: '2026-03', category_id: 4, total: 100 },
+        { month: '2026-04', category_id: 4, total: 400 },
+        { month: '2026-05', category_id: 4, total: 400 },
+        { month: '2026-06', category_id: 4, total: 100 },
+      ],
+    });
+    const service = createService(query);
+
+    const status = await service.getBudgetStatus({ type: 'quarter', key: '2026-Q2' });
+
+    expect(status.months).toEqual(['2026-04', '2026-05', '2026-06']);
+    expect(status.budgetedTotal).toBe(1200);
+    expect(status.actualExpenses).toBe(900);
+    expect(status.categories[0]).toMatchObject({
+      budgetedAmount: 1200,
+      actualExpenses: 900,
+      carriedIn: 300,
+      effectiveBudget: 1500,
+      carriedOut: 600,
+    });
+  });
+
+  it('reports no-plan totals as null with the carry fields neutral', async () => {
+    const query = carryStatusStub({ plans: [], planCategories: [] });
+    const service = createService(query);
+
+    const status = await service.getBudgetStatus({ type: 'month', key: '2026-07' });
+
+    expect(status.budgetedTotal).toBeNull();
+    expect(status.effectiveBudgetTotal).toBeNull();
+    expect(status.effectiveRemaining).toBeNull();
+    expect(status.carriedInTotal).toBe(0);
+    expect(status.categories).toEqual([]);
   });
 });

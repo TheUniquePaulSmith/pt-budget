@@ -23,7 +23,7 @@ import {
   AccordionSummary,
   AccordionDetails,
 } from '@mui/material';
-import { CloudUpload, CheckCircle, Error as ErrorIcon, ExpandMore } from '@mui/icons-material';
+import { CloudUpload, CheckCircle, Error as ErrorIcon, ExpandMore, InsertDriveFile } from '@mui/icons-material';
 import Papa from 'papaparse';
 import { Account, AccountCard } from '@/types/database';
 import {
@@ -662,27 +662,49 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       <DialogTitle>Import Transactions from CSV</DialogTitle>
       <DialogContent>
         <Box display="flex" flexDirection="column" gap={3}>
-          {/* File Upload */}
-          <Box>
-            <input
-              accept=".csv"
-              style={{ display: 'none' }}
-              id="csv-file-input"
-              type="file"
-              onChange={handleFileSelect}
-            />
-            <label htmlFor="csv-file-input">
-              <Button
-                variant="outlined"
-                component="span"
-                startIcon={<CloudUpload />}
-                fullWidth
-                size="large"
-              >
-                {file ? file.name : 'Choose CSV File'}
-              </Button>
-            </label>
-          </Box>
+          {/* File Upload. Once the import has run the file is fixed: show it read-only. */}
+          {importResult ? (
+            <Box
+              data-testid="csv-import-file-readonly"
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                px: 2,
+                py: 1.5,
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 1,
+                color: 'text.secondary',
+              }}
+            >
+              <InsertDriveFile fontSize="small" />
+              <Typography variant="body1" noWrap>
+                {file?.name ?? 'CSV file'}
+              </Typography>
+            </Box>
+          ) : (
+            <Box>
+              <input
+                accept=".csv"
+                style={{ display: 'none' }}
+                id="csv-file-input"
+                type="file"
+                onChange={handleFileSelect}
+              />
+              <label htmlFor="csv-file-input">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  startIcon={<CloudUpload />}
+                  fullWidth
+                  size="large"
+                >
+                  {file ? file.name : 'Choose CSV File'}
+                </Button>
+              </label>
+            </Box>
+          )}
 
           {error && (
             <Alert severity="error" icon={<ErrorIcon />}>

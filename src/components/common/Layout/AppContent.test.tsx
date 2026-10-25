@@ -51,7 +51,16 @@ vi.mock('@/components/ai/AiSidePanel', () => ({
 }));
 vi.mock('@/components/common/StatusBar/DatabaseStatusBar', () => stub('database-status-bar'));
 vi.mock('@/components/data-management/ManageData', () => stub('manage-data'));
-vi.mock('@/components/notifications/NotificationsRuntime', () => stub('notifications-runtime'));
+const runtimeMounts = vi.hoisted(() => ({ count: 0 }));
+vi.mock('@/components/notifications/NotificationsRuntime', () => {
+  function NotificationsRuntimeStub() {
+    React.useEffect(() => {
+      runtimeMounts.count += 1;
+    }, []);
+    return React.createElement('div', { 'data-testid': 'notifications-runtime' });
+  }
+  return { default: NotificationsRuntimeStub };
+});
 
 const mockUseAppShellSlice = vi.fn();
 const mockUseNotificationBadgeSlice = vi.fn();
@@ -84,6 +93,7 @@ function installMatchMedia(matches = false) {
 
 beforeEach(() => {
   window.localStorage.clear();
+  runtimeMounts.count = 0;
   installMatchMedia(false);
   mockUseAppShellSlice.mockReturnValue({
     isDatabaseLoaded: true,
@@ -166,6 +176,26 @@ describe('AppContent shell', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close settings' }));
     await waitFor(() => expect(screen.getByTestId('page-trips')).toBeInTheDocument());
     expect(screen.getByTestId('nav-trips')).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('never remounts the notifications runtime while navigating, including to full-screen pages', async () => {
+    render(<AppContent />);
+    await screen.findByTestId('page-dashboard');
+    expect(runtimeMounts.count).toBe(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await screen.findByTestId('page-settings');
+    fireEvent.click(screen.getByRole('button', { name: 'Close settings' }));
+    await screen.findByTestId('page-dashboard');
+    fireEvent.click(screen.getByRole('button', { name: 'Developer Console' }));
+    await screen.findByTestId('page-developer-console');
+    fireEvent.click(screen.getByRole('button', { name: 'Close console' }));
+    await screen.findByTestId('page-dashboard');
+    fireEvent.click(screen.getByRole('button', { name: 'Trips' }));
+    await screen.findByTestId('page-trips');
+
+    expect(screen.getAllByTestId('notifications-runtime')).toHaveLength(1);
+    expect(runtimeMounts.count).toBe(1);
   });
 
   it('opens the developer console from its header button', async () => {

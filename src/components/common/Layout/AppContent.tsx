@@ -9,7 +9,10 @@
  * feature slots and the e2e suite rely on:
  *
  *   - `<AiPanelProvider>` wraps the shell (AI panel state lives there).
- *   - `<NotificationsRuntime />` is mounted exactly once, outside any page.
+ *   - `<NotificationsRuntime />` is mounted exactly once, at a position in
+ *     the tree that does not depend on the current page, so navigating
+ *     (including to a full-screen page) never remounts it. `AiPanelProvider`
+ *     likewise wraps the shell here, above any page-dependent branch.
  *   - `<NotificationBellSlot />` and `<AiLauncherSlot />` are rendered in the
  *     header (and in the phone "More" sheet as `menuItem` variants).
  *   - `<ManageData />` and `<DatabaseStatusBar />` are rendered.

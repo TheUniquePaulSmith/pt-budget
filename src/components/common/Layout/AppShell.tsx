@@ -11,6 +11,7 @@ import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react
 import { AppBar, Box, IconButton, Toolbar, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { Settings as SettingsIcon } from '@mui/icons-material';
 
+import { useAiPanel } from '@/components/ai/AiPanelProvider';
 import ManageData from '@/components/data-management/ManageData';
 import DatabaseStatusBar from '@/components/common/StatusBar/DatabaseStatusBar';
 import NotificationsRuntime from '@/components/notifications/NotificationsRuntime';
@@ -55,6 +56,16 @@ export default function AppShell() {
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // The AI panel's `sidebar` mode docks a persistent right drawer that shifts
+  // the content (AiPanelProvider renders it as a flex sibling of the shell)
+  // while the content keeps `lg` width; mirror that rule so the fixed status
+  // bar stops at the drawer instead of running underneath it.
+  const aiPanel = useAiPanel();
+  const isPhoneWidth = useMediaQuery(theme.breakpoints.down('sm'));
+  const aiSidebarDocks = useMediaQuery(`(min-width:${theme.breakpoints.values.lg + aiPanel.sidebarWidth}px)`);
+  const aiSidebarInset =
+    aiPanel.isOpen && aiPanel.mode === 'sidebar' && !isPhoneWidth && aiSidebarDocks ? aiPanel.sidebarWidth : 0;
 
   const navigationPages = getNavigationPages();
   const mobileCandidates = getMobileNavigationPages();
@@ -190,8 +201,9 @@ export default function AppShell() {
             sx={{
               '& > .MuiPaper-root': {
                 left: isMobile ? 0 : railWidth,
+                right: aiSidebarInset,
                 bottom: isMobile ? BOTTOM_NAV_HEIGHT : 0,
-                transition: theme.transitions.create('left', {
+                transition: theme.transitions.create(['left', 'right'], {
                   easing: theme.transitions.easing.sharp,
                   duration: theme.transitions.duration.shorter,
                 }),

@@ -46,6 +46,10 @@ test('@smoke imports a CSV file and resets the dialog state on reopen', async ({
   await expect(dialog.getByTestId('csv-import-result-skipped')).toHaveText(/accounts\): 0/);
   await expect(dialog.getByTestId('csv-import-result-rejected')).toHaveText(/read\): 0/);
 
+  // Once imported, the file is shown read-only: no picker to swap it out.
+  await expect(dialog.getByTestId('csv-import-file-readonly')).toContainText('.csv');
+  await expect(dialog.locator('input[type="file"]')).toHaveCount(0);
+
   await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(dialog).not.toBeVisible();
 

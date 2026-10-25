@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatCompletionChunk, ChatCompletionParams } from '@wllama/wllama/esm';
 
-import { buildOpenAiChatBody, createOpenAiCompatibleProvider } from './openAiCompatibleProvider';
+import { buildOpenAiChatBody, createOpenAiCompatibleProvider, parseModelIds } from './openAiCompatibleProvider';
 import { parseSseBlock, readSseEvents } from './sse';
 import type { AiProviderProfile } from './types';
 
@@ -181,6 +181,132 @@ describe('createOpenAiCompatibleProvider', () => {
       expect(result.ok).toBe(true);
       expect(fetchImpl).toHaveBeenCalledTimes(2);
     });
+
+    it('returns the sorted, de-duplicated model ids for the drop-down', async () => {
+      const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+        object: 'list',
+        data: [{ id: 'qwen2.5' }, { id: 'llama3.1' }, { id: 'qwen2.5' }, { object: 'model' }],
+      }), { status: 200 }));
+      const provider = createOpenAiCompatibleProvider(profile, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+      const result = await provider.testConnection();
+      expect(result).toMatchObject({ ok: true, message: 'Connected', models: ['llama3.1', 'qwen2.5'] });
+    });
+
+    it('still returns the models when the configured one is not among them', async () => {
+      const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ data: [{ id: 'other' }] }), { status: 200 }));
+      const provider = createOpenAiCompatibleProvider(profile, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+      const result = await provider.testConnection();
+      expect(result.ok).toBe(true);
+      expect(result.models).toEqual(['other']);
+    });
+
+    it('connects without a configured model so the list can be discovered', async () => {
+      const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ data: [{ id: 'llama3.1' }] }), { status: 200 }));
+      const provider = createOpenAiCompatibleProvider({ ...profile, model: '' }, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+      const result = await provider.testConnection();
+      expect(result).toMatchObject({ ok: true, message: 'Connected', models: ['llama3.1'] });
+    });
+
+    it('says so when the server is up but has no models', async () => {
+      const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ data: [] }), { status: 200 }));
+      const provider = createOpenAiCompatibleProvider(profile, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+      const result = await provider.testConnection();
+      expect(result).toMatchObject({ ok: true, models: [] });
+      expect(result.message).toContain('no models');
+    });
+
+    it('does not accept a 200 that is not a model list as an LLM server', async () => {
+      const fetchImpl = vi.fn(async () => new Response('<html>hello</html>', { status: 200, headers: { 'content-type': 'text/html' } }));
+      const provider = createOpenAiCompatibleProvider({ ...profile, model: '' }, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+      const result = await provider.testConnection();
+      expect(result.ok).toBe(false);
+      expect(result.message).toBe('The endpoint did not return a model list');
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('vouches for a server whose /models is not a list by completing a one-token chat', async () => {
+      const fetchImpl = vi.fn(async (url: string) => {
+        if (url.endsWith('/models')) {
+          return new Response('{}', { status: 200 });
+        }
+        return new Response(JSON.stringify({ choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop', logprobs: null }] }), { status: 200 });
+      });
+      const provider = createOpenAiCompatibleProvider(profile, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+      const result = await provider.testConnection();
+      expect(result.ok).toBe(true);
+      expect(result.models).toBeUndefined();
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports an authentication failure instead of a model list', async () => {
+      const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 401 }));
+      const provider = createOpenAiCompatibleProvider(profile, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+      const result = await provider.testConnection();
+      expect(result.ok).toBe(false);
+      expect(result.message).toMatch(/Authentication failed \(HTTP 401\): bad key/);
+      expect(result.models).toBeUndefined();
+    });
+  });
+
+  describe('client certificate (mTLS)', () => {
+    it('sends credentials: include on every request when the profile asks for a client certificate', async () => {
+      const fetchImpl = vi.fn(async (url: string) => {
+        if (url.endsWith('/models')) {
+          return new Response(JSON.stringify({ data: [{ id: 'llama3.1' }] }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop', logprobs: null }] }), { status: 200 });
+      });
+      const provider = createOpenAiCompatibleProvider(
+        { ...profile, kind: 'local_endpoint', useClientCertificate: true },
+        { fetchImpl: fetchImpl as unknown as typeof fetch }
+      );
+
+      await provider.testConnection();
+      await provider.createChatCompletion(params);
+
+      const inits = fetchImpl.mock.calls.map((call) => (call as unknown as [string, RequestInit])[1]);
+      expect(inits).toHaveLength(2);
+      expect(inits.every((init) => init.credentials === 'include')).toBe(true);
+    });
+
+    it('leaves the credentials mode alone by default', async () => {
+      const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ data: [] }), { status: 200 }));
+      const provider = createOpenAiCompatibleProvider(profile, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+      await provider.testConnection();
+      expect((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1]).not.toHaveProperty('credentials');
+    });
+
+    it('explains the credentialed CORS and certificate-store requirements when the connection fails', async () => {
+      const fetchImpl = vi.fn(async () => { throw new TypeError('Failed to fetch'); });
+      const provider = createOpenAiCompatibleProvider(
+        { ...profile, kind: 'local_endpoint', useClientCertificate: true },
+        { fetchImpl: fetchImpl as unknown as typeof fetch }
+      );
+
+      const result = await provider.testConnection();
+      expect(result.ok).toBe(false);
+      expect(result.hint).toMatch(/Access-Control-Allow-Credentials: true/);
+      expect(result.hint).toMatch(/certificate store/);
+    });
+  });
+});
+
+describe('parseModelIds', () => {
+  it('reads OpenAI-style lists and bare arrays, and rejects anything else', () => {
+    expect(parseModelIds({ data: [{ id: 'b' }, { id: 'a' }] })).toEqual(['a', 'b']);
+    expect(parseModelIds(['b', 'a'])).toEqual(['a', 'b']);
+    expect(parseModelIds({ data: [] })).toEqual([]);
+    expect(parseModelIds({})).toBeNull();
+    expect(parseModelIds(null)).toBeNull();
+    expect(parseModelIds('text')).toBeNull();
   });
 });
 

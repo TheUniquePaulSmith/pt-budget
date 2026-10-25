@@ -21,12 +21,15 @@ export class AiProviderRequestError extends Error {
  * almost always means the endpoint refused the cross-origin request, is
  * unreachable, or blocks mixed content. Surface that as a hint.
  */
-export function describeNetworkFailure(baseUrl: string): string {
+export function describeNetworkFailure(baseUrl: string, options: { clientCertificate?: boolean } = {}): string {
   const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(baseUrl);
-  if (isLocal) {
-    return 'The browser could not reach the endpoint. Local servers must allow this origin: for Ollama set OLLAMA_ORIGINS to this app\'s origin, for LM Studio enable CORS in the server settings, for vLLM pass --allowed-origins.';
+  const base = isLocal
+    ? 'The browser could not reach the endpoint. Local servers must allow this origin: for Ollama set OLLAMA_ORIGINS to this app\'s origin, for LM Studio enable CORS in the server settings, for vLLM pass --allowed-origins.'
+    : 'The browser could not reach the endpoint (network error or CORS). The server must send Access-Control-Allow-Origin for this app, and https pages cannot call http endpoints.';
+  if (!options.clientCertificate) {
+    return base;
   }
-  return 'The browser could not reach the endpoint (network error or CORS). The server must send Access-Control-Allow-Origin for this app, and https pages cannot call http endpoints.';
+  return `${base} With a client certificate the server must also send Access-Control-Allow-Credentials: true and an explicit Access-Control-Allow-Origin (not *), and the PFX must be imported into your system certificate store (restart the browser afterwards). Opening the base URL in a new tab shows the certificate prompt or error that fetch hides.`;
 }
 
 export async function readErrorBody(response: Response): Promise<string> {
@@ -69,13 +72,18 @@ export function describeHttpFailure(status: number, body: string): string {
   return `Request failed (HTTP ${status})${detail}`;
 }
 
-export function toTestResult(error: unknown, baseUrl: string, startedAt: number): AiProviderTestResult {
+export function toTestResult(
+  error: unknown,
+  baseUrl: string,
+  startedAt: number,
+  options: { clientCertificate?: boolean } = {}
+): AiProviderTestResult {
   const latencyMs = Math.round(performance.now() - startedAt);
   if (error instanceof AiProviderRequestError) {
     return {
       ok: false,
       message: error.message,
-      hint: error.isNetworkError ? describeNetworkFailure(baseUrl) : undefined,
+      hint: error.isNetworkError ? describeNetworkFailure(baseUrl, options) : undefined,
       latencyMs,
     };
   }
@@ -83,7 +91,7 @@ export function toTestResult(error: unknown, baseUrl: string, startedAt: number)
     return {
       ok: false,
       message: 'Connection failed',
-      hint: describeNetworkFailure(baseUrl),
+      hint: describeNetworkFailure(baseUrl, options),
       latencyMs,
     };
   }

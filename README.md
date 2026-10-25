@@ -62,6 +62,10 @@ Budget Tracker is designed to manage day-to-day finances and longer-running spen
 
 The AI side panel is local-only and does not auto-load a model. Use the `Choose GGUF` button in the Model tab to select a local `.gguf` file from your machine. The picker filters for GGUF files. For split models, select all `.gguf` shard files together; the app sorts the selected files by name before loading them.
 
+In the AI panel's Setup → Local tab you can instead choose **Local endpoint** to chat with an OpenAI-compatible server on your own machine or network (Ollama, LM Studio, vLLM, ...). Enter the base URL (ending in the API version, e.g. `http://localhost:11434/v1`) and an optional API key, then press **Test connection**: the app checks that the server answers like an OpenAI-compatible LLM server and fills the **Model** drop-down with the models it reports. The server must allow this app's origin (CORS).
+
+If the endpoint demands a client certificate (mTLS), install your `.pfx` into the system certificate store (on Windows: double-click it, choose Current User, keep the Personal store, then restart the browser) and turn on **Advanced → Present my client certificate**. A browser cannot read a `.pfx` or attach one to a request itself, so the app only makes the requests credentialed; the server must answer CORS with `Access-Control-Allow-Credentials: true` and an explicit (non-`*`) `Access-Control-Allow-Origin`.
+
 The app serves wllama's wasm asset locally from `public/wllama/wllama.wasm`; no CDN inference path is required. WebGPU is detected at runtime. Multi-threaded wasm may require the host to serve `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers; static export hosting must be configured separately if those headers are needed.
 
 ## 🔒 Data Security & Privacy

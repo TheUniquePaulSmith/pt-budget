@@ -1,0 +1,71 @@
+name: CI
+
+# Lint, unit coverage gate, static build and the Playwright smoke suite for
+# every pull request into the integration branch, and for pushes to it.
+# The full e2e suite (`npm run test:e2e`) stays a local / release-time run:
+# it takes several minutes and exercises the cloud-sync mocks.
+
+on:
+  pull_request:
+    branches: [devel/latest]
+  push:
+    branches: [devel/latest]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, unit coverage, build, e2e smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # transactions.json is gitignored and the committed fixtures are
+      # time-stale, so generate a current-dated set (same flags the e2e docs
+      # prescribe) before anything loads sample data.
+      - name: Generate sample-data fixtures
+        run: node scripts/generate-sample-data.mjs --months=12 --count=130 --seed=review
+
+      - name: Validate fixtures against the schema
+        run: npm run sample-data:validate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests with coverage gate
+        run: npm run test:unit:coverage
+
+      - name: Static export build
+        run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts starts `npm run dev` on localhost:3000 with dummy
+      # cloud client ids; nothing is listening in CI, so it always starts fresh.
+      - name: E2E smoke suite
+        run: npm run test:e2e:smoke
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

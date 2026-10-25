@@ -34,9 +34,25 @@ interface AiToolCallBadgeProps {
   toolCall: AiToolCallRecord;
 }
 
+function badgeLabel(toolCall: AiToolCallRecord): string {
+  switch (toolCall.status) {
+    case 'awaiting-consent':
+      return `Waiting for consent: ${toolCall.name}`;
+    case 'running':
+      return `Running ${toolCall.name}`;
+    case 'denied':
+      return `Denied ${toolCall.name}`;
+    case 'failed':
+      return `Failed ${toolCall.name}`;
+    default:
+      return `Used ${toolCall.name}`;
+  }
+}
+
 export default function AiToolCallBadge({ toolCall }: AiToolCallBadgeProps) {
   const [expanded, setExpanded] = useState(false);
   const failed = toolCall.status === 'failed';
+  const denied = toolCall.status === 'denied';
 
   return (
     <Box>
@@ -44,12 +60,14 @@ export default function AiToolCallBadge({ toolCall }: AiToolCallBadgeProps) {
         size="small"
         variant="outlined"
         clickable
-        color={failed ? 'error' : 'default'}
+        color={failed ? 'error' : denied ? 'warning' : 'default'}
         onClick={() => setExpanded((current) => !current)}
         icon={expanded ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
-        label={`Used ${toolCall.name}`}
+        label={badgeLabel(toolCall)}
         sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}
         aria-expanded={expanded}
+        data-testid={`ai-tool-call-${toolCall.name}`}
+        data-status={toolCall.status}
       />
       <Collapse in={expanded} unmountOnExit>
         <Box
@@ -73,9 +91,9 @@ export default function AiToolCallBadge({ toolCall }: AiToolCallBadgeProps) {
           </Box>
           <Typography
             variant="caption"
-            sx={{ display: 'block', fontWeight: 600, mb: 0.25, color: failed ? 'error.main' : 'text.primary' }}
+            sx={{ display: 'block', fontWeight: 600, mb: 0.25, color: failed || denied ? 'error.main' : 'text.primary' }}
           >
-            {failed ? 'Error' : 'Output'}
+            {failed || denied ? 'Error' : 'Output'}
           </Typography>
           <Box
             component="pre"
@@ -85,10 +103,10 @@ export default function AiToolCallBadge({ toolCall }: AiToolCallBadgeProps) {
               fontSize: '0.72rem',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
-              color: failed ? 'error.main' : 'text.primary',
+              color: failed || denied ? 'error.main' : 'text.primary',
             }}
           >
-            {failed ? toolCall.error ?? 'Unknown error' : formatResult(toolCall.result)}
+            {failed || denied ? toolCall.error ?? 'Unknown error' : formatResult(toolCall.result)}
           </Box>
         </Box>
       </Collapse>

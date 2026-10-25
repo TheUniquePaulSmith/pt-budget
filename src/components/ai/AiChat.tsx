@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -17,21 +17,25 @@ import {
 } from '@mui/material';
 import {
   AutoAwesome,
+  DeleteSweep,
   Send,
 } from '@mui/icons-material';
 
-import { useAiDatabaseToolsSlice } from '@/contexts/useDatabaseSlices';
+import { useAiToolExecutionSlice } from '@/contexts/useAiToolsSlices';
 import { useAiChatRuntimeSlice } from '@/contexts/useWllamaSlices';
 import { runAiChatCompletion } from '@/lib/aiChatService';
+import { logger } from '@/lib/logging';
+import type { AiChatMessage, AiChatTokenUsage, AiToolCallRecord } from '@/types/ai';
+import type { AiConsentDecision, AiConsentRequest } from '@/types/aiTools';
+import AiConsentCard from './AiConsentCard';
 import AiMarkdownMessage from './AiMarkdownMessage';
+import { useAiPanel } from './AiPanelProvider';
+import { useAiProviderContext } from './AiProviderContext';
+import { useAiToolsContext } from './AiToolsContext';
 import AiToolCallBadge from './AiToolCallBadge';
-import type {
-  AiChatMessage,
-  AiChatTokenUsage,
-  AiWriteMode,
-  MerchantRuleSuggestion,
-  TransactionClassificationSuggestion,
-} from '@/types/ai';
+
+const log = logger.child({ component: 'AiChat' });
+const CLOUD_MIN_OUTPUT_TOKENS = 2048;
 
 function createMessageId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -79,6 +83,7 @@ const examplePrompts = [
   'Look at my transaction history and flag likely recurring subscriptions.',
   'Suggest categories for my recent uncategorized transactions.',
   'Which merchants appear most often in my expenses?',
+  'How am I doing against this month\'s budget?',
   'Name the unmatched recurring merchants and propose merchant rules for them.',
 ];
 
@@ -163,33 +168,82 @@ function AnimatedStopIcon() {
   );
 }
 
-interface AiChatProps {
-  writeMode: AiWriteMode;
-  onClassificationSuggestions: (suggestions: TransactionClassificationSuggestion[]) => void;
-  onMerchantRuleSuggestions: (suggestions: MerchantRuleSuggestion[]) => void;
-  onReviewableAutomation: () => void;
+interface PendingConsent {
+  request: AiConsentRequest;
+  resolve: (decision: AiConsentDecision) => void;
 }
 
-export default function AiChat({
-  writeMode,
-  onClassificationSuggestions,
-  onMerchantRuleSuggestions,
-  onReviewableAutomation,
-}: AiChatProps) {
-  const { isModelLoaded, loadedModel, showTokenUsage, maxOutputTokens, createChatCompletion, createChatCompletionStream } = useAiChatRuntimeSlice();
-  const databaseTools = useAiDatabaseToolsSlice();
-  const [messages, setMessages] = useState<AiChatMessage[]>([]);
+interface AiChatProps {
+  onReviewableAutomation?: () => void;
+  onOpenSetup?: () => void;
+}
+
+export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatProps) {
+  const {
+    messages,
+    setMessages,
+    clearTranscript,
+    writeMode,
+    addClassificationSuggestions,
+    addMerchantRuleSuggestions,
+  } = useAiPanel();
+  const { provider, isProviderReady, isLocalProvider, providerLabel } = useAiProviderContext();
+  const { registry, evaluateConsent, consentManager, setToolConsent } = useAiToolsContext();
+  const { showTokenUsage, maxOutputTokens } = useAiChatRuntimeSlice();
+  const databaseToolContext = useAiToolExecutionSlice(writeMode);
   const [input, setInput] = useState('');
   const [running, setRunning] = useState(false);
+  const [pendingConsent, setPendingConsent] = useState<PendingConsent | null>(null);
   const [suggestionsAnchorEl, setSuggestionsAnchorEl] = useState<HTMLElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const pendingConsentRef = useRef<PendingConsent | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const suggestionsOpen = Boolean(suggestionsAnchorEl);
 
-  const databaseToolContext = useMemo(() => ({
-    ...databaseTools,
-    writeMode,
-  }), [databaseTools, writeMode]);
+  const effectiveMaxOutputTokens = useMemo(
+    () => (isLocalProvider ? maxOutputTokens : Math.max(maxOutputTokens, CLOUD_MIN_OUTPUT_TOKENS)),
+    [isLocalProvider, maxOutputTokens]
+  );
+
+  const updateMessage = useCallback(
+    (id: string, updater: (message: AiChatMessage) => AiChatMessage) => {
+      setMessages((current) => current.map((message) => (message.id === id ? updater(message) : message)));
+    },
+    [setMessages]
+  );
+
+  const requestConsent = useCallback(
+    (request: AiConsentRequest) =>
+      new Promise<AiConsentDecision>((resolve) => {
+        const pending: PendingConsent = { request, resolve };
+        pendingConsentRef.current = pending;
+        setPendingConsent(pending);
+      }),
+    []
+  );
+
+  const settleConsent = useCallback(
+    (decision: AiConsentDecision) => {
+      const pending = pendingConsentRef.current;
+      if (!pending) {
+        return;
+      }
+      pendingConsentRef.current = null;
+      setPendingConsent(null);
+
+      const { persistPolicy } = consentManager.applyDecision(pending.request.toolName, decision);
+      if (persistPolicy) {
+        void Promise.resolve()
+          .then(() => setToolConsent(pending.request.toolName, persistPolicy))
+          .catch((err) => {
+            log.error('Failed to persist consent policy', { operation: 'settleConsent', error: err });
+          });
+      }
+      log.info('Consent decision', { operation: 'settleConsent', tool: pending.request.toolName, decision });
+      pending.resolve(decision);
+    },
+    [consentManager, setToolConsent]
+  );
 
   const submitPrompt = async (prompt: string) => {
     const trimmed = prompt.trim();
@@ -197,10 +251,10 @@ export default function AiChat({
       return;
     }
 
-    if (!isModelLoaded) {
+    if (!isProviderReady) {
       setMessages((current) => [
         ...current,
-        createMessage('assistant', 'Load an AI model before asking questions.', undefined, true),
+        createMessage('assistant', 'Load a local model or activate a cloud provider in Setup before asking questions.', undefined, true),
       ]);
       return;
     }
@@ -214,36 +268,45 @@ export default function AiChat({
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
+    const opLog = log.withOperation('chat');
+    opLog.info('Chat turn started', { provider: provider.kind, tools: registry.enabledTools.length });
 
     try {
       const result = await runAiChatCompletion({
         messages: requestMessages,
-        createChatCompletion,
-        createChatCompletionStream,
+        createChatCompletion: provider.createChatCompletion,
+        createChatCompletionStream: provider.createChatCompletionStream,
         databaseToolContext,
+        registry,
+        evaluateConsent,
+        requestConsent,
         abortSignal: abortController.signal,
-        maxOutputTokens,
+        maxOutputTokens: effectiveMaxOutputTokens,
+        onToolCallUpdate: (record: AiToolCallRecord) => {
+          updateMessage(pendingAssistantMessage.id, (message) => {
+            const existing = message.toolCalls ?? [];
+            const index = existing.findIndex((toolCall) => toolCall.id === record.id);
+            const toolCalls = index === -1
+              ? [...existing, record]
+              : existing.map((toolCall, position) => (position === index ? record : toolCall));
+            return { ...message, toolCalls };
+          });
+        },
         onAssistantDelta: (delta) => {
-          setMessages((current) => current.map((message) => {
-            if (message.id !== pendingAssistantMessage.id) {
-              return message;
-            }
-
-            return {
-              ...message,
-              content: message.content === '...' ? delta : `${message.content}${delta}`,
-            };
+          updateMessage(pendingAssistantMessage.id, (message) => ({
+            ...message,
+            content: message.content === '...' ? delta : `${message.content}${delta}`,
           }));
         },
       });
 
       if (result.classificationSuggestions.length > 0) {
-        onClassificationSuggestions(result.classificationSuggestions);
-        onReviewableAutomation();
+        addClassificationSuggestions(result.classificationSuggestions);
+        onReviewableAutomation?.();
       }
       if (result.merchantRuleSuggestions.length > 0) {
-        onMerchantRuleSuggestions(result.merchantRuleSuggestions);
-        onReviewableAutomation();
+        addMerchantRuleSuggestions(result.merchantRuleSuggestions);
+        onReviewableAutomation?.();
       }
       setMessages((current) => current.map((message) => {
         if (message.id === userMessage.id) {
@@ -261,6 +324,7 @@ export default function AiChat({
             ...message,
             content: result.assistantMessage || message.content || 'Done.',
             toolCalls: result.toolCalls,
+            providerLabel,
             tokenUsage: {
               completionTokens: result.tokenUsage.completionTokens,
               totalTokens: result.tokenUsage.totalTokens,
@@ -270,20 +334,23 @@ export default function AiChat({
 
         return message;
       }));
+      opLog.info('Chat turn finished', { toolCalls: result.toolCalls.length });
     } catch (err) {
       if (!abortController.signal.aborted) {
         const errorMessage = err instanceof Error ? err.message : 'AI request failed';
-        setMessages((current) => current.map((message) => message.id === pendingAssistantMessage.id
-          ? { ...message, content: `Error: ${errorMessage}`, isError: true }
-          : message));
+        opLog.error('Chat turn failed', { error: err });
+        updateMessage(pendingAssistantMessage.id, (message) => ({ ...message, content: `Error: ${errorMessage}`, isError: true }));
       } else {
-        setMessages((current) => current.map((message) => message.id === pendingAssistantMessage.id && message.content === '...'
-          ? { ...message, content: 'Stopped.' }
-          : message));
+        updateMessage(pendingAssistantMessage.id, (message) => (
+          message.content === '...' ? { ...message, content: 'Stopped.' } : message
+        ));
       }
     } finally {
       setRunning(false);
       abortControllerRef.current = null;
+      if (pendingConsentRef.current) {
+        settleConsent('deny');
+      }
     }
   };
 
@@ -294,9 +361,12 @@ export default function AiChat({
     }
 
     chatScroll.scrollTop = chatScroll.scrollHeight;
-  }, [messages]);
+  }, [messages, pendingConsent]);
 
   const stopGeneration = () => {
+    if (pendingConsentRef.current) {
+      settleConsent('deny');
+    }
     abortControllerRef.current?.abort();
   };
 
@@ -305,12 +375,24 @@ export default function AiChat({
     void submitPrompt(prompt);
   };
 
+  const inputDisabled = !isProviderReady || running;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
       <Box ref={chatScrollRef} sx={{ p: 2, overflowY: 'auto', overflowX: 'hidden', flex: 1, minHeight: 0 }}>
-        {!isModelLoaded && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Load a model from the Enable AI section to start chatting.
+        {!isProviderReady && (
+          <Alert
+            severity="info"
+            sx={{ mb: 2 }}
+            action={onOpenSetup ? (
+              <Button color="inherit" size="small" onClick={onOpenSetup}>
+                Open Setup
+              </Button>
+            ) : undefined}
+          >
+            {isLocalProvider
+              ? 'Load a local model, or choose a cloud provider, in Setup to start chatting.'
+              : 'The active provider is not ready. Check Setup.'}
           </Alert>
         )}
 
@@ -395,6 +477,12 @@ export default function AiChat({
               </Box>
             );
           })}
+
+          {pendingConsent && (
+            <Box sx={{ alignSelf: 'stretch' }}>
+              <AiConsentCard request={pendingConsent.request} onDecision={settleConsent} />
+            </Box>
+          )}
         </Stack>
       </Box>
 
@@ -414,7 +502,7 @@ export default function AiChat({
             minRows={2}
             maxRows={5}
             fullWidth
-            disabled={!isModelLoaded || running}
+            disabled={inputDisabled}
           />
           <Stack spacing={0.5} alignItems="center">
             <Tooltip title="Prompt suggestions">
@@ -422,7 +510,7 @@ export default function AiChat({
                 <IconButton
                   color="inherit"
                   onClick={(event) => setSuggestionsAnchorEl(event.currentTarget)}
-                  disabled={!isModelLoaded || running}
+                  disabled={inputDisabled}
                   aria-label="Show prompt suggestions"
                   aria-controls={suggestionsOpen ? 'ai-prompt-suggestions-menu' : undefined}
                   aria-haspopup="menu"
@@ -438,11 +526,20 @@ export default function AiChat({
                 <AnimatedStopIcon />
               </IconButton>
             ) : (
-              <IconButton color="primary" onClick={() => void submitPrompt(input)} disabled={!isModelLoaded || !input.trim()} aria-label="Send AI prompt">
+              <IconButton color="primary" onClick={() => void submitPrompt(input)} disabled={!isProviderReady || !input.trim()} aria-label="Send AI prompt">
                 <Send />
               </IconButton>
             )}
           </Stack>
+        </Stack>
+        <Stack direction="row" justifyContent="flex-end" sx={{ mt: 0.5 }}>
+          <Tooltip title="Clear the conversation in every window">
+            <span>
+              <IconButton size="small" onClick={clearTranscript} disabled={running || messages.length === 0} aria-label="Clear conversation">
+                <DeleteSweep fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
         </Stack>
         <Menu
           id="ai-prompt-suggestions-menu"

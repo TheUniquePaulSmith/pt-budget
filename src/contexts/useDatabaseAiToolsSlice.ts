@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react';
 
 import type { DatabaseService } from '../lib/databaseService';
 import type { AiToolPack, AiToolPackInput, AiToolSetting } from '../types/database';
+import type { AiToolPackResultMode } from '../types/aiTools';
 
 /**
  * Provider-domain slice for the AI tool registry and provider configuration
@@ -19,6 +20,11 @@ export interface DatabaseAiToolsSlice {
   listToolSettings: () => Promise<AiToolSetting[]>;
   upsertToolSetting: (setting: AiToolSetting) => Promise<void>;
   deleteToolSetting: (toolName: string) => Promise<void>;
+  executeToolPackSql: (
+    sql: string,
+    params: Array<string | number | boolean | null>,
+    resultMode: AiToolPackResultMode
+  ) => Promise<unknown>;
   getAiProviderConfig: <T = unknown>() => Promise<T | null>;
   setAiProviderConfig: (config: unknown) => Promise<void>;
   clearAiProviderConfig: () => Promise<void>;
@@ -61,6 +67,11 @@ export function useDatabaseAiToolsSlice({
     async (toolName: string) => requireService().deleteToolSetting(toolName),
     [requireService]
   );
+  const executeToolPackSql = useCallback(
+    async (sql: string, params: Array<string | number | boolean | null>, resultMode: AiToolPackResultMode) =>
+      requireService().executePackSql(sql, params, resultMode),
+    [requireService]
+  );
   const getAiProviderConfig = useCallback(
     async <T = unknown,>() => requireService().getProviderConfig<T>(),
     [requireService]
@@ -81,6 +92,7 @@ export function useDatabaseAiToolsSlice({
       listToolSettings,
       upsertToolSetting,
       deleteToolSetting,
+      executeToolPackSql,
       getAiProviderConfig,
       setAiProviderConfig,
       clearAiProviderConfig,
@@ -89,6 +101,7 @@ export function useDatabaseAiToolsSlice({
       clearAiProviderConfig,
       deleteToolPack,
       deleteToolSetting,
+      executeToolPackSql,
       getAiProviderConfig,
       getToolPack,
       listToolPacks,

@@ -47,7 +47,7 @@ describe('AiToolCallBadge', () => {
 
     render(<AiToolCallBadge toolCall={toolCall} />);
 
-    await user.click(screen.getByText('Used apply_transaction_classifications'));
+    await user.click(screen.getByText('Failed apply_transaction_classifications'));
 
     expect(screen.getByText('Error')).toBeInTheDocument();
     expect(screen.getByText('Write mode disabled')).toBeInTheDocument();

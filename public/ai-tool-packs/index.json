@@ -1,0 +1,6 @@
+{
+  "packs": [
+    "spending-insights.json",
+    "transaction-notes.json"
+  ]
+}

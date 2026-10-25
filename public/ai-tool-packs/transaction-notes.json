@@ -1,0 +1,43 @@
+{
+  "id": "transaction-notes",
+  "name": "Transaction notes",
+  "version": "1.0.0",
+  "author": "ptbudget",
+  "description": "Add or clear the note on a transaction and flag it for review.",
+  "tools": [
+    {
+      "name": "set_transaction_note",
+      "description": "Set (or clear with null) the free-text note on a transaction.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "transactionId": { "type": "integer" },
+          "note": { "type": ["string", "null"], "description": "The note text, or null to clear it." }
+        },
+        "required": ["transactionId", "note"],
+        "additionalProperties": false
+      },
+      "crud": "update",
+      "consent": "ask",
+      "sql": "UPDATE transactions SET comment = :note, updated_at = CURRENT_TIMESTAMP WHERE id = :transactionId",
+      "resultMode": "changes"
+    },
+    {
+      "name": "flag_transaction",
+      "description": "Mark a transaction as flagged for review (or unflag it).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "transactionId": { "type": "integer" },
+          "flagged": { "type": "boolean", "description": "true to flag, false to clear the flag." }
+        },
+        "required": ["transactionId", "flagged"],
+        "additionalProperties": false
+      },
+      "crud": "update",
+      "consent": "ask",
+      "sql": "UPDATE transactions SET is_flagged = CASE WHEN :flagged THEN 1 ELSE 0 END, updated_at = CURRENT_TIMESTAMP WHERE id = :transactionId",
+      "resultMode": "changes"
+    }
+  ]
+}

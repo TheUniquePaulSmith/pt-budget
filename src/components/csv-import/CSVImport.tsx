@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -25,39 +25,60 @@ import {
 } from '@mui/material';
 import { CloudUpload, CheckCircle, Error as ErrorIcon, ExpandMore } from '@mui/icons-material';
 import Papa from 'papaparse';
-import { Transaction, Account, AccountCard } from '@/types/database';
+import { Account, AccountCard } from '@/types/database';
 import {
+  applyAccountSelection,
+  applyAccountSkip,
   autoDetectColumnMapping,
+  buildAccountPrefillFromCsv,
   buildDuplicateGroups,
-  calculateImportableTransactions,
   createAccountMatches,
   createHashUpdatesForSelectedDuplicates,
   mapTransactionsFromCSV,
+  summarizeAccountResolutions,
   type CSVAccountMatch as AccountMatch,
   type CSVImportAnalysisResult as AnalysisResult,
   type CSVImportColumnMapping as ColumnMapping,
-  type CSVImportDuplicateGroup as DuplicateGroup,
 } from '@/lib/csvImportService';
 import { useCsvImportSlice } from '@/contexts/useDatabaseSlices';
+import { logger } from '@/lib/logging';
+import { AccountFormDialog, type AccountFormValues } from '@/components/accounts/AccountFormDialog';
+import type { AccountCardInput, AccountFormPrefill } from '@/components/accounts/accountFormModel';
 import InternalDuplicatesResolver from './InternalDuplicatesResolver';
+import CsvAccountMappingRow, { CSV_ACCOUNT_CREATE_VALUE, CSV_ACCOUNT_SKIP_VALUE } from './CsvAccountMappingRow';
+import CsvImportResultSummary, { type CsvImportResult } from './CsvImportResultSummary';
+
+const log = logger.child({ component: 'CSVImport' });
+
+/** Static-mapping Select value that opens the "create account" dialog instead of mapping a column. */
+const NEW_ACCOUNT_OPTION = 'NEW_ACCOUNT';
 
 interface CSVImportProps {
   open: boolean;
   onClose: () => void;
+  /** Fired when the user dismisses the result summary after at least one row was imported. */
   onSuccess: () => void;
 }
 
-interface ImportResult {
-  success: number;
-  failed: number;
-  skipped: number;
-  duplicates: number;
-  errors: string[];
-}
+/** Which flow opened the inline account dialog, so the created id lands in the right place. */
+type CreateAccountTarget =
+  | { kind: 'mapping'; csvValue: string }
+  | { kind: 'direct' };
+
+const EMPTY_MAPPING: ColumnMapping = {
+  accountColumn: '',
+  dateColumn: '',
+  amountColumn: '',
+  descriptionColumn: '',
+  uniqueIdentifierColumn: '',
+};
 
 export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) {
-  const { 
-    accounts, 
+  const {
+    accounts,
+    users,
+    addAccountWithCard,
+    addUser,
     generateTransactionHash,
     truncateImportTable,
     insertIntoTempTable,
@@ -72,27 +93,21 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     getAccountCards,
     runSubscriptionScan,
   } = useCsvImportSlice();
-  
+
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
   const [preview, setPreview] = useState<any[]>([]);
-  const [mapping, setMapping] = useState<ColumnMapping>({
-    accountColumn: '',
-    dateColumn: '',
-    amountColumn: '',
-    descriptionColumn: '',
-    uniqueIdentifierColumn: '',
-  });
+  const [mapping, setMapping] = useState<ColumnMapping>(EMPTY_MAPPING);
   const [accountMatches, setAccountMatches] = useState<AccountMatch[]>([]);
   const [accountCardsByAccountId, setAccountCardsByAccountId] = useState<Record<number, AccountCard[]>>({});
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importResult, setImportResult] = useState<CsvImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [duplicateResolverOpen, setDuplicateResolverOpen] = useState(false);
-  const [excludedTransactionIndices, setExcludedTransactionIndices] = useState<Set<number>>(new Set());
+  const [createTarget, setCreateTarget] = useState<CreateAccountTarget | null>(null);
   const [expandedSections, setExpandedSections] = useState<{
     columnMapping: boolean;
     accountMapping: boolean;
@@ -107,13 +122,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     setFile(null);
     setCsvData([]);
     setPreview([]);
-    setMapping({
-      accountColumn: '',
-      dateColumn: '',
-      amountColumn: '',
-      descriptionColumn: '',
-      uniqueIdentifierColumn: '',
-    });
+    setMapping(EMPTY_MAPPING);
     setAccountMatches([]);
     setLoading(false);
     setImporting(false);
@@ -122,7 +131,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     setImportResult(null);
     setError(null);
     setDuplicateResolverOpen(false);
-    setExcludedTransactionIndices(new Set());
+    setCreateTarget(null);
     setExpandedSections({
       columnMapping: true,
       accountMapping: true,
@@ -131,53 +140,63 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   }, []);
 
   // Reset stale state (e.g. a previous import's success message) whenever the
-  // dialog opens, since the parent may close it on success without routing
-  // through handleClose (see onSuccess in Dashboard).
+  // dialog opens, since the parent may close it without routing through
+  // handleClose.
   useEffect(() => {
     if (open) {
       resetImportState();
     }
   }, [open, resetImportState]);
 
-  // Function to analyze account column and find matching accounts
+  // Function to analyze account column and find matching accounts. Keeps the
+  // user's earlier decisions (a linked or skipped value) when it re-runs after
+  // the accounts collection refreshes, e.g. after creating an account inline.
   const analyzeAccountColumn = useCallback(async (data: any[], accountColumn: string) => {
-    console.debug(`Available accounts in database:`, accounts.map(acc => ({
-      id: acc.id,
-      name: acc.name,
-      type: acc.type
-    })));
-
     const matches = await createAccountMatches(
       data,
       accountColumn,
       async (lastFour) => {
-        console.debug(`Analyzing account column by last four: "${lastFour}"`);
         const matchingAccounts = await findAccountsByLastFour(lastFour);
-        console.debug(
-          `Found ${matchingAccounts.length} matching accounts for last four "${lastFour}":`,
-          matchingAccounts
-        );
+        log.debug('Matched CSV account value by last four', {
+          operation: 'analyzeAccountColumn',
+          lastFour,
+          matches: matchingAccounts.length,
+        });
         return matchingAccounts;
       },
       async (fullNumber) => {
         const matchingAccounts = await findAccountsByFullNumber(fullNumber);
-        console.debug(
-          `Found ${matchingAccounts.length} matching accounts for full number match`,
-          matchingAccounts
-        );
+        log.debug('Matched CSV account value by full number', {
+          operation: 'analyzeAccountColumn',
+          matches: matchingAccounts.length,
+        });
         return matchingAccounts;
-      }
+      },
+      { accounts }
     );
 
-    setAccountMatches(matches.map((match) => ({
-      ...match,
-      selectedCardId: match.selectedAccountId
-        ? accountCardsByAccountId[match.selectedAccountId]?.find((card) => card.last_four === match.lastFourValue)?.id ?? null
-        : null,
-    })));
+    setAccountMatches((previous) =>
+      matches.map((match) => {
+        const earlier = previous.find((candidate) => candidate.csvAccountValue === match.csvAccountValue);
+        if (earlier && (earlier.selectedAccountId || earlier.skipped)) {
+          return {
+            ...match,
+            selectedAccountId: earlier.selectedAccountId,
+            selectedCardId: earlier.selectedCardId ?? null,
+            skipped: earlier.skipped,
+          };
+        }
+        return {
+          ...match,
+          selectedCardId: match.selectedAccountId
+            ? accountCardsByAccountId[match.selectedAccountId]?.find((card) => card.last_four === match.lastFourValue)?.id ?? null
+            : null,
+        };
+      })
+    );
   }, [accounts, accountCardsByAccountId, findAccountsByLastFour, findAccountsByFullNumber]);
 
-  // Preload all account cards when dialog opens
+  // Preload all account cards when dialog opens (and again after an inline creation refreshes accounts)
   useEffect(() => {
     if (open && accounts.length > 0) {
       const loadAllCards = async () => {
@@ -186,8 +205,12 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           try {
             const cards = await getAccountCards(account.id);
             cardsByAccount[account.id] = cards;
-          } catch (error) {
-            console.error(`Failed to load cards for account ${account.id}:`, error);
+          } catch (loadError) {
+            log.error('Failed to load cards for account', {
+              operation: 'loadAccountCards',
+              accountId: account.id,
+              error: loadError,
+            });
             cardsByAccount[account.id] = [];
           }
         }
@@ -247,6 +270,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             csvAccountValue: 'ALL_TRANSACTIONS',
             lastFourValue: '',
             matchingAccounts: [selectedAccount],
+            hintedAccounts: [],
             selectedAccountId: accountId,
             selectedCardId: accountCardsByAccountId[accountId]?.[0]?.id ?? null,
           }]);
@@ -277,21 +301,17 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           header: true,
           skipEmptyLines: true,
           complete: (results) => resolve(results.data),
-          error: (error: any) => reject(error)
+          error: (parseError: any) => reject(parseError)
         });
       });
-      
+
       setCsvData(result);
       setPreview(result.slice(0, 5)); // Show first 5 rows for preview
 
       // Auto-detect common column mappings
       if (result.length > 0) {
         const headers = Object.keys(result[0]);
-        
-        const newMapping = autoDetectColumnMapping(headers);
-        
-        setMapping(newMapping);
-        
+        setMapping(autoDetectColumnMapping(headers));
         // Don't automatically analyze account column - let user select it first
       }
     } catch (err) {
@@ -301,21 +321,86 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     }
   };
 
-  const updateAccountMapping = (csvValue: string, accountId: number) => {
-    setAccountMatches(prev => 
-      prev.map(match => 
-        match.csvAccountValue === csvValue 
-          ? {
-              ...match,
-              selectedAccountId: accountId,
-              selectedCardId: accountCardsByAccountId[accountId]?.find((card) => card.last_four === match.lastFourValue)?.id
-                ?? accountCardsByAccountId[accountId]?.[0]?.id
-                ?? null,
-            }
+  const updateAccountMapping = useCallback((csvValue: string, accountId: number, cardId?: number | null) => {
+    setAccountMatches((prev) => {
+      const match = prev.find((candidate) => candidate.csvAccountValue === csvValue);
+      const resolvedCardId = cardId
+        ?? accountCardsByAccountId[accountId]?.find((card) => card.last_four === match?.lastFourValue)?.id
+        ?? accountCardsByAccountId[accountId]?.[0]?.id
+        ?? null;
+      return applyAccountSelection(prev, csvValue, accountId, resolvedCardId);
+    });
+  }, [accountCardsByAccountId]);
+
+  const skipAccountMapping = useCallback((csvValue: string) => {
+    setAccountMatches((prev) => applyAccountSkip(prev, csvValue));
+  }, []);
+
+  const markAccountUnresolved = useCallback((csvValue: string) => {
+    setAccountMatches((prev) =>
+      prev.map((match) =>
+        match.csvAccountValue === csvValue
+          ? { ...match, selectedAccountId: null, selectedCardId: null, skipped: false }
           : match
       )
     );
+  }, []);
+
+  // --- Inline account creation (mapping rows and the static "New account…" option) ---
+
+  const createPrefill = useMemo<AccountFormPrefill | undefined>(() => {
+    if (!createTarget) return undefined;
+    if (createTarget.kind === 'mapping') {
+      const prefill = buildAccountPrefillFromCsv(createTarget.csvValue, file?.name);
+      return {
+        name: prefill.name,
+        institution: prefill.institution,
+        cardNumberInput: prefill.cardNumberInput,
+      };
+    }
+    return { institution: buildAccountPrefillFromCsv('', file?.name).institution };
+  }, [createTarget, file]);
+
+  const handleStaticAccountColumnChange = (value: string) => {
+    if (value === NEW_ACCOUNT_OPTION) {
+      setCreateTarget({ kind: 'direct' });
+      return;
+    }
+    setMapping({ ...mapping, accountColumn: value });
   };
+
+  const handleAddAccount = useCallback(
+    (account: AccountFormValues, ownerUserId: number, card: AccountCardInput) =>
+      addAccountWithCard(account, ownerUserId, card),
+    [addAccountWithCard]
+  );
+
+  const handleAddUser = useCallback(
+    (displayName: string) => addUser({ display_name: displayName }),
+    [addUser]
+  );
+
+  // `addAccountWithCard` awaits the accounts refresh before resolving, so by the
+  // time this runs the new account is in `accounts` and a DIRECT_ACCOUNT mapping
+  // or a per-value selection resolves against it.
+  const handleAccountCreated = useCallback(({ accountId, cardId }: { accountId: number; cardId: number }) => {
+    if (!createTarget) return;
+    log.info('Created account from CSV import', {
+      operation: 'createAccountInline',
+      accountId,
+      target: createTarget.kind,
+    });
+    if (createTarget.kind === 'mapping') {
+      updateAccountMapping(createTarget.csvValue, accountId, cardId);
+    } else {
+      setMapping((prev) => ({ ...prev, accountColumn: `DIRECT_ACCOUNT:${accountId}` }));
+    }
+    setError(null);
+  }, [createTarget, updateAccountMapping]);
+
+  const handleUpdateAccountUnsupported = useCallback(async () => {
+    throw new Error('Editing accounts is not available during import');
+  }, []);
 
   const toggleSection = (section: 'columnMapping' | 'accountMapping' | 'preview') => {
     setExpandedSections(prev => ({
@@ -341,16 +426,16 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       if (hashUpdates.length > 0) {
         await updateTempTransactionHashes(hashUpdates);
       }
-      
+
       // Delete excluded transactions from temp table
       if (tempIdsToDelete.length > 0) {
         await deleteFromTempTable(tempIdsToDelete);
       }
-      
+
       // Recalculate counts after deletion
       const existingHashes = await checkDuplicateTransactions();
       const duplicateCount = existingHashes.length;
-      
+
       // Calculate remaining transaction count
       const remainingCount = analysisResult.mappableRows - tempIdsToDelete.length;
       const uniqueCount = remainingCount - duplicateCount;
@@ -375,7 +460,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     }
 
     const columnHeaders = Object.keys(csvData[0]);
-    
+
     // Validate that all required columns are mapped and exist in the CSV
     const requiredMappings = [
       { field: 'accountColumn', name: 'Account Number', value: mapping.accountColumn },
@@ -409,7 +494,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     setAnalyzing(true);
     setError(null);
     setAnalysisResult(null);
-    
+
     // Collapse mapping and preview sections when analyzing
     setExpandedSections({
       columnMapping: false,
@@ -428,7 +513,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       const totalRows = csvData.length;
       const mappableRows = mappedTransactions.length;
       const skippedRows = totalRows - mappableRows - rejected.length;
-      
+
       // Insert ALL mapped transactions into temp table
       await truncateImportTable();
       const allTransactions = mappedTransactions.map(m => m.transaction);
@@ -437,7 +522,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         mappedTransactions,
         tempIds
       );
-      
+
       // Check for duplicates against existing database transactions
       const existingHashes = await checkDuplicateTransactions();
       const duplicateCount = existingHashes.length;
@@ -461,12 +546,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       setAnalyzing(false);
     }
   };
+
   const handleImport = async () => {
     if (!csvData.length) {
       setError('No CSV data available');
       return;
     }
-    
+
     // If analysis was not done, require it first
     if (!analysisResult) {
       setError('Please analyze the file first before importing');
@@ -475,6 +561,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
     setImporting(true);
     setError(null);
+    const opLog = log.withOperation('importRows');
 
     try {
       // Record the import run first so every inserted row can point at it
@@ -508,27 +595,28 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         try {
           await runSubscriptionScan();
         } catch (scanError) {
-          console.warn('Post-import subscription scan failed:', scanError);
+          opLog.warn('Post-import subscription scan failed', { error: scanError });
         }
       }
 
-      const totalTransactions = csvData.length;
-      const mappableTransactions = analysisResult.mappableRows;
-      const skippedCount = analysisResult.skippedRows;
-      const duplicateCount = analysisResult.duplicateCount;
-
-      setImportResult({
-        success: successCount,
-        failed: analysisResult.rejectedRows.length,
-        skipped: skippedCount,
-        duplicates: duplicateCount,
-        errors: analysisResult.rejectedRows.map((row) => `Row ${row.rowNumber}: ${row.reason}`),
+      opLog.info('CSV import finished', {
+        batchId,
+        inserted: successCount,
+        duplicates: analysisResult.duplicateCount,
+        skipped: analysisResult.skippedRows,
+        rejected: analysisResult.rejectedRows.length,
       });
 
-      if (successCount > 0) {
-        onSuccess();
-      }
+      // The summary stays on screen; `onSuccess` fires when the user dismisses it.
+      setImportResult({
+        inserted: successCount,
+        duplicates: analysisResult.duplicateCount,
+        skipped: analysisResult.skippedRows,
+        rejected: analysisResult.rejectedRows.length,
+        errors: analysisResult.rejectedRows.map((row) => `Row ${row.rowNumber}: ${row.reason}`),
+      });
     } catch (err) {
+      opLog.error('CSV import failed', { error: err });
       setError(err instanceof Error ? err.message : 'Failed to import transactions');
       // Clean up import table on error
       await truncateImportTable();
@@ -538,31 +626,36 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   };
 
   const handleClose = () => {
+    const importedRows = importResult?.inserted ?? 0;
+
     // Clear import table when closing modal
-    truncateImportTable().catch(err =>
-      console.error('Error clearing import table on close:', err)
+    truncateImportTable().catch((truncateError) =>
+      log.error('Error clearing import table on close', { operation: 'close', error: truncateError })
     );
 
     resetImportState();
+    if (importedRows > 0) {
+      onSuccess();
+    }
     onClose();
   };
 
   const columnOptions = csvData.length > 0 ? Object.keys(csvData[0]) : [];
-  
-  const importableTransactions = calculateImportableTransactions(
-    csvData,
-    mapping,
-    accountMatches
-  );
-    
-  const skippedTransactions = csvData.length - importableTransactions;
-    
-  const canImport = csvData.length > 0 && 
-    mapping.accountColumn && (mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') || columnOptions.includes(mapping.accountColumn)) &&
+
+  const isDirectMapping = mapping.accountColumn.startsWith('DIRECT_ACCOUNT:');
+  const resolution = summarizeAccountResolutions(csvData, mapping, accountMatches);
+  const importableTransactions = resolution.importableRows;
+
+  const canImport = csvData.length > 0 &&
+    mapping.accountColumn && (isDirectMapping || columnOptions.includes(mapping.accountColumn)) &&
     mapping.dateColumn && columnOptions.includes(mapping.dateColumn) &&
     mapping.amountColumn && columnOptions.includes(mapping.amountColumn) &&
     mapping.descriptionColumn && columnOptions.includes(mapping.descriptionColumn) &&
-    importableTransactions > 0;
+    importableTransactions > 0 &&
+    resolution.unresolvedRows === 0;
+
+  const accountDisplayName = (account: Account) =>
+    account.owner_display_name ? `${account.owner_display_name} - ${account.name}` : account.name;
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
@@ -607,9 +700,9 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           )}
 
           {/* Column Mapping */}
-          {csvData.length > 0 && !loading && (
-            <Accordion 
-              expanded={expandedSections.columnMapping} 
+          {csvData.length > 0 && !loading && !importResult && (
+            <Accordion
+              expanded={expandedSections.columnMapping}
               onChange={() => toggleSection('columnMapping')}
             >
               <AccordionSummary expandIcon={<ExpandMore />}>
@@ -622,9 +715,9 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                   <Typography variant="body2" color="text.secondary">
                     Map your CSV columns to transaction fields. All fields are required for proper import.
                   </Typography>
-              
+
               {/* Show validation warning if invalid columns are selected */}
-              {(mapping.accountColumn && !mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') && !columnOptions.includes(mapping.accountColumn)) ||
+              {(mapping.accountColumn && !isDirectMapping && !columnOptions.includes(mapping.accountColumn)) ||
                (mapping.dateColumn && !columnOptions.includes(mapping.dateColumn)) ||
                (mapping.amountColumn && !columnOptions.includes(mapping.amountColumn)) ||
                (mapping.descriptionColumn && !columnOptions.includes(mapping.descriptionColumn)) ? (
@@ -632,19 +725,21 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                   Some selected columns don&apos;t exist in your CSV. Please reselect the correct columns from the dropdown.
                 </Alert>
               ) : null}
-              
+
               <Box display="grid" gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={2} mt={2}>
                 <FormControl fullWidth required>
-                  <InputLabel>Account Number Column</InputLabel>
+                  <InputLabel id="csv-account-column-label">Account Number Column</InputLabel>
                   <Select
+                    labelId="csv-account-column-label"
                     value={mapping.accountColumn}
                     label="Account Number Column"
-                    onChange={(e) => setMapping({ ...mapping, accountColumn: e.target.value })}
+                    onChange={(e) => handleStaticAccountColumnChange(e.target.value)}
+                    SelectDisplayProps={{ 'data-testid': 'csv-account-column-select' } as React.HTMLAttributes<HTMLDivElement>}
                   >
                     {columnOptions.map(col => (
                       <MenuItem key={col} value={col}>{col}</MenuItem>
                     ))}
-                    {columnOptions.length > 0 && accounts.length > 0 && (
+                    {columnOptions.length > 0 && (
                       <MenuItem disabled sx={{ opacity: 0.6, fontWeight: 'bold' }}>
                         ─────── Or Select Account ───────
                       </MenuItem>
@@ -652,15 +747,17 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                     {accounts.map(account => {
                       const cards = accountCardsByAccountId[account.id] || [];
                       const lastFour = cards.length > 0 ? cards[0].last_four : null;
-                      const displayName = account.owner_display_name 
-                        ? `${account.owner_display_name} - ${account.name}` 
-                        : account.name;
                       return (
                         <MenuItem key={`account-${account.id}`} value={`DIRECT_ACCOUNT:${account.id}`}>
-                          {displayName}{lastFour ? ` - ${lastFour}` : ''}
+                          {accountDisplayName(account)}{lastFour ? ` - ${lastFour}` : ''}
                         </MenuItem>
                       );
                     })}
+                    {columnOptions.length > 0 && (
+                      <MenuItem value={NEW_ACCOUNT_OPTION} sx={{ fontStyle: 'italic' }}>
+                        New account…
+                      </MenuItem>
+                    )}
                   </Select>
                 </FormControl>
 
@@ -726,7 +823,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           )}
 
           {/* Account Mapping Helper Message */}
-          {csvData.length > 0 && !mapping.accountColumn && (
+          {csvData.length > 0 && !mapping.accountColumn && !importResult && (
             <Box>
               <Alert severity="info">
                 <Typography variant="body2">
@@ -737,7 +834,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           )}
 
           {/* Direct Account Selection Confirmation */}
-          {csvData.length > 0 && mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') && (
+          {csvData.length > 0 && isDirectMapping && !importResult && (
             <Box>
               <Alert severity="success">
                 <Typography variant="body2">
@@ -745,7 +842,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                     {(() => {
                       const accountId = parseInt(mapping.accountColumn.replace('DIRECT_ACCOUNT:', ''));
                       const account = accounts.find(acc => acc.id === accountId);
-                      return account ? `${account.owner_display_name ? account.owner_display_name + ' - ' : ''}${account.name}` : 'Unknown Account';
+                      return account ? accountDisplayName(account) : 'Unknown Account';
                     })()}
                   </strong>
                 </Typography>
@@ -754,9 +851,9 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           )}
 
           {/* Account Mapping */}
-          {accountMatches.length > 0 && !mapping.accountColumn.startsWith('DIRECT_ACCOUNT:') && (
-            <Accordion 
-              expanded={expandedSections.accountMapping} 
+          {accountMatches.length > 0 && !isDirectMapping && !importResult && (
+            <Accordion
+              expanded={expandedSections.accountMapping}
               onChange={() => toggleSection('accountMapping')}
             >
               <AccordionSummary expandIcon={<ExpandMore />}>
@@ -767,59 +864,60 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
               <AccordionDetails>
                 <Box display="flex" flexDirection="column" gap={2}>
                   <Typography variant="body2" color="text.secondary">
-                    Select which of your accounts corresponds to each account number found in the CSV.
+                    Select which of your accounts corresponds to each account number found in the CSV,
+                    create the account if it is not in the app yet, or skip it.
                   </Typography>
-                
-                  <Box sx={{ mt: 2 }}>
-                    {accountMatches.map((match) => (
-                  <Box key={match.csvAccountValue} sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                    <Box sx={{ mb: 1, fontWeight: 'medium', display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body1" component="span">
-                        CSV Account:
-                      </Typography>
-                      <Chip label={match.csvAccountValue} size="small" />
-                    </Box>
-                    
-                    {match.matchingAccounts.length === 0 ? (
-                      <Alert severity="warning">
-                        No accounts found with matching last 4 digits. This account will be skipped during import.
-                      </Alert>
-                    ) : (
-                      <FormControl fullWidth>
-                        <InputLabel>Select Account</InputLabel>
-                        <Select
-                          value={match.selectedAccountId || ''}
-                          label="Select Account"
-                          onChange={(e) => updateAccountMapping(match.csvAccountValue, e.target.value)}
-                        >
-                          {match.matchingAccounts.map(account => {
-                            const username = account.owner_display_name || '';
-                            const accountInfo = `${account.name} (${account.type})`;
-                            const displayName = username 
-                              ? `${username} - ${accountInfo}` 
-                              : accountInfo;
-                            
-                            return (
-                              <MenuItem key={account.id} value={account.id}>
-                                {displayName}
-                              </MenuItem>
-                            );
-                          })}
-                        </Select>
-                      </FormControl>
-                    )}
+
+                  <Box sx={{ mt: 1 }}>
+                    {accountMatches.map((match, index) => (
+                      <CsvAccountMappingRow
+                        key={match.csvAccountValue}
+                        index={index}
+                        match={match}
+                        accounts={accounts}
+                        rowCount={csvData.filter((row) => String(row[mapping.accountColumn]) === match.csvAccountValue).length}
+                        onSelectAccount={(accountId) => updateAccountMapping(match.csvAccountValue, accountId)}
+                        onSkip={() => skipAccountMapping(match.csvAccountValue)}
+                        onUnresolve={() => markAccountUnresolved(match.csvAccountValue)}
+                        onCreate={() => setCreateTarget({ kind: 'mapping', csvValue: match.csvAccountValue })}
+                      />
+                    ))}
                   </Box>
-                ))}
-                </Box>
+
+                  {/* Row accounting before Analyze: nothing is skipped silently. */}
+                  <Alert
+                    severity={resolution.unresolvedRows > 0 ? 'warning' : resolution.skippedRows > 0 ? 'info' : 'success'}
+                    data-testid="csv-account-resolution-summary"
+                  >
+                    <Typography variant="body2">
+                      {resolution.importableRows} of {resolution.totalRows} rows will be imported
+                      {resolution.skippedRows > 0 && (
+                        <>
+                          {' '}· {resolution.skippedRows} row{resolution.skippedRows === 1 ? '' : 's'} will be skipped
+                          {' '}({resolution.skippedValues.join(', ')})
+                        </>
+                      )}
+                      .
+                    </Typography>
+                    {resolution.unresolvedRows > 0 && (
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        {resolution.unresolvedValues.length === 1
+                          ? `Account "${resolution.unresolvedValues[0]}" is not linked yet`
+                          : `${resolution.unresolvedValues.length} CSV accounts are not linked yet`}
+                        {' '}({resolution.unresolvedRows} row{resolution.unresolvedRows === 1 ? '' : 's'}).
+                        Create or choose an account for each, or pick &quot;Skip this account&quot;, before analyzing.
+                      </Typography>
+                    )}
+                  </Alert>
                 </Box>
               </AccordionDetails>
             </Accordion>
           )}
 
           {/* Data Preview */}
-          {preview.length > 0 && (
-            <Accordion 
-              expanded={expandedSections.preview} 
+          {preview.length > 0 && !importResult && (
+            <Accordion
+              expanded={expandedSections.preview}
               onChange={() => toggleSection('preview')}
             >
               <AccordionSummary expandIcon={<ExpandMore />}>
@@ -921,12 +1019,12 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                     <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', color: 'warning.main' }}>
                       • Internal duplicates in CSV: {analysisResult.internalDuplicates}
                     </Typography>
-                    <Typography 
-                      variant="body2" 
-                      sx={{ 
-                        ml: 2, 
-                        color: 'primary.main', 
-                        textDecoration: 'underline', 
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        ml: 2,
+                        color: 'primary.main',
+                        textDecoration: 'underline',
                         cursor: 'pointer',
                         '&:hover': { color: 'primary.dark' }
                       }}
@@ -946,57 +1044,31 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             </Box>
           )}
 
-          {/* Import Results */}
-          {importResult && (
-            <Box>
-              <Alert 
-                severity={importResult.failed === 0 ? "success" : importResult.success > 0 ? "warning" : "error"}
-                icon={importResult.failed === 0 ? <CheckCircle /> : <ErrorIcon />}
-              >
-                <Typography variant="body2">
-                  Import completed: {importResult.success} successful, {importResult.failed} failed, {importResult.skipped} skipped, {importResult.duplicates} duplicates
-                </Typography>
-              </Alert>
-              
-              {importResult.errors.length > 0 && (
-                <Box mt={2}>
-                  <Typography variant="body2" color="error" gutterBottom>
-                    Errors:
-                  </Typography>
-                  <List dense>
-                    {importResult.errors.map((error, index) => (
-                      <ListItem key={index}>
-                        <ListItemText primary={error} />
-                      </ListItem>
-                    ))}
-                  </List>
-                </Box>
-              )}
-            </Box>
-          )}
+          {/* Import Results: stays visible until the user closes the dialog. */}
+          {importResult && <CsvImportResultSummary result={importResult} fileName={file?.name ?? null} />}
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleClose}>
+        <Button onClick={handleClose} data-testid="csv-import-close">
           {importResult ? 'Close' : 'Cancel'}
         </Button>
         {!importResult && (
           <>
-            <Button 
-              onClick={handleAnalyze} 
-              variant="outlined" 
+            <Button
+              onClick={handleAnalyze}
+              variant="outlined"
               disabled={!canImport || analyzing || importing}
               sx={{ mr: 1 }}
             >
               {analyzing ? 'Analyzing...' : 'Analyze File'}
             </Button>
-            <Button 
-              onClick={handleImport} 
-              variant="contained" 
+            <Button
+              onClick={handleImport}
+              variant="contained"
               disabled={!analysisResult || importing || analyzing}
             >
-              {importing ? 'Importing...' : 
-               analysisResult 
+              {importing ? 'Importing...' :
+               analysisResult
                  ? `Import ${analysisResult.uniqueCount} Transaction${analysisResult.uniqueCount === 1 ? '' : 's'}`
                  : 'Analyze File First'}
             </Button>
@@ -1013,6 +1085,21 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           onResolve={handleResolveDuplicates}
         />
       )}
+
+      {/* Inline account creation (per CSV value, or for the whole file) */}
+      <AccountFormDialog
+        open={createTarget !== null}
+        editingAccount={null}
+        users={users}
+        initialValues={createPrefill}
+        onClose={() => setCreateTarget(null)}
+        onAdd={handleAddAccount}
+        onUpdate={handleUpdateAccountUnsupported}
+        onCreated={handleAccountCreated}
+        onAddUser={handleAddUser}
+      />
     </Dialog>
   );
 }
+
+export { CSV_ACCOUNT_CREATE_VALUE, CSV_ACCOUNT_SKIP_VALUE, NEW_ACCOUNT_OPTION };

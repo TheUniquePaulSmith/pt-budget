@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent } from 'react';
+import React, { type FormEvent } from 'react';
 import {
   Button,
   Dialog,

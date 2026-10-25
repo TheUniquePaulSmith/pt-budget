@@ -3,14 +3,20 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Account } from '../types/database';
 import { DatabaseService } from './databaseService';
 import {
+  applyAccountSelection,
+  applyAccountSkip,
   autoDetectColumnMapping,
+  buildAccountPrefillFromCsv,
   buildDuplicateGroups,
   calculateImportableTransactions,
   createAccountMatches,
   createHashUpdatesForSelectedDuplicates,
+  deriveInstitutionHint,
   detectUniqueIdentifierColumn,
+  findTextHintedAccounts,
   mapTransactionsFromCSV,
   parseCsvAmount,
+  summarizeAccountResolutions,
   type CSVAccountMatch,
   type CSVImportColumnMapping,
 } from './csvImportService';
@@ -66,6 +72,7 @@ describe('csvImportService', () => {
         csvAccountValue: 'Visa ending 1682',
         lastFourValue: '1682',
         matchingAccounts: [accountFixture],
+        hintedAccounts: [],
         selectedAccountId: accountFixture.id,
         selectedCardId: null,
       },
@@ -73,6 +80,7 @@ describe('csvImportService', () => {
         csvAccountValue: 'Unknown 9999',
         lastFourValue: '9999',
         matchingAccounts: [],
+        hintedAccounts: [],
         selectedAccountId: null,
         selectedCardId: null,
       },
@@ -104,6 +112,7 @@ describe('csvImportService', () => {
         csvAccountValue: '4111111111111682',
         lastFourValue: '1682',
         matchingAccounts: [accountA],
+        hintedAccounts: [],
         selectedAccountId: accountA.id,
         selectedCardId: null,
       },
@@ -133,6 +142,7 @@ describe('csvImportService', () => {
         csvAccountValue: '4111111111111682',
         lastFourValue: '1682',
         matchingAccounts: [accountA, accountB],
+        hintedAccounts: [],
         selectedAccountId: null,
         selectedCardId: null,
       },
@@ -153,6 +163,7 @@ describe('csvImportService', () => {
         csvAccountValue: 'ALL_TRANSACTIONS',
         lastFourValue: '',
         matchingAccounts: [accountFixture],
+        hintedAccounts: [],
         selectedAccountId: accountFixture.id,
       },
     ];
@@ -288,12 +299,14 @@ describe('csvImportService', () => {
         csvAccountValue: 'Visa ending 1682',
         lastFourValue: '1682',
         matchingAccounts: [accountFixture],
+        hintedAccounts: [],
         selectedAccountId: accountFixture.id,
       },
       {
         csvAccountValue: 'Unknown 9999',
         lastFourValue: '9999',
         matchingAccounts: [],
+        hintedAccounts: [],
         selectedAccountId: null,
       },
     ];
@@ -323,6 +336,7 @@ describe('csvImportService row parsing', () => {
       csvAccountValue: 'ALL_TRANSACTIONS',
       lastFourValue: '',
       matchingAccounts: [accountFixture],
+      hintedAccounts: [],
       selectedAccountId: accountFixture.id,
     },
   ];
@@ -363,8 +377,8 @@ describe('csvImportService row parsing', () => {
   it('skips unmapped-account rows silently and numbers rejected rows by CSV position', async () => {
     const byAccountMapping: CSVImportColumnMapping = { ...mapping, accountColumn: 'account' };
     const matches: CSVAccountMatch[] = [
-      { csvAccountValue: '1682', lastFourValue: '1682', matchingAccounts: [accountFixture], selectedAccountId: 7 },
-      { csvAccountValue: '9999', lastFourValue: '9999', matchingAccounts: [], selectedAccountId: null },
+      { csvAccountValue: '1682', lastFourValue: '1682', matchingAccounts: [accountFixture], hintedAccounts: [], selectedAccountId: 7 },
+      { csvAccountValue: '9999', lastFourValue: '9999', matchingAccounts: [], hintedAccounts: [], selectedAccountId: null },
     ];
 
     const { mapped, rejected } = await mapTransactionsFromCSV(
@@ -404,5 +418,117 @@ describe('csvImportService row parsing', () => {
     expect(detectUniqueIdentifierColumn(['Date', 'Reference Number', 'Card Holder ID'])).toBe('Reference Number');
     expect(detectUniqueIdentifierColumn(['Date', 'ID', 'Description'])).toBe('ID');
     expect(detectUniqueIdentifierColumn(['Paid', 'Valid', 'Card Holder ID', 'Member ID'])).toBe('');
+  });
+});
+
+describe('csvImportService inline account creation', () => {
+  const huntingtonChecking: Account = {
+    ...accountFixture,
+    id: 11,
+    name: 'Huntington Checking',
+    institution: 'Huntington',
+  };
+  const brokerage: Account = {
+    ...accountFixture,
+    id: 12,
+    name: 'Brokerage',
+    institution: 'Fidelity',
+  };
+  const mapping: CSVImportColumnMapping = {
+    accountColumn: 'account',
+    dateColumn: 'date',
+    amountColumn: 'amount',
+    descriptionColumn: 'description',
+    uniqueIdentifierColumn: '',
+  };
+  const rows = [
+    { account: '8801', date: '2030-02-01', amount: '-12.50', description: 'Coffee' },
+    { account: '8801', date: '2030-02-02', amount: '-30.00', description: 'Fuel' },
+    { account: '7702', date: '2030-02-03', amount: '-99.99', description: 'Skipped' },
+  ];
+
+  it('flags accounts whose name or institution matches the CSV text without auto-selecting them', async () => {
+    const matches = await createAccountMatches(
+      [{ account: 'Huntington Checking 8801' }, { account: 'Visa 1682' }],
+      'account',
+      async (lastFour) => (lastFour === '1682' ? [accountFixture] : []),
+      async () => [],
+      { accounts: [accountFixture, huntingtonChecking, brokerage] }
+    );
+
+    expect(matches[0].matchingAccounts).toEqual([]);
+    expect(matches[0].hintedAccounts).toEqual([huntingtonChecking]);
+    expect(matches[0].selectedAccountId).toBeNull();
+
+    // A card-number match wins and is not repeated as a hint.
+    expect(matches[1].matchingAccounts).toEqual([accountFixture]);
+    expect(matches[1].hintedAccounts).toEqual([]);
+    expect(matches[1].selectedAccountId).toBe(accountFixture.id);
+
+    expect(findTextHintedAccounts('Account ending 1234', [huntingtonChecking])).toEqual([]);
+    expect(findTextHintedAccounts('fidelity brokerage', [huntingtonChecking, brokerage])).toEqual([brokerage]);
+  });
+
+  it('maps rows onto an account created during the import, with its card', async () => {
+    const matches = await createAccountMatches(rows, 'account', async () => [], async () => []);
+    const linked = applyAccountSelection(matches, '8801', 42, 77);
+    const resolved = applyAccountSkip(linked, '7702');
+
+    expect(resolved[0]).toMatchObject({ selectedAccountId: 42, selectedCardId: 77, skipped: false });
+    expect(resolved[1]).toMatchObject({ selectedAccountId: null, selectedCardId: null, skipped: true });
+
+    const hash = vi.fn(async (accountId: number) => `hash-${accountId}`);
+    const { mapped, rejected } = await mapTransactionsFromCSV(rows, mapping, resolved, hash);
+
+    expect(rejected).toEqual([]);
+    expect(mapped.map((item) => item.transaction.account_id)).toEqual([42, 42]);
+    expect(mapped.map((item) => item.transaction.card_id)).toEqual([77, 77]);
+    expect(hash).toHaveBeenCalledWith(42, '2030-02-01', -12.5, 'Coffee');
+  });
+
+  it('accounts for skipped and unresolved rows before analysis', async () => {
+    const matches = await createAccountMatches(rows, 'account', async () => [], async () => []);
+
+    expect(summarizeAccountResolutions(rows, mapping, matches)).toEqual({
+      totalRows: 3,
+      importableRows: 0,
+      skippedRows: 0,
+      unresolvedRows: 3,
+      skippedValues: [],
+      unresolvedValues: ['8801', '7702'],
+    });
+
+    const resolved = applyAccountSkip(applyAccountSelection(matches, '8801', 42, null), '7702');
+    expect(summarizeAccountResolutions(rows, mapping, resolved)).toEqual({
+      totalRows: 3,
+      importableRows: 2,
+      skippedRows: 1,
+      unresolvedRows: 0,
+      skippedValues: ['7702'],
+      unresolvedValues: [],
+    });
+
+    // Direct mapping: every row goes to the chosen account.
+    const direct = { ...mapping, accountColumn: 'DIRECT_ACCOUNT:42' };
+    const directMatches = [
+      { csvAccountValue: 'ALL_TRANSACTIONS', lastFourValue: '', matchingAccounts: [], hintedAccounts: [], selectedAccountId: 42 },
+    ];
+    expect(summarizeAccountResolutions(rows, direct, directMatches).importableRows).toBe(3);
+    expect(calculateImportableTransactions(rows, mapping, resolved)).toBe(2);
+  });
+
+  it('prefills the create-account dialog from the CSV value and the file name', () => {
+    expect(buildAccountPrefillFromCsv('Huntington Checking ending 8801', 'HuntingtonExport-2026.csv')).toEqual({
+      name: 'Huntington Checking',
+      institution: 'Huntington',
+      cardNumberInput: '8801',
+    });
+    expect(buildAccountPrefillFromCsv('123', 'transactions.csv')).toEqual({
+      name: '',
+      institution: '',
+      cardNumberInput: '',
+    });
+    expect(deriveInstitutionHint('chase_activity_2026.csv')).toBe('Chase');
+    expect(deriveInstitutionHint(undefined)).toBe('');
   });
 });

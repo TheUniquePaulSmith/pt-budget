@@ -310,6 +310,31 @@ describe('budget alerts', () => {
     expect(plan.upserts[0].body).toContain('$260.50 of $200.00');
   });
 
+  it('quotes the effective budget and committed spend when carry-over fields are present', () => {
+    const withCarry: BudgetStatus = {
+      ...status,
+      categories: [
+        {
+          category_id: 3,
+          category_name: 'Dining',
+          budgetedAmount: 200,
+          actualExpenses: 300,
+          remaining: -100,
+          isOverBudget: true,
+          // Carry-over extension (BudgetCategoryCarryStatus): $50 surplus carried in, $20 paid by a fund.
+          carriedIn: 50,
+          effectiveBudget: 250,
+          committedSpend: 280,
+          effectiveRemaining: -30,
+        } as BudgetStatus['categories'][number],
+      ],
+    };
+    const plan = planBudgetAlerts(withCarry, '2026-10', [], settings(), TODAY);
+    expect(plan.upserts).toHaveLength(1);
+    expect(plan.upserts[0].body).toBe('Spent $280.00 of $250.00 incl. $50.00 carried in in 2026-10 ($30.00 over).');
+    expect(JSON.parse(plan.upserts[0].payload_json!)).toMatchObject({ budgeted: 250, actual: 280 });
+  });
+
   it('resolves this month’s alerts whose category is back under budget, leaving other months alone', () => {
     const existing = [
       notification({ id: 60, kind: 'alert', type: 'budget_overspend', dedupe_key: 'budget:2026-10:4', source: 'system' }),

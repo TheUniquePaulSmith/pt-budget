@@ -440,18 +440,25 @@ export function planBudgetAlerts(
       const key = budgetDedupeKey(month, category.category_id);
       wantedKeys.add(key);
       const name = category.category_name ?? `Category ${category.category_id}`;
+      // With budget carry-over (schema v3) the category row also carries the
+      // effective budget (plan + carried balance) and committed spend; quote
+      // those when present so the alert matches what the Budget page shows.
+      const budgeted = carryField(category, 'effectiveBudget') ?? category.budgetedAmount;
+      const spent = carryField(category, 'committedSpend') ?? category.actualExpenses;
       const payload: BudgetOverspendPayload = {
         month,
         category_id: category.category_id,
         category_name: name,
-        budgeted: category.budgetedAmount,
-        actual: category.actualExpenses,
+        budgeted,
+        actual: spent,
       };
+      const carried = carryField(category, 'carriedIn');
+      const carriedNote = carried ? ` incl. ${formatCurrency(carried)} carried ${carried > 0 ? 'in' : 'over'}` : '';
       plan.upserts.push({
         kind: 'alert',
         type: 'budget_overspend',
         title: `${name} is over budget`,
-        body: `Spent ${formatCurrency(category.actualExpenses)} of ${formatCurrency(category.budgetedAmount)} in ${month} (${formatCurrency(category.actualExpenses - category.budgetedAmount)} over).`,
+        body: `Spent ${formatCurrency(spent)} of ${formatCurrency(budgeted)}${carriedNote} in ${month} (${formatCurrency(spent - budgeted)} over).`,
         due_date: today,
         recurrence: 'once',
         lead_days: 0,
@@ -472,6 +479,12 @@ export function planBudgetAlerts(
   }
 
   return plan;
+}
+
+/** Optional carry-over figure on a category status row (present once the budgets feature computes it). */
+function carryField(category: BudgetStatus['categories'][number], field: 'effectiveBudget' | 'committedSpend' | 'carriedIn'): number | null {
+  const value = (category as unknown as Record<string, unknown>)[field];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 // ---------------------------------------------------------------------------

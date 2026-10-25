@@ -9,8 +9,7 @@
  *     says they changed);
  *   - run the system-alert scan after the collections load, on the worker's
  *     `database_changed` broadcast (debounced, ignoring the echo of the scan's
- *     own writes), when the page asks for a rescan, and when the tab comes
- *     back into view after a while;
+ *     own writes), and when the page asks for a rescan - nothing else;
  *   - fire OS notifications for newly due rows while a tab is open.
  *
  * Keeping the effects here rather than in the bell means they run even when
@@ -41,10 +40,15 @@ import {
 
 const log = logger.child({ component: 'NotificationsRuntime' });
 
-/** A tab that was hidden for longer than this rescans when it becomes visible again. */
-const VISIBILITY_RESCAN_MS = 30 * 60 * 1000;
-/** How often the published "today" is checked so surfaces roll over at midnight. */
+/** How often the published "today" is checked so surfaces roll over at midnight (no scan). */
 const DAY_TICK_MS = 60 * 1000;
+/**
+ * The shell mounts the runtime in two places (full-screen pages vs. the normal
+ * chrome), so navigating to Settings or the Developer Console remounts it. A
+ * remount within this window of the last scan only re-subscribes; it does not
+ * reload settings or rescan (which would issue worker queries from the new page).
+ */
+const REMOUNT_RELOAD_AFTER_MS = 60 * 1000;
 
 export default function NotificationsRuntime(): null {
   const {
@@ -64,7 +68,6 @@ export default function NotificationsRuntime(): null {
   latest.current = { recurringSeries, runNotificationScan, getNotificationSettings, getNotificationPreferences };
 
   const firedThisSession = useRef(new Set<number>());
-  const lastScanFinishedAt = useRef(0);
 
   // Load settings + switches, then run the first scan. Re-run whenever the
   // settings tab reports a change.
@@ -90,11 +93,12 @@ export default function NotificationsRuntime(): null {
             recurringSeries: latest.current.recurringSeries,
             settings: current.settings,
           });
-          lastScanFinishedAt.current = Date.now();
+          const finishedAt = Date.now();
           setNotificationsView({
             scanning: false,
             lastScan: summary,
-            preferences: { ...getNotificationsView().preferences, lastScanAt: new Date().toISOString() },
+            lastScanFinishedAt: finishedAt,
+            preferences: { ...getNotificationsView().preferences, lastScanAt: new Date(finishedAt).toISOString() },
           });
           return summary.writes;
         } catch (error) {
@@ -127,7 +131,14 @@ export default function NotificationsRuntime(): null {
       }
     };
 
-    void load();
+    const current = getNotificationsView();
+    const recentlyScanned = current.ready && Date.now() - current.lastScanFinishedAt < REMOUNT_RELOAD_AFTER_MS;
+    if (recentlyScanned) {
+      // Remount shortly after a scan: keep what the store has, just listen again.
+      setNotificationsView({ scanning: false });
+    } else {
+      void load();
+    }
     const unsubscribeSettings = onNotificationSettingsChanged(() => {
       void load();
     });
@@ -138,20 +149,10 @@ export default function NotificationsRuntime(): null {
       controller.onDatabaseChanged();
     });
 
-    const onVisibility = () => {
-      if (document.visibilityState !== 'visible') return;
-      const today = todayLocalISO();
-      if (today !== getNotificationsView().today) setNotificationsView({ today });
-      if (Date.now() - lastScanFinishedAt.current > VISIBILITY_RESCAN_MS) void controller.trigger();
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-
+    // Surfaces classify against the published "today"; roll it at midnight.
     const dayTick = window.setInterval(() => {
       const today = todayLocalISO();
-      if (today !== getNotificationsView().today) {
-        setNotificationsView({ today });
-        void controller.trigger();
-      }
+      if (today !== getNotificationsView().today) setNotificationsView({ today });
     }, DAY_TICK_MS);
 
     return () => {
@@ -159,7 +160,6 @@ export default function NotificationsRuntime(): null {
       unsubscribeSettings();
       unsubscribeRescan();
       unsubscribeChanges();
-      document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(dayTick);
       controller.dispose();
     };

@@ -30,6 +30,8 @@ export interface NotificationsView {
   lastError: string | null;
   /** Browser permission for OS notifications, mirrored so the settings tab can show it. */
   osPermission: NotificationPermission | 'unsupported';
+  /** Epoch ms when the last scan finished (0 = never); lets a remounted runtime skip a redundant reload. */
+  lastScanFinishedAt: number;
 }
 
 const DEFAULT_VIEW: NotificationsView = {
@@ -41,6 +43,7 @@ const DEFAULT_VIEW: NotificationsView = {
   lastScan: null,
   lastError: null,
   osPermission: 'unsupported',
+  lastScanFinishedAt: 0,
 };
 
 let state: NotificationsView = { ...DEFAULT_VIEW, today: safeToday() };

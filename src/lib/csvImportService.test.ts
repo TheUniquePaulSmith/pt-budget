@@ -286,6 +286,45 @@ describe('csvImportService', () => {
     ]);
   });
 
+  it('gives every record in a set its own seed when all of them are kept', async () => {
+    const item = (index: number, tempId: number) => ({
+      index,
+      tempId,
+      csvAccountValue: 'Visa ending 1682',
+      lastFourValue: '1682',
+      uniqueIdentifier: undefined,
+      transaction: {
+        date: '2026-04-26',
+        amount: -18,
+        description: 'Museum tickets',
+        account_id: 7,
+        card_id: null,
+        category_id: null,
+        company_id: null,
+        project_id: null,
+        trip_id: null,
+        type: 'expense' as const,
+        transaction_hash: 'hash-a',
+      },
+    });
+    const generateTransactionHash = vi.fn(
+      async (_accountId: number, _date: string, _amount: number, _description: string, seed?: number) =>
+        `hash-seed-${seed ?? 0}`
+    );
+
+    const { hashUpdates, tempIdsToDelete } = await createHashUpdatesForSelectedDuplicates(
+      [{ hash: 'hash-a', transactions: [item(0, 100), item(1, 101), item(2, 102)] }],
+      new Set([0, 1, 2]),
+      generateTransactionHash
+    );
+
+    expect(tempIdsToDelete).toEqual([]);
+    expect(hashUpdates).toEqual([
+      { tempId: 101, newHash: 'hash-seed-1', variationSeed: 1 },
+      { tempId: 102, newHash: 'hash-seed-2', variationSeed: 2 },
+    ]);
+  });
+
   it('calculates how many rows are importable from current mappings', () => {
     const mapping: CSVImportColumnMapping = {
       accountColumn: 'account',

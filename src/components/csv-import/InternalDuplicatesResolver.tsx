@@ -12,6 +12,8 @@ import {
   Alert,
   IconButton,
   Chip,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { CheckCircle, Cancel } from '@mui/icons-material';
@@ -73,6 +75,10 @@ export default function InternalDuplicatesResolver({
     return initial;
   });
 
+  // When on, every row in every set is imported (each gets its own variation seed).
+  // The manual selection is kept untouched underneath so turning this off restores it.
+  const [includeAll, setIncludeAll] = useState(false);
+
   const toggleSelection = useCallback((index: number) => {
     setSelectedIndices(prev => {
       const newSet = new Set(prev);
@@ -85,8 +91,15 @@ export default function InternalDuplicatesResolver({
     });
   }, []);
 
+  const effectiveIndices = useMemo(() => {
+    if (!includeAll) {
+      return selectedIndices;
+    }
+    return new Set(duplicateGroups.flatMap(group => group.transactions.map(item => item.index)));
+  }, [includeAll, selectedIndices, duplicateGroups]);
+
   const handleOk = () => {
-    onResolve(selectedIndices);
+    onResolve(effectiveIndices);
   };
 
   const handleCancel = () => {
@@ -97,7 +110,7 @@ export default function InternalDuplicatesResolver({
     return duplicateGroups.reduce((sum, group) => sum + group.transactions.length, 0);
   }, [duplicateGroups]);
 
-  const selectedCount = selectedIndices.size;
+  const selectedCount = effectiveIndices.size;
   const excludedCount = totalDuplicates - selectedCount;
 
   const columns = useMemo<GridColDef<DuplicateRow>[]>(() => [
@@ -113,6 +126,7 @@ export default function InternalDuplicatesResolver({
         <IconButton
           size="small"
           onClick={() => toggleSelection(params.row.index)}
+          disabled={includeAll}
           color={params.row.isSelected ? 'success' : 'error'}
           title={params.row.isSelected ? 'Exclude from import' : 'Include in import'}
         >
@@ -189,7 +203,7 @@ export default function InternalDuplicatesResolver({
         />
       ),
     },
-  ], [toggleSelection]);
+  ], [toggleSelection, includeAll]);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
@@ -227,13 +241,30 @@ export default function InternalDuplicatesResolver({
             </Typography>
           </Alert>
 
+          <Box sx={{ mb: 3 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={includeAll}
+                  onChange={(event) => setIncludeAll(event.target.checked)}
+                />
+              }
+              label="Include all duplicates"
+            />
+            <Typography variant="body2" color="text.secondary">
+              Import every record in every set as its own transaction, for repeat purchases that are
+              genuinely separate (e.g. two museum tickets bought on one day). Turn off to choose
+              records individually.
+            </Typography>
+          </Box>
+
           {duplicateGroups.map((group, groupIndex) => {
             const rows: DuplicateRow[] = group.transactions.map((item, idx) => {
-              const isSelected = selectedIndices.has(item.index);
+              const isSelected = effectiveIndices.has(item.index);
               // Calculate what variation seed this transaction would get
               const selectedBeforeThis = group.transactions
                 .slice(0, idx + 1)
-                .filter((t, i) => i <= idx && selectedIndices.has(t.index))
+                .filter((t, i) => i <= idx && effectiveIndices.has(t.index))
                 .length - 1;
               return {
                 id: item.index,

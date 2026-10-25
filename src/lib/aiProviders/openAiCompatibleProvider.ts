@@ -55,6 +55,23 @@ export function buildOpenAiChatBody(
   return body;
 }
 
+/**
+ * Extracts the model ids from a `GET /models` body (`{ data: [{ id }] }`, or a
+ * bare array). Returns `null` when the body is not a model list at all, which
+ * is how a plain web server answering 200 gives itself away.
+ */
+export function parseModelIds(body: unknown): string[] | null {
+  const list = Array.isArray(body) ? body : (body as { data?: unknown } | null)?.data;
+  if (!Array.isArray(list)) {
+    return null;
+  }
+
+  const ids = list
+    .map((entry) => (typeof entry === 'string' ? entry : (entry as { id?: unknown } | null)?.id))
+    .filter((id): id is string => typeof id === 'string' && id.trim() !== '');
+  return [...new Set(ids)].sort((a, b) => a.localeCompare(b));
+}
+
 function buildHeaders(apiKey: string | undefined): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (apiKey && apiKey.trim()) {
@@ -94,13 +111,20 @@ async function* parseOpenAiStream(
 /**
  * Provider for any OpenAI-shaped `/chat/completions` endpoint: OpenAI itself,
  * and local Ollama / LM Studio / vLLM servers. Requests go straight from the
- * browser, so the server must allow this origin (CORS).
+ * browser, so the server must allow this origin (CORS). When the profile asks
+ * for a client certificate, requests carry `credentials: 'include'`: that is
+ * what makes the browser present the certificate installed in the system store
+ * on a cross-origin request.
  */
 export function createOpenAiCompatibleProvider(
   profile: AiProviderProfile,
   options: OpenAiCompatibleProviderOptions = {}
 ): AiProvider {
-  const fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
+  const baseFetch: FetchLike = options.fetchImpl ?? ((input, init) => fetch(input, init));
+  const clientCertificate = profile.useClientCertificate === true;
+  const fetchImpl: FetchLike = clientCertificate
+    ? (input, init) => baseFetch(input, { ...init, credentials: 'include' })
+    : baseFetch;
   const baseUrl = normalizeBaseUrl(
     profile.baseUrl,
     profile.kind === 'openai' ? 'https://api.openai.com/v1' : 'http://localhost:11434/v1'
@@ -175,47 +199,78 @@ export function createOpenAiCompatibleProvider(
       return parseOpenAiStream(response, params.abortSignal);
     },
 
+    /**
+     * Validates that the endpoint really is an OpenAI-compatible LLM server
+     * and, when it lists models, returns them for the model drop-down. A bare
+     * 200 is not enough (any web server answers one), so a response that is
+     * not a model list falls back to a one-token completion.
+     */
     async testConnection(): Promise<AiProviderTestResult> {
       const startedAt = performance.now();
+      const elapsedMs = () => Math.round(performance.now() - startedAt);
+
+      // Used when /models cannot vouch for the server: prove it answers chat completions.
+      const verifyWithCompletion = async (): Promise<AiProviderTestResult> => {
+        if (!model) {
+          return {
+            ok: false,
+            message: 'The endpoint did not return a model list',
+            hint: 'Check that the base URL ends with the API version (e.g. …/v1), or enter a model name so the test can use a chat request instead.',
+            latencyMs: elapsedMs(),
+          };
+        }
+        await post({ messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }, false);
+        return { ok: true, message: 'Connected', latencyMs: elapsedMs() };
+      };
+
       try {
         const response = await fetchOrThrow(fetchImpl, `${baseUrl}/models`, {
           method: 'GET',
           headers: buildHeaders(profile.apiKey),
         });
-        const latencyMs = Math.round(performance.now() - startedAt);
+        const latencyMs = elapsedMs();
 
         if (response.ok) {
-          let knowsModel: boolean | null = null;
+          let models: string[] | null = null;
           try {
-            const json = (await response.json()) as { data?: Array<{ id?: string }> };
-            if (Array.isArray(json.data) && model) {
-              knowsModel = json.data.some((entry) => entry.id === model);
-            }
+            models = parseModelIds(await response.json());
           } catch {
-            // Body is optional for the check.
+            // Not JSON: handled below as "not a model list".
           }
-          if (knowsModel === false) {
+          if (models === null) {
+            return await verifyWithCompletion();
+          }
+          if (models.length === 0) {
             return {
               ok: true,
-              message: `Connected, but the server did not list model "${model}"`,
-              hint: 'Check the model name; some servers pull or load models on first use.',
+              message: 'Connected, but the server reports no models',
+              hint: 'Pull or load a model on the server, then test again.',
+              models,
               latencyMs,
             };
           }
-          return { ok: true, message: 'Connected', latencyMs };
+          if (model && !models.includes(model)) {
+            return {
+              ok: true,
+              message: `Connected, but the server did not list model "${model}"`,
+              hint: 'Pick one of the listed models, or check the name; some servers pull or load models on first use.',
+              models,
+              latencyMs,
+            };
+          }
+          return { ok: true, message: 'Connected', models, latencyMs };
         }
 
         if (response.status === 404 || response.status === 405) {
           // No /models route: try a tiny completion instead.
-          await post({ messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }, false);
-          return { ok: true, message: 'Connected', latencyMs: Math.round(performance.now() - startedAt) };
+          return await verifyWithCompletion();
         }
 
         const body = await readErrorBody(response);
         return { ok: false, message: describeHttpFailure(response.status, body), latencyMs };
       } catch (error) {
         log.warn('Provider test failed', { operation: 'testConnection', provider: profile.kind, error });
-        return toTestResult(error, baseUrl, startedAt);
+        return toTestResult(error, baseUrl, startedAt, { clientCertificate });
       }
     },
   };

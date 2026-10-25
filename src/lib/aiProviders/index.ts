@@ -25,6 +25,7 @@ export function createProviderFromProfile(
       return createAnthropicProvider(profile, { fetchImpl: options.fetchImpl });
     case 'openai':
     case 'openai_compatible':
+    case 'local_endpoint':
       return createOpenAiCompatibleProvider(profile, { fetchImpl: options.fetchImpl });
     case 'local':
       if (!options.localRuntime) {

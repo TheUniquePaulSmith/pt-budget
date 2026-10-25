@@ -7,6 +7,8 @@ import {
   AI_PROVIDER_DEFAULT_BASE_URLS,
   AI_PROVIDER_DEFAULT_MODELS,
   AI_PROVIDER_KINDS,
+  type AiCloudProviderKind,
+  type AiProfileKind,
   type AiProviderConfigDocument,
   type AiProviderKind,
   type AiProviderProfile,
@@ -18,12 +20,14 @@ export function createProfileId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `profile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function isCloudKind(kind: AiProviderKind): kind is Exclude<AiProviderKind, 'local'> {
-  return kind !== 'local';
+export function isCloudKind(kind: AiProviderKind): kind is AiCloudProviderKind {
+  return kind !== 'local' && kind !== 'local_endpoint';
 }
 
 export function kindLabel(kind: AiProviderKind): string {
   switch (kind) {
+    case 'local_endpoint':
+      return 'Local endpoint';
     case 'anthropic':
       return 'Anthropic';
     case 'openai':
@@ -35,8 +39,8 @@ export function kindLabel(kind: AiProviderKind): string {
   }
 }
 
-/** Builds a blank cloud profile with the kind's defaults filled in. */
-export function createDefaultProfile(kind: Exclude<AiProviderKind, 'local'>): AiProviderProfile {
+/** Builds a blank profile with the kind's defaults filled in. */
+export function createDefaultProfile(kind: AiProfileKind): AiProviderProfile {
   return {
     id: createProfileId(),
     kind,
@@ -79,6 +83,7 @@ export function normalizeProviderConfig(raw: unknown): AiProviderConfigDocument 
     apiKey: typeof profile.apiKey === 'string' ? profile.apiKey : undefined,
     model: profile.model,
     isActive: profile.isActive === true,
+    ...(profile.useClientCertificate === true ? { useClientCertificate: true } : {}),
   }));
 
   // At most one active profile.
@@ -141,21 +146,27 @@ export interface ProfileValidationResult {
   errors: Partial<Record<'label' | 'baseUrl' | 'apiKey' | 'model', string>>;
 }
 
-export function validateProfile(profile: AiProviderProfile): ProfileValidationResult {
+export interface ValidateProfileOptions {
+  /** Testing a connection can run without a model: it is how the model list is discovered. */
+  requireModel?: boolean;
+}
+
+export function validateProfile(profile: AiProviderProfile, options: ValidateProfileOptions = {}): ProfileValidationResult {
+  const { requireModel = true } = options;
   const errors: ProfileValidationResult['errors'] = {};
 
   if (!profile.label.trim()) {
     errors.label = 'Give the profile a name.';
   }
-  if (!profile.model.trim()) {
+  if (requireModel && !profile.model.trim()) {
     errors.model = 'Enter the model name.';
   }
-  if (profile.kind === 'openai_compatible' || profile.kind === 'openai' || profile.kind === 'anthropic') {
+  if (profile.kind !== 'local') {
     const baseUrl = (profile.baseUrl ?? '').trim();
     if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
       errors.baseUrl = 'The base URL must start with http:// or https://.';
     }
-    if (profile.kind === 'openai_compatible' && !baseUrl) {
+    if ((profile.kind === 'openai_compatible' || profile.kind === 'local_endpoint') && !baseUrl) {
       errors.baseUrl = 'Enter the server base URL (e.g. http://localhost:11434/v1).';
     }
   }

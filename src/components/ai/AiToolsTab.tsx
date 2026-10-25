@@ -2,12 +2,12 @@
 
 /**
  * Tools tab: every registered tool grouped by CRUD class with an enable
- * switch and a consent policy select, pack import/removal, session grants,
- * the global consent bypass (behind a confirmation) and "Reset to safe
- * defaults".
+ * switch and a consent policy select, the per-question tool-call limit, pack
+ * import/removal, session grants, the global consent bypass (behind a
+ * confirmation) and "Reset to safe defaults".
  */
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -32,6 +32,7 @@ import {
 import { Delete, UploadFile } from '@mui/icons-material';
 
 import { AiToolPackError } from '@/lib/aiTools/jsonToolPack';
+import { MAX_TOOL_CALL_LIMIT, MIN_TOOL_CALL_LIMIT, normalizeToolCallLimit } from '@/lib/aiTools/toolCallLimit';
 import type { AiToolConsent } from '@/types/database';
 import { AI_TOOL_CRUDS, type AiResolvedTool, type AiToolCrud } from '@/types/aiTools';
 import { CRUD_COLORS, CRUD_LABELS } from './AiConsentCard';
@@ -112,6 +113,11 @@ export default function AiToolsTab() {
   const [confirmBypass, setConfirmBypass] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [limitDraft, setLimitDraft] = useState(String(tools.toolCallLimit));
+
+  useEffect(() => {
+    setLimitDraft(String(tools.toolCallLimit));
+  }, [tools.toolCallLimit]);
 
   const grouped = useMemo(() => {
     const groups = new Map<AiToolCrud, AiResolvedTool[]>();
@@ -140,6 +146,14 @@ export default function AiToolsTab() {
       }
     } finally {
       setBusy(false);
+    }
+  };
+
+  const commitLimit = () => {
+    const next = normalizeToolCallLimit(limitDraft);
+    setLimitDraft(String(next));
+    if (next !== tools.toolCallLimit) {
+      void run(() => tools.setToolCallLimit(next));
     }
   };
 
@@ -206,6 +220,28 @@ export default function AiToolsTab() {
               : 'Tools set to Ask pause the chat until you allow them.'}
           </Typography>
         </Alert>
+
+        <Box data-testid="ai-tool-call-limit-setting">
+          <TextField
+            size="small"
+            type="number"
+            label="Tool-call limit"
+            value={limitDraft}
+            onChange={(event) => setLimitDraft(event.target.value)}
+            onBlur={commitLimit}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                commitLimit();
+              }
+            }}
+            disabled={busy}
+            inputProps={{ min: MIN_TOOL_CALL_LIMIT, max: MAX_TOOL_CALL_LIMIT, step: 1, 'data-testid': 'ai-tool-call-limit' }}
+            sx={{ width: 160 }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+            Rounds of tool calls the assistant may run for one question ({MIN_TOOL_CALL_LIMIT}–{MAX_TOOL_CALL_LIMIT}). A round can call several tools at once. After the last round it answers from what it found.
+          </Typography>
+        </Box>
 
         {tools.sessionGrants.length > 0 && (
           <Box>

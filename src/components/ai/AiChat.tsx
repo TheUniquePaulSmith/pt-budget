@@ -188,7 +188,7 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
     addMerchantRuleSuggestions,
   } = useAiPanel();
   const { provider, isProviderReady, isLocalProvider, providerLabel } = useAiProviderContext();
-  const { registry, evaluateConsent, consentManager, setToolConsent } = useAiToolsContext();
+  const { registry, evaluateConsent, consentManager, setToolConsent, toolCallLimit } = useAiToolsContext();
   const { showTokenUsage, maxOutputTokens } = useAiChatRuntimeSlice();
   const databaseToolContext = useAiToolExecutionSlice(writeMode);
   const [input, setInput] = useState('');
@@ -281,6 +281,7 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
         evaluateConsent,
         requestConsent,
         abortSignal: abortController.signal,
+        maxToolRounds: toolCallLimit,
         maxOutputTokens: effectiveMaxOutputTokens,
         onToolCallUpdate: (record: AiToolCallRecord) => {
           updateMessage(pendingAssistantMessage.id, (message) => {

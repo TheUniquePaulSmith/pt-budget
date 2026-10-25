@@ -1,5 +1,6 @@
 import type { DatabaseWorkerTransport } from './databaseService';
 import type { AppMetadataService } from './databaseServiceAppMetadata';
+import { normalizeToolCallLimit } from './aiTools/toolCallLimit';
 import { AI_TOOL_QUERIES } from './sqlQueriesAiTools';
 import type { AiToolPack, AiToolPackInput, AiToolSetting } from '../types/database';
 import type { AiToolPackResultMode } from '../types/aiTools';
@@ -12,6 +13,9 @@ type AiToolsTransport = Pick<DatabaseWorkerTransport, 'query'>;
  * localStorage. The document shape is owned by the AI feature.
  */
 export const AI_PROVIDER_CONFIG_KEY = 'ai.provider.config';
+
+/** `app_metadata` key holding the per-question tool-call round limit (a JSON number). */
+export const AI_TOOL_CALL_LIMIT_KEY = 'ai.tools.callLimit';
 
 /**
  * Persistence for the AI tool registry (schema v3): user-imported tool packs,
@@ -92,6 +96,15 @@ export class AiToolsService {
     }
     const changed = await this.worker.query('SELECT changes() AS changes');
     return { changes: Number(changed[0]?.changes ?? 0) };
+  }
+
+  /** Tool-call round limit per question; the default until the user changes it. */
+  async getToolCallLimit(): Promise<number> {
+    return normalizeToolCallLimit(await this.appMetadata.getJson<unknown>(AI_TOOL_CALL_LIMIT_KEY, null));
+  }
+
+  async setToolCallLimit(limit: number): Promise<void> {
+    await this.appMetadata.setJson(AI_TOOL_CALL_LIMIT_KEY, normalizeToolCallLimit(limit));
   }
 
   /** Provider profiles document; `null` until the user configures a provider. */

@@ -36,6 +36,8 @@ export function useAiToolsSlice() {
       listToolSettings: aiTools.listToolSettings,
       upsertToolSetting: aiTools.upsertToolSetting,
       deleteToolSetting: aiTools.deleteToolSetting,
+      getToolCallLimit: aiTools.getToolCallLimit,
+      setToolCallLimit: aiTools.setToolCallLimit,
     }),
     [aiTools, status.isDatabaseLoaded]
   );

@@ -13,6 +13,7 @@ import {
   type AiDatabaseToolResult,
 } from '@/lib/aiDatabaseTools';
 import { executeRegistryToolCall } from '@/lib/aiTools/executeTool';
+import { DEFAULT_TOOL_CALL_LIMIT } from '@/lib/aiTools/toolCallLimit';
 import { createDefaultToolRegistry, type AiToolRegistry } from '@/lib/aiTools/toolRegistry';
 import { logger } from '@/lib/logging';
 import type {
@@ -32,7 +33,13 @@ const SYSTEM_PROMPT = `You are a personal finance assistant for a budget-trackin
 
 When you call suggest_transaction_classifications or propose_merchant_rules, the results are automatically staged in the app's Automation tab for the user to review and apply — do not repeat the full list or a table of the suggestions in your reply. Just briefly state how many suggestions you staged and tell the user to check the Automation tab to review and apply them.`;
 
-const TOOL_LIMIT_MESSAGE = 'I reached the tool-call limit before producing a final answer. Try a narrower question.';
+const TOOL_LIMIT_MESSAGE =
+  'I reached the tool-call limit before producing a final answer. Try a narrower question, or raise the limit in the Tools tab.';
+
+/** Sent once the tool rounds are used up so the model answers instead of asking for more tools. */
+function buildToolLimitNudge(maxToolRounds: number): string {
+  return `You have used all ${maxToolRounds} allowed rounds of tool calls. Do not call any more tools. Answer the question now from the tool results you already have, and say plainly what you could not verify.`;
+}
 const DATABASE_SCHEMA_TIMEOUT_MS = 10000;
 
 const DATABASE_SCHEMA_COLUMNS_QUERY = `
@@ -96,7 +103,8 @@ export interface RunAiChatOptions {
   /** Progress callback for tool-call records (awaiting-consent, running, completed, failed, denied). */
   onToolCallUpdate?: (record: AiToolCallRecord) => void;
   abortSignal?: AbortSignal;
-  maxToolIterations?: number;
+  /** Rounds of tool calls allowed before the model must answer; defaults to the Tools tab default. */
+  maxToolRounds?: number;
   maxOutputTokens?: number;
   onAssistantDelta?: (delta: string) => void;
 }
@@ -265,6 +273,7 @@ async function streamAssistantTurn({
   tokenUsage,
   maxOutputTokens,
   tools,
+  toolChoice,
 }: {
   conversation: ChatCompletionMessage[];
   createChatCompletionStream: (params: ChatCompletionParams) => Promise<AsyncIterable<ChatCompletionChunk>>;
@@ -273,6 +282,7 @@ async function streamAssistantTurn({
   tokenUsage: Required<AiChatTokenUsage>;
   maxOutputTokens: number;
   tools: ChatCompletionTool[];
+  toolChoice: 'auto' | 'none';
 }): Promise<StreamedAssistantTurn> {
   let content = '';
   const toolCallParts = new Map<number, StreamedToolCallPart>();
@@ -284,7 +294,7 @@ async function streamAssistantTurn({
   const stream = await createChatCompletionStream({
     messages: conversation,
     tools,
-    tool_choice: 'auto',
+    tool_choice: toolChoice,
     temperature: 0.2,
     max_tokens: maxOutputTokens,
     timings_per_token: true,
@@ -414,7 +424,7 @@ export async function runAiChatCompletion({
   requestConsent,
   onToolCallUpdate,
   abortSignal,
-  maxToolIterations = 4,
+  maxToolRounds = DEFAULT_TOOL_CALL_LIMIT,
   maxOutputTokens = AI_OUTPUT_LIMIT_PRESETS.medium.tokens,
   onAssistantDelta,
 }: RunAiChatOptions): Promise<AiChatRunResult> {
@@ -438,7 +448,7 @@ export async function runAiChatCompletion({
     tokenUsage,
   });
 
-  const nextAssistantTurn = async (): Promise<AssistantTurn> => {
+  const nextAssistantTurn = async (toolChoice: 'auto' | 'none'): Promise<AssistantTurn> => {
     if (createChatCompletionStream) {
       return streamAssistantTurn({
         conversation,
@@ -448,13 +458,14 @@ export async function runAiChatCompletion({
         tokenUsage,
         maxOutputTokens,
         tools,
+        toolChoice,
       });
     }
 
     const response = await createChatCompletion({
       messages: conversation,
       tools,
-      tool_choice: 'auto',
+      tool_choice: toolChoice,
       temperature: 0.2,
       max_tokens: maxOutputTokens,
       abortSignal,
@@ -471,8 +482,15 @@ export async function runAiChatCompletion({
     };
   };
 
-  for (let iteration = 0; iteration <= maxToolIterations; iteration += 1) {
-    const assistantTurn = await nextAssistantTurn();
+  // `maxToolRounds` rounds may use tools; the turn after the last one is the
+  // model's chance to answer, with tools withheld and a nudge to stop asking.
+  for (let round = 0; ; round += 1) {
+    const mustAnswer = round >= maxToolRounds;
+    if (mustAnswer) {
+      conversation.push({ role: 'user', content: buildToolLimitNudge(maxToolRounds) });
+    }
+
+    const assistantTurn = await nextAssistantTurn(mustAnswer ? 'none' : 'auto');
 
     if (assistantTurn.missingResponse) {
       return finish('The model did not return a response.');
@@ -480,6 +498,12 @@ export async function runAiChatCompletion({
 
     if (assistantTurn.toolCalls.length === 0) {
       return finish(assistantTurn.content);
+    }
+
+    if (mustAnswer) {
+      log.warn('Model kept requesting tools after the limit', { operation: 'runAiChatCompletion', maxToolRounds });
+      onAssistantDelta?.(TOOL_LIMIT_MESSAGE);
+      return finish(TOOL_LIMIT_MESSAGE);
     }
 
     conversation.push({
@@ -511,7 +535,4 @@ export async function runAiChatCompletion({
       });
     }
   }
-
-  onAssistantDelta?.(TOOL_LIMIT_MESSAGE);
-  return finish(TOOL_LIMIT_MESSAGE);
 }

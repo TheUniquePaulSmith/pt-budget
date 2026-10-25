@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { DatabaseService, type DatabaseWorkerTransport } from './databaseService';
-import { AI_PROVIDER_CONFIG_KEY, AiToolsService } from './databaseServiceAiTools';
+import { DEFAULT_TOOL_CALL_LIMIT, MAX_TOOL_CALL_LIMIT } from './aiTools/toolCallLimit';
+import { AI_PROVIDER_CONFIG_KEY, AI_TOOL_CALL_LIMIT_KEY, AiToolsService } from './databaseServiceAiTools';
 import { AppMetadataService } from './databaseServiceAppMetadata';
 import { AI_TOOL_QUERIES } from './sqlQueriesAiTools';
 import { APP_METADATA_QUERIES } from './sqlQueriesAppMetadata';
@@ -96,6 +97,25 @@ describe('AiToolsService', () => {
 
     await service.clearProviderConfig();
     expect(query).toHaveBeenCalledWith(APP_METADATA_QUERIES.DELETE, [AI_PROVIDER_CONFIG_KEY]);
+  });
+
+  it('stores the tool-call limit as a clamped JSON number and defaults when unset or invalid', async () => {
+    const query = createQuerySpy();
+    const service = createService(query);
+
+    await expect(service.getToolCallLimit()).resolves.toBe(DEFAULT_TOOL_CALL_LIMIT);
+
+    await service.setToolCallLimit(12);
+    expect(query).toHaveBeenCalledWith(APP_METADATA_QUERIES.SET, [AI_TOOL_CALL_LIMIT_KEY, '12']);
+
+    await service.setToolCallLimit(500);
+    expect(query).toHaveBeenCalledWith(APP_METADATA_QUERIES.SET, [AI_TOOL_CALL_LIMIT_KEY, String(MAX_TOOL_CALL_LIMIT)]);
+
+    query.mockResolvedValueOnce([{ value: '6' }]);
+    await expect(service.getToolCallLimit()).resolves.toBe(6);
+
+    query.mockResolvedValueOnce([{ value: '"lots"' }]);
+    await expect(service.getToolCallLimit()).resolves.toBe(DEFAULT_TOOL_CALL_LIMIT);
   });
 
   it('is composed into DatabaseService sharing the app metadata service', async () => {

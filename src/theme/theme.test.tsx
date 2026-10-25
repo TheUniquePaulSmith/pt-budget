@@ -9,8 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BUILT_IN_THEME_PRESETS,
   CustomThemeProvider,
+  DESKTOP_DENSITY_QUERY,
+  THEME_DENSITY_STORAGE_KEY,
   THEME_PREFERENCE_STORAGE_KEY,
   createAppTheme,
+  resolveThemeDensity,
   useThemePreferences,
 } from './theme';
 
@@ -88,6 +91,34 @@ describe('createAppTheme', () => {
     expect(theme.palette.mode).toBe('dark');
     expect(theme.palette.background.default).toBe('#0f172a');
   });
+
+  it('applies an explicit density independently of the colour preset', () => {
+    const compactDark = createAppTheme('dark', 'dark', 'compact');
+    const comfortableCompactPreset = createAppTheme('compact', 'light', 'comfortable');
+
+    expect(compactDark.palette.mode).toBe('dark');
+    expect(compactDark.spacing(1)).toBe('7px');
+    expect(compactDark.components?.MuiTextField?.defaultProps).toEqual({ size: 'small' });
+    expect(comfortableCompactPreset.spacing(1)).toBe('8px');
+    expect(comfortableCompactPreset.components?.MuiTextField?.defaultProps).toEqual({});
+  });
+});
+
+describe('resolveThemeDensity', () => {
+  it('uses an explicit preference as-is', () => {
+    expect(resolveThemeDensity('compact', 'light', false)).toBe('compact');
+    expect(resolveThemeDensity('comfortable', 'compact', true)).toBe('comfortable');
+  });
+
+  it('is compact on desktop widths and comfortable below when automatic', () => {
+    expect(resolveThemeDensity('auto', 'light', true)).toBe('compact');
+    expect(resolveThemeDensity('auto', 'light', false)).toBe('comfortable');
+    expect(resolveThemeDensity('auto', 'dark', false)).toBe('comfortable');
+  });
+
+  it('keeps the Compact preset compact everywhere when automatic', () => {
+    expect(resolveThemeDensity('auto', 'compact', false)).toBe('compact');
+  });
 });
 
 describe('CustomThemeProvider', () => {
@@ -108,6 +139,52 @@ describe('CustomThemeProvider', () => {
 
     expect(result.current.availableThemes).toEqual(BUILT_IN_THEME_PRESETS);
     expect(result.current.selectedThemeId).toBe('light');
+    expect(result.current.densityPreference).toBe('auto');
+  });
+
+  it('defaults the automatic density from the viewport width and persists an explicit choice', async () => {
+    // The mock answers every media query with the colour mode; light = not desktop.
+    const { result } = renderHook(() => useThemePreferences(), {
+      wrapper: ThemeWrapper,
+    });
+
+    expect(window.matchMedia).toHaveBeenCalledWith(DESKTOP_DENSITY_QUERY);
+    expect(result.current.density).toBe('comfortable');
+
+    act(() => {
+      result.current.setDensityPreference('compact');
+    });
+
+    await waitFor(() => {
+      expect(result.current.density).toBe('compact');
+      expect(localStorage.getItem(THEME_DENSITY_STORAGE_KEY)).toBe('compact');
+    });
+  });
+
+  it('reads the stored density and follows storage sync from other tabs', async () => {
+    localStorage.setItem(THEME_DENSITY_STORAGE_KEY, 'compact');
+
+    const { result } = renderHook(() => useThemePreferences(), {
+      wrapper: ThemeWrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.density).toBe('compact');
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: THEME_DENSITY_STORAGE_KEY,
+          newValue: 'comfortable',
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(result.current.densityPreference).toBe('comfortable');
+      expect(result.current.density).toBe('comfortable');
+    });
   });
 
   it('reads the stored preference and persists later updates', async () => {

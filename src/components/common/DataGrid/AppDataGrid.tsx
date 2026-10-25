@@ -36,7 +36,9 @@ export function AppDataGrid<R extends GridValidRowModel = any>({
   ...props
 }: AppDataGridProps<R>) {
   const themePreferences = useOptionalThemePreferences();
-  const resolvedDensity = density ?? (themePreferences?.selectedThemeId === 'compact' ? 'compact' : 'standard');
+  // Follows the theme's density dimension (compact on desktop by default) unless
+  // the caller pins a density explicitly.
+  const resolvedDensity = density ?? (themePreferences?.density === 'compact' ? 'compact' : 'standard');
 
   return (
     <Box sx={{ height, width: '100%', minHeight: typeof height === 'number' ? Math.min(height, 240) : 240 }}>

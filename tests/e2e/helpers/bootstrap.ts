@@ -163,10 +163,10 @@ export type AppPageId =
   | 'developer-console';
 
 /**
- * Navigates via the shell's registry-driven controls. Works for the header
- * buttons, the sidebar and the mobile menu alike, because they all carry the
- * same test id; when several are rendered (e.g. a mobile drawer plus a
- * bottom bar) the first visible one is used.
+ * Navigates via the shell's registry-driven controls. Works for the desktop
+ * rail (expanded or collapsed), the phone bottom bar and the phone "More"
+ * sheet alike, because they all carry the same test id; when several are
+ * rendered the first visible one is used.
  */
 export async function navigateToPage(page: Page, id: AppPageId) {
   const controls = page.getByTestId(`nav-${id}`);
@@ -174,13 +174,43 @@ export async function navigateToPage(page: Page, id: AppPageId) {
   for (let index = 0; index < count; index += 1) {
     const control = controls.nth(index);
     if (await control.isVisible().catch(() => false)) {
-      await control.click();
-      return;
+      try {
+        await control.click({ timeout: 10_000 });
+        return;
+      } catch {
+        // The control was inside a "More" sheet that was still sliding shut;
+        // fall through and reopen the sheet.
+      }
     }
   }
-  // Nothing visible: open the mobile menu and retry once.
-  await page.getByRole('button', { name: 'open drawer' }).click();
+  // Nothing visible: on phones the remaining pages live in the "More" sheet.
+  await openMobileMoreSheet(page);
   await controls.first().click();
+}
+
+/** Opens the phone bottom-navigation "More" sheet (no-op when it is already open). */
+export async function openMobileMoreSheet(page: Page) {
+  const sheet = page.getByTestId('mobile-more-sheet');
+  const moreButton = page.getByTestId('nav-more');
+  // `aria-expanded` reflects the shell's state, unlike visibility, which is
+  // still true while the sheet animates shut.
+  if ((await moreButton.getAttribute('aria-expanded')) !== 'true') {
+    await moreButton.click();
+  }
+  await expect(sheet).toBeVisible();
+  await expect(moreButton).toHaveAttribute('aria-expanded', 'true');
+}
+
+/**
+ * Toggles the desktop navigation rail between its expanded (labels) and
+ * collapsed (icons + tooltips) states and returns the new state.
+ */
+export async function toggleSidebar(page: Page): Promise<'expanded' | 'collapsed'> {
+  const rail = page.getByTestId('sidebar-rail');
+  const wasExpanded = (await rail.getAttribute('data-expanded')) === 'true';
+  await page.getByTestId('sidebar-toggle').click();
+  await expect(rail).toHaveAttribute('data-expanded', wasExpanded ? 'false' : 'true');
+  return wasExpanded ? 'collapsed' : 'expanded';
 }
 
 export async function runQuery(page: Page, sql: string) {

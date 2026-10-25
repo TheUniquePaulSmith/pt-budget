@@ -55,7 +55,7 @@ import { EncryptionProgress } from '@/components/setup/EncryptionProgress';
 import NotificationsSettingsTab from '@/components/notifications/NotificationsSettingsTab';
 import DeveloperSettingsTab from '@/components/common/Console/DeveloperSettingsTab';
 import { useSettingsSlice } from '@/contexts/useDatabaseSlices';
-import { ThemePresetId, useThemePreferences } from '@/theme/theme';
+import { ThemeDensityPreference, ThemePresetId, useThemePreferences } from '@/theme/theme';
 import { isDebugMode } from '@/lib/debugMode';
 import type { AutoSyncSnapshot } from '@/lib/cloudAutoSyncScheduler';
 import type { CloudProvider, DatabaseSource } from '@/lib/databaseSourceStorage';
@@ -226,6 +226,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     availableThemes,
     selectedThemeId,
     setSelectedThemeId,
+    density,
+    densityPreference,
+    setDensityPreference,
   } = useThemePreferences();
 
   const handleExportData = async () => {
@@ -992,6 +995,34 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                         );
                       })}
                     </Stack>
+                  </RadioGroup>
+                </FormControl>
+              </Box>
+
+              <Divider />
+
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Density
+                </Typography>
+                <FormControl>
+                  <FormLabel id="theme-density-label">Spacing</FormLabel>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 1 }}>
+                    Automatic uses the compact layout on desktop widths and the comfortable
+                    layout on phones. Currently {density}.
+                  </Typography>
+                  <RadioGroup
+                    row
+                    aria-labelledby="theme-density-label"
+                    name="theme-density"
+                    value={densityPreference}
+                    onChange={(event) =>
+                      setDensityPreference(event.target.value as ThemeDensityPreference)
+                    }
+                  >
+                    <FormControlLabel value="auto" control={<Radio />} label="Automatic" />
+                    <FormControlLabel value="compact" control={<Radio />} label="Compact" />
+                    <FormControlLabel value="comfortable" control={<Radio />} label="Comfortable" />
                   </RadioGroup>
                 </FormControl>
               </Box>

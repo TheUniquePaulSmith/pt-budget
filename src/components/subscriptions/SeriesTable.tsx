@@ -136,6 +136,21 @@ const SeriesTable: React.FC<SeriesTableProps> = ({
       ),
     },
     {
+      field: 'is_autopay',
+      headerName: 'Payment',
+      width: 130,
+      valueGetter: (_, row) => (row.is_autopay ? 'Autopay' : row.due_day ? `Manual, day ${row.due_day}` : 'Manual'),
+      renderCell: (params) => (
+        <Chip
+          label={params.row.is_autopay ? 'Autopay' : params.row.due_day ? `Manual · day ${params.row.due_day}` : 'Manual'}
+          size="small"
+          color={params.row.is_autopay ? 'success' : 'default'}
+          variant="outlined"
+          data-testid={`series-payment-${params.row.id}`}
+        />
+      ),
+    },
+    {
       field: 'transaction_count',
       headerName: 'Charges',
       width: 100,

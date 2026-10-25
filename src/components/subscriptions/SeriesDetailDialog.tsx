@@ -11,7 +11,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   MenuItem,
+  Switch,
   TextField,
   Typography,
   createFilterOptions,
@@ -68,6 +70,8 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
   const [expectedAmount, setExpectedAmount] = useState('');
   const [status, setStatus] = useState<RecurringSeriesStatus>('active');
   const [notes, setNotes] = useState('');
+  const [isAutopay, setIsAutopay] = useState(false);
+  const [dueDay, setDueDay] = useState('');
   const [companyOption, setCompanyOption] = useState<CompanyOption | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
@@ -104,6 +108,8 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
     setExpectedAmount(series.expected_amount != null ? String(series.expected_amount) : '');
     setStatus(series.status);
     setNotes(series.notes || '');
+    setIsAutopay(Boolean(series.is_autopay));
+    setDueDay(series.due_day != null ? String(series.due_day) : '');
     setCompanyOption(
       series.company_id != null ? { id: series.company_id, name: series.company_name || '' } : null
     );
@@ -132,6 +138,12 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
       return;
     }
 
+    const parsedDueDay = dueDay.trim() === '' ? null : Number(dueDay);
+    if (parsedDueDay !== null && (!Number.isInteger(parsedDueDay) || parsedDueDay < 1 || parsedDueDay > 31)) {
+      setError('Due day must be a whole number between 1 and 31');
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -142,6 +154,8 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
         expected_amount: parsedAmount,
         status,
         notes: notes.trim() || null,
+        is_autopay: isAutopay,
+        due_day: parsedDueDay,
       });
       await onSetCompany(
         series.id,
@@ -295,6 +309,33 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
             multiline
             minRows={2}
           />
+          <Box sx={{ flex: '1 1 100%', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={isAutopay}
+                  onChange={(event) => setIsAutopay(event.target.checked)}
+                  slotProps={{ input: { 'data-testid': 'series-autopay-switch' } as React.InputHTMLAttributes<HTMLInputElement> }}
+                />
+              }
+              label="Paid automatically (autopay)"
+            />
+            <TextField
+              label="Due day of month"
+              type="number"
+              value={dueDay}
+              onChange={(event) => setDueDay(event.target.value)}
+              size="small"
+              sx={{ width: 170 }}
+              slotProps={{ htmlInput: { min: 1, max: 31, 'data-testid': 'series-due-day' } }}
+              helperText={isAutopay ? 'Optional' : 'Optional; otherwise the next expected date is used'}
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ flex: '1 1 240px' }}>
+              {isAutopay
+                ? 'Autopay series never raise payment-due alerts.'
+                : 'Bills you pay by hand show a payment-due alert ahead of the due day (lead time in Settings → Notifications).'}
+            </Typography>
+          </Box>
         </Box>
 
         <Typography variant="subtitle1" gutterBottom>

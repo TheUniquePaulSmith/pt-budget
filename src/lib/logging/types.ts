@@ -55,6 +55,8 @@ export interface LogErrorInfo {
 }
 
 export interface LogRecord {
+  /** Primary key once persisted in IndexedDB (newest-first sort key); absent on in-memory records. */
+  seq?: number;
   id: string;
   /** Epoch milliseconds. */
   ts: number;

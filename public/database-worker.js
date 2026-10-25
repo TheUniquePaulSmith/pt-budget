@@ -4,6 +4,112 @@
 //import database schema
 // Note: ES6 imports will be handled dynamically in the initialize method
 
+// ---------------------------------------------------------------------------
+// Logging
+//
+// This is a classic (non-module) worker script, so the structured logger in
+// /database-logger.js is loaded with a dynamic import. The facade below
+// accepts records from the first line of execution, queues them until the
+// module is ready, and then forwards everything — so startup records are
+// never lost. Records land in the shared `ptbudgetapp-logs` IndexedDB store
+// with `source: 'worker'` and are joined to app rows by `correlationId`.
+// ---------------------------------------------------------------------------
+
+class WorkerLogFacade {
+  constructor(shared, context = {}, options = {}) {
+    this.shared = shared;
+    this.context = context;
+    // `debug: false` suppresses trace/debug for this child regardless of the
+    // global level (per-port debug: only tabs that asked see their request
+    // rows at debug level).
+    this.debugEnabled = options.debug !== false;
+    if (!shared.loading) {
+      shared.loading = import('/database-logger.js')
+        .then((module) => {
+          shared.module = module;
+          shared.logger = module.createWorkerLogger({ level: shared.level });
+          for (const [level, message, context] of shared.pending) shared.logger.emit(level, message, context);
+          shared.pending = [];
+        })
+        .catch((error) => {
+          console.error('[DB Worker] Failed to load the worker logger module', error);
+          shared.pending = [];
+          shared.failed = true;
+        });
+    }
+  }
+
+  static create() {
+    return new WorkerLogFacade({ level: 'info', pending: [], logger: null, module: null, loading: null, failed: false });
+  }
+
+  setLevel(level) {
+    this.shared.level = level;
+    if (this.shared.logger) this.shared.logger.setLevel(level);
+  }
+
+  getLevel() {
+    return this.shared.level;
+  }
+
+  child(context, options) {
+    return new WorkerLogFacade(this.shared, { ...this.context, ...context }, {
+      debug: options && options.debug !== undefined ? options.debug : this.debugEnabled,
+    });
+  }
+
+  emit(level, message, context) {
+    if ((level === 'trace' || level === 'debug') && !this.debugEnabled) return;
+    const merged = { ...this.context, ...(context || {}) };
+    if (this.shared.logger) {
+      this.shared.logger.emit(level, message, merged);
+      return;
+    }
+    if (this.shared.failed) {
+      if (level === 'warn' || level === 'error') console[level](`[DB Worker] ${message}`, merged);
+      return;
+    }
+    if (this.shared.pending.length < 2000) this.shared.pending.push([level, message, merged]);
+  }
+
+  trace(message, context) {
+    this.emit('trace', message, context);
+  }
+  debug(message, context) {
+    this.emit('debug', message, context);
+  }
+  info(message, context) {
+    this.emit('info', message, context);
+  }
+  warn(message, context) {
+    this.emit('warn', message, context);
+  }
+  error(message, context) {
+    this.emit('error', message, context);
+  }
+
+  /** The request-scoped context (correlation id = message id, operation = type, tab meta). */
+  requestContext(id, type, meta) {
+    if (this.shared.module) return this.shared.module.requestLogContext(id, type, meta);
+    const context = { component: 'DatabaseWorker' };
+    if (typeof id === 'string' && id !== '') {
+      context.correlationId = id;
+      const separator = id.indexOf(':');
+      if (separator > 0) context.tabId = id.slice(0, separator);
+    }
+    if (typeof type === 'string') context.operation = type;
+    if (meta && typeof meta === 'object') {
+      if (typeof meta.page === 'string') context.page = meta.page;
+      if (typeof meta.component === 'string') context.appComponent = meta.component;
+      if (typeof meta.operation === 'string' && meta.operation !== type) context.appOperation = meta.operation;
+    }
+    return context;
+  }
+
+  flush() {
+    return this.shared.logger ? this.shared.logger.flush() : Promise.resolve();
+  }
+}
 
 class DatabaseWorker {
   constructor() {
@@ -23,8 +129,17 @@ class DatabaseWorker {
     this.ports = new Set();
     this.heartbeatInterval = null;
     this.dbVersion = '1.0.0';
-    this.debugMode = false;
+    // Ports that asked for debug logging (`set_debug` is per-port); the
+    // worker's global level is debug while at least one such port is open.
+    this.debugPorts = new WeakSet();
+    this.debugPortCount = 0;
     this.currentFilename = '/budget-app.db';
+
+    // Structured logger (see WorkerLogFacade). `activeLog` is the request-
+    // scoped child for the queued operation currently executing, so deep
+    // helpers (migrations, pragmas) log under the right correlation id.
+    this.log = WorkerLogFacade.create();
+    this.activeLog = this.log;
 
     // Query processing queue and lock
     this.queryQueue = [];
@@ -160,9 +275,10 @@ class DatabaseWorker {
   // ---------------------------------------------------------------------------
 
   /** Creates a brand-new encrypted database. Fails if one already exists on this device. */
-  async createNewDatabase(password, filename, options) {
+  async createNewDatabase(password, filename, options, requestLog) {
+    const log = requestLog || this.log;
     if (!this.isInitialized) {
-      await this.initialize();
+      await this.initialize(log);
     }
     if (typeof password !== 'string' || password.length === 0) {
       throw new Error('Password must be a non-empty string');
@@ -194,14 +310,16 @@ class DatabaseWorker {
     this.vfs.setKey(pageKey, header.blockSize);
     this.pageKey = pageKey;
     this.encryptionPassword = password;
+    log.info('Encryption header written for a new database');
 
-    return await this.openDatabase(filename, true, options);
+    return await this.openDatabase(filename, true, options, log);
   }
 
   /** Unlocks the existing encrypted database on this device. Rejects on a wrong password without touching the VFS/blocks. */
-  async unlockDatabase(password, filename) {
+  async unlockDatabase(password, filename, requestLog) {
+    const log = requestLog || this.log;
     if (!this.isInitialized) {
-      await this.initialize();
+      await this.initialize(log);
     }
     if (typeof password !== 'string' || password.length === 0) {
       throw new Error('Password must be a non-empty string');
@@ -219,6 +337,7 @@ class DatabaseWorker {
     const pageKey = await enc.derivePageKey(password, enc.hexToBytes(header.pageSalt));
     const isValid = await enc.checkPageKeyVerifier(pageKey, header.verifierIv, header.verifierCiphertext);
     if (!isValid) {
+      log.warn('Unlock rejected: incorrect password');
       throw new Error('Incorrect password');
     }
 
@@ -226,15 +345,16 @@ class DatabaseWorker {
     this.pageKey = pageKey;
     this.encryptionPassword = password;
 
-    return await this.openDatabase(filename, false, {});
+    return await this.openDatabase(filename, false, {}, log);
   }
 
   /** Closes the live connection and forgets the key — the database cannot be read again until unlock_database succeeds. */
-  async lockDatabase() {
+  async lockDatabase(requestLog) {
     await this.closeDatabaseConnection();
     this.vfs?.clearKey();
     this.pageKey = null;
     this.encryptionPassword = null;
+    (requestLog || this.log).info('Database locked');
   }
 
   /**
@@ -243,7 +363,7 @@ class DatabaseWorker {
    * physical offsets, and the VFS's own version/crash-recovery bookkeeping
    * in `metadata` are untouched.
    */
-  async changePassword(oldPassword, newPassword) {
+  async changePassword(oldPassword, newPassword, requestLog) {
     if (typeof newPassword !== 'string' || newPassword.length === 0) {
       throw new Error('New password must be a non-empty string');
     }
@@ -260,6 +380,9 @@ class DatabaseWorker {
     }
 
     return await this.enqueueQuery(async () => {
+      const log = this.activeLog.child({ process: 'change-password' });
+      log.info('Re-encrypting database under a new password...');
+      const startedAt = Date.now();
       const enc = await this.getEncryptionModule();
       const vfsModule = await import('/database-encrypted-vfs.js');
       const { physicalBlockSize, decryptBlock, encryptBlock, formatFilename } = vfsModule;
@@ -313,7 +436,8 @@ class DatabaseWorker {
       this.encryptionPassword = newPassword;
 
       await this.reopenCurrentDatabase();
-    });
+      log.info('Password changed', { durationMs: Date.now() - startedAt });
+    }, requestLog);
   }
 
   // ---------------------------------------------------------------------------
@@ -352,11 +476,12 @@ class DatabaseWorker {
   }
 
   // Initialize WA-SQLite in the worker
-  async initialize() {
+  async initialize(requestLog) {
     if (this.isInitialized) return;
+    const log = (requestLog || this.log).child({ process: 'initialize' });
 
     try {
-      console.log('[DB Worker] Loading WA-SQLite modules...');
+      log.info('Loading WA-SQLite modules...');
       
       // Use dynamic import for ES modules
       const sqliteModule = await import('/wa-sqlite/wa-sqlite-async.mjs');
@@ -371,24 +496,24 @@ class DatabaseWorker {
       const vfsModule = await import('/database-encrypted-vfs.js');
       const { EncryptedIDBBatchAtomicVFS } = vfsModule;
 
-      console.log('[DB Worker] Initializing SQLite WASM module...');
+      log.debug('Initializing SQLite WASM module...');
       const wasmModule = await SQLiteModule();
 
-      console.log('[DB Worker] Creating SQLite API...');
+      log.debug('Creating SQLite API...');
       this.sqlite3 = Factory(wasmModule);
 
-      console.log('[DB Worker] Creating encrypting IDB VFS...');
+      log.debug('Creating encrypting IDB VFS...');
       // Constructed once for the SharedWorker's lifetime — setKey()/clearKey()
       // (called from createNewDatabase/unlockDatabase/lockDatabase) toggle
       // whether it reads/writes ciphertext, but the VFS instance itself is
       // never re-created or re-registered.
       this.vfs = await EncryptedIDBBatchAtomicVFS.create(this.vfsIdbName, wasmModule);
 
-      console.log('[DB Worker] Registering IDB VFS...');
+      log.debug('Registering IDB VFS...');
       this.sqlite3.vfs_register(this.vfs, true);
       
       this.isInitialized = true;
-      console.log('[DB Worker] Initialization complete');
+      log.info('Initialization complete');
       
       this.broadcastMessage({
         type: 'init_complete',
@@ -398,7 +523,7 @@ class DatabaseWorker {
         sqlResponse: null
       });
     } catch (error) {
-      console.error('[DB Worker] Initialization failed:', error);
+      log.error('Initialization failed', { error });
       this.broadcastMessage({
         type: 'init_error',
         isSuccessful: false,
@@ -410,8 +535,9 @@ class DatabaseWorker {
     }
   }
 
-  async createTables(options = {}) {
-    console.info("[DB Worker] Creating database tables...");
+  async createTables(options = {}, requestLog) {
+    const log = requestLog || this.activeLog;
+    log.info('Creating database tables...');
     const {CREATE_TABLES, CREATE_INDEXES, DEFAULT_DATA} = await import('/database-schema.js');
     const { ensureIndexes = true } = options;
 
@@ -431,26 +557,28 @@ class DatabaseWorker {
           // await this.sqlite3.exec(this.db, DEFAULT_DATA.ACCOUNT_CARDS);
 
           if (ensureIndexes) {
-            await this.ensureIndexes(CREATE_INDEXES);
+            await this.ensureIndexes(CREATE_INDEXES, log);
           }
 
-        console.info("[DB Worker] Database tables created successfully");
+        log.info('Database tables created successfully');
       } catch (error) {
-        console.error("[DB Worker] Failed to create tables:", error);
+        log.error('Failed to create tables', { error });
         throw error;
       }
     }
 
-  async ensureIndexes(createIndexes) {
+  async ensureIndexes(createIndexes, requestLog) {
+    const log = requestLog || this.activeLog;
     if (!createIndexes) {
       const { CREATE_INDEXES } = await import('/database-schema.js');
       createIndexes = CREATE_INDEXES;
     }
-    console.info("[DB Worker] Ensuring indexes...");
+    log.info('Ensuring indexes...', { indexCount: createIndexes.length });
+    const startedAt = Date.now();
     for (const sql of createIndexes) {
       await this.sqlite3.exec(this.db, sql);
     }
-    console.info("[DB Worker] Indexes ready");
+    log.info('Indexes ready', { durationMs: Date.now() - startedAt });
   }
 
   // ---------------------------------------------------------------------------
@@ -494,15 +622,21 @@ class DatabaseWorker {
 
   // Applies schema migrations gated by PRAGMA user_version. Must run before
   // ensureIndexes() on existing databases so indexes on migrated tables succeed.
-  async runMigrations() {
+  async runMigrations(requestLog) {
+    const log = (requestLog || this.activeLog).child({ process: 'migration' });
     const { MIGRATIONS } = await import('/database-schema.js');
 
     const currentVersion = await this.readUserVersion();
     const pending = MIGRATIONS.filter((migration) => migration.version > currentVersion)
       .sort((a, b) => a.version - b.version);
     if (pending.length === 0) {
+      log.debug('Schema is current', { userVersion: currentVersion });
       return;
     }
+    log.info('Schema migrations pending', {
+      userVersion: currentVersion,
+      targetVersions: pending.map((migration) => migration.version),
+    });
 
     // Table rebuilds DROP a parent table; with foreign keys on, that would
     // cascade-delete every child row (e.g. transaction_series_links). PRAGMA
@@ -515,7 +649,7 @@ class DatabaseWorker {
     }
     try {
       for (const migration of pending) {
-        await this.applyMigration(migration);
+        await this.applyMigration(migration, log);
       }
     } finally {
       if (foreignKeysWereOn) {
@@ -526,12 +660,14 @@ class DatabaseWorker {
 
   // One migration = one transaction: every op, the integrity check and the
   // version stamp commit together or not at all.
-  async applyMigration(migration) {
+  async applyMigration(migration, requestLog) {
+    const log = (requestLog || this.activeLog).child({ process: 'migration' });
     const targetVersion = Number(migration.version);
     if (!Number.isInteger(targetVersion) || targetVersion <= 0) {
       throw new Error(`[DB Worker] Invalid migration version: ${migration.version}`);
     }
-    console.info(`[DB Worker] Applying schema migration ${targetVersion}...`);
+    log.info(`Applying schema migration ${targetVersion}...`, { targetVersion });
+    const startedAt = Date.now();
 
     const violationsBefore = await this.readForeignKeyViolations();
     await this.sqlite3.exec(this.db, 'BEGIN IMMEDIATE');
@@ -556,12 +692,12 @@ class DatabaseWorker {
       try {
         await this.sqlite3.exec(this.db, 'ROLLBACK');
       } catch (rollbackError) {
-        console.error('[DB Worker] Failed to roll back schema migration:', rollbackError);
+        log.error('Failed to roll back schema migration', { targetVersion, error: rollbackError });
       }
-      console.error(`[DB Worker] Schema migration ${targetVersion} failed:`, error);
+      log.error(`Schema migration ${targetVersion} failed`, { targetVersion, error });
       throw error;
     }
-    console.info(`[DB Worker] Schema migration ${targetVersion} applied`);
+    log.info(`Schema migration ${targetVersion} applied`, { targetVersion, durationMs: Date.now() - startedAt });
   }
 
   async runMigrationOp(op) {
@@ -695,18 +831,22 @@ class DatabaseWorker {
       updates,
       false
     );
-    console.info(`[DB Worker] Rehashed ${updates.length} transaction(s)`);
+    this.activeLog.info(`Rehashed ${updates.length} transaction(s)`, { process: 'migration', count: updates.length });
   }
 
   // Queue management for sequential query processing
-  async enqueueQuery(queryFunction) {
+  // `log` is the request-scoped logger for the operation; it becomes
+  // `this.activeLog` while the item executes (the queue runs one item at a
+  // time, so nested helpers can read it without threading it through).
+  async enqueueQuery(queryFunction, log) {
     return new Promise((resolve, reject) => {
       this.queryQueue.push({
         execute: queryFunction,
+        log: log || this.log,
         resolve,
         reject
       });
-      
+
       this.processQueue();
     });
   }
@@ -720,12 +860,15 @@ class DatabaseWorker {
 
     while (this.queryQueue.length > 0) {
       const queryItem = this.queryQueue.shift();
-      
+      this.activeLog = queryItem.log;
+
       try {
         const result = await queryItem.execute();
         queryItem.resolve(result);
       } catch (error) {
         queryItem.reject(error);
+      } finally {
+        this.activeLog = this.log;
       }
     }
 
@@ -749,14 +892,16 @@ class DatabaseWorker {
     await this.sqlite3.exec(this.db, 'PRAGMA synchronous=NORMAL');
   }
 
-  async openDatabase(filename = '/budget-app.db', isNew = false, options = {}) {
+  async openDatabase(filename = '/budget-app.db', isNew = false, options = {}, requestLog) {
+    const log = requestLog || this.activeLog;
     if (!this.isInitialized) {
-      await this.initialize();
+      await this.initialize(log);
     }
 
     try {
       const { deferIndexes = false } = options;
-      console.log(`[DB Worker] Opening database: ${filename}`);
+      const startedAt = Date.now();
+      log.info(`Opening database: ${filename}`, { filename, isNew, deferIndexes });
       this.currentFilename = filename;
       
       this.db = await this.sqlite3.open_v2(
@@ -769,7 +914,7 @@ class DatabaseWorker {
         throw new Error('Failed to open database');
       }
 
-      console.log(`[DB Worker] Database opened successfully with handle: ${this.db}`);
+      log.debug('Database handle opened', { handle: this.db });
       this.isConnected = true;
 
       if (isNew) {
@@ -793,7 +938,7 @@ class DatabaseWorker {
 
       if (isNew) {
         // Create database tables
-        await this.createTables({ ensureIndexes: !deferIndexes });
+        await this.createTables({ ensureIndexes: !deferIndexes }, log);
 
         // A fresh database already has the current shape, so stamp the version
         // directly instead of replaying migrations written for older shapes.
@@ -801,13 +946,13 @@ class DatabaseWorker {
         await this.sqlite3.exec(this.db, `PRAGMA user_version = ${Number(SCHEMA_VERSION)}`);
       } else {
         // Migrations must run before indexes so indexes on new tables succeed
-        await this.runMigrations();
+        await this.runMigrations(log);
 
         // Ensure indexes exist on existing databases (idempotent)
-        await this.ensureIndexes();
+        await this.ensureIndexes(undefined, log);
       }
 
-      
+      log.info('Database opened', { filename, isNew, durationMs: Date.now() - startedAt });
       return {
         type: 'database_opened',
         isSuccessful: true,
@@ -816,7 +961,7 @@ class DatabaseWorker {
         sqlResponse: { filename, isNew, deferIndexes }
       };
     } catch (error) {
-      console.error('[DB Worker] Failed to open database:', error);
+      log.error('Failed to open database', { filename, isNew, error });
       this.isConnected = false;
       return {
         type: 'database_error',
@@ -828,13 +973,15 @@ class DatabaseWorker {
     }
   }
 
-  async executeQuery(sql, parameters = []) {
+  async executeQuery(sql, parameters = [], requestLog) {
     // Queue the query operation to prevent concurrent access. The
     // connectivity check happens inside the queued task (not before
     // enqueueing) so a query that arrives while an export/import is
     // mid-flight waits its turn instead of failing immediately.
     return await this.enqueueQuery(async () => {
+      const log = this.activeLog;
       if (!this.isConnected || !this.db) {
+        log.warn('Query rejected: database not connected', { sql });
         return {
           type: 'query_error',
           isSuccessful: false,
@@ -846,6 +993,7 @@ class DatabaseWorker {
 
       try {
         const results = [];
+        const startedAt = Date.now();
 
         // Prepare the statement if parameters are provided
         if (parameters.length > 0) {
@@ -867,9 +1015,18 @@ class DatabaseWorker {
         }
 
         const { isWriteSql } = await this.getSqlClassifier();
-        if (isWriteSql(sql)) {
+        const isWrite = isWriteSql(sql);
+        if (isWrite) {
           this.notifyDatabaseChanged();
         }
+
+        log.debug('Query executed', {
+          sql,
+          parameterCount: parameters.length,
+          rowCount: results.length,
+          isWrite,
+          durationMs: Date.now() - startedAt,
+        });
 
         return {
           type: 'query_success',
@@ -879,28 +1036,28 @@ class DatabaseWorker {
           sqlResponse: { results, sql, parameters }
         };
       } catch (error) {
-        console.error('[DB Worker] Query execution failed:', error);
-        console.error('[DB Worker] Failed SQL:', sql);
-        console.error('[DB Worker] Parameters:', parameters);
+        log.error('Query execution failed', { sql, parameters, error });
         return {
           type: 'query_error',
           isSuccessful: false,
           dbStatus: 'connected',
           version: this.dbVersion,
-          sqlResponse: { 
-            error: error.message, 
-            sql, 
+          sqlResponse: {
+            error: error.message,
+            sql,
             parameters,
-            stackTrace: error.stack 
+            stackTrace: error.stack
           }
         };
       }
-    });
+    }, requestLog);
   }
 
-  async executeBatchQuery(sql, parameterSets = [], options = {}) {
+  async executeBatchQuery(sql, parameterSets = [], options = {}, requestLog) {
     return await this.enqueueQuery(async () => {
+      const log = this.activeLog;
       if (!this.isConnected || !this.db) {
+        log.warn('Batch query rejected: database not connected', { sql });
         return {
           type: 'batch_query_error',
           isSuccessful: false,
@@ -912,6 +1069,7 @@ class DatabaseWorker {
 
       const useTransaction = options.useTransaction !== false;
       const collectResults = options.collectResults === true;
+      const startedAt = Date.now();
 
       try {
         if (!Array.isArray(parameterSets) || parameterSets.length === 0) {
@@ -946,7 +1104,7 @@ class DatabaseWorker {
             try {
               await this.sqlite3.exec(this.db, 'ROLLBACK');
             } catch (rollbackError) {
-              console.error('[DB Worker] Failed to roll back batch query:', rollbackError);
+              log.error('Failed to roll back batch query', { sql, error: rollbackError });
             }
           }
 
@@ -954,9 +1112,18 @@ class DatabaseWorker {
         }
 
         const { isWriteSql } = await this.getSqlClassifier();
-        if (isWriteSql(sql)) {
+        const isWrite = isWriteSql(sql);
+        if (isWrite) {
           this.notifyDatabaseChanged();
         }
+
+        log.debug('Batch query executed', {
+          sql,
+          parameterSetCount: parameterSets.length,
+          useTransaction,
+          isWrite,
+          durationMs: Date.now() - startedAt,
+        });
 
         return {
           type: 'batch_query_success',
@@ -970,8 +1137,7 @@ class DatabaseWorker {
           }
         };
       } catch (error) {
-        console.error('[DB Worker] Batch query execution failed:', error);
-        console.error('[DB Worker] Failed SQL:', sql);
+        log.error('Batch query execution failed', { sql, parameterSetCount: parameterSets.length, error });
 
         return {
           type: 'batch_query_error',
@@ -985,7 +1151,7 @@ class DatabaseWorker {
           }
         };
       }
-    });
+    }, requestLog);
   }
 
   bindParameters(stmt, parameters = []) {
@@ -1104,12 +1270,14 @@ class DatabaseWorker {
     return results;
   }
 
-  async executeCommand(sql) {
+  async executeCommand(sql, requestLog) {
     // Queue the command operation to prevent concurrent access. The
     // connectivity check happens inside the queued task, matching
     // executeQuery/executeBatchQuery.
     return await this.enqueueQuery(async () => {
+      const log = this.activeLog;
       if (!this.isConnected || !this.db) {
+        log.warn('Command rejected: database not connected', { sql });
         return {
           type: 'command_error',
           isSuccessful: false,
@@ -1120,12 +1288,16 @@ class DatabaseWorker {
       }
 
       try {
+        const startedAt = Date.now();
         await this.sqlite3.exec(this.db, sql);
 
         const { isWriteSql } = await this.getSqlClassifier();
-        if (isWriteSql(sql)) {
+        const isWrite = isWriteSql(sql);
+        if (isWrite) {
           this.notifyDatabaseChanged();
         }
+
+        log.debug('Command executed', { sql, isWrite, durationMs: Date.now() - startedAt });
 
         return {
           type: 'command_success',
@@ -1135,7 +1307,7 @@ class DatabaseWorker {
           sqlResponse: { sql }
         };
       } catch (error) {
-        console.error('[DB Worker] Command execution failed:', error);
+        log.error('Command execution failed', { sql, error });
         return {
           type: 'command_error',
           isSuccessful: false,
@@ -1144,27 +1316,32 @@ class DatabaseWorker {
           sqlResponse: { error: error.message, sql }
         };
       }
-    });
+    }, requestLog);
   }
 
-  async exportDatabase() {
+  async exportDatabase(requestLog) {
     // Routed through the query queue so a concurrent query/command can't
     // interleave with the close/read/reopen sequence below (previously this
     // ran outside the queue, so a query arriving mid-export would fail with
     // "Database not connected" instead of waiting its turn).
     return await this.enqueueQuery(async () => {
+      const log = this.activeLog.child({ process: 'snapshot-export' });
       if (!this.isConnected || !this.db) {
         throw new Error('Database not connected');
       }
 
       try {
-        console.log('[DB Worker] Exporting database snapshot...');
+        log.info('Exporting database snapshot...');
+        const startedAt = Date.now();
 
         await this.closeDatabaseConnection();
         const snapshot = await this.readVfsSnapshot();
         await this.reopenCurrentDatabase();
 
-        console.log('[DB Worker] Database snapshot exported successfully');
+        log.info('Database snapshot exported successfully', {
+          blockCount: snapshot.blocks.length,
+          durationMs: Date.now() - startedAt,
+        });
         return {
           type: 'database_snapshot_exported',
           isSuccessful: true,
@@ -1173,7 +1350,7 @@ class DatabaseWorker {
           sqlResponse: { snapshot }
         };
       } catch (error) {
-        console.error('[DB Worker] Failed to export database snapshot:', error);
+        log.error('Failed to export database snapshot', { error });
         return {
           type: 'export_error',
           isSuccessful: false,
@@ -1182,25 +1359,27 @@ class DatabaseWorker {
           sqlResponse: { error: error.message }
         };
       }
-    });
+    }, requestLog);
   }
 
-  async importDatabaseSnapshot(snapshot) {
+  async importDatabaseSnapshot(snapshot, requestLog) {
     if (!this.isInitialized) {
-      await this.initialize();
+      await this.initialize(requestLog);
     }
 
     // Routed through the query queue for the same reason as exportDatabase:
     // serializes the close/write/reopen sequence against concurrent queries.
     return await this.enqueueQuery(async () => {
+      const log = this.activeLog.child({ process: 'snapshot-import' });
       try {
-        console.log('[DB Worker] Importing database snapshot...');
+        log.info('Importing database snapshot...', { blockCount: snapshot?.blocks?.length });
+        const startedAt = Date.now();
 
         await this.closeDatabaseConnection();
         await this.writeVfsSnapshot(snapshot);
         await this.reopenCurrentDatabase();
 
-        console.log('[DB Worker] Database snapshot imported successfully');
+        log.info('Database snapshot imported successfully', { durationMs: Date.now() - startedAt });
         return {
           type: 'database_snapshot_imported',
           isSuccessful: true,
@@ -1209,7 +1388,7 @@ class DatabaseWorker {
           sqlResponse: { message: 'Database imported successfully' }
         };
       } catch (error) {
-        console.error('[DB Worker] Failed to import database snapshot:', error);
+        log.error('Failed to import database snapshot', { error });
         this.isConnected = false;
         return {
           type: 'import_error',
@@ -1219,7 +1398,7 @@ class DatabaseWorker {
           sqlResponse: { error: error.message }
         };
       }
-    });
+    }, requestLog);
   }
 
   async closeDatabaseConnection() {
@@ -1403,6 +1582,7 @@ class DatabaseWorker {
   }
 
   startHeartbeat() {
+    this.log.debug('Heartbeat started', { process: 'heartbeat', intervalMs: 5000 });
     this.heartbeatInterval = setInterval(() => {
       this.broadcastMessage({
         type: 'heartbeat',
@@ -1418,21 +1598,48 @@ class DatabaseWorker {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
+      this.log.debug('Heartbeat stopped', { process: 'heartbeat' });
     }
   }
 
   addPort(port) {
     this.ports.add(port);
-    console.log(`[DB Worker] Port added. Total ports: ${this.ports.size}`);
+    this.log.info('Port added', { process: 'connection', portCount: this.ports.size });
   }
 
   removePort(port) {
     this.ports.delete(port);
-    console.log(`[DB Worker] Port removed. Total ports: ${this.ports.size}`);
-    
+    if (this.debugPorts.has(port)) {
+      this.debugPorts.delete(port);
+      this.debugPortCount = Math.max(0, this.debugPortCount - 1);
+      this.updateLogLevel();
+    }
+    this.log.info('Port removed', { process: 'connection', portCount: this.ports.size });
+
     if (this.ports.size === 0) {
       this.stopHeartbeat();
+      void this.log.flush();
     }
+  }
+
+  // `set_debug` is per-port: a port that asked sees debug rows for its own
+  // requests; the worker-wide level is debug while any such port is open so
+  // background work (migrations, persistence) is captured at debug too.
+  setPortDebug(port, enabled) {
+    const wasEnabled = this.debugPorts.has(port);
+    if (enabled && !wasEnabled) {
+      this.debugPorts.add(port);
+      this.debugPortCount += 1;
+    } else if (!enabled && wasEnabled) {
+      this.debugPorts.delete(port);
+      this.debugPortCount = Math.max(0, this.debugPortCount - 1);
+    }
+    this.updateLogLevel();
+    this.log.debug('Port debug updated', { process: 'connection', enabled, debugPortCount: this.debugPortCount });
+  }
+
+  updateLogLevel() {
+    this.log.setLevel(this.debugPortCount > 0 ? 'debug' : 'info');
   }
 
   broadcastMessage(message) {
@@ -1440,7 +1647,7 @@ class DatabaseWorker {
       try {
         port.postMessage(message);
       } catch (error) {
-        console.error('[DB Worker] Failed to send message to port:', error);
+        this.log.error('Failed to send message to port', { process: 'connection', messageType: message?.type, error });
         this.removePort(port);
       }
     });
@@ -1448,15 +1655,20 @@ class DatabaseWorker {
 
   async handleMessage(event, port) {
     const { id, type, payload } = event.data;
-    if (this.debugMode) {
-      console.debug(`[DB Worker] Received message ${id}: ${type}`, payload);
-    }
+    // Request-scoped logger: correlation id = message id, operation = type,
+    // plus the page / component the tab sent in payload.meta. Debug rows for
+    // this request are only written when this port asked for debug.
+    const log = this.log.child(this.log.requestContext(id, type, payload?.meta), {
+      debug: this.debugPorts.has(port),
+    });
+    const startedAt = Date.now();
+    log.debug('Received message', { payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload) : [] });
     let response;
-    
+
     try {
       switch (type) {
         case 'initialize':
-          await this.initialize();
+          await this.initialize(log);
           response = {
             type: 'initialize_response',
             isSuccessful: true,
@@ -1473,13 +1685,14 @@ class DatabaseWorker {
           response = await this.openDatabase(
             payload?.filename ?? this.currentFilename,
             true,
-            payload?.options
+            payload?.options,
+            log
           );
           break;
         }
 
         case 'create_tables':
-          await this.createTables(payload?.options);
+          await this.createTables(payload?.options, log);
           response = {
             type: 'create_tables_response',
             isSuccessful: true,
@@ -1490,7 +1703,7 @@ class DatabaseWorker {
           break;
 
         case 'ensure_indexes':
-          await this.ensureIndexes();
+          await this.ensureIndexes(undefined, log);
           response = {
             type: 'ensure_indexes_response',
             isSuccessful: true,
@@ -1501,20 +1714,20 @@ class DatabaseWorker {
           break;
 
         case 'query':
-          response = await this.executeQuery(payload.sql, payload.parameters);
-          console.debug(`[DB Worker] Response for query: `, response);
+          response = await this.executeQuery(payload.sql, payload.parameters, log);
           break;
 
         case 'batch_query':
           response = await this.executeBatchQuery(
             payload.sql,
             payload.parameterSets,
-            payload.options
+            payload.options,
+            log
           );
           break;
-          
+
         case 'exec':
-          response = await this.executeCommand(payload.sql);
+          response = await this.executeCommand(payload.sql, log);
           break;
           
         case 'ping':
@@ -1528,11 +1741,11 @@ class DatabaseWorker {
           break;
           
         case 'export_database_snapshot':
-          response = await this.exportDatabase();
+          response = await this.exportDatabase(log);
           break;
 
         case 'import_database_snapshot':
-          response = await this.importDatabaseSnapshot(payload.snapshot);
+          response = await this.importDatabaseSnapshot(payload.snapshot, log);
           break;
 
         // ----------------------------------------------------------------
@@ -1543,18 +1756,19 @@ class DatabaseWorker {
           response = await this.createNewDatabase(
             payload?.password,
             payload?.filename,
-            payload?.options
+            payload?.options,
+            log
           );
           break;
         }
 
         case 'unlock_database': {
-          response = await this.unlockDatabase(payload?.password, payload?.filename);
+          response = await this.unlockDatabase(payload?.password, payload?.filename, log);
           break;
         }
 
         case 'lock_database': {
-          await this.lockDatabase();
+          await this.lockDatabase(log);
           response = {
             type: 'lock_database_response',
             isSuccessful: true,
@@ -1566,7 +1780,7 @@ class DatabaseWorker {
         }
 
         case 'change_password': {
-          await this.changePassword(payload?.oldPassword, payload?.newPassword);
+          await this.changePassword(payload?.oldPassword, payload?.newPassword, log);
           response = {
             type: 'change_password_response',
             isSuccessful: true,
@@ -1630,7 +1844,7 @@ class DatabaseWorker {
         }
 
         case 'set_debug':
-          this.debugMode = payload?.debug || false;
+          this.setPortDebug(port, payload?.debug === true);
           return;
 
 
@@ -1644,6 +1858,7 @@ class DatabaseWorker {
           };
       }
     } catch (error) {
+      log.error(`Message handling failed: ${type}`, { error });
       response = {
         type: 'error',
         isSuccessful: false,
@@ -1652,10 +1867,15 @@ class DatabaseWorker {
         sqlResponse: { error: error.message }
       };
     }
-    
+
     // Add the request ID to the response for correlation
     response.id = id;
-    
+
+    log.debug('Responded', {
+      responseType: response.type,
+      isSuccessful: response.isSuccessful,
+      durationMs: Date.now() - startedAt,
+    });
     port.postMessage(response);
   }
 }
@@ -1689,4 +1909,4 @@ self.addEventListener('connect', (event) => {
   });
 });
 
-console.log('[DB Worker] Database worker initialized');
+dbWorker.log.info('Database worker initialized', { process: 'initialize' });

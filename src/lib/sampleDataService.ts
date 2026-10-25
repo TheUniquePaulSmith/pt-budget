@@ -7,6 +7,9 @@
 
 import { databaseWorkerService } from './databaseWorkerService';
 import { SAMPLE_DATA_QUERIES } from './sqlQueries';
+import { logger } from './logging';
+
+const log = logger.child({ component: 'SampleDataService', process: 'sample-data' });
 
 interface SampleDataMeta {
   actualTransactionCount?: number;
@@ -95,7 +98,7 @@ export class SampleDataService {
    * Load all sample data from public/sample-data/ folder
    */
   static async loadAllSampleData(options: LoadSampleDataOptions = {}): Promise<void> {
-    console.info('[Sample Data] Starting sample data load...');
+    log.info('Starting sample data load', { operation: 'loadAllSampleData' });
 
     const totalFiles = this.SAMPLE_DATA_FILES.length;
     let completedFiles = 0;
@@ -151,12 +154,12 @@ export class SampleDataService {
         }
 
         if (error instanceof Error && error.message.includes('Failed to fetch')) {
-          console.info(`[Sample Data] ${filename} not found, skipping...`);
+          log.info(`${filename} not found, skipping`, { operation: 'loadAllSampleData', filename });
           completedFiles += 1;
           continue;
         }
 
-        console.error(`[Sample Data] Failed to load ${filename}:`, error);
+        log.error(`Failed to load ${filename}`, { operation: 'loadAllSampleData', filename, error });
         throw error;
       }
     }
@@ -171,7 +174,7 @@ export class SampleDataService {
       expectedRows: null,
       message: 'Sample data import completed.',
     });
-    console.info('[Sample Data] All sample data loaded successfully');
+    log.info('All sample data loaded successfully', { operation: 'loadAllSampleData' });
   }
 
   /**
@@ -240,10 +243,11 @@ export class SampleDataService {
         : `Importing records into ${tableName}`,
     });
 
-    console.info(
+    log.info(
       expectedRowCount
-        ? `[Sample Data] Loading ${expectedRowCount.toLocaleString()} records into ${tableName}`
-        : `[Sample Data] Loading records into ${tableName}`
+        ? `Loading ${expectedRowCount.toLocaleString()} records into ${tableName}`
+        : `Loading records into ${tableName}`,
+      { operation: 'loadTable', tableName, expectedRowCount }
     );
 
     for await (const row of limitedRows) {
@@ -264,9 +268,11 @@ export class SampleDataService {
       this.throwIfAborted(context.signal);
 
       while (totalRows >= nextProgressLog) {
-        console.info(
-          `[Sample Data] Loaded ${totalRows.toLocaleString()} records into ${tableName}`
-        );
+        log.debug(`Loaded ${totalRows.toLocaleString()} records into ${tableName}`, {
+          operation: 'loadTable',
+          tableName,
+          totalRows,
+        });
         nextProgressLog += importDefinition.progressLogInterval;
       }
     }
@@ -292,9 +298,11 @@ export class SampleDataService {
       return;
     }
 
-    console.info(
-      `[Sample Data] Finished loading ${totalRows.toLocaleString()} records into ${tableName}`
-    );
+    log.info(`Finished loading ${totalRows.toLocaleString()} records into ${tableName}`, {
+      operation: 'loadTable',
+      tableName,
+      totalRows,
+    });
 
     if (maxId > 0) {
       this.throwIfAborted(context.signal);
@@ -302,7 +310,7 @@ export class SampleDataService {
         maxId,
         tableName,
       ]);
-      console.info(`[Sample Data] Reset ${tableName} sequence to ${maxId}`);
+      log.debug(`Reset ${tableName} sequence to ${maxId}`, { operation: 'loadTable', tableName, maxId });
     }
 
     this.reportProgress(context, {

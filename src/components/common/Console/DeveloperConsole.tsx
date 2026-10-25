@@ -1,14 +1,34 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+'use client';
+
+/**
+ * Developer Console: the persisted, correlated log stream.
+ *
+ * Reads `ptbudgetapp-logs` newest-first (paged), follows live updates from
+ * every tab and the SharedWorker, filters by level / source / page /
+ * correlation id / text, and exports `logs-<date>.ndjson` plus a merged
+ * human-readable `logs-<date>.txt` timeline. Clicking a row's correlation id
+ * narrows the view to that request: the app row that sent it and the worker
+ * rows written while handling it.
+ */
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
-  Typography,
-  IconButton,
+  Button,
   Chip,
-  TextField,
-  Stack,
-  Tooltip,
-  Fab,
+  CircularProgress,
+  FormControl,
+  FormControlLabel,
+  IconButton,
   InputAdornment,
+  InputLabel,
+  MenuItem,
+  Select,
+  Stack,
+  Switch,
+  TextField,
+  Tooltip,
+  Typography,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
@@ -17,92 +37,52 @@ import {
   DeleteSweep,
   Download,
   ErrorOutline,
+  ExpandLess,
+  ExpandMore,
   InfoOutlined,
-  KeyboardArrowDown,
+  Link as LinkIcon,
+  Refresh,
   Science,
   Search,
   WarningAmberOutlined,
 } from '@mui/icons-material';
-import { consoleLogger, LogEntry } from '@/lib/consoleLogger';
 
-const LOG_LEVELS: LogEntry['level'][] = ['log', 'info', 'warn', 'error', 'debug'];
+import { databaseWorkerService } from '@/lib/databaseWorkerService';
+import {
+  SOURCE_TAGS,
+  clearLogs,
+  downloadLogExports,
+  formatTimelineLine,
+  logger,
+  readAllLogs,
+  type LogLevel,
+  type LogSource,
+  type StoredLogRecord,
+} from '@/lib/logging';
+
+import {
+  ALL_LEVELS,
+  ALL_SOURCES,
+  DEFAULT_LOG_VIEW_FILTERS,
+  useLogEntries,
+  type LogViewFilters,
+} from './useLogEntries';
+
 const MONO_FONT =
   'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
-// Cap pretty-printed arguments so a single huge object can't stall rendering on phones
-const MAX_FORMATTED_ARG_LENGTH = 10000;
 const PIN_TO_BOTTOM_THRESHOLD_PX = 48;
+const MAX_DETAIL_LENGTH = 20_000;
 
-interface FormattedLog {
-  log: LogEntry;
-  text: string;
-  stack?: string;
-  sourceLabel?: string;
-  sourceFull?: string;
-  searchText: string;
-}
+const log = logger.child({ component: 'DeveloperConsole' });
 
-const safeStringify = (value: unknown): string => {
-  const seen = new WeakSet<object>();
-  try {
-    const json = JSON.stringify(
-      value,
-      (_key, val: unknown) => {
-        if (typeof val === 'bigint') return `${val}n`;
-        if (typeof val === 'function') return `ƒ ${val.name || 'anonymous'}()`;
-        if (typeof val === 'symbol') return val.toString();
-        if (typeof val === 'object' && val !== null) {
-          if (seen.has(val)) return '[Circular]';
-          seen.add(val);
-          if (val instanceof Map) return { '[Map]': Array.from(val.entries()) };
-          if (val instanceof Set) return { '[Set]': Array.from(val.values()) };
-        }
-        return val;
-      },
-      2
-    );
-    return json === undefined ? String(value) : json;
-  } catch {
-    return '[Unserializable object]';
-  }
-};
-
-const formatArg = (arg: unknown): string => {
-  if (arg instanceof Error) return arg.stack || `${arg.name}: ${arg.message}`;
-  if (typeof arg === 'object' && arg !== null) {
-    const text = safeStringify(arg);
-    return text.length > MAX_FORMATTED_ARG_LENGTH
-      ? `${text.slice(0, MAX_FORMATTED_ARG_LENGTH)}\n… (truncated)`
-      : text;
-  }
-  return String(arg);
-};
-
-// Formats once per entry and is cached by id afterwards, so the rendered text
-// snapshots object arguments close to log time (they are stored by reference
-// and may mutate later).
-const buildFormattedLog = (log: LogEntry): FormattedLog => {
-  const text = log.args.length > 0 ? log.args.map(formatArg).join(' ') : log.message;
-  // Error objects already print their own stack via formatArg
-  const stack = log.stack && !text.includes(log.stack) ? log.stack : undefined;
-  let sourceLabel: string | undefined;
-  let sourceFull: string | undefined;
-  if (log.sourceFile) {
-    const fileName = log.sourceFile.split(/[\\/]/).pop() || log.sourceFile;
-    sourceLabel = log.sourceLine != null ? `${fileName}:${log.sourceLine}` : fileName;
-    sourceFull = `${log.sourceFile}:${log.sourceLine ?? 0}:${log.sourceColumn ?? 0}`;
-  }
-  const searchText = `${text}\n${stack ?? ''}\n${sourceFull ?? ''}\n${log.level}`.toLowerCase();
-  return { log, text, stack, sourceLabel, sourceFull, searchText };
-};
-
-const formatTime = (isoTimestamp: string): string => {
-  const date = new Date(isoTimestamp);
+const formatTime = (ts: number): string => {
+  const date = new Date(ts);
   const pad = (value: number, length = 2) => String(value).padStart(length, '0');
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
 };
 
 const getLevelColor = (
-  level: string
+  level: LogLevel
 ): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' => {
   switch (level) {
     case 'error': return 'error';
@@ -113,123 +93,70 @@ const getLevelColor = (
   }
 };
 
-const generateTestLogs = () => {
-  console.log('DeveloperConsole: Test log message');
-  console.info('DeveloperConsole: Test info message');
-  console.warn('DeveloperConsole: Test warning message');
-  console.error('DeveloperConsole: Test error message');
-  console.debug('DeveloperConsole: Test debug message');
-  console.log('DeveloperConsole: Multi-line message\nline two\nline three\n\ttabbed line four');
-  console.log('DeveloperConsole: Test object:', {
-    component: 'DeveloperConsole',
-    timestamp: new Date(),
-    userAgent: navigator.userAgent,
-    url: window.location.href,
-  });
-  try {
-    throw new Error('DeveloperConsole: Test intentional error for debugging');
-  } catch (error) {
-    console.error('DeveloperConsole: Caught error:', error);
+const getSourceColor = (source: LogSource): 'primary' | 'success' | 'default' => {
+  switch (source) {
+    case 'worker': return 'success';
+    case 'app': return 'primary';
+    default: return 'default';
   }
 };
 
-const DeveloperConsole: React.FC = () => {
+function recordSource(record: StoredLogRecord): LogSource {
+  return (record.context.source ?? 'app') as LogSource;
+}
+
+function detailText(record: StoredLogRecord): string {
+  const { source: _s, tabId, sessionId, ...rest } = record.context;
+  const payload = { ...rest, tabId, sessionId, id: record.id, seq: record.seq };
+  let json: string;
+  try {
+    json = JSON.stringify(payload, null, 2);
+  } catch {
+    json = '[unserializable context]';
+  }
+  if (json.length > MAX_DETAIL_LENGTH) json = `${json.slice(0, MAX_DETAIL_LENGTH)}\n… (truncated)`;
+  if (record.error) {
+    json += `\n\n${record.error.stack ?? `${record.error.name}: ${record.error.message}`}`;
+  }
+  return json;
+}
+
+/** Emits a correlated app + worker pair so the console can be exercised without any user data. */
+export async function generateTestLogs(): Promise<void> {
+  const op = log.withOperation('generateTestLogs');
+  op.trace('Test trace message');
+  op.debug('Test debug message', { sample: { nested: true, count: 3 } });
+  op.info('Test info message');
+  op.warn('Test warning message');
+  try {
+    throw new Error('Test intentional error for debugging');
+  } catch (error) {
+    op.error('Test caught error', { error });
+  }
+  op.info('Multi-line message\nline two\nline three');
+  try {
+    await databaseWorkerService.ping();
+    op.info('Worker ping round-trip complete');
+  } catch (error) {
+    op.warn('Worker ping failed', { error });
+  }
+}
+
+interface LogRowProps {
+  record: StoredLogRecord;
+  expanded: boolean;
+  onToggle: () => void;
+  onSelectCorrelation: (correlationId: string) => void;
+  onCopy: () => void;
+}
+
+const LogRow = React.memo(function LogRow({ record, expanded, onToggle, onSelectCorrelation, onCopy }: LogRowProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [filter, setFilter] = useState('');
-  const [levelFilter, setLevelFilter] = useState<LogEntry['level'][]>([...LOG_LEVELS]);
-  const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const formatCacheRef = useRef(new Map<string, FormattedLog>());
+  const source = recordSource(record);
+  const { level } = record;
 
-  useEffect(() => {
-    // subscribe() immediately replays the current buffer to the listener
-    return consoleLogger.subscribe(setLogs);
-  }, []);
-
-  const formattedLogs = useMemo(() => {
-    const cache = formatCacheRef.current;
-    const nextCache = new Map<string, FormattedLog>();
-    const result = logs.map(log => {
-      const entry = cache.get(log.id) ?? buildFormattedLog(log);
-      nextCache.set(log.id, entry);
-      return entry;
-    });
-    formatCacheRef.current = nextCache;
-    return result;
-  }, [logs]);
-
-  const visibleLogs = useMemo(() => {
-    const query = filter.trim().toLowerCase();
-    return formattedLogs.filter(
-      entry =>
-        levelFilter.includes(entry.log.level) &&
-        (query === '' || entry.searchText.includes(query))
-    );
-  }, [formattedLogs, levelFilter, filter]);
-
-  const levelCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    logs.forEach(log => {
-      counts[log.level] = (counts[log.level] ?? 0) + 1;
-    });
-    return counts;
-  }, [logs]);
-
-  // DevTools-style auto-scroll: follow new output only while the user is at the bottom
-  useEffect(() => {
-    if (!isPinnedToBottom) return;
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [visibleLogs, isPinnedToBottom]);
-
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setIsPinnedToBottom(
-      el.scrollHeight - el.scrollTop - el.clientHeight < PIN_TO_BOTTOM_THRESHOLD_PX
-    );
-  }, []);
-
-  const scrollToBottom = () => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-    setIsPinnedToBottom(true);
-  };
-
-  const handleLevelToggle = (level: LogEntry['level']) => {
-    setLevelFilter(prev =>
-      prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]
-    );
-  };
-
-  const handleCopyLog = async (entry: FormattedLog) => {
-    let text = `[${entry.log.timestamp}] ${entry.log.level.toUpperCase()}`;
-    if (entry.sourceFull) text += ` ${entry.sourceFull}`;
-    text += `\n${entry.text}`;
-    if (entry.stack) text += `\n${entry.stack}`;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // Clipboard is unavailable outside secure contexts (e.g. plain-http LAN testing)
-    }
-  };
-
-  const handleExportLogs = () => {
-    const logsText = consoleLogger.exportLogs();
-    const blob = new Blob([logsText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `console-logs-${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const getLevelRowStyle = (level: LogEntry['level']) => {
+  const style = (() => {
     switch (level) {
       case 'error':
         return {
@@ -246,90 +173,330 @@ const DeveloperConsole: React.FC = () => {
           icon: <WarningAmberOutlined sx={{ fontSize: 14, color: 'warning.main' }} />,
         };
       case 'info':
-        return {
-          accent: undefined,
-          bg: undefined,
-          text: undefined,
-          icon: <InfoOutlined sx={{ fontSize: 14, color: 'info.main' }} />,
-        };
-      case 'debug':
-        return {
-          accent: undefined,
-          bg: undefined,
-          text: theme.palette.text.secondary,
-          icon: null,
-        };
+        return { accent: undefined, bg: undefined, text: undefined, icon: <InfoOutlined sx={{ fontSize: 14, color: 'info.main' }} /> };
       default:
-        return { accent: undefined, bg: undefined, text: undefined, icon: null };
+        return { accent: undefined, bg: undefined, text: theme.palette.text.secondary, icon: null };
     }
-  };
+  })();
+
+  const correlationId = record.context.correlationId;
+  const where = [record.context.component, record.context.operation ?? record.context.process]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <Box
+      data-testid="log-row"
+      data-source={source}
+      data-level={level}
+      data-correlation-id={correlationId ?? ''}
+      data-seq={record.seq}
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
-        minHeight: 0,
-        bgcolor: 'background.paper',
+        px: 1,
+        py: 0.5,
+        borderBottom: '1px solid',
+        borderBottomColor: 'divider',
+        borderLeft: '3px solid',
+        borderLeftColor: style.accent ?? 'transparent',
+        backgroundColor: style.bg ?? 'transparent',
       }}
     >
-      {/* Toolbar: search, actions, level filters */}
-      <Box
-        sx={{
-          px: 1,
-          py: 0.75,
-          borderBottom: 1,
-          borderColor: 'divider',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 0.75,
-        }}
-      >
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
+        <Box sx={{ width: 16, flexShrink: 0, display: 'flex', justifyContent: 'center', pt: '3px' }}>{style.icon}</Box>
+        <Typography
+          component="span"
+          sx={{ fontFamily: MONO_FONT, fontSize: '0.7rem', lineHeight: 1.6, color: 'text.disabled', flexShrink: 0 }}
+        >
+          {formatTime(record.ts)}
+        </Typography>
+        <Chip
+          label={SOURCE_TAGS[source].replace(/[[\]]/g, '')}
+          size="small"
+          variant="outlined"
+          color={getSourceColor(source)}
+          data-testid="log-source-tag"
+          sx={{ height: 18, fontSize: '0.65rem', fontFamily: MONO_FONT, flexShrink: 0 }}
+        />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography
+            component="pre"
+            data-testid="log-message"
+            sx={{
+              m: 0,
+              fontFamily: MONO_FONT,
+              fontSize: '0.75rem',
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+              color: style.text ?? 'text.primary',
+            }}
+          >
+            {record.message || ' '}
+          </Typography>
+          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 0.25 }}>
+            {where && (
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: MONO_FONT }} noWrap>
+                {where}
+              </Typography>
+            )}
+            {record.context.page && (
+              <Chip label={record.context.page} size="small" sx={{ height: 18, fontSize: '0.65rem' }} />
+            )}
+            {record.context.element && (
+              <Tooltip title={`Last interaction: ${record.context.element}`}>
+                <Chip
+                  label={record.context.element}
+                  size="small"
+                  variant="outlined"
+                  sx={{ height: 18, fontSize: '0.65rem', maxWidth: 200 }}
+                />
+              </Tooltip>
+            )}
+            {correlationId && (
+              <Tooltip title="Show every app and worker row for this request">
+                <Chip
+                  icon={<LinkIcon sx={{ fontSize: 12 }} />}
+                  label={correlationId}
+                  size="small"
+                  variant="outlined"
+                  color="primary"
+                  onClick={() => onSelectCorrelation(correlationId)}
+                  data-testid="log-correlation-chip"
+                  sx={{ height: 18, fontSize: '0.65rem', fontFamily: MONO_FONT }}
+                />
+              </Tooltip>
+            )}
+            {record.error && !expanded && (
+              <Typography variant="caption" sx={{ fontFamily: MONO_FONT, color: isDark ? 'error.light' : 'error.dark' }} noWrap>
+                {record.error.name}: {record.error.message}
+              </Typography>
+            )}
+          </Stack>
+        </Box>
+        <IconButton
+          size="small"
+          onClick={onToggle}
+          aria-label={expanded ? 'Hide details' : 'Show details'}
+          sx={{ p: 0.25, opacity: 0.6, '&:hover': { opacity: 1 } }}
+        >
+          {expanded ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
+        </IconButton>
+        <IconButton
+          size="small"
+          onClick={onCopy}
+          aria-label="Copy log entry"
+          sx={{ p: 0.25, opacity: 0.4, '&:hover': { opacity: 1 } }}
+        >
+          <ContentCopy sx={{ fontSize: 14 }} />
+        </IconButton>
+      </Box>
+      {expanded && (
+        <Typography
+          component="pre"
+          data-testid="log-details"
+          sx={{
+            m: 0,
+            mt: 0.5,
+            ml: '22px',
+            p: 1,
+            borderRadius: 1,
+            bgcolor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.04),
+            fontFamily: MONO_FONT,
+            fontSize: '0.7rem',
+            lineHeight: 1.5,
+            whiteSpace: 'pre-wrap',
+            overflowWrap: 'anywhere',
+            color: 'text.secondary',
+          }}
+        >
+          {detailText(record)}
+        </Typography>
+      )}
+    </Box>
+  );
+});
+
+const DeveloperConsole: React.FC = () => {
+  const [filters, setFilters] = useState<LogViewFilters>(DEFAULT_LOG_VIEW_FILTERS);
+  const [follow, setFollow] = useState(true);
+  const [expandedSeq, setExpandedSeq] = useState<number | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [isPinnedToTop, setIsPinnedToTop] = useState(true);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const { entries, hasMore, isLoading, pendingCount, total, refresh, loadOlder } = useLogEntries({ filters, follow });
+
+  const knownPages = useMemo(() => {
+    const pages = new Set<string>();
+    for (const entry of entries) if (entry.context.page) pages.add(entry.context.page);
+    if (filters.page) pages.add(filters.page);
+    return [...pages].sort();
+  }, [entries, filters.page]);
+
+  const levelCounts = useMemo(() => {
+    const counts: Partial<Record<LogLevel, number>> = {};
+    for (const entry of entries) counts[entry.level] = (counts[entry.level] ?? 0) + 1;
+    return counts;
+  }, [entries]);
+
+  // Newest-first list: keep the top in view while following unless the user scrolled down.
+  useEffect(() => {
+    if (!follow || !isPinnedToTop) return;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [entries, follow, isPinnedToTop]);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setIsPinnedToTop(el.scrollTop < PIN_TO_BOTTOM_THRESHOLD_PX);
+  }, []);
+
+  const toggleLevel = (level: LogLevel) => {
+    setFilters((current) => ({
+      ...current,
+      levels: current.levels.includes(level)
+        ? current.levels.filter((item) => item !== level)
+        : [...current.levels, level],
+    }));
+  };
+
+  const toggleSource = (source: LogSource) => {
+    setFilters((current) => ({
+      ...current,
+      sources: current.sources.includes(source)
+        ? current.sources.filter((item) => item !== source)
+        : [...current.sources, source],
+    }));
+  };
+
+  const selectCorrelation = useCallback((correlationId: string) => {
+    setFilters((current) => ({ ...current, correlationId }));
+    setFollow(false);
+  }, []);
+
+  const handleCopy = useCallback(async (record: StoredLogRecord) => {
+    const text = `${formatTimelineLine(record, record.context.correlationId?.length ?? 1)}\n${detailText(record)}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard is unavailable outside secure contexts (e.g. plain-http LAN testing)
+    }
+  }, []);
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const records = await readAllLogs();
+      const names = downloadLogExports(records);
+      log.info('Exported diagnostic logs', { operation: 'exportLogs', count: records.length, files: [names.ndjson, names.txt] });
+    } catch (error) {
+      log.error('Failed to export diagnostic logs', { operation: 'exportLogs', error });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleClear = async () => {
+    setIsClearing(true);
+    try {
+      await clearLogs();
+      log.info('Diagnostic logs cleared from the console', { operation: 'clearLogs' });
+    } catch (error) {
+      log.error('Failed to clear diagnostic logs', { operation: 'clearLogs', error });
+    } finally {
+      setIsClearing(false);
+      refresh();
+    }
+  };
+
+  const activeFilterCount =
+    (filters.levels.length !== ALL_LEVELS.length ? 1 : 0) +
+    (filters.sources.length !== ALL_SOURCES.length ? 1 : 0) +
+    (filters.page ? 1 : 0) +
+    (filters.correlationId ? 1 : 0) +
+    (filters.text.trim() ? 1 : 0);
+
+  return (
+    <Box
+      data-testid="developer-console"
+      sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, bgcolor: 'background.paper' }}
+    >
+      {/* Toolbar */}
+      <Box sx={{ px: 1, py: 0.75, borderBottom: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
         <Stack direction="row" spacing={0.5} alignItems="center">
           <TextField
             size="small"
             fullWidth
             placeholder="Search logs"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            value={filters.text}
+            onChange={(e) => setFilters((current) => ({ ...current, text: e.target.value }))}
+            inputProps={{ 'data-testid': 'log-search-input' }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
                   <Search fontSize="small" />
                 </InputAdornment>
               ),
-              endAdornment: filter !== '' && (
+              endAdornment: filters.text !== '' && (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setFilter('')} aria-label="Clear search">
+                  <IconButton
+                    size="small"
+                    onClick={() => setFilters((current) => ({ ...current, text: '' }))}
+                    aria-label="Clear search"
+                  >
                     <Close fontSize="small" />
                   </IconButton>
                 </InputAdornment>
               ),
             }}
           />
-          <Tooltip title="Generate test logs">
-            <IconButton onClick={generateTestLogs} aria-label="Generate test logs">
+          <Tooltip title={follow ? 'Following new entries' : 'Paused — new entries are counted'}>
+            <FormControlLabel
+              sx={{ mr: 0, ml: 0, whiteSpace: 'nowrap' }}
+              control={
+                <Switch
+                  size="small"
+                  checked={follow}
+                  onChange={(e) => setFollow(e.target.checked)}
+                  inputProps={{ 'aria-label': 'Follow new entries', 'data-testid': 'log-follow-toggle' } as React.InputHTMLAttributes<HTMLInputElement>}
+                />
+              }
+              label={<Typography variant="caption">Follow</Typography>}
+            />
+          </Tooltip>
+          <Tooltip title="Refresh">
+            <IconButton onClick={refresh} aria-label="Refresh logs" data-testid="log-refresh">
+              <Refresh fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Generate test logs (app + worker pair)">
+            <IconButton onClick={() => void generateTestLogs()} aria-label="Generate test logs" data-testid="log-generate-test">
               <Science fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Export logs">
+          <Tooltip title="Export logs (.ndjson + .txt timeline)">
             <span>
               <IconButton
-                onClick={handleExportLogs}
-                disabled={logs.length === 0}
+                onClick={() => void handleExport()}
+                disabled={isExporting || total === 0}
                 aria-label="Export logs"
+                data-testid="log-export"
               >
-                <Download fontSize="small" />
+                {isExporting ? <CircularProgress size={18} /> : <Download fontSize="small" />}
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title="Clear console">
+          <Tooltip title="Clear all stored logs">
             <span>
               <IconButton
-                onClick={() => consoleLogger.clearLogs()}
-                disabled={logs.length === 0}
-                aria-label="Clear console"
+                onClick={() => void handleClear()}
+                disabled={isClearing || total === 0}
+                aria-label="Clear logs"
+                data-testid="log-clear"
               >
                 <DeleteSweep fontSize="small" />
               </IconButton>
@@ -338,170 +505,129 @@ const DeveloperConsole: React.FC = () => {
         </Stack>
 
         <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
-          {LOG_LEVELS.map(level => (
+          {ALL_LEVELS.map((level) => (
             <Chip
               key={level}
               label={levelCounts[level] ? `${level} (${levelCounts[level]})` : level}
               size="small"
-              variant={levelFilter.includes(level) ? 'filled' : 'outlined'}
+              variant={filters.levels.includes(level) ? 'filled' : 'outlined'}
               color={getLevelColor(level)}
-              onClick={() => handleLevelToggle(level)}
+              onClick={() => toggleLevel(level)}
+              data-testid={`log-level-${level}`}
             />
           ))}
-          <Box sx={{ flex: 1 }} />
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            noWrap
-            sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}
-          >
-            <Box
-              component="span"
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                bgcolor: consoleLogger.isCurrentlyCapturing() ? 'success.main' : 'text.disabled',
-              }}
+          <Box sx={{ width: 8 }} />
+          {ALL_SOURCES.map((source) => (
+            <Chip
+              key={source}
+              label={SOURCE_TAGS[source]}
+              size="small"
+              variant={filters.sources.includes(source) ? 'filled' : 'outlined'}
+              color={getSourceColor(source)}
+              onClick={() => toggleSource(source)}
+              data-testid={`log-source-${source}`}
+              sx={{ fontFamily: MONO_FONT }}
             />
-            {visibleLogs.length} / {logs.length}
+          ))}
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel id="log-page-filter-label">Page</InputLabel>
+            <Select
+              labelId="log-page-filter-label"
+              label="Page"
+              value={filters.page}
+              onChange={(e) => setFilters((current) => ({ ...current, page: String(e.target.value) }))}
+              data-testid="log-page-filter"
+              sx={{ fontSize: '0.8rem' }}
+            >
+              <MenuItem value="">
+                <em>All pages</em>
+              </MenuItem>
+              {knownPages.map((page) => (
+                <MenuItem key={page} value={page}>
+                  {page}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            size="small"
+            label="Correlation id"
+            value={filters.correlationId}
+            onChange={(e) => setFilters((current) => ({ ...current, correlationId: e.target.value }))}
+            inputProps={{ 'data-testid': 'log-correlation-filter', style: { fontFamily: MONO_FONT, fontSize: '0.8rem' } }}
+            sx={{ minWidth: 160 }}
+            InputProps={{
+              endAdornment: filters.correlationId !== '' && (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    onClick={() => setFilters((current) => ({ ...current, correlationId: '' }))}
+                    aria-label="Clear correlation filter"
+                  >
+                    <Close fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+          {activeFilterCount > 0 && (
+            <Button size="small" onClick={() => setFilters(DEFAULT_LOG_VIEW_FILTERS)} data-testid="log-reset-filters">
+              Reset filters
+            </Button>
+          )}
+          <Box sx={{ flex: 1 }} />
+          {!follow && pendingCount > 0 && (
+            <Chip
+              label={`${pendingCount} new`}
+              size="small"
+              color="primary"
+              onClick={refresh}
+              data-testid="log-pending-count"
+            />
+          )}
+          <Typography variant="caption" color="text.secondary" noWrap data-testid="log-counts">
+            {entries.length} shown / {total} stored
           </Typography>
         </Stack>
       </Box>
 
-      {/* Log stream */}
+      {/* Log stream (newest first) */}
       <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <Box
-          ref={scrollRef}
-          onScroll={handleScroll}
-          sx={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}
-        >
-          {visibleLogs.length === 0 ? (
+        <Box ref={scrollRef} onScroll={handleScroll} sx={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+          {entries.length === 0 ? (
             <Box sx={{ p: 3, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
-                {logs.length === 0
-                  ? 'No logs captured yet. Interact with the application or generate test logs from the toolbar.'
-                  : 'No logs match the current filters.'}
-              </Typography>
+              {isLoading ? (
+                <CircularProgress size={20} />
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  {total === 0
+                    ? 'No logs stored yet. Interact with the application or generate test logs from the toolbar.'
+                    : 'No logs match the current filters.'}
+                </Typography>
+              )}
             </Box>
           ) : (
-            visibleLogs.map(entry => {
-              const { log } = entry;
-              const style = getLevelRowStyle(log.level);
-              return (
-                <Box
-                  key={log.id}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 0.75,
-                    px: 1,
-                    py: 0.5,
-                    borderBottom: '1px solid',
-                    borderBottomColor: 'divider',
-                    borderLeft: '3px solid',
-                    borderLeftColor: style.accent ?? 'transparent',
-                    backgroundColor: style.bg ?? 'transparent',
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 16,
-                      flexShrink: 0,
-                      display: 'flex',
-                      justifyContent: 'center',
-                      pt: '3px',
-                    }}
-                  >
-                    {style.icon}
-                  </Box>
-                  <Typography
-                    component="span"
-                    sx={{
-                      fontFamily: MONO_FONT,
-                      fontSize: '0.7rem',
-                      lineHeight: 1.6,
-                      color: 'text.disabled',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {formatTime(log.timestamp)}
-                  </Typography>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography
-                      component="pre"
-                      sx={{
-                        m: 0,
-                        fontFamily: MONO_FONT,
-                        fontSize: '0.75rem',
-                        lineHeight: 1.5,
-                        whiteSpace: 'pre-wrap',
-                        overflowWrap: 'anywhere',
-                        color: style.text ?? 'text.primary',
-                      }}
-                    >
-                      {entry.text || ' '}
-                    </Typography>
-                    {entry.stack && (
-                      <Typography
-                        component="pre"
-                        sx={{
-                          m: 0,
-                          mt: 0.25,
-                          fontFamily: MONO_FONT,
-                          fontSize: '0.7rem',
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-wrap',
-                          overflowWrap: 'anywhere',
-                          color: isDark ? 'error.light' : 'error.dark',
-                          opacity: 0.85,
-                        }}
-                      >
-                        {entry.stack}
-                      </Typography>
-                    )}
-                  </Box>
-                  {entry.sourceLabel && (
-                    <Tooltip title={entry.sourceFull ?? entry.sourceLabel}>
-                      <Typography
-                        noWrap
-                        sx={{
-                          fontFamily: MONO_FONT,
-                          fontSize: '0.7rem',
-                          lineHeight: 1.6,
-                          color: 'text.secondary',
-                          maxWidth: { xs: 90, sm: 220 },
-                          flexShrink: 0,
-                        }}
-                      >
-                        {entry.sourceLabel}
-                      </Typography>
-                    </Tooltip>
-                  )}
-                  <IconButton
-                    size="small"
-                    onClick={() => handleCopyLog(entry)}
-                    aria-label="Copy log entry"
-                    sx={{ p: 0.25, opacity: 0.4, '&:hover': { opacity: 1 } }}
-                  >
-                    <ContentCopy sx={{ fontSize: 14 }} />
-                  </IconButton>
+            <>
+              {entries.map((record) => (
+                <LogRow
+                  key={record.seq}
+                  record={record}
+                  expanded={expandedSeq === record.seq}
+                  onToggle={() => setExpandedSeq((current) => (current === record.seq ? null : record.seq))}
+                  onSelectCorrelation={selectCorrelation}
+                  onCopy={() => void handleCopy(record)}
+                />
+              ))}
+              {hasMore && (
+                <Box sx={{ p: 1, textAlign: 'center' }}>
+                  <Button size="small" onClick={loadOlder} disabled={isLoading} data-testid="log-load-older">
+                    {isLoading ? 'Loading…' : 'Load older entries'}
+                  </Button>
                 </Box>
-              );
-            })
+              )}
+            </>
           )}
         </Box>
-        {!isPinnedToBottom && visibleLogs.length > 0 && (
-          <Fab
-            size="small"
-            color="primary"
-            onClick={scrollToBottom}
-            aria-label="Scroll to latest logs"
-            sx={{ position: 'absolute', right: 16, bottom: 16 }}
-          >
-            <KeyboardArrowDown />
-          </Fab>
-        )}
       </Box>
     </Box>
   );

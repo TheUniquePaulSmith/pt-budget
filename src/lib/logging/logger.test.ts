@@ -13,6 +13,7 @@ import {
   resetLogSink,
   setLogLevel,
   setLogSink,
+  tabIdFromCorrelationId,
 } from './logger';
 import { MemorySink } from './memorySink';
 import type { LogRecord } from './types';
@@ -57,7 +58,7 @@ describe('logger', () => {
     expect(log.context).toEqual({ source: 'app', component: 'CSVImport', page: 'dashboard' });
   });
 
-  it('withOperation adds the operation and a fresh tab-scoped correlation id', () => {
+  it('withOperation adds the operation and a fresh tab-scoped correlation id (<tabId>:<n>)', () => {
     const base = logger.child({ component: 'DatabaseService' });
     const op1 = base.withOperation('saveBudgetPlan');
     const op2 = base.withOperation('saveBudgetPlan');
@@ -67,9 +68,10 @@ describe('logger', () => {
 
     const [first, second] = sink.getRecords();
     expect(first.context.operation).toBe('saveBudgetPlan');
-    expect(first.context.correlationId).toMatch(new RegExp(`^${LOG_TAB_ID}\\.\\d+$`));
+    expect(first.context.correlationId).toMatch(new RegExp(`^${LOG_TAB_ID}:\\d+$`));
     expect(second.context.correlationId).not.toBe(first.context.correlationId);
-    expect(nextCorrelationId()).toMatch(new RegExp(`^${LOG_TAB_ID}\\.\\d+$`));
+    expect(nextCorrelationId()).toMatch(new RegExp(`^${LOG_TAB_ID}:\\d+$`));
+    expect(tabIdFromCorrelationId(nextCorrelationId())).toBe(LOG_TAB_ID);
   });
 
   it('normalises errors out of the context into record.error', () => {
@@ -147,7 +149,7 @@ describe('ConsoleEchoSink', () => {
 
   it('prints a component-prefixed line with the remaining context and error', () => {
     const target = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const echo = new ConsoleEchoSink({ console: target });
+    const echo = new ConsoleEchoSink({ console: target, minLevel: 'trace' });
 
     echo.write(record());
     echo.write(record({ level: 'debug', context: { source: 'app' } }));
@@ -158,6 +160,21 @@ describe('ConsoleEchoSink', () => {
     expect(target.debug).toHaveBeenCalledWith('Loaded');
     expect(target.warn).toHaveBeenCalledWith('[Dashboard] Loaded', { rows: 2 });
     expect(target.error).toHaveBeenCalledWith('[Dashboard] Loaded', { rows: 2 }, 'Error: nope');
+  });
+
+  it('echoes only warnings and errors by default (no ?debug_output_console)', () => {
+    const target = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const echo = new ConsoleEchoSink({ console: target });
+
+    echo.write(record({ level: 'debug' }));
+    echo.write(record({ level: 'info' }));
+    echo.write(record({ level: 'warn' }));
+    echo.write(record({ level: 'error' }));
+
+    expect(target.debug).not.toHaveBeenCalled();
+    expect(target.info).not.toHaveBeenCalled();
+    expect(target.warn).toHaveBeenCalledTimes(1);
+    expect(target.error).toHaveBeenCalledTimes(1);
   });
 
   it('honours its own minimum level', () => {

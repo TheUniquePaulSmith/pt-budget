@@ -5,11 +5,22 @@
  * the header keystore in `ptbudgetapp-keys`, and anything else the origin
  * has created) — then reloads to a clean URL so the app comes back up as
  * if freshly installed. Only reachable behind `?debug` (see debugMode.ts).
+ *
+ * The diagnostic log database (`ptbudgetapp-logs`) is kept by default, so the
+ * logs that explain *why* someone had to reset survive the reset; it is only
+ * deleted when the user ticks "Also clear diagnostic logs".
  */
+
+import { LOGS_DB_NAME, uninstallPersistentLogging } from './logging';
 
 // Fallback for browsers without `indexedDB.databases()` (see database-worker.js
 // for where these names are defined on the worker side).
 const KNOWN_INDEXEDDB_NAMES = ['ptbudgetapp-v2-encrypted', 'ptbudgetapp-keys'];
+
+export interface ResetAppOptions {
+  /** Also delete the `ptbudgetapp-logs` database (kept by default). */
+  includeLogs?: boolean;
+}
 
 function deleteIndexedDatabase(name: string): Promise<void> {
   return new Promise((resolve) => {
@@ -20,20 +31,24 @@ function deleteIndexedDatabase(name: string): Promise<void> {
   });
 }
 
-async function deleteAllIndexedDatabases(): Promise<void> {
+/** The database names a reset should delete; the log database only when asked. */
+export function selectDatabasesToDelete(existing: readonly string[], includeLogs: boolean): string[] {
+  const names = new Set<string>(KNOWN_INDEXEDDB_NAMES);
+  for (const name of existing) names.add(name);
+  if (!includeLogs) names.delete(LOGS_DB_NAME);
+  else names.add(LOGS_DB_NAME);
+  return [...names];
+}
+
+async function deleteAllIndexedDatabases(includeLogs: boolean): Promise<void> {
   if (typeof indexedDB === 'undefined') return;
 
+  let existing: string[] = [];
   if (typeof indexedDB.databases === 'function') {
     const databases = await indexedDB.databases().catch(() => []);
-    const names = new Set(KNOWN_INDEXEDDB_NAMES);
-    databases.forEach((db) => {
-      if (db.name) names.add(db.name);
-    });
-    await Promise.all([...names].map(deleteIndexedDatabase));
-    return;
+    existing = databases.map((db) => db.name).filter((name): name is string => Boolean(name));
   }
-
-  await Promise.all(KNOWN_INDEXEDDB_NAMES.map(deleteIndexedDatabase));
+  await Promise.all(selectDatabasesToDelete(existing, includeLogs).map(deleteIndexedDatabase));
 }
 
 function clearCookies(): void {
@@ -51,11 +66,19 @@ function clearCookies(): void {
  * severs it anyway, but calling this first avoids the worker touching
  * storage mid-delete.
  */
-export async function resetApp(disconnectWorker?: () => void): Promise<void> {
+export async function resetApp(disconnectWorker?: () => void, options: ResetAppOptions = {}): Promise<void> {
+  const includeLogs = options.includeLogs === true;
+
   try {
     disconnectWorker?.();
   } catch {
     // Best-effort — the storage wipe below is what actually matters.
+  }
+
+  if (includeLogs) {
+    // Close this tab's handles on the log database so the delete is not
+    // blocked; the worker drops its own handle on `versionchange`.
+    await uninstallPersistentLogging().catch(() => undefined);
   }
 
   clearCookies();
@@ -71,7 +94,7 @@ export async function resetApp(disconnectWorker?: () => void): Promise<void> {
     // Ignore — proceed with the rest of the wipe regardless.
   }
 
-  await deleteAllIndexedDatabases();
+  await deleteAllIndexedDatabases(includeLogs);
 
   window.location.href = window.location.origin + window.location.pathname;
 }

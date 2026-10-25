@@ -24,6 +24,9 @@ import {
 } from '@mui/icons-material';
 import DeveloperConsole from './DeveloperConsole';
 import { SampleDataService } from '@/lib/sampleDataService';
+import { logger } from '@/lib/logging';
+
+const log = logger.child({ component: 'DeveloperConsolePage' });
 
 interface DeveloperConsolePageProps {
   onClose: () => void;
@@ -52,9 +55,9 @@ const DeveloperConsolePage: React.FC<DeveloperConsolePageProps> = ({ onClose }) 
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      console.log(`[Developer Console] Exported ${tableName} to JSON for sample data`);
+      log.info(`Exported ${tableName} to JSON for sample data`, { operation: 'exportTableForSampleData', tableName });
     } catch (error) {
-      console.error(`[Developer Console] Failed to export ${tableName}:`, error);
+      log.error(`Failed to export ${tableName}`, { operation: 'exportTableForSampleData', tableName, error });
     } finally {
       setExportingTable(null);
     }

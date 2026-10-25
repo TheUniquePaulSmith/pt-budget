@@ -2,6 +2,20 @@
 // Handles communication between main thread and database worker
 
 import type { DatabaseVfsSnapshot } from './databaseArchive';
+import { getDebugFlags } from './debugMode';
+import { getAmbientLogContext, logger, nextCorrelationId, type LogContext } from './logging';
+
+/**
+ * Traceability fields sent with every request. The worker stamps them on the
+ * records it writes while handling the message, so app and worker rows share
+ * a `correlationId` (which is also the message id, `<tabId>:<n>`).
+ */
+export interface DatabaseMessageMeta {
+  correlationId: string;
+  page?: string;
+  component?: string;
+  operation?: string;
+}
 
 export interface DatabaseMessage {
   id: string;
@@ -47,11 +61,21 @@ export interface DatabaseChangeEvent {
   writeCount: number;
 }
 
+const log = logger.child({ component: 'DatabaseWorkerService' });
+
+/** Builds the `meta` block for a request from the ambient log context (current page, component, operation). */
+export function buildMessageMeta(correlationId: string, type: string, ambient: LogContext = getAmbientLogContext()): DatabaseMessageMeta {
+  const meta: DatabaseMessageMeta = { correlationId };
+  if (typeof ambient.page === 'string') meta.page = ambient.page;
+  if (typeof ambient.component === 'string') meta.component = ambient.component;
+  meta.operation = typeof ambient.operation === 'string' ? ambient.operation : type;
+  return meta;
+}
+
 export class DatabaseWorkerService {
   private worker: SharedWorker | null = null;
   private port: MessagePort | null = null;
-  private messageId = 0;
-  private pendingMessages = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timeout: NodeJS.Timeout | null }>();
+  private pendingMessages = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timeout: NodeJS.Timeout | null; type: string; startedAt: number }>();
   private statusCallbacks = new Set<(status: WorkerStatus) => void>();
   private changeCallbacks = new Set<(event: DatabaseChangeEvent) => void>();
   private heartbeatTimeout: NodeJS.Timeout | null = null;
@@ -68,13 +92,13 @@ export class DatabaseWorkerService {
   }
 
   private isDebugMode(): boolean {
-    return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
+    return getDebugFlags().debug;
   }
 
   private initializeWorker() {
     // Skip initialization on server-side
     if (typeof window === 'undefined') {
-      console.log('[DB Service] Skipping worker initialization on server-side');
+      log.debug('Skipping worker initialization on server-side');
       return;
     }
 
@@ -90,6 +114,8 @@ export class DatabaseWorkerService {
       //Start the worker
       this.port.start();
 
+      // Per-port debug flag: the worker logs debug-level rows for this tab's
+      // requests only while this tab asked for it.
       if (this.isDebugMode()) {
         this.port.postMessage({ id: 'debug_config', type: 'set_debug', payload: { debug: true } });
       }
@@ -97,19 +123,16 @@ export class DatabaseWorkerService {
       // Start monitoring heartbeat
       this.startHeartbeatMonitoring();
 
-      // // Send initialization message to worker
-      // this.port.postMessage({ id: this.generateMessageId(), type: 'initialize', payload: null });
-
-      console.log('[DB Service] Database worker service started and ready to receive messages');
+      log.info('Database worker service started and ready to receive messages');
     } catch (error) {
-      console.error('[DB Service] Failed to initialize worker:', error);
+      log.error('Failed to initialize worker', { error });
       this.updateStatus({ isWorkerAlive: false });
     }
   }
 
   private handleMessage(event: MessageEvent<DatabaseResponse>) {
     const response = event.data;
-    
+
 
     // Handle initialization response
     if (response.type === 'initialize_response') {
@@ -157,7 +180,7 @@ export class DatabaseWorkerService {
         try {
           callback(changeEvent);
         } catch (error) {
-          console.error('[DB Service] Change callback error:', error);
+          log.error('Change callback error', { error });
         }
       });
       return;
@@ -175,26 +198,39 @@ export class DatabaseWorkerService {
 
     //Handle pending message responses
     if (response.id) {
-      if (this.isDebugMode()) {
-        console.debug(`[DB Service] Received message: ${response.type} with ID: ${response.id}`, response);
-      }
       const pending = this.pendingMessages.get(response.id);
       if (pending) {
         if (pending.timeout) clearTimeout(pending.timeout);
         this.pendingMessages.delete(response.id);
-        
+
+        const durationMs = Date.now() - pending.startedAt;
         if (response.isSuccessful) {
+          log.trace('Worker response', {
+            correlationId: response.id,
+            operation: pending.type,
+            responseType: response.type,
+            durationMs,
+          });
           pending.resolve(response);
         } else {
-          pending.reject(new Error(response.sqlResponse?.error || 'Unknown error'));
+          const message = response.sqlResponse?.error || 'Unknown error';
+          log.warn('Worker request failed', {
+            correlationId: response.id,
+            operation: pending.type,
+            responseType: response.type,
+            durationMs,
+            sql: response.sqlResponse?.sql,
+            error: message,
+          });
+          pending.reject(new Error(message));
         }
       }
     }
   }
 
   private handleError(event: Event) {
-    console.error('[DB Service] Worker error:', event);
-    this.updateStatus({ 
+    log.error('Worker error', { eventType: event.type });
+    this.updateStatus({
       isWorkerAlive: false,
       isConnected: false,
       dbStatus: 'error'
@@ -212,8 +248,8 @@ export class DatabaseWorkerService {
 
     // If no heartbeat received within 15 seconds, mark worker as dead
     this.heartbeatTimeout = setTimeout(() => {
-      console.warn('[DB Service] Heartbeat timeout - worker appears dead');
-      this.updateStatus({ 
+      log.warn('Heartbeat timeout - worker appears dead', { process: 'heartbeat' });
+      this.updateStatus({
         isWorkerAlive: false,
         isConnected: false,
         dbStatus: 'disconnected'
@@ -227,7 +263,7 @@ export class DatabaseWorkerService {
       try {
         callback(this.status);
       } catch (error) {
-        console.error('[DB Service] Status callback error:', error);
+        log.error('Status callback error', { error });
       }
     });
   }
@@ -236,7 +272,7 @@ export class DatabaseWorkerService {
     this.statusCallbacks.add(callback);
     // Immediately call with current status
     callback(this.status);
-    
+
     // Return unsubscribe function
     return () => {
       this.statusCallbacks.delete(callback);
@@ -259,8 +295,9 @@ export class DatabaseWorkerService {
     };
   }
 
+  /** Message ids are correlation ids (`<tabId>:<n>`) so worker log rows join this tab's rows. */
   private generateMessageId(): string {
-    return `msg_${++this.messageId}_${Date.now()}`;
+    return nextCorrelationId();
   }
 
   // Operation-specific timeout configurations
@@ -288,7 +325,7 @@ export class DatabaseWorkerService {
   };
 
   private getTimeoutForOperation(type: string): number {
-    return this.OPERATION_TIMEOUTS[type as keyof typeof this.OPERATION_TIMEOUTS] 
+    return this.OPERATION_TIMEOUTS[type as keyof typeof this.OPERATION_TIMEOUTS]
       || this.OPERATION_TIMEOUTS.default;
   }
 
@@ -301,28 +338,46 @@ export class DatabaseWorkerService {
       }
 
       const id = this.generateMessageId();
-      const message: DatabaseMessage = { id, type, payload };
+      const meta = buildMessageMeta(id, type);
+      // Every request carries `meta` so the worker's log rows for it share
+      // this tab's correlation id, page and component. `payload` is spread
+      // into a fresh object: callers' objects are never mutated and a null
+      // payload (ping) still gets its meta.
+      const message: DatabaseMessage = { id, type, payload: { ...(payload ?? {}), meta } };
 
       // Use custom timeout if provided, otherwise use operation-specific timeout
       const timeoutMs = customTimeoutMs ?? this.getTimeoutForOperation(type);
 
       const timeout = timeoutMs === Number.MAX_VALUE ? null : setTimeout(() => {
-        console.warn(`[DB Service] Message timeout after ${timeoutMs}ms: ${type} with ID: ${id}`);
-        if (this.isDebugMode()) {
-          console.debug(`[DB Service] Timed out SQL:`, payload?.sql ?? payload);
-        }
+        log.warn(`Message timeout after ${timeoutMs}ms: ${type}`, {
+          correlationId: id,
+          operation: type,
+          timeoutMs,
+          sql: this.isDebugMode() ? payload?.sql ?? undefined : undefined,
+        });
         this.pendingMessages.delete(id);
         reject(new Error(`Database operation timed out after ${timeoutMs}ms: ${type}`));
       }, timeoutMs);
 
-      this.pendingMessages.set(id, { resolve, reject, timeout });
+      this.pendingMessages.set(id, { resolve, reject, timeout, type, startedAt: Date.now() });
 
       try {
         this.port.postMessage(message);
-        // console.debug(`[DB Service] Sent message: ${type} with ID: ${id}`);
+        log.debug('Worker request', {
+          correlationId: id,
+          operation: type,
+          page: meta.page,
+          sql: typeof payload?.sql === 'string' ? payload.sql : undefined,
+          parameterCount: Array.isArray(payload?.parameters)
+            ? payload.parameters.length
+            : Array.isArray(payload?.parameterSets)
+              ? payload.parameterSets.length
+              : undefined,
+        });
       } catch (error) {
         if (timeout) clearTimeout(timeout);
         this.pendingMessages.delete(id);
+        log.error('Failed to post message to worker', { correlationId: id, operation: type, error });
         reject(error);
       }
     });

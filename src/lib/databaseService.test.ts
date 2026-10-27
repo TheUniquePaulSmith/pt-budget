@@ -15,6 +15,7 @@ import {
   BUDGET_FUND_QUERIES,
   BUDGET_PLAN_QUERIES,
   CATEGORY_QUERIES,
+  CLASSIFICATION_QUERIES,
   COMPANY_QUERIES,
   IMPORT_BATCH_QUERIES,
   INCOME_SOURCE_QUERIES,
@@ -161,6 +162,10 @@ const expectedMappedTransaction: Transaction = {
   service_name: undefined,
   project_name: 'Kitchen Remodel',
   trip_name: undefined,
+  type_source: 'sign',
+  type_confidence: null,
+  transfer_counterpart_id: null,
+  transfer_counterpart_account_name: undefined,
 };
 
 const categoryRow: Category = {
@@ -1333,7 +1338,7 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
 });
 
 describe('DatabaseService budget income calculations', () => {
-  it('adds multiple expected income sources and excludes credit-card payments from linked actual income', async () => {
+  it('adds multiple expected income sources and reads linked actual income from income-typed rows', async () => {
     const querySpy = vi.fn().mockImplementation(async (sql: string) => {
       switch (sql) {
         case BUDGET_PLAN_QUERIES.GET_ALL_PLANS:
@@ -1346,7 +1351,10 @@ describe('DatabaseService budget income calculations', () => {
         case BUDGET_FUND_QUERIES.FUND_LINKED_SPEND_BY_MONTH_CATEGORY:
           return [];
         case BUDGET_PLAN_QUERIES.ACTUAL_INCOME_LINKED_BY_MONTH:
-          expect(sql).toContain("a.type != 'credit'");
+          // Income is decided by transactions.type alone: card payments and
+          // merchant credits on credit accounts are typed transfer / refund.
+          expect(sql).toContain("t.type = 'income' AND t.is_excluded = 0");
+          expect(sql).not.toContain("a.type != 'credit'");
           return [{ month: '2026-07', total: 3200 }];
         case INCOME_SOURCE_QUERIES.GET_ALL:
           return [
@@ -1394,10 +1402,10 @@ describe('DatabaseService budget income calculations', () => {
 });
 
 describe('DatabaseService dashboard income summaries', () => {
-  it('uses configured income-source totals when actual non-credit income is lower', async () => {
+  it('uses configured income-source totals when actual income is lower', async () => {
     const querySpy = vi.fn().mockImplementation(async (sql: string) => {
       if (sql.includes('as transaction_count')) {
-        expect(sql).toContain("a.type != 'credit'");
+        expect(sql).toContain("t.type = 'income' AND t.is_excluded = 0 THEN t.amount");
         return [{ transaction_count: 0, total_income: 0, total_expenses: 1250 }];
       }
       if (sql === INCOME_SOURCE_QUERIES.GET_ALL) {
@@ -1498,7 +1506,7 @@ describe('DatabaseService dashboard income summaries', () => {
           { series_id: 3, series_name: 'StreamHouse', kind: 'subscription', total: 49.99 },
         ];
       }
-      if (sql.includes('a.id as account_id') && sql.includes("a.type != 'credit'")) {
+      if (sql.includes('a.id as account_id') && sql.includes("t.type = 'income' AND t.is_excluded = 0 AND t.date BETWEEN")) {
         return [];
       }
       if (sql.includes("strftime('%Y-%m', t.date) as month") && sql.includes('as expense')) {
@@ -1516,7 +1524,7 @@ describe('DatabaseService dashboard income summaries', () => {
         return [];
       }
       if (sql.includes('as user_display_name') && sql.includes('as expenses')) {
-        expect(sql).toContain("t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit'");
+        expect(sql).toContain("t.type = 'income' AND t.is_excluded = 0 THEN t.amount");
         expect(sql).toContain('GROUP BY COALESCE(card.user_id, a.owner_user_id)');
         return [
           { user_id: 1, user_display_name: 'Pat', income: 0, expenses: 1250 },
@@ -2161,8 +2169,13 @@ describe('DatabaseService analytics consistency', () => {
       expect(sql).not.toContain('c.type =');
     }
     expect(ANALYTICS_QUERIES.SPENDING_BY_CATEGORY).toContain("t.type IN ('expense', 'refund') AND t.is_excluded = 0");
-    expect(ANALYTICS_QUERIES.INCOME_BY_CATEGORY).toContain("t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit'");
-    expect(ANALYTICS_QUERIES.MONTHLY_TRENDS).toContain("t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit'");
+    expect(ANALYTICS_QUERIES.INCOME_BY_CATEGORY).toContain("t.type = 'income' AND t.is_excluded = 0");
+    expect(ANALYTICS_QUERIES.MONTHLY_TRENDS).toContain("t.type = 'income' AND t.is_excluded = 0 THEN t.amount");
+    // No query second-guesses the type from the account type any more (schema v4
+    // classification types card payments and merchant credits).
+    for (const sql of Object.values(ANALYTICS_QUERIES)) {
+      expect(sql).not.toContain("a.type != 'credit'");
+    }
   });
 
   it('keeps uncategorized spend as a bucket instead of dropping it through an inner join', () => {
@@ -2234,7 +2247,7 @@ describe('DatabaseService analytics consistency', () => {
     expect(analyticsSql).not.toMatch(/ABS\(/i);
     // Every spend aggregate excludes transfers and hidden rows through the shared expression.
     expect(ANALYTICS_QUERIES.DASHBOARD_SUMMARY).toContain("t.type IN ('expense', 'refund') AND t.is_excluded = 0 THEN -t.amount");
-    expect(ANALYTICS_QUERIES.DASHBOARD_SUMMARY).toContain("t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit' THEN t.amount");
+    expect(ANALYTICS_QUERIES.DASHBOARD_SUMMARY).toContain("t.type = 'income' AND t.is_excluded = 0 THEN t.amount");
     expect(BUDGET_PLAN_QUERIES.ACTUAL_EXPENSES_BY_MONTH_CATEGORY).toContain("t.type IN ('expense', 'refund') AND t.is_excluded = 0");
     expect(TRIP_QUERIES.GET_COSTS).toContain("tr.type IN ('expense', 'refund') AND tr.is_excluded = 0 THEN -tr.amount");
   });
@@ -2278,7 +2291,7 @@ describe('DatabaseService transaction editing', () => {
     const expectedHash = await DatabaseService.generateTransactionHashFromFields(3, '2026-04-20', -30, 'Fuel stop');
     expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.CHECK_HASH_EXISTS_EXCLUDING, [expectedHash, 31]);
     expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.UPDATE_FULL, [
-      '2026-04-20', -30, 'Fuel stop', null, 3, null, 6, null, null, null, 'expense', 0, expectedHash, 31,
+      '2026-04-20', -30, 'Fuel stop', null, 3, null, 6, null, null, null, 'expense', 0, 'sign', expectedHash, 31,
     ]);
   });
 
@@ -2290,7 +2303,7 @@ describe('DatabaseService transaction editing', () => {
 
     expect(querySpy).not.toHaveBeenCalledWith(TRANSACTION_QUERIES.CHECK_HASH_EXISTS_EXCLUDING, expect.anything());
     expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.UPDATE_FULL, [
-      '2026-04-20', -25.75, 'Fuel stop', 'Card payment', 3, null, 4, null, null, null, 'transfer', 1, 'old-hash', 31,
+      '2026-04-20', -25.75, 'Fuel stop', 'Card payment', 3, null, 4, null, null, null, 'transfer', 1, 'manual', 'old-hash', 31,
     ]);
   });
 
@@ -2333,6 +2346,7 @@ describe('DatabaseService transaction editing', () => {
 
     const issued = querySpy.mock.calls.map((call) => call[0]);
     expect(issued).toEqual([
+      TRANSACTION_QUERIES.GET_RAW_BY_ID, // reads the transfer group so the other leg can be unpaired
       'BEGIN TRANSACTION',
       SUBSCRIPTION_QUERIES.DELETE_LINK_FOR_TRANSACTION,
       TRANSACTION_QUERIES.DELETE,
@@ -2420,5 +2434,131 @@ describe('DatabaseService import batches and review filters', () => {
     const inclusiveAggregate = issued.find((sql) => sql.includes('COUNT(*) as total')) ?? '';
     expect(inclusiveAggregate).not.toMatch(whereExcludesHidden);
     expect(inclusiveAggregate).not.toContain('t.is_flagged = 1');
+  });
+});
+
+describe('DatabaseService transfer pairing hooks', () => {
+  const pairedRow = {
+    id: 31,
+    date: '2026-04-20',
+    amount: -25.75,
+    description: 'PYMT BY FUNDS TRANSFER',
+    comment: null,
+    account_id: 3,
+    card_id: null,
+    category_id: null,
+    company_id: null,
+    project_id: null,
+    trip_id: null,
+    type: 'transfer',
+    transaction_hash: 'old-hash',
+    hash_variation_seed: 0,
+    type_locked: 0,
+    type_source: 'pair',
+    type_confidence: 0.9,
+    transfer_group_id: 'group-7',
+    is_excluded: 0,
+    is_flagged: 0,
+  };
+
+  function stub(row: Record<string, unknown> = pairedRow) {
+    return vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === TRANSACTION_QUERIES.GET_RAW_BY_ID) return [row];
+      if (sql === TRANSACTION_QUERIES.CHECK_HASH_EXISTS_EXCLUDING) return [{ count: 0 }];
+      return [];
+    });
+  }
+
+  it('unpairs both legs when a paired row is re-typed away from transfer by hand', async () => {
+    const querySpy = stub();
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.setTransactionType(31, 'expense');
+
+    expect(querySpy).toHaveBeenCalledWith(TRANSACTION_QUERIES.SET_TYPE, ['expense', 31]);
+    expect(querySpy).toHaveBeenCalledWith(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP, ['group-7']);
+    expect(TRANSACTION_QUERIES.SET_TYPE).toContain("type_source = 'manual'");
+  });
+
+  it('keeps the pairing when the type stays transfer', async () => {
+    const querySpy = stub({ ...pairedRow, type: 'expense', type_source: 'sign' });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.setTransactionType(31, 'transfer');
+
+    expect(querySpy).not.toHaveBeenCalledWith(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP, expect.anything());
+  });
+
+  it('unpairs when a full edit changes the type away from transfer, recording the manual source', async () => {
+    const querySpy = stub();
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.updateTransaction(31, { type: 'expense' });
+
+    const updateCall = querySpy.mock.calls.find((call) => call[0] === TRANSACTION_QUERIES.UPDATE_FULL)!;
+    expect(updateCall[1].slice(10, 13)).toEqual(['expense', 1, 'manual']);
+    expect(querySpy).toHaveBeenCalledWith(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP, ['group-7']);
+  });
+
+  it('keeps the automatic provenance when an edit does not touch the type', async () => {
+    const querySpy = stub();
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.updateTransaction(31, { comment: 'weekly payoff' });
+
+    const updateCall = querySpy.mock.calls.find((call) => call[0] === TRANSACTION_QUERIES.UPDATE_FULL)!;
+    expect(updateCall[1].slice(10, 13)).toEqual(['transfer', 0, 'pair']);
+    expect(querySpy).not.toHaveBeenCalledWith(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP, expect.anything());
+  });
+
+  it('unpairs the other leg when a paired row is deleted', async () => {
+    const querySpy = stub();
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    await service.deleteTransaction(31);
+
+    const issued = querySpy.mock.calls.map((call) => call[0]);
+    expect(issued.indexOf(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP)).toBeGreaterThan(issued.indexOf(TRANSACTION_QUERIES.DELETE));
+    expect(issued.indexOf(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP)).toBeLessThan(issued.indexOf('COMMIT'));
+    expect(querySpy).toHaveBeenCalledWith(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP, ['group-7']);
+  });
+
+  it('filters the list to automatically typed, unconfirmed rows and maps the provenance columns', async () => {
+    const querySpy = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === INCOME_SOURCE_QUERIES.GET_ALL) return [];
+      if (sql.includes('COUNT(*) as total')) return [{ total: 1, total_income: 0, total_expenses: 0 }];
+      return [
+        {
+          ...transactionRow,
+          type: 'transfer',
+          type_source: 'pair',
+          type_confidence: 0.87,
+          transfer_group_id: 'group-7',
+          transfer_counterpart_id: 44,
+          transfer_counterpart_account_name: 'Rewards Visa',
+        },
+      ];
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query: querySpy }));
+
+    const result = await service.getTransactionsPaginated({
+      page: 0,
+      pageSize: 25,
+      sortBy: 'date',
+      sortOrder: 'desc',
+      needsTypeReview: true,
+    });
+
+    const listCall = querySpy.mock.calls.find((call) => String(call[0]).includes('LIMIT ? OFFSET ?'))!;
+    expect(String(listCall[0])).toContain("t.type_locked = 0 AND t.type_source != 'sign'");
+    expect(String(listCall[0])).toContain('as transfer_counterpart_account_name');
+    expect(result.data[0]).toMatchObject({
+      type: 'transfer',
+      type_source: 'pair',
+      type_confidence: 0.87,
+      transfer_group_id: 'group-7',
+      transfer_counterpart_id: 44,
+      transfer_counterpart_account_name: 'Rewards Visa',
+    });
   });
 });

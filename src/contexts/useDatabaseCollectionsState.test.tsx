@@ -17,6 +17,10 @@ function createServiceMock() {
     getRecurringSeriesWithStats: vi.fn().mockResolvedValue([{ id: 9, name: 'Netflix' }]),
     getNotifications: vi.fn().mockResolvedValue([{ id: 10, title: 'Pay rent' }]),
     seedCommunityMerchantRules: vi.fn().mockResolvedValue({ skipped: true }),
+    classification: {
+      listRules: vi.fn().mockResolvedValue([{ id: 11, pattern: 'PYMT BY FUNDS TRANSFER' }]),
+      runInitialScanIfNeeded: vi.fn().mockResolvedValue(null),
+    },
   };
 }
 
@@ -46,8 +50,28 @@ describe('useDatabaseCollectionsState', () => {
       merchantRules: [{ id: 8, rule_key: 'community:netflix' }],
       recurringSeries: [{ id: 9, name: 'Netflix' }],
       notifications: [{ id: 10, title: 'Pay rent' }],
+      classificationRules: [{ id: 11, pattern: 'PYMT BY FUNDS TRANSFER' }],
     });
     expect(service.seedCommunityMerchantRules).toHaveBeenCalledTimes(1);
+    // The one-time classification of pre-v4 rows runs on every open path (a no-op after the first).
+    expect(service.classification.runInitialScanIfNeeded).toHaveBeenCalledTimes(1);
+  });
+
+  it('still loads collections when the initial classification scan fails', async () => {
+    const service = createServiceMock();
+    service.classification.runInitialScanIfNeeded.mockRejectedValue(new Error('busy'));
+
+    const { result } = renderHook(() =>
+      useDatabaseCollectionsState({
+        getDatabaseService: () => null,
+      })
+    );
+
+    await act(async () => {
+      await result.current.loadAllData(service);
+    });
+
+    expect(result.current.collections.classificationRules).toEqual([{ id: 11, pattern: 'PYMT BY FUNDS TRANSFER' }]);
   });
 
   it('still loads collections when community rule seeding fails', async () => {

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
+  Alert,
   Box,
   Typography,
   Paper,
@@ -28,11 +29,13 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Snackbar,
   useMediaQuery,
   useTheme,
   CircularProgress,
 } from '@mui/material';
 import {
+  AutoFixHigh,
   FilterList,
   ClearAll,
   Download,
@@ -40,6 +43,7 @@ import {
   ExpandMore,
   MoreVert,
   Receipt,
+  Rule,
   ViewColumn,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -50,7 +54,9 @@ import type { GridColDef, GridColumnVisibilityModel, GridPaginationModel, GridRo
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useLongPress } from '@/components/common/DataGrid/useLongPress';
-import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
+import { useClassificationRulesSlice, useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
+import type { ClassificationScanSummary } from '@/types/classification';
+import ClassificationRulesDialog from './ClassificationRulesDialog';
 import TransactionLabelDialog from './TransactionLabelDialog';
 import TransactionRowActionsMenu from './TransactionRowActionsMenu';
 import TransactionBulkActionsBar, { BulkActionKind } from './TransactionBulkActionsBar';
@@ -96,6 +102,22 @@ export default function TransactionReport() {
     setTransactionComment,
     getEffectiveBudgetPlan,
   } = useTransactionReportSlice();
+  const {
+    classificationRules,
+    addClassificationRule,
+    updateClassificationRule,
+    deleteClassificationRule,
+    previewClassificationRuleMatches,
+    runClassificationScan,
+    countTypeReviews,
+  } = useClassificationRulesSlice();
+
+  // Transaction typing: rules dialog, on-demand scan, rows awaiting review.
+  const [rulesDialogOpen, setRulesDialogOpen] = useState(false);
+  const [classifying, setClassifying] = useState(false);
+  const [scanSummary, setScanSummary] = useState<ClassificationScanSummary | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [reviewCount, setReviewCount] = useState(0);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -115,6 +137,7 @@ export default function TransactionReport() {
   const [missingProject, setMissingProject] = useState(false);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [includeExcluded, setIncludeExcluded] = useState(false);
+  const [needsTypeReview, setNeedsTypeReview] = useState(false);
 
   // Table state
   const [page, setPage] = useState(0);
@@ -210,7 +233,30 @@ export default function TransactionReport() {
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     setPage(0);
-  }, [debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, rowsPerPage]);
+  }, [debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, needsTypeReview, rowsPerPage]);
+
+  // How many rows carry an automatic, unconfirmed type (drives the review banner).
+  useEffect(() => {
+    let cancelled = false;
+    countTypeReviews()
+      .then((count) => {
+        if (!cancelled) setReviewCount(count);
+      })
+      .catch((err) => console.error('Failed to count transactions needing type review:', err));
+    return () => { cancelled = true; };
+  }, [transactionVersion, countTypeReviews]);
+
+  const handleAutoClassify = async () => {
+    setClassifying(true);
+    setScanError(null);
+    try {
+      setScanSummary(await runClassificationScan());
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : 'Auto-classification failed');
+    } finally {
+      setClassifying(false);
+    }
+  };
 
   // Fetch from DB whenever page/filters/sort/version change
   useEffect(() => {
@@ -239,6 +285,7 @@ export default function TransactionReport() {
           missingProject: missingProject || undefined,
           flaggedOnly: flaggedOnly || undefined,
           includeExcluded: includeExcluded || undefined,
+          needsTypeReview: needsTypeReview || undefined,
         });
         if (!cancelled) setResult(data);
       } catch (err) {
@@ -249,7 +296,7 @@ export default function TransactionReport() {
     };
     fetch();
     return () => { cancelled = true; };
-  }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, getTransactionsPaginated]);
+  }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, needsTypeReview, getTransactionsPaginated]);
 
   const columnLabels = {
     date: 'Date', description: 'Description', comment: 'Comment', category: 'Category',
@@ -286,6 +333,7 @@ export default function TransactionReport() {
     setMissingProject(false);
     setFlaggedOnly(false);
     setIncludeExcluded(false);
+    setNeedsTypeReview(false);
     setPage(0);
   };
 
@@ -329,6 +377,7 @@ export default function TransactionReport() {
         missingProject: missingProject || undefined,
         flaggedOnly: flaggedOnly || undefined,
         includeExcluded: includeExcluded || undefined,
+        needsTypeReview: needsTypeReview || undefined,
       });
 
       const headers = Object.entries(columnLabels)
@@ -584,7 +633,28 @@ export default function TransactionReport() {
               Transaction Report
             </Typography>
           </Box>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={2}
+            useFlexGap
+            flexWrap="wrap"
+            justifyContent="flex-end"
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            <Button
+              variant="outlined"
+              startIcon={classifying ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
+              onClick={() => { void handleAutoClassify(); }}
+              disabled={classifying}
+              size="small"
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
+              data-testid="transactions-auto-classify"
+            >
+              {classifying ? 'Classifying…' : 'Auto-classify'}
+            </Button>
+            <Button variant="outlined" startIcon={<Rule />} onClick={() => setRulesDialogOpen(true)} size="small" sx={{ width: { xs: '100%', sm: 'auto' } }} data-testid="transactions-type-rules">
+              Type Rules
+            </Button>
             <Button variant="outlined" startIcon={<ClearAll />} onClick={handleClearFilters} size="small" sx={{ width: { xs: '100%', sm: 'auto' } }}>
               Clear Filters
             </Button>
@@ -621,6 +691,24 @@ export default function TransactionReport() {
             </FormGroup>
           </Paper>
         </Collapse>
+
+        {/* Rows typed automatically (transfer / refund / rule) and not yet confirmed */}
+        {reviewCount > 0 && !needsTypeReview && (
+          <Alert
+            severity="info"
+            sx={{ mb: 3 }}
+            data-testid="type-review-banner"
+            action={
+              <Button color="inherit" size="small" onClick={() => { setNeedsTypeReview(true); setFiltersExpanded(true); }}>
+                Review
+              </Button>
+            }
+          >
+            {reviewCount} transaction{reviewCount === 1 ? ' was' : 's were'} typed automatically as transfers, refunds or by your
+            rules and {reviewCount === 1 ? 'has' : 'have'} not been confirmed. Dashed chips mark them; confirm or change the type
+            from a row&apos;s menu.
+          </Alert>
+        )}
 
         {/* Summary Stats */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: { xs: 2, sm: 3 }, mb: 3 }}>
@@ -723,6 +811,10 @@ export default function TransactionReport() {
               <FormControlLabel
                 control={<Checkbox checked={includeExcluded} onChange={(e) => setIncludeExcluded(e.target.checked)} size="small" />}
                 label="Show excluded"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={needsTypeReview} onChange={(e) => setNeedsTypeReview(e.target.checked)} size="small" />}
+                label="Needs type review"
               />
             </FormGroup>
           </Box>
@@ -836,6 +928,31 @@ export default function TransactionReport() {
             <Button variant="contained" onClick={() => { void handleSaveComment(); }}>Save</Button>
           </DialogActions>
         </Dialog>
+        <ClassificationRulesDialog
+          open={rulesDialogOpen}
+          rules={classificationRules}
+          accounts={accounts}
+          onClose={() => setRulesDialogOpen(false)}
+          onCreate={async (rule) => { await addClassificationRule(rule); }}
+          onUpdate={updateClassificationRule}
+          onDelete={deleteClassificationRule}
+          previewMatches={previewClassificationRuleMatches}
+        />
+        <Snackbar
+          open={scanSummary !== null || scanError !== null}
+          autoHideDuration={8000}
+          onClose={() => { setScanSummary(null); setScanError(null); }}
+        >
+          {scanError ? (
+            <Alert severity="error" variant="filled" onClose={() => setScanError(null)}>{scanError}</Alert>
+          ) : (
+            <Alert severity="success" variant="filled" onClose={() => setScanSummary(null)} data-testid="auto-classify-summary">
+              {scanSummary
+                ? `Checked ${scanSummary.scanned} transactions: ${scanSummary.transfersPaired} transfer${scanSummary.transfersPaired === 1 ? '' : 's'} paired, ${scanSummary.refundsInferred} refund${scanSummary.refundsInferred === 1 ? '' : 's'} detected, ${scanSummary.rulesApplied} typed by rules${scanSummary.reverted > 0 ? `, ${scanSummary.reverted} reverted to the amount sign` : ''}.`
+                : ''}
+            </Alert>
+          )}
+        </Snackbar>
       </Box>
     </LocalizationProvider>
   );

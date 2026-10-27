@@ -7,8 +7,8 @@
 
 // Money expressions live in sqlMoneyExpressions.ts (see the rules there:
 // never ABS(amount)); they are re-exported here so existing imports keep working.
-import { depositoryIncomeExpr, incomeExpr, spendExpr, spendingRowsPredicate } from './sqlMoneyExpressions';
-export { depositoryIncomeExpr, incomeExpr, spendExpr, spendingRowsPredicate };
+import { incomeExpr, spendExpr, spendingRowsPredicate } from './sqlMoneyExpressions';
+export { incomeExpr, spendExpr, spendingRowsPredicate };
 
 // Feature-owned query groups (schema v3). This file is the hub: feature
 // agents add SQL in their own module and it is re-exported from here.
@@ -16,6 +16,7 @@ export { APP_METADATA_QUERIES } from './sqlQueriesAppMetadata';
 export { NOTIFICATION_QUERIES } from './sqlQueriesNotifications';
 export { AI_TOOL_QUERIES } from './sqlQueriesAiTools';
 export { BUDGET_FUND_QUERIES } from './sqlQueriesBudgetFunds';
+export { CLASSIFICATION_QUERIES } from './sqlQueriesClassification';
 
 // Transaction Queries
 export const TRANSACTION_QUERIES = {
@@ -70,11 +71,11 @@ export const TRANSACTION_QUERIES = {
   `,
 
   // Full edit. The hash is recomputed by the service when a key field changed;
-  // type_locked is set once the user chooses a type by hand.
+  // type_locked / type_source record that the user chose the type by hand.
   UPDATE_FULL: `
     UPDATE transactions
     SET date = ?, amount = ?, description = ?, comment = ?, account_id = ?, card_id = ?,
-        category_id = ?, company_id = ?, project_id = ?, trip_id = ?, type = ?, type_locked = ?,
+        category_id = ?, company_id = ?, project_id = ?, trip_id = ?, type = ?, type_locked = ?, type_source = ?,
         transaction_hash = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `,
@@ -86,7 +87,11 @@ export const TRANSACTION_QUERIES = {
   SET_EXCLUDED: `UPDATE transactions SET is_excluded = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
 
   // A manual type change locks the type so later automatic classification never undoes it.
-  SET_TYPE: `UPDATE transactions SET type = ?, type_locked = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  SET_TYPE: `
+    UPDATE transactions
+    SET type = ?, type_locked = 1, type_source = 'manual', type_confidence = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `,
 
   UPDATE_PROJECT_TRIP: `
     UPDATE transactions 
@@ -217,15 +222,11 @@ export const TRANSACTION_QUERIES = {
     DELETE FROM temp_import_transactions
   `,
 
-  INSERT_TEMP_TRANSACTION: `
-    INSERT INTO temp_import_transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, external_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `,
-
-  // RETURNING variant used by the batched temp-table load so a single
-  // transaction inserts every row and returns each new id in order (requires
-  // SQLite >= 3.35; bundled wa-sqlite is 3.50.x). Callers rely on the returned
-  // ids being positionally aligned with the input rows.
+  // Batched temp-table load: a single transaction inserts every row and
+  // RETURNING gives each new id in order (requires SQLite >= 3.35; bundled
+  // wa-sqlite is 3.50.x). Callers rely on the returned ids being positionally
+  // aligned with the input rows. Classification columns start at their
+  // defaults and are filled by the import's detection step.
   INSERT_TEMP_TRANSACTION_RETURNING_ID: `
     INSERT INTO temp_import_transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, external_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -246,10 +247,11 @@ export const TRANSACTION_QUERIES = {
     )
   `,
 
-  // The single parameter is the import_batches id stamped on every inserted row (or NULL).
+  // The single parameter is the import_batches id stamped on every inserted row
+  // (or NULL). The classification decided at analysis time travels with the row.
   BULK_INSERT_FROM_TEMP: `
-    INSERT INTO transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, external_id, import_batch_id)
-    SELECT date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, external_id, ?
+    INSERT INTO transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, external_id, transfer_group_id, type_source, type_confidence, import_batch_id)
+    SELECT date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, external_id, transfer_group_id, type_source, type_confidence, ?
     FROM temp_import_transactions
     WHERE NOT EXISTS (
       SELECT 1 FROM transactions t WHERE t.transaction_hash = temp_import_transactions.transaction_hash
@@ -455,7 +457,7 @@ export const BUDGET_PLAN_QUERIES = {
     FROM transactions t
     JOIN accounts a ON a.id = t.account_id
     JOIN income_sources src ON src.kind = 'linked_account' AND src.account_id = t.account_id AND src.is_active = 1
-    WHERE t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit' AND t.date BETWEEN ? AND ?
+    WHERE t.type = 'income' AND t.is_excluded = 0 AND t.date BETWEEN ? AND ?
     GROUP BY strftime('%Y-%m', t.date)
   `,
 };
@@ -621,7 +623,7 @@ export const ANALYTICS_QUERIES = {
     LEFT JOIN categories c ON t.category_id = c.id
     LEFT JOIN accounts a ON t.account_id = a.id
     /*__FILTER_JOINS__*/
-    WHERE t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit' AND t.date BETWEEN ? AND ?
+    WHERE t.type = 'income' AND t.is_excluded = 0 AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
     GROUP BY c.id
     HAVING total > 0
@@ -631,7 +633,7 @@ export const ANALYTICS_QUERIES = {
   MONTHLY_TRENDS: `
     SELECT
       strftime('%Y-%m', t.date) as month,
-      SUM(${depositoryIncomeExpr()}) as income,
+      SUM(${incomeExpr()}) as income,
       SUM(${spendExpr()}) as expense
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
@@ -645,7 +647,7 @@ export const ANALYTICS_QUERIES = {
   DASHBOARD_SUMMARY: `
     SELECT
       SUM(CASE WHEN t.is_excluded = 0 THEN 1 ELSE 0 END) as transaction_count,
-      SUM(${depositoryIncomeExpr()}) as total_income,
+      SUM(${incomeExpr()}) as total_income,
       SUM(${spendExpr()}) as total_expenses
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
@@ -668,7 +670,7 @@ export const ANALYTICS_QUERIES = {
     LEFT JOIN users u ON a.owner_user_id = u.id
     LEFT JOIN categories c ON t.category_id = c.id
     /*__FILTER_JOINS__*/
-    WHERE t.type = 'income' AND t.is_excluded = 0 AND a.type != 'credit' AND t.date BETWEEN ? AND ?
+    WHERE t.type = 'income' AND t.is_excluded = 0 AND t.date BETWEEN ? AND ?
     /*__FILTERS__*/
     GROUP BY a.id, c.id
     HAVING total > 0
@@ -678,7 +680,7 @@ export const ANALYTICS_QUERIES = {
   TRENDS_BY_DATE_RANGE: `
     SELECT
       strftime('%Y-%m', t.date) as month,
-      SUM(${depositoryIncomeExpr()}) as income,
+      SUM(${incomeExpr()}) as income,
       SUM(${spendExpr()}) as expense
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
@@ -732,7 +734,7 @@ export const ANALYTICS_QUERIES = {
     SELECT
       COALESCE(card.user_id, a.owner_user_id) as user_id,
       COALESCE(card_user.display_name, owner_user.display_name) as user_display_name,
-      SUM(${depositoryIncomeExpr()}) as income,
+      SUM(${incomeExpr()}) as income,
       SUM(${spendExpr()}) as expenses
     FROM transactions t
     JOIN accounts a ON t.account_id = a.id

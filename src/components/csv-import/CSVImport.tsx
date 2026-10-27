@@ -18,7 +18,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Checkbox,
   Chip,
+  FormControlLabel,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -26,6 +28,7 @@ import {
 import { CloudUpload, CheckCircle, Error as ErrorIcon, ExpandMore, InsertDriveFile } from '@mui/icons-material';
 import Papa from 'papaparse';
 import { Account, AccountCard } from '@/types/database';
+import type { ImportClassificationPreview, TypeDecision } from '@/types/classification';
 import {
   applyAccountSelection,
   applyAccountSkip,
@@ -40,10 +43,11 @@ import {
   type CSVImportAnalysisResult as AnalysisResult,
   type CSVImportColumnMapping as ColumnMapping,
 } from '@/lib/csvImportService';
-import { useCsvImportSlice } from '@/contexts/useDatabaseSlices';
+import { useCsvImportSlice, useImportClassificationSlice } from '@/contexts/useDatabaseSlices';
 import { logger } from '@/lib/logging';
 import { AccountFormDialog, type AccountFormValues } from '@/components/accounts/AccountFormDialog';
 import type { AccountCardInput, AccountFormPrefill } from '@/components/accounts/accountFormModel';
+import ImportTransferReview from './ImportTransferReview';
 import InternalDuplicatesResolver from './InternalDuplicatesResolver';
 import CsvAccountMappingRow, { CSV_ACCOUNT_CREATE_VALUE, CSV_ACCOUNT_SKIP_VALUE } from './CsvAccountMappingRow';
 import CsvImportResultSummary, { type CsvImportResult } from './CsvImportResultSummary';
@@ -93,6 +97,12 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     getAccountCards,
     runSubscriptionScan,
   } = useCsvImportSlice();
+  const {
+    previewImportClassification,
+    decisionsForTransferPairs,
+    applyStagedClassification,
+    applyClassificationDecisions,
+  } = useImportClassificationSlice();
 
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
@@ -108,6 +118,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   const [error, setError] = useState<string | null>(null);
   const [duplicateResolverOpen, setDuplicateResolverOpen] = useState(false);
   const [createTarget, setCreateTarget] = useState<CreateAccountTarget | null>(null);
+  // Transaction typing during import: transfers between the user's accounts,
+  // refunds and rule matches detected among the staged rows (and against rows
+  // already in the database). The user can uncheck detected transfer pairs.
+  const [detectTypes, setDetectTypes] = useState(true);
+  const [classification, setClassification] = useState<ImportClassificationPreview | null>(null);
+  const [selectedPairIds, setSelectedPairIds] = useState<Set<string>>(() => new Set());
+  const [transferReviewOpen, setTransferReviewOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<{
     columnMapping: boolean;
     accountMapping: boolean;
@@ -132,12 +149,28 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     setError(null);
     setDuplicateResolverOpen(false);
     setCreateTarget(null);
+    setDetectTypes(true);
+    setClassification(null);
+    setSelectedPairIds(new Set());
+    setTransferReviewOpen(false);
     setExpandedSections({
       columnMapping: true,
       accountMapping: true,
       preview: true,
     });
   }, []);
+
+  // Classifies the staged rows; recommended transfer pairs start checked.
+  const refreshClassification = useCallback(async () => {
+    if (!detectTypes) {
+      setClassification(null);
+      setSelectedPairIds(new Set());
+      return;
+    }
+    const preview = await previewImportClassification();
+    setClassification(preview);
+    setSelectedPairIds(new Set(preview.pairs.filter((pair) => pair.recommended).map((pair) => pair.pairId)));
+  }, [detectTypes, previewImportClassification]);
 
   // Reset stale state (e.g. a previous import's success message) whenever the
   // dialog opens, since the parent may close it without routing through
@@ -448,6 +481,9 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         uniqueCount,
         duplicateGroups: undefined, // Clear duplicate groups after resolution
       });
+
+      // The staged set changed, so detected transfers are recomputed.
+      await refreshClassification();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update analysis after duplicate resolution');
     }
@@ -494,6 +530,8 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     setAnalyzing(true);
     setError(null);
     setAnalysisResult(null);
+    setClassification(null);
+    setSelectedPairIds(new Set());
 
     // Collapse mapping and preview sections when analyzing
     setExpandedSections({
@@ -538,6 +576,10 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         rejectedRows: rejected,
         duplicateGroups: duplicateGroups.length > 0 ? duplicateGroups : undefined,
       });
+
+      // Type the staged rows: transfers (paired across accounts, including
+      // against rows already imported), refunds and the user's type rules.
+      await refreshClassification();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze transactions');
       // Clean up import table on error
@@ -575,8 +617,27 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         total_rows: csvData.length,
       });
 
+      // Apply the detected types to the staged rows first, so the bulk insert
+      // carries them over; the existing leg of a transfer pair is typed after
+      // its new counterpart has landed.
+      let existingDecisions: TypeDecision[] = [];
+      let importedTransfers = 0;
+      let importedTransfersWithExisting = 0;
+      if (classification) {
+        const keptPairs = classification.pairs.filter((pair) => selectedPairIds.has(pair.pairId));
+        const pairDecisions = decisionsForTransferPairs(keptPairs);
+        existingDecisions = pairDecisions.filter((decision) => decision.key.startsWith('tx:'));
+        importedTransfers = keptPairs.length;
+        importedTransfersWithExisting = keptPairs.filter((pair) => pair.involvesExisting).length;
+        await applyStagedClassification([...classification.rowDecisions, ...pairDecisions]);
+      }
+
       // Bulk insert from temp table (excludes duplicates)
       const successCount = await bulkInsertFromTempTable(batchId);
+
+      if (existingDecisions.length > 0) {
+        await applyClassificationDecisions(existingDecisions);
+      }
 
       await finalizeImportBatch(batchId, {
         inserted_count: successCount,
@@ -605,6 +666,9 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         duplicates: analysisResult.duplicateCount,
         skipped: analysisResult.skippedRows,
         rejected: analysisResult.rejectedRows.length,
+        transfers: importedTransfers,
+        refunds: classification?.summary.refundsInferred ?? 0,
+        ruleTyped: classification?.summary.ruleMatches ?? 0,
       });
 
       // The summary stays on screen; `onSuccess` fires when the user dismisses it.
@@ -614,6 +678,14 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         skipped: analysisResult.skippedRows,
         rejected: analysisResult.rejectedRows.length,
         errors: analysisResult.rejectedRows.map((row) => `Row ${row.rowNumber}: ${row.reason}`),
+        ...(classification
+          ? {
+              transfers: importedTransfers,
+              transfersWithExisting: importedTransfersWithExisting,
+              refunds: classification.summary.refundsInferred,
+              ruleTyped: classification.summary.ruleMatches,
+            }
+          : {}),
       });
     } catch (err) {
       opLog.error('CSV import failed', { error: err });
@@ -839,6 +911,22 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                     Optional: Additional field to include in duplicate detection hash (e.g., transaction reference number)
                   </Typography>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={detectTypes}
+                        onChange={(event) => {
+                          setDetectTypes(event.target.checked);
+                          // A changed setting invalidates the analysis shown below.
+                          setClassification(null);
+                          setSelectedPairIds(new Set());
+                        }}
+                        size="small"
+                        inputProps={{ 'data-testid': 'csv-detect-types' } as React.InputHTMLAttributes<HTMLInputElement>}
+                      />
+                    }
+                    label="Detect transfers between your accounts, refunds and type-rule matches"
+                  />
                 </Box>
               </AccordionDetails>
             </Accordion>
@@ -1062,6 +1150,39 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                 <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main' }}>
                   • Unique transactions to import: {analysisResult.uniqueCount}
                 </Typography>
+                {classification && (
+                  <Box sx={{ mt: 1 }} data-testid="csv-classification-summary">
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      • Transfers between your accounts: {selectedPairIds.size}
+                      {classification.summary.transfersWithExisting > 0 &&
+                        ` (${classification.summary.transfersWithExisting} matched to rows already in the database)`}
+                      {classification.summary.possibleTransfers > 0 &&
+                        ` · ${classification.summary.possibleTransfers} possible`}
+                    </Typography>
+                    {classification.pairs.length > 0 && (
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          ml: 2,
+                          color: 'primary.main',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          '&:hover': { color: 'primary.dark' },
+                        }}
+                        onClick={() => setTransferReviewOpen(true)}
+                        data-testid="csv-review-transfers"
+                      >
+                        → Review detected transfers
+                      </Typography>
+                    )}
+                    {classification.summary.refundsInferred > 0 && (
+                      <Typography variant="body2">• Refunds detected: {classification.summary.refundsInferred}</Typography>
+                    )}
+                    {classification.summary.ruleMatches > 0 && (
+                      <Typography variant="body2">• Typed by your rules: {classification.summary.ruleMatches}</Typography>
+                    )}
+                  </Box>
+                )}
               </Alert>
             </Box>
           )}
@@ -1105,6 +1226,24 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           onClose={() => setDuplicateResolverOpen(false)}
           duplicateGroups={analysisResult.duplicateGroups}
           onResolve={handleResolveDuplicates}
+        />
+      )}
+
+      {/* Detected transfers: uncheck a pair to import both rows as plain income / expense */}
+      {classification && (
+        <ImportTransferReview
+          open={transferReviewOpen}
+          pairs={classification.pairs}
+          selectedPairIds={selectedPairIds}
+          onToggle={(pairId, selected) =>
+            setSelectedPairIds((previous) => {
+              const next = new Set(previous);
+              if (selected) next.add(pairId);
+              else next.delete(pairId);
+              return next;
+            })
+          }
+          onClose={() => setTransferReviewOpen(false)}
         />
       )}
 

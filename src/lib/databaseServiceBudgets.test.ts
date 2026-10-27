@@ -631,7 +631,9 @@ describe('DatabaseService scope filters', () => {
     await service.getRecentTransactions(10);
 
     const [sql, params] = query.mock.calls[0];
-    expect(String(sql)).not.toContain('WHERE');
+    // No scope clause (the transfer-counterpart subqueries in the SELECT list
+    // carry their own WHERE and are not a filter on the result).
+    expect(String(sql)).not.toMatch(/WHERE t\.account_id|COALESCE\(card\.user_id, a\.owner_user_id\) IN/);
     expect(params).toEqual([10]);
   });
 

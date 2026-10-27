@@ -86,13 +86,13 @@ test('@smoke creates and reopens the browser-backed database', async ({ page }) 
   // A brand-new database is stamped with the current schema version and gets
   // every CREATE_TABLES entry (createTables iterates the schema export, so a
   // table added to the schema file cannot be missed on fresh databases).
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('3');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('4');
   expect(
     await runQueryAndReadFirstCell(
       page,
-      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('notifications', 'notification_settings', 'ai_tool_packs', 'ai_tool_settings')"
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('notifications', 'notification_settings', 'ai_tool_packs', 'ai_tool_settings', 'classification_rules')"
     )
-  ).toBe('4');
+  ).toBe('5');
 
   // The encrypting VFS requires the password again once the SharedWorker is
   // torn down (no other tab kept it alive), so re-enter it if prompted.

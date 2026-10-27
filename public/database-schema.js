@@ -13,6 +13,15 @@
 //              savings transfer, loan payment, investment contribution); counts
 //              toward neither income nor spending. Both legs share
 //              transfer_group_id when both accounts are tracked.
+// transactions.type_source records how the type was decided (schema v4):
+//   sign     — defaulted from the amount sign (import / manual entry default)
+//   rule     — a classification_rules row matched the description
+//   pair     — matched to the opposite leg in another account (transfer)
+//   inferred — heuristic (e.g. money back from a merchant on a credit card)
+//   manual   — the user chose it; type_locked = 1 and nothing automatic may
+//              change it again
+// type_confidence (0..1) is the detector's confidence for automatic sources
+// and NULL for sign/manual.
 export const CREATE_TABLES = {
   CATEGORIES: `
     CREATE TABLE IF NOT EXISTS categories (
@@ -121,6 +130,8 @@ export const CREATE_TABLES = {
       external_id TEXT,
       transfer_group_id TEXT,
       type_locked INTEGER NOT NULL DEFAULT 0,
+      type_source TEXT CHECK(type_source IN ('sign', 'rule', 'pair', 'inferred', 'manual')) NOT NULL DEFAULT 'sign',
+      type_confidence REAL,
       is_excluded INTEGER NOT NULL DEFAULT 0,
       is_flagged INTEGER NOT NULL DEFAULT 0,
       import_batch_id INTEGER,
@@ -236,8 +247,10 @@ export const CREATE_TABLES = {
     )
   `,
 
-  // Staging area for CSV import. Cleared before and after every import, so the
-  // v2 migration can simply drop and recreate it.
+  // Staging area for CSV import. Cleared before and after every import, so a
+  // migration that changes its shape can simply drop and recreate it. The
+  // classification columns are filled by the import's detection step and
+  // copied into transactions by BULK_INSERT_FROM_TEMP.
   TEMP_IMPORT_TRANSACTIONS: `
     CREATE TABLE IF NOT EXISTS temp_import_transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -254,7 +267,10 @@ export const CREATE_TABLES = {
       type TEXT CHECK(type IN ('income', 'expense', 'refund', 'transfer')) NOT NULL,
       transaction_hash TEXT,
       hash_variation_seed INTEGER DEFAULT 0,
-      external_id TEXT
+      external_id TEXT,
+      transfer_group_id TEXT,
+      type_source TEXT CHECK(type_source IN ('sign', 'rule', 'pair', 'inferred', 'manual')) NOT NULL DEFAULT 'sign',
+      type_confidence REAL
     )
   `,
 
@@ -408,6 +424,33 @@ export const CREATE_TABLES = {
       consent TEXT CHECK(consent IN ('ask', 'always', 'deny')) NOT NULL DEFAULT 'ask',
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
+  `,
+
+  // Version 4: user-defined rules that decide a transaction's type from its
+  // description ("PYMT BY FUNDS TRANSFER" → transfer, "EXT TRANSFER TO
+  // HUNTINGTON" → transfer, "REFUND" → refund). Banks word these differently,
+  // so the list is per household; patterns are matched against the normalized
+  // description exactly like merchant_rules. account_id scopes a rule to one
+  // account (NULL = any); counterpart_account_id names the other side of a
+  // transfer when it is known, which the pairing step uses as a strong hint.
+  CLASSIFICATION_RULES: `
+    CREATE TABLE IF NOT EXISTS classification_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rule_key TEXT NOT NULL UNIQUE,
+      source TEXT CHECK(source IN ('community', 'user')) NOT NULL DEFAULT 'user',
+      pattern TEXT NOT NULL,
+      match_type TEXT CHECK(match_type IN ('exact', 'prefix', 'contains')) NOT NULL DEFAULT 'contains',
+      priority INTEGER NOT NULL DEFAULT 100,
+      type TEXT CHECK(type IN ('income', 'expense', 'refund', 'transfer')) NOT NULL,
+      account_id INTEGER,
+      counterpart_account_id INTEGER,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE,
+      FOREIGN KEY (counterpart_account_id) REFERENCES accounts (id) ON DELETE SET NULL
+    )
   `
 };
 
@@ -456,6 +499,12 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_projects_budget_category ON projects(budget_category_id) WHERE budget_category_id IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_trips_budget_category ON trips(budget_category_id) WHERE budget_category_id IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_ai_tool_settings_pack ON ai_tool_settings(pack_key) WHERE pack_key IS NOT NULL`,
+  // Version 4: transaction classification. Automatically typed rows awaiting
+  // confirmation are sparse; the amount index serves transfer-pair lookups
+  // (the opposite leg has the negated amount within a few days).
+  `CREATE INDEX IF NOT EXISTS idx_transactions_type_review ON transactions(type_source) WHERE type_locked = 0 AND type_source != 'sign'`,
+  `CREATE INDEX IF NOT EXISTS idx_transactions_amount_date ON transactions(amount, date)`,
+  `CREATE INDEX IF NOT EXISTS idx_classification_rules_enabled ON classification_rules(enabled, priority)`,
 ];
 
 // Schema versioning — applied by runMigrations() in database-worker.js.
@@ -476,7 +525,8 @@ export const CREATE_INDEXES = [
 //       table also has, or a SQL expression from columnExpressions) -> DROP old
 //       -> RENAME. Skipped when the table already has `guardColumn`.
 //   - { op: 'rehashTransactions' }                     recomputes legacy hashes
-export const SCHEMA_VERSION = 3;
+//   - an UPDATE ... WHERE string is allowed too when it is a no-op on rerun
+export const SCHEMA_VERSION = 4;
 export const MIGRATIONS = [
   {
     version: 1,
@@ -576,6 +626,26 @@ export const MIGRATIONS = [
       },
       { op: 'addColumn', table: 'trips', column: 'monthly_contribution', ddl: 'monthly_contribution REAL' },
       { op: 'addColumn', table: 'trips', column: 'contribution_start_month', ddl: 'contribution_start_month TEXT' },
+    ],
+  },
+  {
+    version: 4,
+    statements: [
+      // Transaction classification: description rules plus provenance and
+      // confidence for automatically decided types.
+      CREATE_TABLES.CLASSIFICATION_RULES,
+      {
+        op: 'addColumn',
+        table: 'transactions',
+        column: 'type_source',
+        ddl: "type_source TEXT CHECK(type_source IN ('sign', 'rule', 'pair', 'inferred', 'manual')) NOT NULL DEFAULT 'sign'",
+      },
+      { op: 'addColumn', table: 'transactions', column: 'type_confidence', ddl: 'type_confidence REAL' },
+      // Types the user already chose by hand (type_locked = 1) were manual decisions.
+      `UPDATE transactions SET type_source = 'manual' WHERE type_locked = 1 AND type_source = 'sign'`,
+      // The staging table gains the same columns; it is empty between imports.
+      { op: 'dropTable', table: 'temp_import_transactions' },
+      CREATE_TABLES.TEMP_IMPORT_TRANSACTIONS,
     ],
   },
 ];

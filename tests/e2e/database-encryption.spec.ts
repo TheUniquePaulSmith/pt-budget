@@ -281,6 +281,82 @@ test.describe('Loading an encrypted archive', () => {
     }
   });
 
+  /**
+   * The encryption header lives in its own IndexedDB database, so it can be
+   * wiped (Reset App, cleared site data) while a SharedWorker that already
+   * holds the key stays alive. The app then shows the setup screen, but the
+   * worker used to report "encryption ready" and skip the password prompt,
+   * so the import died with "Cannot read properties of null (reading
+   * 'blockSize')".
+   */
+  test('asks for the password instead of failing when the local database was wiped under a live worker', async ({
+    page,
+    context,
+  }) => {
+    await bootstrapDatabase(page, { loadSampleData: false, password: TEST_PASSWORD });
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      (async () => {
+        await page.getByRole('button', { name: 'Settings' }).click();
+        await page.getByRole('tab', { name: 'Data & Backup' }).click({ timeout: 10_000 });
+        await page.getByRole('button', { name: /Export Database/i }).click({ timeout: 10_000 });
+      })(),
+    ]);
+    const exportedPath = await download.path();
+    expect(exportedPath).toBeTruthy();
+
+    // A second page in the same context keeps the SharedWorker (and its
+    // in-memory key) alive across the first page's reload below.
+    const keeperPage = await context.newPage();
+    await bootstrapDatabase(keeperPage, { loadSampleData: false });
+    await keeperPage.evaluate(async () => {
+      const names = ['ptbudgetapp-keys', 'ptbudgetapp-v2-encrypted'];
+      await Promise.all(
+        names.map(
+          (name) =>
+            new Promise<void>((resolve) => {
+              const request = indexedDB.deleteDatabase(name);
+              request.onsuccess = () => resolve();
+              request.onerror = () => resolve();
+              // The worker still holds a handle on the VFS store; the delete
+              // completes once that closes.
+              request.onblocked = () => resolve();
+            })
+        )
+      );
+    });
+
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Load from File' })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent('filechooser', { timeout: 10_000 }),
+      page.getByRole('button', { name: 'Load from File' }).click(),
+    ]);
+    await fileChooser.setFiles(exportedPath!);
+
+    // The worker's orphaned key must be dropped, so the file asks for its
+    // password rather than importing straight into a header-less store.
+    await expect(page.getByText('Enter Password')).toBeVisible({ timeout: 10_000 });
+    await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
+    await page.getByRole('button', { name: 'Unlock' }).click();
+
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('database-status-text')).toHaveText('Connected', {
+      timeout: 60_000,
+    });
+
+    // The exported data (not just a blank database) is what came back.
+    const primaryUserName = await runQueryAndReadFirstCell(
+      page,
+      `SELECT display_name FROM users WHERE is_primary = 1;`
+    );
+    expect(primaryUserName).toBe(TEST_PRIMARY_USER_NAME);
+  });
+
   test('password entry screen shows error on wrong password', async ({
     page,
   }) => {

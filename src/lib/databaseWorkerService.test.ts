@@ -147,6 +147,81 @@ describe('DatabaseWorkerService.onDatabaseChanged', () => {
   });
 });
 
+describe('DatabaseWorkerService.terminate', () => {
+  function respondTo(port: MockPort, message: { id: string }, isSuccessful = true) {
+    port.dispatch('message', {
+      id: message.id,
+      type: 'terminate_worker_response',
+      isSuccessful,
+      dbStatus: 'disconnected',
+      version: '1.0.0',
+      sqlResponse: isSuccessful ? { message: 'Database worker terminated' } : { error: 'boom' },
+    });
+  }
+
+  it('asks the worker to terminate, passing includeLogs, then drops this tab\'s connection', async () => {
+    const { service, port } = createService();
+
+    const pending = service.terminate({ includeLogs: true });
+
+    expect(port.postMessage).toHaveBeenCalledTimes(1);
+    const message = port.postMessage.mock.calls[0][0] as { id: string; type: string; payload: { includeLogs: boolean } };
+    expect(message.type).toBe('terminate_worker');
+    expect(message.payload.includeLogs).toBe(true);
+    expect(port.close).not.toHaveBeenCalled();
+
+    respondTo(port, message);
+    await pending;
+
+    expect(port.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('defaults includeLogs to false', async () => {
+    const { service, port } = createService();
+
+    const pending = service.terminate();
+    const message = port.postMessage.mock.calls[0][0] as { id: string; payload: { includeLogs: boolean } };
+    expect(message.payload.includeLogs).toBe(false);
+
+    respondTo(port, message);
+    await pending;
+  });
+
+  it('is best-effort: a failed termination still resolves and drops the connection', async () => {
+    const { service, port } = createService();
+
+    const pending = service.terminate();
+    respondTo(port, port.postMessage.mock.calls[0][0] as { id: string }, false);
+
+    await expect(pending).resolves.toBeUndefined();
+    expect(port.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks the worker dead at once when any tab terminates it', () => {
+    const { service, port } = createService();
+    const statuses: boolean[] = [];
+    service.onStatusChange((status) => statuses.push(status.isWorkerAlive));
+    port.dispatch('message', {
+      type: 'heartbeat',
+      isSuccessful: true,
+      dbStatus: 'connected',
+      version: '1.0.0',
+      sqlResponse: { timestamp: Date.now() },
+    });
+
+    port.dispatch('message', {
+      type: 'worker_terminated',
+      isSuccessful: true,
+      dbStatus: 'disconnected',
+      version: '1.0.0',
+      sqlResponse: {},
+    });
+
+    expect(service.getStatus()).toMatchObject({ isWorkerAlive: false, isConnected: false, dbStatus: 'disconnected' });
+    expect(statuses.at(-1)).toBe(false);
+  });
+});
+
 describe('DatabaseWorkerService correlation', () => {
   let sink: MemorySink;
 

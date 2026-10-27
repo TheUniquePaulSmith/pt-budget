@@ -4,7 +4,10 @@
  * databases (the encrypted SQLite VFS blocks in `ptbudgetapp-v2-encrypted`,
  * the header keystore in `ptbudgetapp-keys`, and anything else the origin
  * has created) — then reloads to a clean URL so the app comes back up as
- * if freshly installed. Only reachable behind `?debug` (see debugMode.ts).
+ * if freshly installed. The shared database worker is terminated first, so it
+ * neither keeps its key and storage handles alive across the reload nor
+ * writes into the stores being deleted. Only reachable behind `?debug` (see
+ * debugMode.ts).
  *
  * The diagnostic log database (`ptbudgetapp-logs`) is kept by default, so the
  * logs that explain *why* someone had to reset survive the reset; it is only
@@ -61,16 +64,21 @@ function clearCookies(): void {
 }
 
 /**
- * @param disconnectWorker Best-effort teardown of the current tab's
- * SharedWorker connection before the storage wipe. The reload that follows
- * severs it anyway, but calling this first avoids the worker touching
- * storage mid-delete.
+ * @param terminateWorker Ends the shared database worker before the storage
+ * wipe. It is shared by every tab and outlives a reload, so merely closing
+ * this tab's connection would leave it running with its decryption key in
+ * memory and its IndexedDB handles open — which blocks the deletes below and
+ * makes the "fresh" app reconnect to stale state. The worker closes its
+ * handles, deletes the stores it owns and exits. Best-effort.
  */
-export async function resetApp(disconnectWorker?: () => void, options: ResetAppOptions = {}): Promise<void> {
+export async function resetApp(
+  terminateWorker?: (options: { includeLogs: boolean }) => void | Promise<void>,
+  options: ResetAppOptions = {}
+): Promise<void> {
   const includeLogs = options.includeLogs === true;
 
   try {
-    disconnectWorker?.();
+    await terminateWorker?.({ includeLogs });
   } catch {
     // Best-effort — the storage wipe below is what actually matters.
   }

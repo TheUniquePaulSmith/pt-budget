@@ -132,10 +132,14 @@ export class WorkerLogSink {
     this.dbPromise = null;
     this.writing = Promise.resolve();
     this.lastErrorAt = 0;
+    this.closed = false;
     this.channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(LOGS_CHANNEL);
   }
 
   write(record) {
+    // After close() nothing may reopen the log database, or a Reset App that
+    // just deleted it would see it come straight back.
+    if (this.closed) return;
     if (typeof indexedDB === 'undefined') return;
     if (this.queue.length >= MAX_QUEUE_LENGTH) this.queue.shift();
     this.queue.push(record);
@@ -161,6 +165,35 @@ export class WorkerLogSink {
     this.queue = [];
     this.writing = this.writing.then(() => this.writeBatch(batch)).catch(() => undefined);
     return this.writing;
+  }
+
+  /**
+   * Stops the sink for good: persists what is queued (or drops it with
+   * `discard`, when the log database is about to be deleted), then releases
+   * the IndexedDB handle and the broadcast channel.
+   */
+  async close({ discard = false } = {}) {
+    if (this.closed) return;
+    if (discard) {
+      if (this.flushTimer !== null) {
+        clearTimeout(this.flushTimer);
+        this.flushTimer = null;
+      }
+      this.queue = [];
+    }
+    await this.flush();
+    this.closed = true;
+
+    const dbPromise = this.dbPromise;
+    this.dbPromise = null;
+    if (dbPromise) {
+      const db = await dbPromise.catch(() => null);
+      if (db) db.close();
+    }
+    if (this.channel) {
+      this.channel.close();
+      this.channel = null;
+    }
   }
 
   getDatabase() {
@@ -268,6 +301,11 @@ export class WorkerLogger {
 
   flush() {
     return this.sink.flush();
+  }
+
+  /** Persists (or with `discard`, drops) queued records and stops all further writes. */
+  close(options) {
+    return this.sink.close(options);
   }
 }
 

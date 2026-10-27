@@ -53,7 +53,7 @@ function ageLabel(days: number): string {
 }
 
 export default function DeveloperSettingsTab() {
-  const { disconnectWorker } = useSettingsSlice();
+  const { terminateWorker } = useSettingsSlice();
   const [retention, setRetention] = useState<LogRetention>(() => getLogRetention());
   const [storedCount, setStoredCount] = useState<number | null>(null);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
@@ -187,7 +187,7 @@ export default function DeveloperSettingsTab() {
           }
           label="Also clear diagnostic logs"
         />
-        <ResetAppButton onReset={() => resetApp(disconnectWorker, { includeLogs: includeLogsInReset })} />
+        <ResetAppButton onReset={() => resetApp(terminateWorker, { includeLogs: includeLogsInReset })} />
       </Box>
 
       <Dialog open={clearDialogOpen} onClose={() => !isClearing && setClearDialogOpen(false)}>

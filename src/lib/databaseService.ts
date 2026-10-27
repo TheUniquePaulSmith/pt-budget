@@ -138,6 +138,7 @@ export interface DatabaseWorkerTransport {
   decryptArchive(encryptedBytes: Uint8Array, password?: string): Promise<Uint8Array>;
   onStatusChange(callback: (status: WorkerStatus) => void): () => void;
   destroy?(): void;
+  terminate?(options?: { includeLogs?: boolean }): Promise<void>;
 }
 
 export interface DatabaseStatusSummary {
@@ -499,18 +500,24 @@ export class DatabaseService {
               resolve(false);
               return;
             }
+            // Closed on every path: an idle connection would block a
+            // deleteDatabase of the header store (Reset App) until this tab
+            // unloads.
             const db = target.result as IDBDatabase;
             if (!db.objectStoreNames.contains("header")) {
+              db.close();
               resolve(false);
               return;
             }
             const transaction = db.transaction("header", "readonly");
             const header = transaction.objectStore("header").get("default");
             header.onsuccess = () => {
+              db.close();
               resolve(header.result != null);
             };
             header.onerror = () => {
               log.warn('Error reading encryption header store', { operation: 'databaseAlreadyExists' });
+              db.close();
               resolve(false);
             };
           };

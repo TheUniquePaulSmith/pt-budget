@@ -13,11 +13,16 @@ import {
   syncToCloud,
 } from '@/lib/cloudSyncService';
 import { createCloudProviderClient } from '@/lib/cloudProviderClients';
+import { resetApp } from '@/lib/resetApp';
 import { SampleDataService } from '@/lib/sampleDataService';
 import { useDatabaseInitialization } from './useDatabaseInitialization';
 
 vi.mock('../lib/databaseService', () => ({
   DatabaseService: vi.fn(),
+}));
+
+vi.mock('@/lib/resetApp', () => ({
+  resetApp: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/lib/sampleDataService', () => ({
@@ -65,6 +70,7 @@ type MockService = {
   loadDatabaseFromFile: ReturnType<typeof vi.fn>;
   getWorkerService: ReturnType<typeof vi.fn>;
   isEncryptionReady: ReturnType<typeof vi.fn>;
+  verifyCurrentPassword: ReturnType<typeof vi.fn>;
   importDatabaseArchiveData: ReturnType<typeof vi.fn>;
   getEncryptedArchiveTimestamp: ReturnType<typeof vi.fn>;
   canDecryptArchive: ReturnType<typeof vi.fn>;
@@ -139,6 +145,7 @@ function createServiceMock(overrides: Partial<MockService> = {}): MockService {
     loadDatabaseFromFile: vi.fn().mockResolvedValue(undefined),
     getWorkerService: vi.fn(() => workerService),
     isEncryptionReady: vi.fn().mockResolvedValue(true),
+    verifyCurrentPassword: vi.fn().mockResolvedValue(true),
     importDatabaseArchiveData: vi.fn().mockResolvedValue(undefined),
     getEncryptedArchiveTimestamp: vi.fn().mockReturnValue(null),
     canDecryptArchive: vi.fn().mockResolvedValue(true),
@@ -262,6 +269,107 @@ describe('useDatabaseInitialization', () => {
 
     expect(service.unlockDatabase).not.toHaveBeenCalled();
     expect(loadAllData).toHaveBeenCalledWith(service);
+  });
+
+  it('terminateWorker ends the shared worker with the given options and marks it disconnected', async () => {
+    localStorage.setItem(
+      'budgetApp_browserTestPassed',
+      JSON.stringify(compatibleBrowserResults)
+    );
+
+    const terminate = vi.fn().mockResolvedValue(undefined);
+    const service = createServiceMock({
+      getWorkerService: vi.fn(() => ({
+        onStatusChange: vi.fn(() => vi.fn()),
+        destroy: vi.fn(),
+        terminate,
+      })),
+    });
+    mockedDatabaseService.mockImplementation(
+      () => service as unknown as DatabaseService
+    );
+
+    const { result } = renderHook(() =>
+      useDatabaseInitialization({ loadAllData: vi.fn().mockResolvedValue(undefined) })
+    );
+    await waitFor(() => {
+      expect(result.current.initializationState).toBe('needs-setup');
+    });
+
+    await act(async () => {
+      await result.current.terminateWorker({ includeLogs: true });
+    });
+
+    expect(terminate).toHaveBeenCalledWith({ includeLogs: true });
+    expect(result.current.workerStatus).toMatchObject({
+      isWorkerAlive: false,
+      isConnected: false,
+      dbStatus: 'disconnected',
+    });
+  });
+
+  describe('Reset App from the lock screen', () => {
+    async function renderLocked(overrides: Partial<MockService> = {}) {
+      localStorage.setItem(
+        'budgetApp_browserTestPassed',
+        JSON.stringify(compatibleBrowserResults)
+      );
+      const terminate = vi.fn().mockResolvedValue(undefined);
+      const service = createServiceMock({
+        dbExistsBeforeInit: true,
+        isEncryptionReady: vi.fn().mockResolvedValue(false),
+        getWorkerService: vi.fn(() => ({
+          onStatusChange: vi.fn(() => vi.fn()),
+          destroy: vi.fn(),
+          terminate,
+        })),
+        ...overrides,
+      });
+      mockedDatabaseService.mockImplementation(
+        () => service as unknown as DatabaseService
+      );
+
+      const rendered = renderHook(() =>
+        useDatabaseInitialization({ loadAllData: vi.fn().mockResolvedValue(undefined) })
+      );
+      await waitFor(() => {
+        expect(rendered.result.current.initializationState).toBe('needs-unlock');
+      });
+      return { ...rendered, service, terminate };
+    }
+
+    beforeEach(() => {
+      vi.mocked(resetApp).mockClear();
+    });
+
+    it('resets the app after the correct password is verified against the stored verifier', async () => {
+      const { result, service } = await renderLocked();
+
+      await act(async () => {
+        await result.current.handleLockedResetRequested('correcthorsebatterystaple');
+      });
+
+      expect(service.verifyCurrentPassword).toHaveBeenCalledWith('correcthorsebatterystaple');
+      expect(resetApp).toHaveBeenCalledTimes(1);
+      // The unlock itself is never attempted: verifying must not open the database.
+      expect(service.unlockDatabase).not.toHaveBeenCalled();
+    });
+
+    it('refuses a wrong password and leaves the worker and storage untouched', async () => {
+      const { result, terminate } = await renderLocked({
+        verifyCurrentPassword: vi.fn().mockResolvedValue(false),
+      });
+
+      await act(async () => {
+        await expect(result.current.handleLockedResetRequested('wrong-password')).rejects.toThrow(
+          'Incorrect password'
+        );
+      });
+
+      expect(resetApp).not.toHaveBeenCalled();
+      expect(terminate).not.toHaveBeenCalled();
+      expect(result.current.initializationState).toBe('needs-unlock');
+    });
   });
 
   it('rejects an incorrect password at needs-unlock without loading any data', async () => {

@@ -109,6 +109,13 @@ class WorkerLogFacade {
   flush() {
     return this.shared.logger ? this.shared.logger.flush() : Promise.resolve();
   }
+
+  /** Persists (or with `discard`, drops) queued records, releases the log database and stops all further writes. */
+  async close(options) {
+    await this.shared.loading;
+    this.shared.pending = [];
+    if (this.shared.logger) await this.shared.logger.close(options);
+  }
 }
 
 class DatabaseWorker {
@@ -163,6 +170,10 @@ class DatabaseWorker {
     // Lazily-loaded SQL write/read classifier (public/database-sql-classifier.js)
     this._sqlClassifierModule = null;
 
+    // Set by terminateWorker(): from then on every request is refused so
+    // nothing can reopen the storage that was just released and deleted.
+    this.isTerminated = false;
+
     // Start heartbeat
     this.startHeartbeat();
   }
@@ -178,8 +189,59 @@ class DatabaseWorker {
     return this._encryptionModule;
   }
 
-  isEncryptionReady() {
-    return this.pageKey !== null;
+  // True when a page key is held AND the header it was derived from still
+  // exists. The header lives in its own IndexedDB database, so it can vanish
+  // (Reset App, cleared site data) while this SharedWorker keeps running with
+  // the key in memory. Such a key is orphaned — nothing on disk matches it —
+  // so drop it and let the caller fall back to the setup/password flow
+  // rather than importing into a store that has no header.
+  async isEncryptionReady(requestLog) {
+    if (this.pageKey === null) {
+      return false;
+    }
+
+    let header;
+    try {
+      header = await this.readEncryptionHeader();
+    } catch (error) {
+      // Can't prove the header is gone, so keep the key rather than lock out
+      // a database that may be perfectly healthy.
+      (requestLog || this.log).warn('Could not verify the encryption header', { error });
+      return true;
+    }
+    if (header) {
+      return true;
+    }
+
+    await this.discardOrphanedEncryptionState(requestLog || this.log);
+    return false;
+  }
+
+  // The wipe that removed the header also tried to delete the VFS store, but
+  // this worker's open handle either blocks that delete (and every later open
+  // of the store queues behind it) or was force-closed by the browser. Either
+  // way the VFS is unusable, so forget the key and swap in a fresh VFS: closing
+  // the old handle lets the pending delete finish, and the new one recreates
+  // the store.
+  async discardOrphanedEncryptionState(log) {
+    log.warn('Encryption header is missing while a key is held — discarding the orphaned key and VFS');
+
+    try {
+      await this.closeDatabaseConnection();
+    } catch (error) {
+      log.warn('Could not close the database connection cleanly', { error });
+      this.db = 0;
+      this.isConnected = false;
+    }
+
+    this.vfs.clearKey();
+    this.pageKey = null;
+    this.encryptionPassword = null;
+
+    this.vfs.close();
+    const { EncryptedIDBBatchAtomicVFS } = await import('/database-encrypted-vfs.js');
+    this.vfs = await EncryptedIDBBatchAtomicVFS.create(this.vfsIdbName, this.wasmModule);
+    this.sqlite3.vfs_register(this.vfs, true);
   }
 
   async encryptArchiveBytes(plainArchiveBytes, lastSaveTimestamp) {
@@ -239,6 +301,19 @@ class DatabaseWorker {
     } finally {
       idb.close();
     }
+  }
+
+  // The header is the only record of the block size and key salt, so a VFS
+  // snapshot can be neither read nor written without it.
+  async requireEncryptionHeader() {
+    const header = await this.readEncryptionHeader();
+    if (!header) {
+      throw new Error(
+        'Encryption header not found on this device — the local database appears to have been removed. ' +
+          'Reload the app and set the database up again.'
+      );
+    }
+    return header;
   }
 
   async writeEncryptionHeader(header) {
@@ -355,6 +430,88 @@ class DatabaseWorker {
     this.pageKey = null;
     this.encryptionPassword = null;
     (requestLog || this.log).info('Database locked');
+  }
+
+  deleteIndexedDatabase(name) {
+    return new Promise((resolve) => {
+      const request = indexedDB.deleteDatabase(name);
+      request.onsuccess = () => resolve('deleted');
+      request.onerror = () => resolve('failed');
+      // Another tab still holds a connection; the browser finishes the delete
+      // as soon as that tab closes it (its reload does).
+      request.onblocked = () => resolve('blocked');
+    });
+  }
+
+  /**
+   * Debug-only Reset App support: releases everything this worker holds, deletes
+   * the IndexedDB stores it owns (the VFS blocks and the encryption header) and
+   * exits, so the next page load starts a brand-new worker with no state.
+   *
+   * A worker has no localStorage/sessionStorage; its only "session" is the
+   * in-memory key material, which is dropped here. `includeLogs` discards the
+   * log records still queued instead of persisting them — the caller deletes the
+   * shared log database itself, and the sink must not write into it again.
+   */
+  async terminateWorker(options, requestLog) {
+    const log = requestLog || this.log;
+    const includeLogs = options?.includeLogs === true;
+    log.warn('Terminating the database worker', { process: 'terminate', includeLogs });
+
+    this.isTerminated = true;
+    this.stopHeartbeat();
+    if (this.changeNotifyTimer) {
+      clearTimeout(this.changeNotifyTimer);
+      this.changeNotifyTimer = null;
+    }
+    this.pendingWriteCount = 0;
+
+    try {
+      await this.closeDatabaseConnection();
+    } catch (error) {
+      log.warn('Could not close the database connection cleanly', { process: 'terminate', error });
+      this.db = 0;
+      this.isConnected = false;
+    }
+
+    this.vfs?.clearKey();
+    this.pageKey = null;
+    this.encryptionPassword = null;
+    try {
+      this.vfs?.close();
+    } catch (error) {
+      log.warn('Could not close the VFS cleanly', { process: 'terminate', error });
+    }
+    this.vfs = null;
+    this.isInitialized = false;
+
+    // With the handles above closed these complete at once.
+    const [vfsStore, headerStore] = await Promise.all([
+      this.deleteIndexedDatabase(this.vfsIdbName),
+      this.deleteIndexedDatabase(this._headerIdbName),
+    ]);
+    log.info('Database worker storage released', { process: 'terminate', vfsStore, headerStore });
+
+    this.broadcastMessage({
+      type: 'worker_terminated',
+      isSuccessful: true,
+      dbStatus: 'disconnected',
+      version: this.dbVersion,
+      sqlResponse: { message: 'Database worker terminated' },
+    });
+
+    await this.log.close({ discard: includeLogs });
+
+    // Exit once the reply to the requesting tab has been posted.
+    setTimeout(() => self.close(), 100);
+
+    return {
+      type: 'terminate_worker_response',
+      isSuccessful: true,
+      dbStatus: 'disconnected',
+      version: this.dbVersion,
+      sqlResponse: { message: 'Database worker terminated', vfsStore, headerStore },
+    };
   }
 
   /**
@@ -498,6 +655,7 @@ class DatabaseWorker {
 
       log.debug('Initializing SQLite WASM module...');
       const wasmModule = await SQLiteModule();
+      this.wasmModule = wasmModule;
 
       log.debug('Creating SQLite API...');
       this.sqlite3 = Factory(wasmModule);
@@ -506,7 +664,8 @@ class DatabaseWorker {
       // Constructed once for the SharedWorker's lifetime — setKey()/clearKey()
       // (called from createNewDatabase/unlockDatabase/lockDatabase) toggle
       // whether it reads/writes ciphertext, but the VFS instance itself is
-      // never re-created or re-registered.
+      // only ever re-created to recover from a wiped header
+      // (discardOrphanedEncryptionState).
       this.vfs = await EncryptedIDBBatchAtomicVFS.create(this.vfsIdbName, wasmModule);
 
       log.debug('Registering IDB VFS...');
@@ -1472,8 +1631,7 @@ class DatabaseWorker {
     if (!this.pageKey) {
       throw new Error('Database is locked — unlock it before exporting');
     }
-    const enc = await this.getEncryptionModule();
-    const header = await this.readEncryptionHeader();
+    const header = await this.requireEncryptionHeader();
     const vfsModule = await import('/database-encrypted-vfs.js');
     const { physicalBlockSize, decryptBlock, formatFilename } = vfsModule;
     const blockSize = header.blockSize;
@@ -1526,7 +1684,7 @@ class DatabaseWorker {
       throw new Error('Database is locked — unlock it before importing');
     }
 
-    const header = await this.readEncryptionHeader();
+    const header = await this.requireEncryptionHeader();
     const vfsModule = await import('/database-encrypted-vfs.js');
     const { physicalBlockSize, encryptBlock, formatFilename } = vfsModule;
     const blockSize = header.blockSize;
@@ -1663,6 +1821,19 @@ class DatabaseWorker {
     });
     const startedAt = Date.now();
     log.debug('Received message', { payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload) : [] });
+
+    if (this.isTerminated) {
+      port.postMessage({
+        id,
+        type: 'error',
+        isSuccessful: false,
+        dbStatus: 'disconnected',
+        version: this.dbVersion,
+        sqlResponse: { error: 'Database worker has been terminated — reload the app' },
+      });
+      return;
+    }
+
     let response;
 
     try {
@@ -1797,7 +1968,7 @@ class DatabaseWorker {
             isSuccessful: true,
             dbStatus: this.isConnected ? 'connected' : 'disconnected',
             version: this.dbVersion,
-            sqlResponse: { isReady: this.isEncryptionReady() }
+            sqlResponse: { isReady: await this.isEncryptionReady(log) }
           };
           break;
         }
@@ -1842,6 +2013,10 @@ class DatabaseWorker {
           };
           break;
         }
+
+        case 'terminate_worker':
+          response = await this.terminateWorker(payload, log);
+          break;
 
         case 'set_debug':
           this.setPortDebug(port, payload?.debug === true);

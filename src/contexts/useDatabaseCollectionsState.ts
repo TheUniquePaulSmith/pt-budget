@@ -3,10 +3,13 @@
 import { useCallback, useMemo, useState } from 'react';
 
 import type { DatabaseService } from '../lib/databaseService';
+import type { ClassificationService } from '../lib/databaseServiceClassification';
+import { logger } from '../lib/logging';
 import type {
   Account,
   AppNotification,
   Category,
+  ClassificationRule,
   Company,
   MerchantRule,
   Project,
@@ -14,6 +17,8 @@ import type {
   Trip,
   User,
 } from '../types/database';
+
+const log = logger.child({ component: 'DatabaseCollectionsState' });
 
 export interface DatabaseCollectionsSlice {
   transactionVersion: number;
@@ -27,6 +32,7 @@ export interface DatabaseCollectionsSlice {
   merchantRules: MerchantRule[];
   recurringSeries: RecurringSeries[];
   notifications: AppNotification[];
+  classificationRules: ClassificationRule[];
 }
 
 type CollectionDataService = Pick<
@@ -41,7 +47,9 @@ type CollectionDataService = Pick<
   | 'getRecurringSeriesWithStats'
   | 'getNotifications'
   | 'seedCommunityMerchantRules'
->;
+> & {
+  classification: Pick<ClassificationService, 'listRules' | 'runInitialScanIfNeeded'>;
+};
 
 interface UseDatabaseCollectionsStateOptions {
   getDatabaseService: () => CollectionDataService | null;
@@ -61,6 +69,7 @@ interface UseDatabaseCollectionsStateResult {
   refreshMerchantRules: () => Promise<void>;
   refreshRecurringSeries: () => Promise<void>;
   refreshNotifications: () => Promise<void>;
+  refreshClassificationRules: () => Promise<void>;
 }
 
 export function useDatabaseCollectionsState({
@@ -77,6 +86,7 @@ export function useDatabaseCollectionsState({
   const [merchantRules, setMerchantRules] = useState<MerchantRule[]>([]);
   const [recurringSeries, setRecurringSeries] = useState<RecurringSeries[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [classificationRules, setClassificationRules] = useState<ClassificationRule[]>([]);
 
   const loadAllData = useCallback(async (service: CollectionDataService) => {
     // Seed/refresh the bundled community merchant rules before reading
@@ -87,6 +97,18 @@ export function useDatabaseCollectionsState({
       await service.seedCommunityMerchantRules();
     } catch (err) {
       console.warn('Failed to seed community merchant rules:', err);
+    }
+
+    // One-time transaction classification of rows that predate the detector
+    // (schema v4): types transfers and refunds that were imported as plain
+    // income / expense. Later opens are a no-op. Non-fatal for the same reason.
+    try {
+      const summary = await service.classification.runInitialScanIfNeeded();
+      if (summary) {
+        log.info('Initial transaction classification finished', { operation: 'loadAllData', ...summary });
+      }
+    } catch (err) {
+      log.warn('Initial transaction classification failed', { operation: 'loadAllData', error: err });
     }
 
     try {
@@ -100,6 +122,7 @@ export function useDatabaseCollectionsState({
         merchantRulesData,
         recurringSeriesData,
         notificationsData,
+        classificationRulesData,
       ] = await Promise.all([
         service.getCategories(),
         service.getCompanies(),
@@ -110,6 +133,7 @@ export function useDatabaseCollectionsState({
         service.getMerchantRules(),
         service.getRecurringSeriesWithStats(),
         service.getNotifications(),
+        service.classification.listRules(),
       ]);
 
       setCategories(categoriesData);
@@ -121,6 +145,7 @@ export function useDatabaseCollectionsState({
       setMerchantRules(merchantRulesData);
       setRecurringSeries(recurringSeriesData);
       setNotifications(notificationsData);
+      setClassificationRules(classificationRulesData);
     } catch (err) {
       console.error('Failed to load data:', err);
       throw err;
@@ -244,6 +269,18 @@ export function useDatabaseCollectionsState({
     }
   }, [getDatabaseService]);
 
+  const refreshClassificationRules = useCallback(async () => {
+    const databaseService = getDatabaseService();
+    if (!databaseService) return;
+
+    try {
+      const data = await databaseService.classification.listRules();
+      setClassificationRules(data);
+    } catch (err) {
+      log.error('Failed to refresh classification rules', { operation: 'refreshClassificationRules', error: err });
+    }
+  }, [getDatabaseService]);
+
   const collections = useMemo(
     () => ({
       transactionVersion,
@@ -257,8 +294,9 @@ export function useDatabaseCollectionsState({
       merchantRules,
       recurringSeries,
       notifications,
+      classificationRules,
     }),
-    [transactionVersion, budgetVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries, notifications]
+    [transactionVersion, budgetVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries, notifications, classificationRules]
   );
 
   return {
@@ -275,5 +313,6 @@ export function useDatabaseCollectionsState({
     refreshMerchantRules,
     refreshRecurringSeries,
     refreshNotifications,
+    refreshClassificationRules,
   };
 }

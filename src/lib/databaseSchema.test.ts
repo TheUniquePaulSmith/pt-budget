@@ -17,8 +17,8 @@ type MigrationOp =
 const migrations = MIGRATIONS as Array<{ version: number; statements: MigrationOp[] }>;
 
 describe('database schema', () => {
-  it('is at version 3 with migrations in ascending order ending at the current version', () => {
-    expect(SCHEMA_VERSION).toBe(3);
+  it('is at version 4 with migrations in ascending order ending at the current version', () => {
+    expect(SCHEMA_VERSION).toBe(4);
     const versions = migrations.map((migration) => migration.version);
     expect(versions).toEqual([...versions].sort((a, b) => a - b));
     expect(versions.at(-1)).toBe(SCHEMA_VERSION);
@@ -28,8 +28,10 @@ describe('database schema', () => {
     for (const migration of migrations) {
       for (const op of migration.statements) {
         if (typeof op === 'string') {
-          // Plain SQL must be idempotent so a crash mid-migration can be retried.
-          expect(op).toMatch(/CREATE (TABLE|INDEX|UNIQUE INDEX) IF NOT EXISTS/);
+          // Plain SQL must be idempotent so a crash mid-migration can be retried:
+          // CREATE ... IF NOT EXISTS, or an UPDATE whose WHERE excludes rows it
+          // already changed.
+          expect(op).toMatch(/CREATE (TABLE|INDEX|UNIQUE INDEX) IF NOT EXISTS|^\s*UPDATE \w+ SET [\s\S]* WHERE /);
           continue;
         }
         switch (op.op) {
@@ -139,8 +141,46 @@ describe('database schema', () => {
     expect(CREATE_TABLES.AI_TOOL_SETTINGS).toContain("CHECK(consent IN ('ask', 'always', 'deny'))");
   });
 
+  it('version 4 adds classification rules, type provenance columns and rebuilds the staging table', () => {
+    const v4 = migrations.find((migration) => migration.version === 4)!;
+    expect(v4.statements[0]).toBe(CREATE_TABLES.CLASSIFICATION_RULES);
+
+    const addColumns = v4.statements.filter(
+      (op): op is Extract<MigrationOp, { op: 'addColumn' }> => typeof op !== 'string' && op.op === 'addColumn'
+    );
+    expect(addColumns.map((op) => `${op.table}.${op.column}`)).toEqual([
+      'transactions.type_source',
+      'transactions.type_confidence',
+    ]);
+    for (const op of addColumns) {
+      const nullable = !/NOT NULL/.test(op.ddl) || /DEFAULT/.test(op.ddl);
+      expect(nullable, `${op.table}.${op.column} must be nullable or defaulted`).toBe(true);
+      expect(CREATE_TABLES.TRANSACTIONS).toContain(` ${op.column} `);
+    }
+    expect(addColumns[0].ddl).toContain("CHECK(type_source IN ('sign', 'rule', 'pair', 'inferred', 'manual'))");
+
+    // Hand-picked types that predate v4 are recorded as manual decisions.
+    const backfill = v4.statements.find((op) => typeof op === 'string' && op.startsWith('UPDATE transactions'));
+    expect(backfill).toContain("SET type_source = 'manual' WHERE type_locked = 1");
+
+    // The staging table is dropped and recreated with the classification columns.
+    const dropIndex = v4.statements.findIndex(
+      (op) => typeof op !== 'string' && op.op === 'dropTable' && op.table === 'temp_import_transactions'
+    );
+    expect(dropIndex).toBeGreaterThan(-1);
+    expect(v4.statements[dropIndex + 1]).toBe(CREATE_TABLES.TEMP_IMPORT_TRANSACTIONS);
+    expect(CREATE_TABLES.TEMP_IMPORT_TRANSACTIONS).toContain('transfer_group_id TEXT');
+    expect(CREATE_TABLES.TEMP_IMPORT_TRANSACTIONS).toContain('type_confidence REAL');
+
+    expect(CREATE_TABLES.CLASSIFICATION_RULES).toContain("CHECK(type IN ('income', 'expense', 'refund', 'transfer'))");
+    expect(CREATE_TABLES.CLASSIFICATION_RULES).toContain('counterpart_account_id INTEGER');
+  });
+
   it('indexes the new sparse columns', () => {
     const indexes = CREATE_INDEXES.join('\n');
+    expect(indexes).toContain("ON transactions(type_source) WHERE type_locked = 0 AND type_source != 'sign'");
+    expect(indexes).toContain('ON transactions(amount, date)');
+    expect(indexes).toContain('ON classification_rules(enabled, priority)');
     expect(indexes).toContain('ON transactions(transfer_group_id) WHERE transfer_group_id IS NOT NULL');
     expect(indexes).toContain('ON transactions(import_batch_id) WHERE import_batch_id IS NOT NULL');
     expect(indexes).toContain('ON transactions(account_id, external_id) WHERE external_id IS NOT NULL');

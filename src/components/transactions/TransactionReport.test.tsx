@@ -18,6 +18,8 @@ vi.mock('@mui/material', async () => {
 vi.mock('@/contexts/useDatabaseSlices', () => ({
   useTransactionReportSlice: vi.fn(),
   useTransactionQuickActionsSlice: vi.fn(),
+  useClassificationRulesSlice: vi.fn(),
+  useTransactionTypeActionsSlice: vi.fn(),
 }));
 
 vi.mock('@/components/common/DataGrid/AppDataGrid', () => ({
@@ -126,6 +128,12 @@ vi.mock('@mui/icons-material', () => {
     Undo: createIcon('undo-icon'),
     Visibility: createIcon('visibility-icon'),
     VisibilityOff: createIcon('visibility-off-icon'),
+    Add: createIcon('add-icon'),
+    AutoFixHigh: createIcon('auto-fix-high-icon'),
+    Link: createIcon('link-icon'),
+    LinkOff: createIcon('link-off-icon'),
+    Rule: createIcon('rule-icon'),
+    TaskAlt: createIcon('task-alt-icon'),
   };
 });
 
@@ -150,13 +158,17 @@ vi.mock('./TransactionLabelDialog', () => ({
 
 import TransactionReport from './TransactionReport';
 import {
+  useClassificationRulesSlice,
   useTransactionQuickActionsSlice,
   useTransactionReportSlice,
+  useTransactionTypeActionsSlice,
 } from '@/contexts/useDatabaseSlices';
 import type { Account, Category, Company, Project, Transaction, TransactionQueryParams } from '@/types/database';
 
 const mockedUseTransactionReportSlice = vi.mocked(useTransactionReportSlice);
 const mockedUseTransactionQuickActionsSlice = vi.mocked(useTransactionQuickActionsSlice);
+const mockedUseClassificationRulesSlice = vi.mocked(useClassificationRulesSlice);
+const mockedUseTransactionTypeActionsSlice = vi.mocked(useTransactionTypeActionsSlice);
 
 const categories: Category[] = [
   { id: 1, name: 'Salary', type: 'income', color: '#4caf50', created_at: '2026-04-25T00:00:00.000Z', updated_at: '2026-04-25T00:00:00.000Z' },
@@ -245,7 +257,7 @@ function createMockGetTransactionsPaginated(allTransactions: Transaction[]) {
   });
 }
 
-function renderReport(transactions: Transaction[] = baseTransactions) {
+function renderReport(transactions: Transaction[] = baseTransactions, options: { reviewCount?: number } = {}) {
   const getTransactionsPaginated = createMockGetTransactionsPaginated(transactions);
   const getTransactionsForExport = vi.fn().mockResolvedValue(transactions);
   const setTransactionComment = vi.fn().mockResolvedValue(undefined);
@@ -291,6 +303,37 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
     updateCompany: vi.fn().mockResolvedValue(undefined),
   } as never);
 
+  const runClassificationScan = vi.fn().mockResolvedValue({
+    scanned: 2,
+    rulesApplied: 0,
+    transfersPaired: 1,
+    refundsInferred: 0,
+    reverted: 0,
+  });
+  const countTypeReviews = vi.fn().mockResolvedValue(options.reviewCount ?? 0);
+  mockedUseClassificationRulesSlice.mockReturnValue({
+    accounts,
+    classificationRules: [],
+    transactionVersion: 0,
+    addClassificationRule: vi.fn().mockResolvedValue(1),
+    updateClassificationRule: vi.fn().mockResolvedValue(undefined),
+    deleteClassificationRule: vi.fn().mockResolvedValue(undefined),
+    previewClassificationRuleMatches: vi.fn().mockResolvedValue(0),
+    runClassificationScan,
+    countTypeReviews,
+  } as never);
+
+  const confirmTransactionType = vi.fn().mockResolvedValue(undefined);
+  mockedUseTransactionTypeActionsSlice.mockReturnValue({
+    accounts,
+    confirmTransactionType,
+    linkTransfer: vi.fn().mockResolvedValue(undefined),
+    unlinkTransfer: vi.fn().mockResolvedValue(undefined),
+    getTransferCandidates: vi.fn().mockResolvedValue([]),
+    addClassificationRule: vi.fn().mockResolvedValue(1),
+    previewClassificationRuleMatches: vi.fn().mockResolvedValue(0),
+  } as never);
+
   render(
     <ThemeProvider theme={createTheme()}>
       <TransactionReport />
@@ -306,6 +349,9 @@ function renderReport(transactions: Transaction[] = baseTransactions) {
     setTransactionExcluded,
     setTransactionType,
     deleteTransaction,
+    runClassificationScan,
+    countTypeReviews,
+    confirmTransactionType,
   };
 }
 
@@ -314,6 +360,8 @@ describe('TransactionReport', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockedUseTransactionReportSlice.mockReset();
     mockedUseTransactionQuickActionsSlice.mockReset();
+    mockedUseClassificationRulesSlice.mockReset();
+    mockedUseTransactionTypeActionsSlice.mockReset();
   });
 
   afterEach(() => {
@@ -536,5 +584,66 @@ describe('TransactionReport', () => {
         expect.objectContaining({ flaggedOnly: true, includeExcluded: true })
       );
     });
+  });
+
+  it('runs auto-classification from the toolbar and reports what changed', async () => {
+    const { runClassificationScan } = renderReport();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+    await waitFor(() => {
+      expect(screen.getByText('Monthly salary deposit')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('transactions-auto-classify'));
+
+    await waitFor(() => expect(runClassificationScan).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(screen.getByTestId('auto-classify-summary')).toHaveTextContent(
+        'Checked 2 transactions: 1 transfer paired, 0 refunds detected, 0 typed by rules.'
+      );
+    });
+  });
+
+  it('shows the review banner and switches the list to rows needing type review', async () => {
+    const { getTransactionsPaginated } = renderReport(baseTransactions, { reviewCount: 3 });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+    const banner = await screen.findByTestId('type-review-banner');
+    expect(banner).toHaveTextContent('3 transactions were typed automatically');
+
+    await user.click(within(banner).getByRole('button', { name: 'Review' }));
+
+    await waitFor(() => {
+      expect(getTransactionsPaginated).toHaveBeenLastCalledWith(expect.objectContaining({ needsTypeReview: true }));
+    });
+    expect(screen.queryByTestId('type-review-banner')).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Needs type review' })).toBeChecked();
+  });
+
+  it('marks an unconfirmed automatic transfer and offers to confirm it from the row menu', async () => {
+    const autoTransfer: Transaction = {
+      ...baseTransactions[1],
+      id: 3,
+      description: 'PYMT BY FUNDS TRANSFER',
+      type: 'transfer',
+      type_source: 'pair',
+      type_confidence: 0.92,
+      type_locked: 0,
+      transfer_group_id: 'g1',
+      transfer_counterpart_id: 9,
+      transfer_counterpart_account_name: 'Rewards Visa',
+    };
+    const { confirmTransactionType } = renderReport([autoTransfer]);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+    await waitFor(() => {
+      expect(screen.getByText('PYMT BY FUNDS TRANSFER')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('indicator-transfer')).toHaveTextContent('Transfer?');
+
+    await user.click(screen.getByTitle('More Actions'));
+    await user.click(await screen.findByTestId('row-action-confirm-type'));
+
+    await waitFor(() => expect(confirmTransactionType).toHaveBeenCalledWith(3));
   });
 });

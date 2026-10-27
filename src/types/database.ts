@@ -8,6 +8,13 @@
  */
 export type TransactionType = 'income' | 'expense' | 'refund' | 'transfer';
 
+/**
+ * How a transaction's type was decided (schema v4). `manual` goes with
+ * type_locked = 1 and is never changed by automatic classification; the other
+ * automatic sources carry a type_confidence and can be confirmed or corrected.
+ */
+export type TransactionTypeSource = 'sign' | 'rule' | 'pair' | 'inferred' | 'manual';
+
 export type AccountType = 'checking' | 'savings' | 'credit' | 'loan' | 'investment' | 'retirement';
 export type AccountOwnership = 'individual' | 'joint';
 
@@ -29,6 +36,8 @@ export interface Transaction {
   external_id?: string | null; // Bank reference number, a second dedup key
   transfer_group_id?: string | null; // Shared by both legs of a paired transfer
   type_locked?: number; // SQLite boolean: user set the type; automatic re-typing must not touch it
+  type_source?: TransactionTypeSource; // How `type` was decided (schema v4)
+  type_confidence?: number | null; // 0..1 for automatic sources, null for sign/manual
   is_excluded?: number; // SQLite boolean: leave out of every report and total
   is_flagged?: number; // SQLite boolean: marked for review
   import_batch_id?: number | null;
@@ -51,6 +60,9 @@ export interface Transaction {
   service_name?: string;
   project_name?: string;
   trip_name?: string;
+  /** The other leg of a paired transfer, when both accounts are tracked. */
+  transfer_counterpart_id?: number | null;
+  transfer_counterpart_account_name?: string;
 }
 
 /** Fields a user may change on an existing transaction. Omitted fields keep their value. */
@@ -320,6 +332,36 @@ export interface MerchantRule {
   updated_at: string;
 }
 
+/**
+ * Row of `classification_rules` (schema v4): a description pattern that
+ * decides a transaction's type. Matched against the normalized description
+ * like merchant rules; `account_id` scopes the rule to one account and
+ * `counterpart_account_id` names the other side of a transfer when known.
+ */
+export interface ClassificationRule {
+  id: number;
+  rule_key: string; // 'user:<uuid>' (community seeds reserved for later)
+  source: 'community' | 'user';
+  pattern: string; // Matched against the NORMALIZED description
+  match_type: MerchantRuleMatchType;
+  priority: number; // Lower wins
+  type: TransactionType;
+  account_id: number | null;
+  counterpart_account_id: number | null;
+  enabled: number; // SQLite boolean (0/1)
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  account_name?: string | null;
+  counterpart_account_name?: string | null;
+}
+
+export type ClassificationRuleInput = Pick<ClassificationRule, 'pattern' | 'match_type' | 'type'> &
+  Partial<Pick<ClassificationRule, 'priority' | 'account_id' | 'counterpart_account_id' | 'notes'>> & {
+    enabled?: boolean | number;
+  };
+
 export type RecurringSeriesKind = 'subscription' | 'bill';
 export type RecurringSeriesCadence = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly' | 'irregular';
 export type RecurringSeriesStatus = 'candidate' | 'active' | 'inactive' | 'ignored';
@@ -402,6 +444,8 @@ export interface TransactionQueryParams {
   flaggedOnly?: boolean;
   /** Rows excluded from reports are hidden unless this is set. */
   includeExcluded?: boolean;
+  /** Only rows whose type was decided automatically (rule / pair / inferred) and not yet confirmed. */
+  needsTypeReview?: boolean;
 }
 
 export interface TransactionsPaginatedResult {

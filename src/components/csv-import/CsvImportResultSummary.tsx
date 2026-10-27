@@ -10,6 +10,14 @@ export interface CsvImportResult {
   rejected: number;
   /** One line per rejected row ("Row 7: Unrecognized date …"). */
   errors: string[];
+  /** Transfers imported as pairs (both legs typed transfer). */
+  transfers?: number;
+  /** ...of which paired with a row that was already in the database. */
+  transfersWithExisting?: number;
+  /** Rows typed refund by inference. */
+  refunds?: number;
+  /** Rows typed by one of the user's type rules. */
+  ruleTyped?: number;
 }
 
 interface CsvImportResultSummaryProps {
@@ -42,6 +50,22 @@ export default function CsvImportResultSummary({ result, fileName }: CsvImportRe
         <Typography variant="body2" data-testid="csv-import-result-rejected">
           • Rejected (could not be read): {result.rejected}
         </Typography>
+        {result.transfers !== undefined && (
+          <Typography variant="body2" data-testid="csv-import-result-transfers">
+            • Transfers between your accounts: {result.transfers}
+            {result.transfersWithExisting ? ` (${result.transfersWithExisting} matched to rows already in the database)` : ''}
+          </Typography>
+        )}
+        {result.refunds !== undefined && result.refunds > 0 && (
+          <Typography variant="body2" data-testid="csv-import-result-refunds">
+            • Refunds detected: {result.refunds}
+          </Typography>
+        )}
+        {result.ruleTyped !== undefined && result.ruleTyped > 0 && (
+          <Typography variant="body2" data-testid="csv-import-result-rule-typed">
+            • Typed by your rules: {result.ruleTyped}
+          </Typography>
+        )}
       </Alert>
 
       {result.errors.length > 0 && (

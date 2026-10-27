@@ -25,6 +25,11 @@ export {
 } from './useNotificationsSlices';
 export { useAiToolsSlice, useAiProviderSlice } from './useAiToolsSlices';
 export { useBudgetFundsSlice } from './useBudgetFundsSlices';
+export {
+  useClassificationRulesSlice,
+  useImportClassificationSlice,
+  useTransactionTypeActionsSlice,
+} from './useClassificationSlices';
 
 export function useAppShellSlice() {
   const status = useDatabaseStatus();

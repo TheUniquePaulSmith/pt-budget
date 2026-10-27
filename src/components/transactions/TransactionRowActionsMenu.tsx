@@ -24,19 +24,26 @@ import {
   Edit as EditIcon,
   Flag as FlagIcon,
   FlagOutlined as FlagOutlinedIcon,
+  Link as LinkIcon,
+  Rule as RuleIcon,
   SwapHoriz as TransferIcon,
+  TaskAlt as ConfirmIcon,
   TrendingDown as ExpenseIcon,
   TrendingUp as IncomeIcon,
   Undo as RefundIcon,
   Visibility as IncludeIcon,
   VisibilityOff as ExcludeIcon,
 } from '@mui/icons-material';
-import { useTransactionQuickActionsSlice } from '@/contexts/useDatabaseSlices';
+import { useTransactionQuickActionsSlice, useTransactionTypeActionsSlice } from '@/contexts/useDatabaseSlices';
+import { normalizeDescription } from '@/lib/merchantMatchingService';
 import { Transaction, TransactionType } from '@/types/database';
 import AddTransaction from './AddTransaction';
 import CategoryPickerDialog from './CategoryPickerDialog';
+import ClassificationRuleEditorDialog, { type ClassificationRulePrefill } from './ClassificationRuleEditorDialog';
 import CompanyPickerDialog from './CompanyPickerDialog';
 import SeriesPickerDialog from './SeriesPickerDialog';
+import TransferLinkDialog from './TransferLinkDialog';
+import { TYPE_LABELS, needsTypeReview } from './typeSourcePresentation';
 
 export interface TransactionRowActionsMenuProps {
   /** Anchor of the row's "More Actions" button; used when no anchorPosition is given. */
@@ -47,7 +54,7 @@ export interface TransactionRowActionsMenuProps {
   onClose: () => void;
 }
 
-type PickerKind = 'category' | 'company' | 'series';
+type PickerKind = 'category' | 'company' | 'series' | 'transfer';
 
 // Re-typing never changes the amount, so only types compatible with the row's
 // sign are offered: money out can be an expense or a transfer, money in can be
@@ -80,10 +87,13 @@ export default function TransactionRowActionsMenu({
 }: TransactionRowActionsMenuProps) {
   const { deleteTransaction, setTransactionFlag, setTransactionExcluded, setTransactionType } =
     useTransactionQuickActionsSlice();
+  const { accounts, confirmTransactionType, addClassificationRule, previewClassificationRuleMatches } =
+    useTransactionTypeActionsSlice();
 
   const [picker, setPicker] = useState<{ kind: PickerKind; transaction: Transaction } | null>(null);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [deleting, setDeleting] = useState<Transaction | null>(null);
+  const [rulePrefill, setRulePrefill] = useState<ClassificationRulePrefill | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,6 +101,20 @@ export default function TransactionRowActionsMenu({
 
   const openPicker = (kind: PickerKind) => {
     if (transaction) setPicker({ kind, transaction });
+    onClose();
+  };
+
+  // A rule started from a row carries its cleaned-up description and current
+  // type, so "make every PYMT BY FUNDS TRANSFER a transfer" is two clicks.
+  const openRuleFromRow = () => {
+    if (transaction) {
+      setRulePrefill({
+        pattern: normalizeDescription(transaction.description),
+        type: transaction.type,
+        account_id: null,
+        counterpart_account_id: null,
+      });
+    }
     onClose();
   };
 
@@ -121,6 +145,7 @@ export default function TransactionRowActionsMenu({
 
   const isFlagged = Boolean(transaction?.is_flagged);
   const isExcluded = Boolean(transaction?.is_excluded);
+  const unconfirmedType = transaction ? needsTypeReview(transaction) : false;
   const typeOptions = transaction
     ? TYPE_OPTIONS.filter((option) => option.type !== transaction.type && option.allowed(transaction.amount))
     : [];
@@ -158,7 +183,17 @@ export default function TransactionRowActionsMenu({
           <ListItemText>{isExcluded ? 'Include in reports' : 'Exclude from reports'}</ListItemText>
         </MenuItem>
 
-        {typeOptions.length > 0 && <Divider />}
+        <Divider />
+        {unconfirmedType && transaction && (
+          <MenuItem
+            disabled={busy}
+            onClick={() => void runAction(() => confirmTransactionType(transaction.id))}
+            data-testid="row-action-confirm-type"
+          >
+            <ListItemIcon><ConfirmIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Confirm as {TYPE_LABELS[transaction.type]}</ListItemText>
+          </MenuItem>
+        )}
         {typeOptions.map((option) => (
           <MenuItem
             key={option.type}
@@ -169,6 +204,14 @@ export default function TransactionRowActionsMenu({
             <ListItemText>{option.label}</ListItemText>
           </MenuItem>
         ))}
+        <MenuItem onClick={() => openPicker('transfer')} data-testid="row-action-link-transfer">
+          <ListItemIcon><LinkIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{transaction?.transfer_counterpart_id ? 'Transfer link…' : 'Link transfer…'}</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={openRuleFromRow} data-testid="row-action-create-type-rule">
+          <ListItemIcon><RuleIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>Create type rule…</ListItemText>
+        </MenuItem>
 
         <Divider />
         <MenuItem onClick={() => openPicker('category')}>
@@ -211,6 +254,23 @@ export default function TransactionRowActionsMenu({
         open={picker?.kind === 'series'}
         transaction={picker?.kind === 'series' ? picker.transaction : null}
         onClose={() => setPicker(null)}
+      />
+      <TransferLinkDialog
+        open={picker?.kind === 'transfer'}
+        transaction={picker?.kind === 'transfer' ? picker.transaction : null}
+        onClose={() => setPicker(null)}
+      />
+      <ClassificationRuleEditorDialog
+        open={rulePrefill !== null}
+        editingRule={null}
+        prefill={rulePrefill}
+        accounts={accounts}
+        onClose={() => setRulePrefill(null)}
+        onCreate={async (rule) => {
+          await addClassificationRule(rule);
+        }}
+        onUpdate={async () => undefined}
+        previewMatches={previewClassificationRuleMatches}
       />
 
       {editing && (

@@ -48,7 +48,7 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
 
   // Opening an older database runs the pending migrations before the app
   // reports Connected, so the version is already current here.
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('3');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('4');
 
   // Rebuilt tables carry the new columns...
   expect(
@@ -164,13 +164,47 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
       "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('idx_notifications_status_due', 'idx_recurring_series_autopay')"
     )
   ).toBe('2');
+
+  // Version 4: transaction classification. The rules table exists, every row
+  // carries a type provenance (hand-picked types were backfilled as manual) and
+  // the staging table was recreated with the classification columns.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'classification_rules'"
+    )
+  ).toBe('1');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('transactions') WHERE name IN ('type_source', 'type_confidence')"
+    )
+  ).toBe('2');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('temp_import_transactions') WHERE name IN ('transfer_group_id', 'type_source', 'type_confidence')"
+    )
+  ).toBe('3');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM transactions WHERE type_locked = 1 AND type_source != 'manual'"
+    )
+  ).toBe('0');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('idx_transactions_type_review', 'idx_classification_rules_enabled')"
+    )
+  ).toBe('2');
 });
 
-test('upgrades a schema v2 archive to version 3, keeping rows and adding only the v3 changes', async ({ page }) => {
+test('upgrades a schema v2 archive to the current version, keeping rows and adding only the v3 and v4 changes', async ({ page }) => {
   test.skip(!fs.existsSync(V2_ARCHIVE_PATH), 'v2 baseline archive not captured (see tests/e2e-tools)');
   await loadArchiveAndUnlock(page, V2_ARCHIVE_PATH);
 
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('3');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('4');
 
   // Rows survive: the v2 archive carries transactions, series and links.
   expect(Number(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM transactions'))).toBeGreaterThan(0);
@@ -184,7 +218,7 @@ test('upgrades a schema v2 archive to version 3, keeping rows and adding only th
       'SELECT COUNT(*) FROM transaction_series_links l LEFT JOIN transactions t ON t.id = l.transaction_id WHERE t.id IS NULL'
     )
   ).toBe('0');
-  // Version 3 does not rehash: every row keeps the hash the archive carried.
+  // Versions 3 and 4 do not rehash: every row keeps the hash the archive carried.
   // (The baseline was exported from sample fixtures, so hash length is not asserted here.)
   expect(
     await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM transactions WHERE transaction_hash IS NULL')
@@ -228,4 +262,38 @@ test('upgrades a schema v2 archive to version 3, keeping rows and adding only th
   ).toBe('0');
   // Nothing was notified yet.
   expect(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM notifications')).toBe('0');
+
+  // Version 4: transaction classification. The rules table exists, every row
+  // carries a type provenance (hand-picked types were backfilled as manual) and
+  // the staging table was recreated with the classification columns.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'classification_rules'"
+    )
+  ).toBe('1');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('transactions') WHERE name IN ('type_source', 'type_confidence')"
+    )
+  ).toBe('2');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('temp_import_transactions') WHERE name IN ('transfer_group_id', 'type_source', 'type_confidence')"
+    )
+  ).toBe('3');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM transactions WHERE type_locked = 1 AND type_source != 'manual'"
+    )
+  ).toBe('0');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('idx_transactions_type_review', 'idx_classification_rules_enabled')"
+    )
+  ).toBe('2');
 });

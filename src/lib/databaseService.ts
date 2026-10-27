@@ -52,6 +52,8 @@ import { AppMetadataService } from './databaseServiceAppMetadata';
 import { NotificationsService } from './databaseServiceNotifications';
 import { AiToolsService } from './databaseServiceAiTools';
 import { BudgetFundsService } from './databaseServiceBudgetFunds';
+import { ClassificationService } from './databaseServiceClassification';
+import { CLASSIFICATION_QUERIES } from './sqlQueriesClassification';
 import { logger } from './logging';
 import {
   Transaction,
@@ -180,6 +182,8 @@ export class DatabaseService {
   readonly notifications: NotificationsService;
   readonly aiTools: AiToolsService;
   readonly budgetFunds: BudgetFundsService;
+  /** Transaction typing (schema v4): rules, transfer pairing, refund inference. */
+  readonly classification: ClassificationService;
 
   constructor(
     private readonly workerService: DatabaseWorkerTransport = databaseWorkerService
@@ -188,6 +192,7 @@ export class DatabaseService {
     this.notifications = new NotificationsService(workerService);
     this.aiTools = new AiToolsService(workerService, this.appMetadata);
     this.budgetFunds = new BudgetFundsService(workerService);
+    this.classification = new ClassificationService(workerService, this.appMetadata);
   }
 
   async initialize(): Promise<void> {
@@ -840,6 +845,10 @@ export class DatabaseService {
     if (params.flaggedOnly) {
       conditions.push('t.is_flagged = 1');
     }
+    // Automatically typed (rule / pair / inferred) and not yet confirmed by the user.
+    if (params.needsTypeReview) {
+      conditions.push("t.type_locked = 0 AND t.type_source != 'sign'");
+    }
     // Rows excluded from reports stay out of the list too unless asked for.
     if (!params.includeExcluded) {
       conditions.push('t.is_excluded = 0');
@@ -934,7 +943,13 @@ export class DatabaseService {
     rs.name as series_name,
     COALESCE(service_rule.service_name, rs.name) as service_name,
     p.name as project_name,
-    tr.name as trip_name
+    tr.name as trip_name,
+    (SELECT tp.id FROM transactions tp
+      WHERE t.transfer_group_id IS NOT NULL AND tp.transfer_group_id = t.transfer_group_id AND tp.id != t.id
+      LIMIT 1) as transfer_counterpart_id,
+    (SELECT pa.name FROM transactions tp JOIN accounts pa ON pa.id = tp.account_id
+      WHERE t.transfer_group_id IS NOT NULL AND tp.transfer_group_id = t.transfer_group_id AND tp.id != t.id
+      LIMIT 1) as transfer_counterpart_account_name
   `;
 
   async getTransactionsPaginated(params: TransactionQueryParams): Promise<TransactionsPaginatedResult> {
@@ -1846,6 +1861,7 @@ export class DatabaseService {
 
       const typeChanged = patch.type !== undefined && patch.type !== existing.type;
       const typeLocked = typeChanged ? 1 : Number(existing.type_locked ?? 0);
+      const typeSource = typeChanged ? 'manual' : (existing.type_source ?? 'sign');
 
       const keyChanged =
         next.date !== existing.date ||
@@ -1883,9 +1899,14 @@ export class DatabaseService {
         next.trip_id,
         next.type,
         typeLocked,
+        typeSource,
         hash,
         id,
       ]);
+      // A row that stops being a transfer no longer has a counterpart.
+      if (typeChanged && next.type !== 'transfer' && existing.transfer_group_id) {
+        await this.workerService.query(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP, [existing.transfer_group_id]);
+      }
     } catch (error) {
       log.error('Failed to update transaction', { operation: 'updateTransaction', error });
       throw error;
@@ -1893,12 +1914,19 @@ export class DatabaseService {
   }
 
   // The series link is removed explicitly: PRAGMA foreign_keys is not enabled
-  // on reopened databases, so ON DELETE CASCADE cannot be relied upon.
+  // on reopened databases, so ON DELETE CASCADE cannot be relied upon. The
+  // other leg of a paired transfer is unpaired rather than left pointing at a
+  // row that no longer exists.
   async deleteTransaction(id: number): Promise<void> {
+    const rows = await this.workerService.query(TRANSACTION_QUERIES.GET_RAW_BY_ID, [id]);
+    const transferGroupId = rows[0]?.transfer_group_id ?? null;
     await this.workerService.query('BEGIN TRANSACTION');
     try {
       await this.workerService.query(SUBSCRIPTION_QUERIES.DELETE_LINK_FOR_TRANSACTION, [id]);
       await this.workerService.query(TRANSACTION_QUERIES.DELETE, [id]);
+      if (transferGroupId) {
+        await this.workerService.query(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP, [transferGroupId]);
+      }
       await this.workerService.query('COMMIT');
     } catch (error) {
       await this.workerService.query('ROLLBACK');
@@ -1925,7 +1953,11 @@ export class DatabaseService {
     }
   }
 
-  /** Re-types a row (expense / income / refund / transfer) without touching its amount. */
+  /**
+   * Re-types a row (expense / income / refund / transfer) by hand without
+   * touching its amount. The type is locked; a row that stops being a
+   * transfer is unpaired from its counterpart.
+   */
   async setTransactionType(id: number, type: TransactionType): Promise<void> {
     try {
       const rows = await this.workerService.query(TRANSACTION_QUERIES.GET_RAW_BY_ID, [id]);
@@ -1934,6 +1966,9 @@ export class DatabaseService {
       }
       this.assertTypeMatchesSign(type, Number(rows[0].amount));
       await this.workerService.query(TRANSACTION_QUERIES.SET_TYPE, [type, id]);
+      if (type !== 'transfer' && rows[0].transfer_group_id) {
+        await this.workerService.query(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP, [rows[0].transfer_group_id]);
+      }
     } catch (error) {
       log.error('Failed to set transaction type', { operation: 'setTransactionType', error });
       throw error;
@@ -2733,6 +2768,8 @@ export class DatabaseService {
       external_id: row.external_id ?? null,
       transfer_group_id: row.transfer_group_id ?? null,
       type_locked: Number(row.type_locked ?? 0),
+      type_source: row.type_source ?? 'sign',
+      type_confidence: row.type_confidence == null ? null : Number(row.type_confidence),
       is_excluded: Number(row.is_excluded ?? 0),
       is_flagged: Number(row.is_flagged ?? 0),
       import_batch_id: row.import_batch_id ?? null,
@@ -2756,6 +2793,8 @@ export class DatabaseService {
       project_name: row.project_name || undefined,
       trip_name: row.trip_name || undefined,
       trip_id: row.trip_id ? row.trip_id : null,
+      transfer_counterpart_id: row.transfer_counterpart_id ?? null,
+      transfer_counterpart_account_name: row.transfer_counterpart_account_name || undefined,
     };
   }
 

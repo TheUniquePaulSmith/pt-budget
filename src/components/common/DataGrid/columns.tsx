@@ -8,6 +8,7 @@ import { CalendarMonth, CreditCard, Flag, Savings, SwapHoriz, Undo, VisibilityOf
 import type { GridColDef, GridValidRowModel } from '@mui/x-data-grid';
 
 import type { Transaction } from '@/types/database';
+import { describeTypeDecision, needsTypeReview } from '@/components/transactions/typeSourcePresentation';
 
 export function currencyColumn<R extends { amount?: number }>(
   field: keyof R & string,
@@ -138,8 +139,24 @@ export function indicatorsColumn(budgetedCategoryIds: Set<number>): GridColDef<T
       // Review and reporting state first: these change what the totals mean.
       if (params.row.is_flagged) chips.push(<Chip key="flagged" size="small" color="warning" icon={<Flag />} label="Flagged" />);
       if (params.row.is_excluded) chips.push(<Chip key="excluded" size="small" icon={<VisibilityOff />} label="Excluded" />);
-      if (params.row.type === 'refund') chips.push(<Chip key="refund" size="small" color="success" variant="outlined" icon={<Undo />} label="Refund" />);
-      if (params.row.type === 'transfer') chips.push(<Chip key="transfer" size="small" color="info" variant="outlined" icon={<SwapHoriz />} label="Transfer" />);
+      // Refund / transfer chips say how the type was decided; an automatic,
+      // unconfirmed type is dashed so the user knows it can still be reviewed.
+      const unconfirmed = needsTypeReview(params.row);
+      const autoChipSx = unconfirmed ? { borderStyle: 'dashed' } : undefined;
+      if (params.row.type === 'refund') {
+        chips.push(
+          <Tooltip key="refund" title={describeTypeDecision(params.row)}>
+            <Chip size="small" color="success" variant="outlined" icon={<Undo />} label={unconfirmed ? 'Refund?' : 'Refund'} sx={autoChipSx} data-testid="indicator-refund" />
+          </Tooltip>
+        );
+      }
+      if (params.row.type === 'transfer') {
+        chips.push(
+          <Tooltip key="transfer" title={describeTypeDecision(params.row)}>
+            <Chip size="small" color="info" variant="outlined" icon={<SwapHoriz />} label={unconfirmed ? 'Transfer?' : 'Transfer'} sx={autoChipSx} data-testid="indicator-transfer" />
+          </Tooltip>
+        );
+      }
       if (params.row.category_id && budgetedCategoryIds.has(params.row.category_id)) chips.push(<Chip key="budget" size="small" icon={<Savings />} label="Budget" />);
       if (params.row.trip_id) chips.push(<Chip key="trip" size="small" icon={<CalendarMonth />} label="Trip" />);
       if (params.row.project_id) chips.push(<Chip key="project" size="small" icon={<Work />} label="Project" />);

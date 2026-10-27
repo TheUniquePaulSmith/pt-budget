@@ -72,7 +72,6 @@ import {
 } from './useDatabaseBudgetFundsSlice';
 import { useDatabaseInitialization } from './useDatabaseInitialization';
 import { isDebugMode } from '../lib/debugMode';
-import { resetApp } from '../lib/resetApp';
 //import { appLogger } from '../lib/logger';
 
 declare global {
@@ -124,8 +123,10 @@ interface DatabaseLifecycleSlice {
   disconnectCloudProvider: (provider: CloudProvider) => void;
   closeCloudFilePicker: () => void;
   handleCloudFileSelected: (file: CloudLinkedFile) => Promise<void>;
-  /** Best-effort teardown of this tab's SharedWorker connection — used by the debug-only Reset App flow. */
+  /** Best-effort teardown of this tab's SharedWorker connection — used by the dev-only test API. */
   disconnectWorker: () => void;
+  /** Debug-only Reset App: terminates the SharedWorker itself and the storage it holds. */
+  terminateWorker: (options?: { includeLogs?: boolean }) => Promise<void>;
 }
 
 interface DatabaseDiagnosticsSlice {
@@ -294,6 +295,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     workerStatus,
     sampleDataImportProgress,
     disconnectWorker,
+    terminateWorker,
     storageMigrationStage,
     cloudFilePicker,
     setError,
@@ -315,6 +317,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     cancelSampleDataImport,
     lockDatabaseState,
     handleUnlockSubmitted,
+    handleLockedResetRequested,
   } = useDatabaseInitialization({ loadAllData });
 
   const {
@@ -544,6 +547,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       closeCloudFilePicker,
       handleCloudFileSelected,
       disconnectWorker,
+      terminateWorker,
     }),
     [
       createOrOpenDatabase,
@@ -564,6 +568,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       closeCloudFilePicker,
       handleCloudFileSelected,
       disconnectWorker,
+      terminateWorker,
     ]
   );
 
@@ -599,7 +604,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         onCancelPasswordEntry={cancelPasswordEntry}
         onStorageChoiceSelected={handleStorageChoiceSelected}
         onUnlockSubmitted={handleUnlockSubmitted}
-        onResetApp={isDebugMode() ? () => resetApp(disconnectWorker) : undefined}
+        onResetApp={isDebugMode() ? handleLockedResetRequested : undefined}
       />
     );
   }

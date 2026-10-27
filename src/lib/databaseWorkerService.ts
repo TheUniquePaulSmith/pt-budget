@@ -160,6 +160,22 @@ export class DatabaseWorkerService {
       return;
     }
 
+    // The worker released its storage and is exiting (a debug-only Reset App,
+    // possibly started from another tab). Mark it dead now rather than waiting
+    // for the heartbeat to time out.
+    if (response.type === 'worker_terminated') {
+      if (this.heartbeatTimeout) {
+        clearTimeout(this.heartbeatTimeout);
+        this.heartbeatTimeout = null;
+      }
+      this.updateStatus({
+        isWorkerAlive: false,
+        isConnected: false,
+        dbStatus: 'disconnected',
+      });
+      return;
+    }
+
     // Handle worker connection confirmation
     if (response.type === 'worker_connected') {
       this.updateStatus({
@@ -321,6 +337,7 @@ export class DatabaseWorkerService {
     verify_password: 5000,
     encrypt_archive: 120000,       // 2min for large archive encryption
     decrypt_archive: 120000,       // 2min for large archive decryption
+    terminate_worker: 15000,       // 15s to close handles and delete the worker's stores
     default: 30000       // 30s default for other operations
   };
 
@@ -542,6 +559,23 @@ export class DatabaseWorkerService {
       throw new Error(response.sqlResponse?.error || 'Failed to decrypt archive');
     }
     return response.sqlResponse.plainBytes as Uint8Array;
+  }
+
+  /**
+   * Debug-only (Reset App): asks the SharedWorker to close its SQLite
+   * connection, forget its keys, release and delete its IndexedDB stores and
+   * exit — it is shared by every tab, so this ends it for all of them — then
+   * drops this tab's connection. Best-effort: a worker that does not answer
+   * must not stop the reset, and the caller wipes storage regardless.
+   */
+  public async terminate(options: { includeLogs?: boolean } = {}): Promise<void> {
+    try {
+      await this.sendMessage('terminate_worker', { includeLogs: options.includeLogs === true });
+    } catch (error) {
+      log.warn('Worker did not confirm termination', { operation: 'terminate_worker', error });
+    } finally {
+      this.destroy();
+    }
   }
 
   // Cleanup

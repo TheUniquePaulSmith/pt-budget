@@ -72,8 +72,12 @@ interface DatabaseInitializationGateProps {
    * device and after Settings → Lock Database.
    */
   onUnlockSubmitted: (password: string) => Promise<void>;
-  /** Debug-only (`?debug`) — when set, the unlock screen shows a "Reset App" button. */
-  onResetApp?: () => void | Promise<void>;
+  /**
+   * Debug-only (`?debug`) — when set, the unlock screen shows a "Reset App"
+   * button. It receives the password the user typed to confirm, and rejects
+   * (keeping the app untouched) when it is wrong.
+   */
+  onResetApp?: (password: string) => void | Promise<void>;
 }
 
 const centeredBoxSx = {

@@ -24,8 +24,12 @@ interface PasswordEntryProps {
   onPasswordSubmitted: (password: string) => Promise<void>;
   /** Shown when the user can go back (e.g. cancel cloud import). */
   onCancel?: () => void;
-  /** Debug-only (`?debug`) — when set, shows a "Reset App" button that wipes all local data. */
-  onResetApp?: () => void | Promise<void>;
+  /**
+   * Debug-only (`?debug`) — when set, shows a "Reset App" button that wipes all
+   * local data. The button asks for the database password and passes it here;
+   * the callback must reject (e.g. "Incorrect password") to refuse the reset.
+   */
+  onResetApp?: (password: string) => void | Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
@@ -133,7 +137,7 @@ export function PasswordEntry({
 
         {onResetApp && (
           <Box sx={{ mt: 3 }}>
-            <ResetAppButton onReset={onResetApp} fullWidth />
+            <ResetAppButton onReset={onResetApp} requirePassword fullWidth />
           </Box>
         )}
       </Paper>

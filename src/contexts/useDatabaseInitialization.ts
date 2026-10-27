@@ -26,6 +26,7 @@ import {
   type DatabaseSource,
   type PersistedDatabaseSourceState,
 } from '@/lib/databaseSourceStorage';
+import { resetApp } from '@/lib/resetApp';
 import { SampleDataService } from '@/lib/sampleDataService';
 import type { SampleDataImportProgress } from '@/lib/sampleDataService';
 import type { Account } from '@/types/database';
@@ -90,6 +91,8 @@ interface UseDatabaseInitializationResult {
   sampleDataImportProgress: SampleDataImportProgress | null;
   /** Dev-only: forcibly disconnects the worker, for the __budgetTrackerTestApi hook. */
   disconnectWorker: () => void;
+  /** Debug-only: terminates the shared worker and releases what it stores, for Reset App. */
+  terminateWorker: (options?: { includeLogs?: boolean }) => Promise<void>;
   /** Live progress while migrating a brand-new database to cloud storage (needs-storage-choice) or manually syncing. */
   storageMigrationStage: SyncStage | null;
   cloudFilePicker: CloudFilePickerState;
@@ -144,6 +147,14 @@ interface UseDatabaseInitializationResult {
    * one is linked.
    */
   handleUnlockSubmitted: (password: string) => Promise<void>;
+  /**
+   * Debug-only Reset App from the needs-unlock gate. Rejects with
+   * "Incorrect password" — leaving everything untouched — unless `password`
+   * matches the database's stored verifier; otherwise terminates the worker
+   * and wipes all local data. The unlocked-app Reset (Settings → Developer)
+   * needs no password: the user has already authenticated.
+   */
+  handleLockedResetRequested: (password: string) => Promise<void>;
 }
 
 const BROWSER_TEST_STORAGE_KEY = 'budgetApp_browserTestPassed';
@@ -297,8 +308,7 @@ export function useDatabaseInitialization({
   // DatabaseContext.tsx registers — consolidated there (rather than in an
   // effect here) so it can be combined with the auto-sync test hooks
   // without two independent effects racing to set the same global.
-  const disconnectWorker = useCallback(() => {
-    databaseService?.getWorkerService().destroy?.();
+  const markWorkerDisconnected = useCallback(() => {
     setWorkerStatus((currentStatus) => ({
       isWorkerAlive: false,
       isConnected: false,
@@ -306,7 +316,22 @@ export function useDatabaseInitialization({
       version: currentStatus?.version || '1.0.0',
       lastHeartbeat: currentStatus?.lastHeartbeat || 0,
     }));
-  }, [databaseService]);
+  }, []);
+
+  const disconnectWorker = useCallback(() => {
+    databaseService?.getWorkerService().destroy?.();
+    markWorkerDisconnected();
+  }, [databaseService, markWorkerDisconnected]);
+
+  // Debug-only Reset App: ends the shared worker itself (see
+  // DatabaseWorkerService.terminate), not just this tab's connection to it.
+  const terminateWorker = useCallback(
+    async (options?: { includeLogs?: boolean }) => {
+      await databaseService?.getWorkerService().terminate?.(options);
+      markWorkerDisconnected();
+    },
+    [databaseService, markWorkerDisconnected]
+  );
 
   // Creating a database always requires a password first (see
   // handlePasswordSetupConfirmed, which does the actual creation), so this
@@ -873,6 +898,31 @@ export function useDatabaseInitialization({
     [databaseService, databaseSourceState, loadAllData]
   );
 
+  // ---------------------------------------------------------------------------
+  // Reset App from the lock screen (debug-only; the caller gates on isDebugMode)
+  // ---------------------------------------------------------------------------
+
+  const handleLockedResetRequested = useCallback(
+    async (password: string) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      // A locked app has not proven who is at the keyboard, so resetting it
+      // (which destroys the database) takes the same password as unlocking it.
+      // Checked against the stored verifier without unlocking anything, and
+      // before any teardown starts.
+      const isCorrect = await databaseService.verifyCurrentPassword(password);
+      if (!isCorrect) {
+        log.warn('Reset App rejected: incorrect password', { operation: 'resetApp' });
+        throw new Error('Incorrect password');
+      }
+
+      await resetApp(terminateWorker);
+    },
+    [databaseService, terminateWorker]
+  );
+
   return {
     databaseService,
     databaseSource: databaseSourceState.source,
@@ -884,6 +934,7 @@ export function useDatabaseInitialization({
     workerStatus,
     sampleDataImportProgress,
     disconnectWorker,
+    terminateWorker,
     storageMigrationStage,
     cloudFilePicker,
     setError,
@@ -905,5 +956,6 @@ export function useDatabaseInitialization({
     cancelSampleDataImport,
     lockDatabaseState,
     handleUnlockSubmitted,
+    handleLockedResetRequested,
   };
 }

@@ -55,6 +55,7 @@ export default function NotificationsRuntime(): null {
     isDatabaseLoaded,
     notifications,
     recurringSeries,
+    loans,
     runNotificationScan,
     markNotificationNotified,
     getNotificationSettings,
@@ -64,8 +65,8 @@ export default function NotificationsRuntime(): null {
 
   // Long-lived callbacks see the latest props through a ref so the rescan
   // controller (created once per database session) is never recreated.
-  const latest = useRef({ recurringSeries, runNotificationScan, getNotificationSettings, getNotificationPreferences });
-  latest.current = { recurringSeries, runNotificationScan, getNotificationSettings, getNotificationPreferences };
+  const latest = useRef({ recurringSeries, loans, runNotificationScan, getNotificationSettings, getNotificationPreferences });
+  latest.current = { recurringSeries, loans, runNotificationScan, getNotificationSettings, getNotificationPreferences };
 
   const firedThisSession = useRef(new Set<number>());
 
@@ -91,6 +92,7 @@ export default function NotificationsRuntime(): null {
         try {
           const summary = await latest.current.runNotificationScan({
             recurringSeries: latest.current.recurringSeries,
+            loans: latest.current.loans,
             settings: current.settings,
           });
           const finishedAt = Date.now();

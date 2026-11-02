@@ -21,6 +21,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: ReadonlyArray<NotificationSetting> =
   { type: 'custom', enabled: 1, lead_days: 7, os_notify: 0 },
   { type: 'overdue_payment', enabled: 1, lead_days: 3, os_notify: 0 },
   { type: 'budget_overspend', enabled: 1, lead_days: 0, os_notify: 0 },
+  { type: 'loan_promo_ending', enabled: 1, lead_days: 60, os_notify: 0 },
 ];
 
 /**

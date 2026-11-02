@@ -53,6 +53,7 @@ import { NotificationsService } from './databaseServiceNotifications';
 import { AiToolsService } from './databaseServiceAiTools';
 import { BudgetFundsService } from './databaseServiceBudgetFunds';
 import { ClassificationService } from './databaseServiceClassification';
+import { LoansService } from './databaseServiceLoans';
 import { CLASSIFICATION_QUERIES } from './sqlQueriesClassification';
 import { logger } from './logging';
 import {
@@ -184,6 +185,8 @@ export class DatabaseService {
   readonly budgetFunds: BudgetFundsService;
   /** Transaction typing (schema v4): rules, transfer pairing, refund inference. */
   readonly classification: ClassificationService;
+  /** Loans (schema v5): terms, loan-owned payment rules, payment ledger. */
+  readonly loans: LoansService;
 
   constructor(
     private readonly workerService: DatabaseWorkerTransport = databaseWorkerService
@@ -193,6 +196,7 @@ export class DatabaseService {
     this.aiTools = new AiToolsService(workerService, this.appMetadata);
     this.budgetFunds = new BudgetFundsService(workerService);
     this.classification = new ClassificationService(workerService, this.appMetadata);
+    this.loans = new LoansService(workerService);
   }
 
   async initialize(): Promise<void> {
@@ -3693,11 +3697,15 @@ export class DatabaseService {
       SUBSCRIPTION_QUERIES.GET_EXPENSE_TRANSACTIONS_FOR_SCAN
     );
 
+    // Loan payments (schema v5) belong to their loan, never to a series.
+    const loanPaymentIds = await this.loans.getLinkedTransactionIds();
+
     // Group expenses: recurring-kind rule hits by rule, unmatched by
     // normalized description. 'purchase'/'unknown' rule hits are never
     // analyzed (that is what keeps Amazon Marketplace off the page).
     const groups = new Map<string, RecurrenceInputTransaction[]>();
     for (const row of expenseRows) {
+      if (loanPaymentIds.has(Number(row.id))) continue;
       const normalized = normalizeDescription(row.description);
       if (!normalized) continue;
       const rule = matchRule(normalized, rules);
@@ -3958,6 +3966,8 @@ export class DatabaseService {
       SUBSCRIPTION_QUERIES.GET_ALL_LINKED_TRANSACTION_IDS
     );
     const linked = new Set<number>(linkedRows.map((row: any) => Number(row.transaction_id)));
+    // Loan payments (schema v5) are claimed by their loan's rule and never offered as clusters.
+    for (const id of await this.loans.getLinkedTransactionIds()) linked.add(id);
 
     const clusters = new Map<
       string,

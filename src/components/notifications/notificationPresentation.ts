@@ -15,6 +15,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   custom: 'Custom reminder',
   overdue_payment: 'Payment due',
   budget_overspend: 'Budget overspend',
+  loan_promo_ending: 'Loan pay-by date',
 };
 
 export const NOTIFICATION_TYPE_DESCRIPTIONS: Record<NotificationType, string> = {
@@ -24,6 +25,7 @@ export const NOTIFICATION_TYPE_DESCRIPTIONS: Record<NotificationType, string> = 
   custom: 'Anything else, one-off or repeating.',
   overdue_payment: 'Subscriptions and bills you pay by hand that are due or overdue (series not marked autopay).',
   budget_overspend: 'A budget category that has gone over its monthly amount.',
+  loan_promo_ending: 'A deferred-interest loan whose pay-by date is near, or passed with a balance, so interest may be charged back.',
 };
 
 export const RECURRENCE_LABELS: Record<NotificationRecurrence, string> = {
@@ -44,7 +46,9 @@ export function typeLabel(type: string): string {
 }
 
 export function typeChipColor(notification: Pick<AppNotification, 'kind' | 'type'>): ChipProps['color'] {
-  if (notification.kind === 'alert') return notification.type === 'budget_overspend' ? 'warning' : 'error';
+  if (notification.kind === 'alert') {
+    return notification.type === 'budget_overspend' || notification.type === 'loan_promo_ending' ? 'warning' : 'error';
+  }
   return 'primary';
 }
 

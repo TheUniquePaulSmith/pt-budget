@@ -53,6 +53,7 @@ describe('pageRegistry', () => {
       'Trips',
       'Budget',
       'Accounts',
+      'Loans',
       'Transactions',
       'Subscriptions',
       'Notifications',

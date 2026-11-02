@@ -59,6 +59,7 @@ export function useNotificationsRuntimeSlice() {
     isDatabaseLoaded: status.isDatabaseLoaded,
     notifications: collections.notifications,
     recurringSeries: collections.recurringSeries,
+    loans: collections.loans,
     transactionVersion: collections.transactionVersion,
     budgetVersion: collections.budgetVersion,
     runNotificationScan: notifications.runNotificationScan,

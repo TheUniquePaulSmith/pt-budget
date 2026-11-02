@@ -48,7 +48,15 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
 
   // Opening an older database runs the pending migrations before the app
   // reports Connected, so the version is already current here.
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('4');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('5');
+
+  // Version 5: the loan tables exist on an upgraded database too.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('loans', 'loan_match_rules', 'loan_payments')"
+    )
+  ).toBe('3');
 
   // Rebuilt tables carry the new columns...
   expect(
@@ -204,7 +212,7 @@ test('upgrades a schema v2 archive to the current version, keeping rows and addi
   test.skip(!fs.existsSync(V2_ARCHIVE_PATH), 'v2 baseline archive not captured (see tests/e2e-tools)');
   await loadArchiveAndUnlock(page, V2_ARCHIVE_PATH);
 
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('4');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('5');
 
   // Rows survive: the v2 archive carries transactions, series and links.
   expect(Number(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM transactions'))).toBeGreaterThan(0);

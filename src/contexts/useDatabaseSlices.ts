@@ -8,6 +8,7 @@ import {
   useDatabaseCompanies,
   useDatabaseDiagnostics,
   useDatabaseLifecycle,
+  useDatabaseLoans,
   useDatabaseProjects,
   useDatabaseStatus,
   useDatabaseSubscriptions,
@@ -30,6 +31,7 @@ export {
   useImportClassificationSlice,
   useTransactionTypeActionsSlice,
 } from './useClassificationSlices';
+export { useLoansPageSlice, useSubscriptionsLoansSlice } from './useLoansSlices';
 
 export function useAppShellSlice() {
   const status = useDatabaseStatus();
@@ -188,6 +190,7 @@ export function useCsvImportSlice() {
   const accounts = useDatabaseAccounts();
   const users = useDatabaseUsers();
   const subscriptions = useDatabaseSubscriptions();
+  const loans = useDatabaseLoans();
 
   return {
     accounts: collections.accounts,
@@ -208,6 +211,8 @@ export function useCsvImportSlice() {
     findAccountsByFullNumber: accounts.findAccountsByFullNumber,
     getAccountCards: accounts.getAccountCards,
     runSubscriptionScan: subscriptions.runSubscriptionScan,
+    // Loan rules claim their payments before subscription detection sees them.
+    applyLoanRules: loans.applyLoanRules,
   };
 }
 

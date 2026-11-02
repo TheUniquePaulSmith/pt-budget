@@ -75,6 +75,11 @@ import {
   useDatabaseClassificationSlice,
   type DatabaseClassificationSlice,
 } from './useDatabaseClassificationSlice';
+// Schema v5: loans (terms, loan-owned payment rules, payment ledger).
+import {
+  useDatabaseLoansSlice,
+  type DatabaseLoansSlice,
+} from './useDatabaseLoansSlice';
 import { useDatabaseInitialization } from './useDatabaseInitialization';
 import { isDebugMode } from '../lib/debugMode';
 //import { appLogger } from '../lib/logger';
@@ -156,6 +161,7 @@ interface DatabaseContextType {
   aiTools: DatabaseAiToolsSlice;
   budgetFunds: DatabaseBudgetFundsSlice;
   classification: DatabaseClassificationSlice;
+  loans: DatabaseLoansSlice;
 }
 
 const DatabaseStatusContext = createContext<DatabaseStatusSlice | null>(null);
@@ -187,6 +193,7 @@ const DatabaseBudgetFundsContext =
   createContext<DatabaseBudgetFundsSlice | null>(null);
 const DatabaseClassificationContext =
   createContext<DatabaseClassificationSlice | null>(null);
+const DatabaseLoansContext = createContext<DatabaseLoansSlice | null>(null);
 
 function useRequiredContext<T>(
   context: React.Context<T | null>,
@@ -251,6 +258,9 @@ export const useDatabaseBudgetFunds = () =>
 export const useDatabaseClassification = () =>
   useRequiredContext(DatabaseClassificationContext, 'useDatabaseClassification');
 
+export const useDatabaseLoans = () =>
+  useRequiredContext(DatabaseLoansContext, 'useDatabaseLoans');
+
 export const useDatabaseContext = (): DatabaseContextType => ({
   status: useDatabaseStatus(),
   collections: useDatabaseCollections(),
@@ -269,6 +279,7 @@ export const useDatabaseContext = (): DatabaseContextType => ({
   aiTools: useDatabaseAiTools(),
   budgetFunds: useDatabaseBudgetFunds(),
   classification: useDatabaseClassification(),
+  loans: useDatabaseLoans(),
 });
 
 interface DatabaseProviderProps {
@@ -293,6 +304,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     refreshRecurringSeries,
     refreshNotifications,
     refreshClassificationRules,
+    refreshLoans,
   } = useDatabaseCollectionsState({
     getDatabaseService: () => databaseService,
   });
@@ -488,6 +500,12 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     refreshTransactions,
     refreshClassificationRules,
   });
+  const loansSlice = useDatabaseLoansSlice({
+    databaseService,
+    refreshLoans,
+    refreshTransactions,
+    refreshAccounts,
+  });
 
   // Custom SQL query execution
   const executeCustomQuery = useCallback(async (sql: string, timeoutMs?: number): Promise<any[]> => {
@@ -645,7 +663,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
                             <DatabaseAiToolsContext.Provider value={aiToolsSlice}>
                             <DatabaseBudgetFundsContext.Provider value={budgetFundsSlice}>
                             <DatabaseClassificationContext.Provider value={classificationSlice}>
+                            <DatabaseLoansContext.Provider value={loansSlice}>
                               {children}
+                            </DatabaseLoansContext.Provider>
                             </DatabaseClassificationContext.Provider>
                             </DatabaseBudgetFundsContext.Provider>
                             </DatabaseAiToolsContext.Provider>

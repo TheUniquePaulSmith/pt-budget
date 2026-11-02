@@ -24,6 +24,7 @@ import {
   Home as ProjectsIcon,
   Notifications as NotificationsIcon,
   Receipt as TransactionsIcon,
+  RequestQuote as LoansIcon,
   Savings as BudgetIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material';
@@ -36,6 +37,7 @@ export type PageId =
   | 'trips'
   | 'budget'
   | 'accounts'
+  | 'loans'
   | 'transactions'
   | 'subscriptions'
   | 'notifications'
@@ -73,6 +75,7 @@ const ManageProjectsPage = lazy(() => import('@/components/projects/ManageProjec
 const ManageTripsPage = lazy(() => import('@/components/trips/ManageTrips'));
 const BudgetPage = lazy(() => import('@/components/budget/BudgetPage'));
 const ManageAccountsPage = lazy(() => import('@/components/accounts/ManageAccounts'));
+const LoansPage = lazy(() => import('@/components/loans/LoansPage'));
 const TransactionReportPage = lazy(() => import('@/components/transactions/TransactionReport'));
 const SubscriptionsPage = lazy(() => import('@/components/subscriptions/SubscriptionsPage'));
 const NotificationsPage = lazy(() => import('@/components/notifications/NotificationsPage'));
@@ -81,9 +84,9 @@ const SettingsPage = lazy(() => import('@/components/settings/SettingsPage'));
 const DeveloperConsolePage = lazy(() => import('@/components/common/Console/DeveloperConsolePage'));
 
 /** Subscriptions can open the AI panel; the panel state lives in AiPanelProvider. */
-function SubscriptionsPageAdapter() {
+function SubscriptionsPageAdapter({ navigate }: Pick<PageProps, 'navigate'>) {
   const { openPanel } = useAiPanel();
-  return <SubscriptionsPage onOpenAiPanel={openPanel} />;
+  return <SubscriptionsPage onOpenAiPanel={openPanel} onNavigateToLoans={() => navigate('loans')} />;
 }
 
 export const PAGE_DEFINITIONS: readonly PageDefinition[] = [
@@ -136,6 +139,15 @@ export const PAGE_DEFINITIONS: readonly PageDefinition[] = [
     render: () => <ManageAccountsPage />,
   },
   {
+    id: 'loans',
+    label: 'Loans',
+    icon: LoansIcon,
+    section: 'main',
+    order: 55,
+    testId: 'nav-loans',
+    render: () => <LoansPage />,
+  },
+  {
     id: 'transactions',
     label: 'Transactions',
     icon: TransactionsIcon,
@@ -152,7 +164,7 @@ export const PAGE_DEFINITIONS: readonly PageDefinition[] = [
     section: 'main',
     order: 70,
     testId: 'nav-subscriptions',
-    render: () => <SubscriptionsPageAdapter />,
+    render: ({ navigate }) => <SubscriptionsPageAdapter navigate={navigate} />,
   },
   {
     id: 'notifications',

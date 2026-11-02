@@ -8,17 +8,19 @@ import type {
   AppNotification,
   AppNotificationInput,
   BudgetStatus,
+  Loan,
   NotificationRecurrence,
   NotificationSetting,
   RecurringSeries,
 } from './database';
+import type { LoanSummary } from './loans';
 
 export type ReminderType = 'birthday' | 'anniversary' | 'seasonal' | 'custom';
-export type AlertType = 'overdue_payment' | 'budget_overspend';
+export type AlertType = 'overdue_payment' | 'budget_overspend' | 'loan_promo_ending';
 export type NotificationType = ReminderType | AlertType;
 
 export const REMINDER_TYPES: readonly ReminderType[] = ['birthday', 'anniversary', 'seasonal', 'custom'];
-export const ALERT_TYPES: readonly AlertType[] = ['overdue_payment', 'budget_overspend'];
+export const ALERT_TYPES: readonly AlertType[] = ['overdue_payment', 'budget_overspend', 'loan_promo_ending'];
 
 /** Which page tab / surface a row belongs to, computed from status + dates + lead time. */
 export type NotificationBucket = 'due' | 'upcoming' | 'history';
@@ -62,6 +64,9 @@ export interface NotificationScanContext {
   recurringSeries: RecurringSeries[];
   listSeriesPaymentsSince: (sinceDate: string) => Promise<SeriesPaymentRow[]>;
   getBudgetStatus: (month: string) => Promise<BudgetStatus>;
+  /** Loans (schema v5) for the deferred-interest deadline alert; both optional so older callers keep working. */
+  loans?: Loan[];
+  getLoanSummary?: (loanId: number) => Promise<LoanSummary | null>;
   upsertByDedupeKey: (input: AppNotificationInput & { dedupe_key: string }) => Promise<number>;
   setStatus: (id: number, status: AppNotification['status'], snoozedUntil?: string | null) => Promise<void>;
   /** Advances a recurring reminder's due_date (and payload) in place. */
@@ -89,6 +94,18 @@ export interface OverduePaymentPayload {
   series_name: string;
   due_date: string;
   expected_amount: number | null;
+}
+
+/** Payload stored on loan_promo_ending alerts (deferred-interest pay-by date approaching or missed). */
+export interface LoanPromoPayload {
+  loan_id: number;
+  loan_name: string;
+  promo_end_date: string;
+  balance: number;
+  deferred_interest_at_risk: number;
+  required_monthly: number | null;
+  on_track: boolean;
+  charged: boolean;
 }
 
 /** Payload stored on budget_overspend alerts. */

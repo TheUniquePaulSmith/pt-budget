@@ -451,6 +451,96 @@ export const CREATE_TABLES = {
       FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE,
       FOREIGN KEY (counterpart_account_id) REFERENCES accounts (id) ON DELETE SET NULL
     )
+  `,
+
+  // Version 5: loans. A loan is money borrowed by one household member
+  // (owner_user_id), optionally for a project (what the work was and who did
+  // it) and optionally backed by a tracked 'loan' / 'credit' account whose
+  // balance snapshot the app keeps in step with the computed balance.
+  //   loan_type  installment        fixed APR, amortizing (auto, personal, mortgage)
+  //              deferred_interest  promotional financing: no interest if the
+  //                                 balance is paid by promo_end_date, otherwise
+  //                                 interest from opened_date at
+  //                                 deferred_interest_rate is charged back
+  //              line_of_credit     revolving balance, interest on what is drawn
+  //              other
+  // interest_rate / deferred_interest_rate are APR percentages (6.49 = 6.49%).
+  // allows_full_payoff = 0 means the lender forbids or penalizes early payoff
+  // (prepayment_terms says what). expected_payment is the scheduled payment
+  // the projection assumes; payment_due_day (1-31) is when it is due.
+  LOANS: `
+    CREATE TABLE IF NOT EXISTS loans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      loan_type TEXT CHECK(loan_type IN ('installment', 'deferred_interest', 'line_of_credit', 'other')) NOT NULL DEFAULT 'installment',
+      status TEXT CHECK(status IN ('active', 'paid_off', 'closed')) NOT NULL DEFAULT 'active',
+      owner_user_id INTEGER NOT NULL,
+      project_id INTEGER,
+      account_id INTEGER,
+      lender TEXT,
+      opened_date DATE,
+      original_principal REAL NOT NULL DEFAULT 0,
+      interest_rate REAL,
+      term_months INTEGER,
+      expected_payment REAL,
+      payment_due_day INTEGER,
+      first_payment_date DATE,
+      allows_full_payoff INTEGER NOT NULL DEFAULT 1,
+      prepayment_terms TEXT,
+      promo_end_date DATE,
+      deferred_interest_rate REAL,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (owner_user_id) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL,
+      FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE SET NULL
+    )
+  `,
+
+  // Loan-owned description rules: a transaction whose normalized description
+  // matches (merchant_rules semantics) and whose money leaves account_id
+  // (NULL = any account) is a payment on the loan. These take precedence over
+  // subscription detection: matched rows never become recurring series.
+  LOAN_MATCH_RULES: `
+    CREATE TABLE IF NOT EXISTS loan_match_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      loan_id INTEGER NOT NULL,
+      pattern TEXT NOT NULL,
+      match_type TEXT CHECK(match_type IN ('exact', 'prefix', 'contains')) NOT NULL DEFAULT 'contains',
+      account_id INTEGER,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (loan_id) REFERENCES loans (id) ON DELETE CASCADE,
+      FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE
+    )
+  `,
+
+  // One row per payment. transaction_id links a tracked transaction (the
+  // row's date/amount then mirror it); NULL is a payment recorded by hand
+  // from an account the app does not track. principal_amount /
+  // interest_amount are NULL while the split is computed from the loan
+  // terms; split_source = 'manual' means the user typed the split from the
+  // lender's statement and the computation must keep it.
+  LOAN_PAYMENTS: `
+    CREATE TABLE IF NOT EXISTS loan_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      loan_id INTEGER NOT NULL,
+      transaction_id INTEGER UNIQUE,
+      payment_date DATE NOT NULL,
+      amount REAL NOT NULL,
+      principal_amount REAL,
+      interest_amount REAL,
+      split_source TEXT CHECK(split_source IN ('computed', 'manual')) NOT NULL DEFAULT 'computed',
+      match_source TEXT CHECK(match_source IN ('rule', 'manual')) NOT NULL DEFAULT 'manual',
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (loan_id) REFERENCES loans (id) ON DELETE CASCADE,
+      FOREIGN KEY (transaction_id) REFERENCES transactions (id) ON DELETE CASCADE
+    )
   `
 };
 
@@ -505,6 +595,12 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_transactions_type_review ON transactions(type_source) WHERE type_locked = 0 AND type_source != 'sign'`,
   `CREATE INDEX IF NOT EXISTS idx_transactions_amount_date ON transactions(amount, date)`,
   `CREATE INDEX IF NOT EXISTS idx_classification_rules_enabled ON classification_rules(enabled, priority)`,
+  // Version 5: loans. Payments are read per loan (ledger) and by transaction
+  // (the subscription scan skips loan payments); rules are read per loan.
+  `CREATE INDEX IF NOT EXISTS idx_loans_owner ON loans(owner_user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_loans_project ON loans(project_id) WHERE project_id IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_loan_match_rules_loan ON loan_match_rules(loan_id, enabled)`,
+  `CREATE INDEX IF NOT EXISTS idx_loan_payments_loan_date ON loan_payments(loan_id, payment_date)`,
 ];
 
 // Schema versioning — applied by runMigrations() in database-worker.js.
@@ -526,7 +622,7 @@ export const CREATE_INDEXES = [
 //       -> RENAME. Skipped when the table already has `guardColumn`.
 //   - { op: 'rehashTransactions' }                     recomputes legacy hashes
 //   - an UPDATE ... WHERE string is allowed too when it is a no-op on rerun
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 export const MIGRATIONS = [
   {
     version: 1,
@@ -646,6 +742,15 @@ export const MIGRATIONS = [
       // The staging table gains the same columns; it is empty between imports.
       { op: 'dropTable', table: 'temp_import_transactions' },
       CREATE_TABLES.TEMP_IMPORT_TRANSACTIONS,
+    ],
+  },
+  {
+    version: 5,
+    statements: [
+      // Loans: terms, loan-owned payment rules and the payment ledger.
+      CREATE_TABLES.LOANS,
+      CREATE_TABLES.LOAN_MATCH_RULES,
+      CREATE_TABLES.LOAN_PAYMENTS,
     ],
   },
 ];

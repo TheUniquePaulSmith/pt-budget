@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DatabaseService, type DatabaseWorkerTransport } from './databaseService';
-import { COMPANY_QUERIES, SUBSCRIPTION_QUERIES } from './sqlQueries';
+import { COMPANY_QUERIES, LOAN_QUERIES, SUBSCRIPTION_QUERIES } from './sqlQueries';
 import { SEED_VERSION_METADATA_KEY } from './merchantRulesSeedService';
 import type { MerchantRule } from '../types/database';
 
@@ -29,6 +29,8 @@ class FakeSubscriptionDb {
   cards: Array<{ id: number; last_four: string; nickname: string | null }> = [];
   transactions: FakeTransactionRow[] = [];
   metadata = new Map<string, string>();
+  /** Transactions claimed by a loan rule (schema v5); the scan must skip them. */
+  loanPaymentTransactionIds: number[] = [];
 
   private nextRuleId = 1;
   private nextSeriesId = 1;
@@ -425,6 +427,9 @@ class FakeSubscriptionDb {
 
       case 'SELECT description FROM transactions':
         return this.transactions.map((txn) => ({ description: txn.description }));
+
+      case LOAN_QUERIES.GET_LINKED_TRANSACTION_IDS:
+        return this.loanPaymentTransactionIds.map((transaction_id) => ({ transaction_id }));
 
       case `SELECT COUNT(*) as count FROM merchant_rules WHERE source = 'community'`:
         return [{ count: this.rules.filter((rule) => rule.source === 'community').length }];
@@ -1010,6 +1015,24 @@ describe('DatabaseService.getUnmatchedRecurringClusters', () => {
     expect(after[0].occurrences).toBe(3);
     expect(after[0].average_amount).toBeCloseTo(30, 2);
     expect(after[0].transaction_ids).toEqual([12, 13, 14]);
+  });
+
+  it('never clusters or links transactions that a loan rule already claimed', async () => {
+    const db = new FakeSubscriptionDb();
+    seedScenario(db);
+    // Two of the three candle charges are loan payments: the cluster falls under the minimum.
+    db.loanPaymentTransactionIds = [12, 13];
+    const service = createService(db);
+
+    const before = await service.getUnmatchedRecurringClusters();
+    expect(before.map((cluster) => cluster.normalized_description)).toEqual(['PELOTON CYCLE STUDIO']);
+
+    // The cycle-studio charges are loan payments too: the scan must not turn them into a series.
+    const peloton = db.transactions.filter((txn) => txn.description.includes('PELOTON')).map((txn) => txn.id);
+    db.loanPaymentTransactionIds = [12, 13, ...peloton];
+    await service.runSubscriptionScan();
+    expect(db.links.some((link) => peloton.includes(link.transaction_id))).toBe(false);
+    expect(db.series.some((series) => series.match_key === 'desc:PELOTON CYCLE STUDIO')).toBe(false);
   });
 });
 

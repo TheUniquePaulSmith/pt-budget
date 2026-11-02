@@ -17,8 +17,8 @@ type MigrationOp =
 const migrations = MIGRATIONS as Array<{ version: number; statements: MigrationOp[] }>;
 
 describe('database schema', () => {
-  it('is at version 4 with migrations in ascending order ending at the current version', () => {
-    expect(SCHEMA_VERSION).toBe(4);
+  it('is at version 5 with migrations in ascending order ending at the current version', () => {
+    expect(SCHEMA_VERSION).toBe(5);
     const versions = migrations.map((migration) => migration.version);
     expect(versions).toEqual([...versions].sort((a, b) => a - b));
     expect(versions.at(-1)).toBe(SCHEMA_VERSION);
@@ -176,6 +176,34 @@ describe('database schema', () => {
     expect(CREATE_TABLES.CLASSIFICATION_RULES).toContain('counterpart_account_id INTEGER');
   });
 
+  it('version 5 adds the loan tables', () => {
+    const v5 = migrations.find((migration) => migration.version === 5)!;
+    expect(v5.statements).toEqual([
+      CREATE_TABLES.LOANS,
+      CREATE_TABLES.LOAN_MATCH_RULES,
+      CREATE_TABLES.LOAN_PAYMENTS,
+    ]);
+
+    expect(CREATE_TABLES.LOANS).toContain(
+      "CHECK(loan_type IN ('installment', 'deferred_interest', 'line_of_credit', 'other'))"
+    );
+    expect(CREATE_TABLES.LOANS).toContain("CHECK(status IN ('active', 'paid_off', 'closed'))");
+    expect(CREATE_TABLES.LOANS).toContain('FOREIGN KEY (owner_user_id) REFERENCES users (id) ON DELETE CASCADE');
+    expect(CREATE_TABLES.LOANS).toContain('FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL');
+    expect(CREATE_TABLES.LOANS).toContain('FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE SET NULL');
+    expect(CREATE_TABLES.LOANS).toContain('promo_end_date DATE');
+    expect(CREATE_TABLES.LOANS).toContain('deferred_interest_rate REAL');
+
+    expect(CREATE_TABLES.LOAN_MATCH_RULES).toContain("CHECK(match_type IN ('exact', 'prefix', 'contains'))");
+    expect(CREATE_TABLES.LOAN_MATCH_RULES).toContain('FOREIGN KEY (loan_id) REFERENCES loans (id) ON DELETE CASCADE');
+
+    // A transaction is a payment on at most one loan; deleting it drops the payment.
+    expect(CREATE_TABLES.LOAN_PAYMENTS).toContain('transaction_id INTEGER UNIQUE');
+    expect(CREATE_TABLES.LOAN_PAYMENTS).toContain('FOREIGN KEY (transaction_id) REFERENCES transactions (id) ON DELETE CASCADE');
+    expect(CREATE_TABLES.LOAN_PAYMENTS).toContain("CHECK(split_source IN ('computed', 'manual'))");
+    expect(CREATE_TABLES.LOAN_PAYMENTS).toContain("CHECK(match_source IN ('rule', 'manual'))");
+  });
+
   it('indexes the new sparse columns', () => {
     const indexes = CREATE_INDEXES.join('\n');
     expect(indexes).toContain("ON transactions(type_source) WHERE type_locked = 0 AND type_source != 'sign'");
@@ -188,5 +216,8 @@ describe('database schema', () => {
     expect(indexes).toContain('ON recurring_series(is_autopay, status)');
     expect(indexes).toContain('ON projects(budget_category_id) WHERE budget_category_id IS NOT NULL');
     expect(indexes).toContain('ON trips(budget_category_id) WHERE budget_category_id IS NOT NULL');
+    expect(indexes).toContain('ON loans(project_id) WHERE project_id IS NOT NULL');
+    expect(indexes).toContain('ON loan_match_rules(loan_id, enabled)');
+    expect(indexes).toContain('ON loan_payments(loan_id, payment_date)');
   });
 });

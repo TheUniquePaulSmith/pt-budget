@@ -45,6 +45,7 @@ import SubscriptionSummaryTiles from './SubscriptionSummaryTiles';
 import SeriesTable from './SeriesTable';
 import SeriesDetailDialog from './SeriesDetailDialog';
 import RuleEditorDialog, { type RuleEditorPrefill } from './RuleEditorDialog';
+import LoansSubscriptionsSection, { type LoansSubscriptionsSectionHandle } from '@/components/loans/LoansSubscriptionsSection';
 
 const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -75,9 +76,10 @@ function titleCase(text: string): string {
 
 interface SubscriptionsPageProps {
   onOpenAiPanel?: () => void;
+  onNavigateToLoans?: () => void;
 }
 
-export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPageProps) {
+export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: SubscriptionsPageProps) {
   const {
     transactionVersion,
     companies,
@@ -119,6 +121,9 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
   const [ruleEditorOpen, setRuleEditorOpen] = useState(false);
   const [ruleEditorPrefill, setRuleEditorPrefill] = useState<RuleEditorPrefill | null>(null);
   const [editingRule, setEditingRule] = useState<MerchantRule | null>(null);
+  // Loan payment rules (schema v5) live in their own section; this handle
+  // lets an unmatched cluster be tracked as a loan payment instead of a rule.
+  const [loansHandle, setLoansHandle] = useState<LoansSubscriptionsSectionHandle | null>(null);
 
   const totalSpentDateRange = useMemo(() => {
     if (totalSpentRange === 'all') return null;
@@ -294,6 +299,14 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
     setRuleEditorOpen(true);
   }, []);
 
+  const trackClusterAsLoan = useCallback(
+    (cluster: UnmatchedCluster) => {
+      setDetailCluster(null);
+      loansHandle?.trackAsLoanPayment({ pattern: cluster.normalized_description, match_type: 'contains' });
+    },
+    [loansHandle]
+  );
+
   const openEditRuleForSeries = useCallback(
     (series: RecurringSeries) => {
       const rule = merchantRules.find((candidate) => candidate.id === series.rule_id) ?? null;
@@ -348,7 +361,7 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
     {
       field: 'actions',
       headerName: 'Actions',
-      minWidth: 280,
+      minWidth: 420,
       align: 'right',
       headerAlign: 'right',
       sortable: false,
@@ -361,10 +374,13 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
           <Button size="small" onClick={() => openCreateRuleFromCluster(params.row)}>
             Create Rule
           </Button>
+          <Button size="small" onClick={() => trackClusterAsLoan(params.row)} disabled={!loansHandle} data-testid="cluster-track-as-loan">
+            Track as Loan Payment
+          </Button>
         </Stack>
       ),
     },
-  ], [openCreateRuleFromCluster]);
+  ], [loansHandle, openCreateRuleFromCluster, trackClusterAsLoan]);
 
   const ruleColumns = useMemo<GridColDef<MerchantRule>[]>(() => [
     {
@@ -490,7 +506,15 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
             {scanning ? 'Scanning…' : 'Scan Transactions'}
           </Button>
         </Paper>
-      ) : (
+      ) : null}
+
+      {!hasAnyData && (
+        <Box mt={3}>
+          <LoansSubscriptionsSection onReady={setLoansHandle} onNavigateToLoans={onNavigateToLoans} refreshToken={transactionVersion} />
+        </Box>
+      )}
+
+      {hasAnyData && (
         <>
           <SubscriptionSummaryTiles series={visibleRecurringSeries} />
 
@@ -546,6 +570,8 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
             onEdit={openEditRuleForSeries}
             onViewTransactions={(series) => setDetailSeries(series)}
           />
+
+          <LoansSubscriptionsSection onReady={setLoansHandle} onNavigateToLoans={onNavigateToLoans} refreshToken={transactionVersion} />
 
           {hiddenSeries.length > 0 && (
             <SeriesTable
@@ -666,6 +692,11 @@ export default function SubscriptionsPage({ onOpenAiPanel }: SubscriptionsPagePr
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDetailCluster(null)}>Close</Button>
+          {detailCluster && (
+            <Button onClick={() => trackClusterAsLoan(detailCluster)} disabled={!loansHandle}>
+              Track as Loan Payment
+            </Button>
+          )}
           {detailCluster && (
             <Button variant="contained" onClick={() => openCreateRuleFromCluster(detailCluster)}>
               Create Rule

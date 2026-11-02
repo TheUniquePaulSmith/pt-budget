@@ -17,6 +17,7 @@ export { NOTIFICATION_QUERIES } from './sqlQueriesNotifications';
 export { AI_TOOL_QUERIES } from './sqlQueriesAiTools';
 export { BUDGET_FUND_QUERIES } from './sqlQueriesBudgetFunds';
 export { CLASSIFICATION_QUERIES } from './sqlQueriesClassification';
+export { LOAN_QUERIES } from './sqlQueriesLoans';
 
 // Transaction Queries
 export const TRANSACTION_QUERIES = {

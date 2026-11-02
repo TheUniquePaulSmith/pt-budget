@@ -24,14 +24,17 @@ import type {
   AppNotification,
   AppNotificationInput,
   BudgetStatus,
+  Loan,
   NotificationRecurrence,
   NotificationSetting,
   NotificationStatus,
   RecurringSeries,
 } from '@/types/database';
+import type { LoanSummary } from '@/types/loans';
 import type {
   BudgetOverspendPayload,
   ClassifiedNotification,
+  LoanPromoPayload,
   NotificationBucket,
   NotificationScanContext,
   NotificationScanSummary,
@@ -291,6 +294,10 @@ export function budgetDedupeKey(month: string, categoryId: number): string {
   return `budget:${month}:${categoryId}`;
 }
 
+export function loanPromoDedupeKey(loanId: number, promoEndDate: string): string {
+  return `loan-promo:${loanId}:${promoEndDate}`;
+}
+
 /**
  * The due date the scan watches for a series: the `due_day` occurrence of the
  * current cycle (the latest one no further out than today + lead), else the
@@ -409,6 +416,93 @@ export function planPaymentAlerts(
     } else {
       plan.staleIds.push(row.id);
     }
+  }
+
+  return plan;
+}
+
+// ---------------------------------------------------------------------------
+// System alerts: deferred-interest loans (schema v5)
+// ---------------------------------------------------------------------------
+
+export interface LoanPromoAlertPlan {
+  upserts: Array<AppNotificationInput & { dedupe_key: string }>;
+  /** Existing alerts whose loan is paid off, closed, gone, or no longer deferred-interest. */
+  resolvedIds: number[];
+}
+
+/**
+ * One alert per active deferred-interest loan whose pay-by date is within
+ * the type's lead time, or has passed with a balance. The alert says whether
+ * the expected payment clears the balance in time and what it would take.
+ */
+export function planLoanPromoAlerts(
+  loans: ReadonlyArray<Loan>,
+  summaries: ReadonlyMap<number, LoanSummary>,
+  existing: ReadonlyArray<AppNotification>,
+  settings: ReadonlyArray<NotificationSetting>,
+  today: string
+): LoanPromoAlertPlan {
+  const plan: LoanPromoAlertPlan = { upserts: [], resolvedIds: [] };
+  const enabled = isTypeEnabled(settings, 'loan_promo_ending');
+  const leadDays = resolveLeadDays({ type: 'loan_promo_ending', lead_days: null }, settings);
+  const wantedKeys = new Set<string>();
+
+  if (enabled) {
+    for (const loan of loans) {
+      if (loan.status !== 'active' || loan.loan_type !== 'deferred_interest' || !loan.promo_end_date) continue;
+      const summary = summaries.get(loan.id);
+      const deferred = summary?.deferred;
+      if (!summary || !deferred || summary.isPaidOff) continue;
+      const daysUntil = daysBetween(today, deferred.promoEndDate);
+      if (daysUntil > leadDays) continue;
+
+      const key = loanPromoDedupeKey(loan.id, deferred.promoEndDate);
+      wantedKeys.add(key);
+      const payload: LoanPromoPayload = {
+        loan_id: loan.id,
+        loan_name: loan.name,
+        promo_end_date: deferred.promoEndDate,
+        balance: summary.payoffAmount,
+        deferred_interest_at_risk: deferred.deferredInterestAtRisk,
+        required_monthly: deferred.requiredMonthlyToAvoid,
+        on_track: deferred.onTrack,
+        charged: deferred.charged,
+      };
+      let title: string;
+      let body: string;
+      if (deferred.charged) {
+        title = `${loan.name}: deferred interest charged`;
+        body = `The pay-by date ${deferred.promoEndDate} passed with a balance; ${formatCurrency(deferred.chargedAmount)} of deferred interest was added.`;
+      } else if (deferred.onTrack) {
+        title = `${loan.name}: pay off by ${deferred.promoEndDate}`;
+        body = `${formatCurrency(summary.payoffAmount)} left, ${formatDueLabel(daysUntil)}. On track at the expected payment; keep paying to avoid ${formatCurrency(deferred.deferredInterestAccrued)}+ of deferred interest.`;
+      } else {
+        title = `${loan.name}: not on track for ${deferred.promoEndDate}`;
+        const required = deferred.requiredMonthlyToAvoid != null ? ` Pay ${formatCurrency(deferred.requiredMonthlyToAvoid)} a month to clear it in time.` : '';
+        body = `${formatCurrency(summary.payoffAmount)} left, ${formatDueLabel(daysUntil)}. About ${formatCurrency(deferred.deferredInterestAtRisk)} of deferred interest would be charged.${required}`;
+      }
+      plan.upserts.push({
+        kind: 'alert',
+        type: 'loan_promo_ending',
+        title,
+        body,
+        due_date: deferred.promoEndDate,
+        recurrence: 'once',
+        lead_days: leadDays,
+        source: 'system',
+        dedupe_key: key,
+        entity_table: 'loans',
+        entity_id: loan.id,
+        payload_json: JSON.stringify(payload),
+      });
+    }
+  }
+
+  for (const row of existing) {
+    if (row.kind !== 'alert' || row.type !== 'loan_promo_ending' || !row.dedupe_key) continue;
+    if (row.status === 'dismissed' || row.status === 'done') continue;
+    if (!wantedKeys.has(row.dedupe_key)) plan.resolvedIds.push(row.id);
   }
 
   return plan;
@@ -583,6 +677,28 @@ export async function scanNotifications(ctx: NotificationScanContext, today: str
     for (const id of budgetPlan.resolvedIds) {
       await ctx.setStatus(id, 'done', null);
       summary.alertsResolved += 1;
+    }
+  }
+
+  if (ctx.loans && ctx.getLoanSummary) {
+    const candidates = ctx.loans.filter((loan) => loan.status === 'active' && loan.loan_type === 'deferred_interest' && loan.promo_end_date);
+    const summaries = new Map<number, LoanSummary>();
+    try {
+      for (const loan of candidates) {
+        const loanSummary = await ctx.getLoanSummary(loan.id);
+        if (loanSummary) summaries.set(loan.id, loanSummary);
+      }
+      const loanPlan = planLoanPromoAlerts(ctx.loans, summaries, ctx.notifications, ctx.settings, today);
+      for (const upsert of loanPlan.upserts) {
+        await ctx.upsertByDedupeKey(upsert);
+        summary.alertsUpserted += 1;
+      }
+      for (const id of loanPlan.resolvedIds) {
+        await ctx.setStatus(id, 'done', null);
+        summary.alertsResolved += 1;
+      }
+    } catch (error) {
+      log.warn('Could not evaluate loans; loan deadline alerts skipped', { operation: 'scanNotifications', error });
     }
   }
 

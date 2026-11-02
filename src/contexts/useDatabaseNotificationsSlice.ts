@@ -16,6 +16,7 @@ import { todayLocalISO } from '../lib/dateOnly';
 import type {
   AppNotification,
   AppNotificationInput,
+  Loan,
   NotificationSetting,
   NotificationStatus,
   RecurringSeries,
@@ -31,6 +32,8 @@ export interface NotificationPreferences {
 
 export interface RunNotificationScanOptions {
   recurringSeries: RecurringSeries[];
+  /** Loans (schema v5) for the deferred-interest deadline alert; omitted = no loan alerts. */
+  loans?: Loan[];
   settings?: NotificationSetting[];
   today?: string;
 }
@@ -66,7 +69,8 @@ export interface DatabaseNotificationsSlice {
   runNotificationScan: (options: RunNotificationScanOptions) => Promise<NotificationScanSummary>;
 }
 
-type NotificationsService = Pick<DatabaseService, 'notifications' | 'appMetadata' | 'getBudgetStatus'>;
+type NotificationsService = Pick<DatabaseService, 'notifications' | 'appMetadata' | 'getBudgetStatus'> &
+  Partial<Pick<DatabaseService, 'loans'>>;
 
 interface UseDatabaseNotificationsSliceOptions {
   databaseService: NotificationsService | null;
@@ -213,7 +217,7 @@ export function useDatabaseNotificationsSlice({
   );
 
   const runNotificationScan = useCallback(
-    async ({ recurringSeries, settings, today = todayLocalISO() }: RunNotificationScanOptions) => {
+    async ({ recurringSeries, loans, settings, today = todayLocalISO() }: RunNotificationScanOptions) => {
       const database = requireDatabase();
       const service = database.notifications;
       const [notifications, resolvedSettings] = await Promise.all([
@@ -227,6 +231,8 @@ export function useDatabaseNotificationsSlice({
           recurringSeries,
           listSeriesPaymentsSince: (sinceDate) => service.listSeriesPaymentsSince(sinceDate),
           getBudgetStatus: (month) => database.getBudgetStatus({ type: 'month', key: month }),
+          loans,
+          getLoanSummary: database.loans ? (loanId) => database.loans!.getSummary(loanId) : undefined,
           upsertByDedupeKey: (input) => service.upsertByDedupeKey(input),
           setStatus: (id, status, snoozedUntil) => service.setStatus(id, status, snoozedUntil ?? null),
           update: (id, input) => service.update(id, input),

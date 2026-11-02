@@ -155,6 +155,7 @@ export type AppPageId =
   | 'trips'
   | 'budget'
   | 'accounts'
+  | 'loans'
   | 'transactions'
   | 'subscriptions'
   | 'notifications'

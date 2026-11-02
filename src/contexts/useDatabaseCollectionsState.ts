@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import type { DatabaseService } from '../lib/databaseService';
 import type { ClassificationService } from '../lib/databaseServiceClassification';
+import type { LoansService } from '../lib/databaseServiceLoans';
 import { logger } from '../lib/logging';
 import type {
   Account,
@@ -11,6 +12,7 @@ import type {
   Category,
   ClassificationRule,
   Company,
+  Loan,
   MerchantRule,
   Project,
   RecurringSeries,
@@ -33,6 +35,8 @@ export interface DatabaseCollectionsSlice {
   recurringSeries: RecurringSeries[];
   notifications: AppNotification[];
   classificationRules: ClassificationRule[];
+  /** Loans (schema v5) with their payment stats; refreshed by every loan mutation. */
+  loans: Loan[];
 }
 
 type CollectionDataService = Pick<
@@ -49,6 +53,7 @@ type CollectionDataService = Pick<
   | 'seedCommunityMerchantRules'
 > & {
   classification: Pick<ClassificationService, 'listRules' | 'runInitialScanIfNeeded'>;
+  loans: Pick<LoansService, 'list'>;
 };
 
 interface UseDatabaseCollectionsStateOptions {
@@ -70,6 +75,7 @@ interface UseDatabaseCollectionsStateResult {
   refreshRecurringSeries: () => Promise<void>;
   refreshNotifications: () => Promise<void>;
   refreshClassificationRules: () => Promise<void>;
+  refreshLoans: () => Promise<void>;
 }
 
 export function useDatabaseCollectionsState({
@@ -87,6 +93,7 @@ export function useDatabaseCollectionsState({
   const [recurringSeries, setRecurringSeries] = useState<RecurringSeries[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [classificationRules, setClassificationRules] = useState<ClassificationRule[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
 
   const loadAllData = useCallback(async (service: CollectionDataService) => {
     // Seed/refresh the bundled community merchant rules before reading
@@ -123,6 +130,7 @@ export function useDatabaseCollectionsState({
         recurringSeriesData,
         notificationsData,
         classificationRulesData,
+        loansData,
       ] = await Promise.all([
         service.getCategories(),
         service.getCompanies(),
@@ -134,6 +142,7 @@ export function useDatabaseCollectionsState({
         service.getRecurringSeriesWithStats(),
         service.getNotifications(),
         service.classification.listRules(),
+        service.loans.list(),
       ]);
 
       setCategories(categoriesData);
@@ -146,6 +155,7 @@ export function useDatabaseCollectionsState({
       setRecurringSeries(recurringSeriesData);
       setNotifications(notificationsData);
       setClassificationRules(classificationRulesData);
+      setLoans(loansData);
     } catch (err) {
       console.error('Failed to load data:', err);
       throw err;
@@ -281,6 +291,18 @@ export function useDatabaseCollectionsState({
     }
   }, [getDatabaseService]);
 
+  const refreshLoans = useCallback(async () => {
+    const databaseService = getDatabaseService();
+    if (!databaseService) return;
+
+    try {
+      const data = await databaseService.loans.list();
+      setLoans(data);
+    } catch (err) {
+      log.error('Failed to refresh loans', { operation: 'refreshLoans', error: err });
+    }
+  }, [getDatabaseService]);
+
   const collections = useMemo(
     () => ({
       transactionVersion,
@@ -295,8 +317,9 @@ export function useDatabaseCollectionsState({
       recurringSeries,
       notifications,
       classificationRules,
+      loans,
     }),
-    [transactionVersion, budgetVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries, notifications, classificationRules]
+    [transactionVersion, budgetVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries, notifications, classificationRules, loans]
   );
 
   return {
@@ -314,5 +337,6 @@ export function useDatabaseCollectionsState({
     refreshRecurringSeries,
     refreshNotifications,
     refreshClassificationRules,
+    refreshLoans,
   };
 }

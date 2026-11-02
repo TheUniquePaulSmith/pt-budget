@@ -21,6 +21,9 @@ function createServiceMock() {
       listRules: vi.fn().mockResolvedValue([{ id: 11, pattern: 'PYMT BY FUNDS TRANSFER' }]),
       runInitialScanIfNeeded: vi.fn().mockResolvedValue(null),
     },
+    loans: {
+      list: vi.fn().mockResolvedValue([{ id: 12, name: 'Furnace financing' }]),
+    },
   };
 }
 
@@ -51,6 +54,7 @@ describe('useDatabaseCollectionsState', () => {
       recurringSeries: [{ id: 9, name: 'Netflix' }],
       notifications: [{ id: 10, title: 'Pay rent' }],
       classificationRules: [{ id: 11, pattern: 'PYMT BY FUNDS TRANSFER' }],
+      loans: [{ id: 12, name: 'Furnace financing' }],
     });
     expect(service.seedCommunityMerchantRules).toHaveBeenCalledTimes(1);
     // The one-time classification of pre-v4 rows runs on every open path (a no-op after the first).
@@ -72,6 +76,7 @@ describe('useDatabaseCollectionsState', () => {
     });
 
     expect(result.current.collections.classificationRules).toEqual([{ id: 11, pattern: 'PYMT BY FUNDS TRANSFER' }]);
+    expect(result.current.collections.loans).toEqual([{ id: 12, name: 'Furnace financing' }]);
   });
 
   it('still loads collections when community rule seeding fails', async () => {

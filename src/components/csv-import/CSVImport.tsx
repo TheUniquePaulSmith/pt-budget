@@ -96,6 +96,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     findAccountsByFullNumber,
     getAccountCards,
     runSubscriptionScan,
+    applyLoanRules,
   } = useCsvImportSlice();
   const {
     previewImportClassification,
@@ -653,6 +654,12 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       // newly imported rows (they are exactly the company_id IS NULL set).
       // Non-fatal: the import itself already succeeded.
       if (successCount > 0) {
+        // Loan payment rules run first so matched rows never become series.
+        try {
+          await applyLoanRules();
+        } catch (scanError) {
+          opLog.warn('Post-import loan rule scan failed', { error: scanError });
+        }
         try {
           await runSubscriptionScan();
         } catch (scanError) {

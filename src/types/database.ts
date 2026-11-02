@@ -636,3 +636,118 @@ export interface AiToolSetting {
   consent: AiToolConsent;
   updated_at?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Schema v5: loans. Computed figures (balance, interest split, projection)
+// live in src/types/loans.ts; these are the row shapes.
+// ---------------------------------------------------------------------------
+
+/**
+ * installment: fixed APR, amortizing. deferred_interest: promotional
+ * financing, no interest if paid in full by promo_end_date, otherwise
+ * interest from opened_date at deferred_interest_rate is charged back.
+ * line_of_credit: revolving. other: tracked by payments only.
+ */
+export type LoanType = 'installment' | 'deferred_interest' | 'line_of_credit' | 'other';
+export type LoanStatus = 'active' | 'paid_off' | 'closed';
+
+/** Row of `loans` plus the names the list joins in. */
+export interface Loan {
+  id: number;
+  name: string;
+  loan_type: LoanType;
+  status: LoanStatus;
+  owner_user_id: number;
+  project_id: number | null;
+  account_id: number | null;
+  /** Who the loan is through (lender / servicer). */
+  lender: string | null;
+  opened_date: string | null; // 'YYYY-MM-DD'
+  original_principal: number;
+  /** APR in percent (6.49 = 6.49%); null or 0 = no interest. */
+  interest_rate: number | null;
+  term_months: number | null;
+  /** The scheduled payment the projection assumes. */
+  expected_payment: number | null;
+  payment_due_day: number | null; // 1-31
+  first_payment_date: string | null;
+  allows_full_payoff: number; // SQLite boolean (0/1)
+  /** Prepayment penalty / restriction wording, when allows_full_payoff = 0. */
+  prepayment_terms: string | null;
+  /** deferred_interest: the balance must be zero by this date. */
+  promo_end_date: string | null;
+  /** deferred_interest: APR charged retroactively when the promo is missed. */
+  deferred_interest_rate: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields from SQL queries
+  owner_display_name?: string;
+  project_name?: string;
+  project_company_name?: string | null;
+  account_name?: string;
+  payment_count?: number;
+  total_paid?: number;
+  last_payment_date?: string | null;
+  rule_count?: number;
+}
+
+export type LoanInput = Pick<Loan, 'name' | 'owner_user_id'> &
+  Partial<Omit<Loan, 'id' | 'name' | 'owner_user_id' | 'created_at' | 'updated_at'
+    | 'owner_display_name' | 'project_name' | 'project_company_name' | 'account_name'
+    | 'payment_count' | 'total_paid' | 'last_payment_date' | 'rule_count'>>;
+
+/** Row of `loan_match_rules`: a description pattern that marks payments on one loan. */
+export interface LoanMatchRule {
+  id: number;
+  loan_id: number;
+  pattern: string;
+  match_type: MerchantRuleMatchType;
+  /** Source account the payment leaves; null = any account. */
+  account_id: number | null;
+  enabled: number; // SQLite boolean (0/1)
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields from SQL queries
+  account_name?: string | null;
+  loan_name?: string;
+}
+
+export type LoanMatchRuleInput = Pick<LoanMatchRule, 'loan_id' | 'pattern' | 'match_type'> &
+  Partial<Pick<LoanMatchRule, 'account_id' | 'notes'>> & { enabled?: boolean | number };
+
+export type LoanPaymentSplitSource = 'computed' | 'manual';
+export type LoanPaymentMatchSource = 'rule' | 'manual';
+
+/** Row of `loan_payments`, with the linked transaction's details joined when there is one. */
+export interface LoanPayment {
+  id: number;
+  loan_id: number;
+  transaction_id: number | null;
+  payment_date: string;
+  /** Positive: money paid toward the loan. */
+  amount: number;
+  /** User-entered split (split_source = 'manual'); null while computed. */
+  principal_amount: number | null;
+  interest_amount: number | null;
+  split_source: LoanPaymentSplitSource;
+  match_source: LoanPaymentMatchSource;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields from SQL queries
+  description?: string | null;
+  account_id?: number | null;
+  account_name?: string | null;
+}
+
+/** A payment recorded by hand (no tracked transaction). */
+export interface LoanManualPaymentInput {
+  loan_id: number;
+  payment_date: string;
+  amount: number;
+  principal_amount?: number | null;
+  interest_amount?: number | null;
+  notes?: string | null;
+}

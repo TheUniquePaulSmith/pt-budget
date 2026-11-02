@@ -280,7 +280,7 @@ describe('useDatabaseSlices', () => {
     });
   });
 
-  it('maps dashboard data from grouped collection and lifecycle slices', () => {
+  it('maps dashboard data from grouped collection, transaction and budget slices', () => {
     const slices = mockDatabaseHooks();
 
     const { result } = renderHook(() => useDashboardSlice());
@@ -290,7 +290,6 @@ describe('useDatabaseSlices', () => {
     expect(result.current.categories).toBe(slices.collections.categories);
     expect(result.current.accounts).toBe(slices.collections.accounts);
     expect(result.current.users).toBe(slices.collections.users);
-    expect(result.current.exportDatabase).toBe(slices.lifecycle.exportDatabase);
     expect(result.current.getRecentTransactions).toBe(slices.transactions.getRecentTransactions);
     expect(result.current.getDashboardSummary).toBe(slices.transactions.getDashboardSummary);
     expect(result.current.getChartData).toBe(slices.transactions.getChartData);

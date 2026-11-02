@@ -243,7 +243,6 @@ export function useSubscriptionsSlice() {
 
 export function useDashboardSlice() {
   const collections = useDatabaseCollections();
-  const lifecycle = useDatabaseLifecycle();
   const transactions = useDatabaseTransactions();
   const budgets = useDatabaseBudget();
 
@@ -253,7 +252,6 @@ export function useDashboardSlice() {
     categories: collections.categories,
     accounts: collections.accounts,
     users: collections.users,
-    exportDatabase: lifecycle.exportDatabase,
     getRecentTransactions: transactions.getRecentTransactions,
     getDashboardSummary: transactions.getDashboardSummary,
     getChartData: transactions.getChartData,

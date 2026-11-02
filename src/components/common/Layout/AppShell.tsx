@@ -12,8 +12,10 @@ import { AppBar, Box, IconButton, Toolbar, Tooltip, Typography, useMediaQuery, u
 import { Settings as SettingsIcon } from '@mui/icons-material';
 
 import { useAiPanel } from '@/components/ai/AiPanelProvider';
+import CSVImport from '@/components/csv-import/CSVImport';
 import ManageData from '@/components/data-management/ManageData';
 import DatabaseStatusBar from '@/components/common/StatusBar/DatabaseStatusBar';
+import AddTransaction from '@/components/transactions/AddTransaction';
 import NotificationsRuntime from '@/components/notifications/NotificationsRuntime';
 import { useAppShellSlice } from '@/contexts/useDatabaseSlices';
 import AiLauncherSlot from './slots/AiLauncherSlot';
@@ -49,6 +51,8 @@ export default function AppShell() {
   const [currentPage, setCurrentPage] = useState<PageId>(DEFAULT_PAGE_ID);
   const [moreOpen, setMoreOpen] = useState(false);
   const [manageDataOpen, setManageDataOpen] = useState(false);
+  const [addTransactionOpen, setAddTransactionOpen] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(readStoredSidebarExpanded);
   // The page that was showing before a full-screen page (settings / developer
   // console) opened, so `goBack` returns there.
@@ -131,6 +135,8 @@ export default function AppShell() {
               onToggleExpanded={toggleSidebar}
               onNavigate={navigate}
               onOpenManageData={() => setManageDataOpen(true)}
+              onAddTransaction={() => setAddTransactionOpen(true)}
+              onImportCsv={() => setCsvImportOpen(true)}
               developerConsolePage={developerConsolePage}
             />
           )}
@@ -187,12 +193,26 @@ export default function AppShell() {
               onMoreOpenChange={setMoreOpen}
               onNavigate={navigate}
               onOpenManageData={() => setManageDataOpen(true)}
+              onAddTransaction={() => setAddTransactionOpen(true)}
+              onImportCsv={() => setCsvImportOpen(true)}
               settingsPage={settingsPage}
               developerConsolePage={developerConsolePage}
             />
           )}
 
           <ManageData open={manageDataOpen} onClose={() => setManageDataOpen(false)} />
+
+          {/* Quick-action dialogs live in the shell so they open from the rail on any page. */}
+          <AddTransaction
+            open={addTransactionOpen}
+            onClose={() => setAddTransactionOpen(false)}
+            onSuccess={() => setAddTransactionOpen(false)}
+          />
+          <CSVImport
+            open={csvImportOpen}
+            onClose={() => setCsvImportOpen(false)}
+            onSuccess={() => setCsvImportOpen(false)}
+          />
 
           {/* The status bar is fixed to the viewport bottom; on desktop it starts
               after the rail, on phones it sits above the bottom navigation. */}

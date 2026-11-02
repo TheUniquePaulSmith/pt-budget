@@ -15,9 +15,11 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 
 import type { Account, Loan, LoanInput, LoanStatus, LoanType, Project, User } from '@/types/database';
-import { LOAN_STATUS_OPTIONS, LOAN_TYPE_OPTIONS } from './loanPresentation';
+import { LOAN_STATUS_OPTIONS, LOAN_TYPE_VALUES, loanTypeDescription, loanTypeLabel } from './loanPresentation';
 
 interface LoanFormState {
   name: string;
@@ -87,18 +89,19 @@ function formFromLoan(loan: Loan): LoanFormState {
   };
 }
 
-function numberOrNull(text: string, label: string, options: { integer?: boolean } = {}): number | null {
+function numberOrNull(t: TFunction<'loans'>, text: string, label: string, options: { integer?: boolean } = {}): number | null {
   const trimmed = text.trim();
   if (trimmed === '') return null;
   const value = Number(trimmed);
-  if (!Number.isFinite(value)) throw new Error(`${label} must be a number`);
-  if (options.integer && !Number.isInteger(value)) throw new Error(`${label} must be a whole number`);
+  if (!Number.isFinite(value)) throw new Error(t('formDialog.mustBeNumber', { label }));
+  if (options.integer && !Number.isInteger(value)) throw new Error(t('formDialog.mustBeWholeNumber', { label }));
   return value;
 }
 
-export function loanInputFromForm(form: LoanFormState): LoanInput {
+/** Validates the form; throws a user-facing (translated) message when a field is invalid. */
+export function loanInputFromForm(form: LoanFormState, t: TFunction<'loans'>): LoanInput {
   const ownerId = Number(form.owner_user_id);
-  if (!ownerId) throw new Error('Pick who the loan belongs to');
+  if (!ownerId) throw new Error(t('formDialog.pickOwner'));
   return {
     name: form.name.trim(),
     loan_type: form.loan_type,
@@ -108,16 +111,16 @@ export function loanInputFromForm(form: LoanFormState): LoanInput {
     account_id: form.account_id ? Number(form.account_id) : null,
     lender: form.lender.trim() || null,
     opened_date: form.opened_date || null,
-    original_principal: numberOrNull(form.original_principal, 'Original amount') ?? 0,
-    interest_rate: numberOrNull(form.interest_rate, 'Interest rate'),
-    term_months: numberOrNull(form.term_months, 'Term', { integer: true }),
-    expected_payment: numberOrNull(form.expected_payment, 'Expected payment'),
-    payment_due_day: numberOrNull(form.payment_due_day, 'Payment due day', { integer: true }),
+    original_principal: numberOrNull(t, form.original_principal, t('formDialog.fieldOriginalAmount')) ?? 0,
+    interest_rate: numberOrNull(t, form.interest_rate, t('formDialog.fieldInterestRate')),
+    term_months: numberOrNull(t, form.term_months, t('formDialog.fieldTerm'), { integer: true }),
+    expected_payment: numberOrNull(t, form.expected_payment, t('formDialog.fieldExpectedPayment')),
+    payment_due_day: numberOrNull(t, form.payment_due_day, t('formDialog.fieldPaymentDueDay'), { integer: true }),
     first_payment_date: form.first_payment_date || null,
     allows_full_payoff: form.allows_full_payoff ? 1 : 0,
     prepayment_terms: form.prepayment_terms.trim() || null,
     promo_end_date: form.loan_type === 'deferred_interest' ? form.promo_end_date || null : form.promo_end_date || null,
-    deferred_interest_rate: numberOrNull(form.deferred_interest_rate, 'Deferred interest rate'),
+    deferred_interest_rate: numberOrNull(t, form.deferred_interest_rate, t('formDialog.fieldDeferredInterestRate')),
     notes: form.notes.trim() || null,
   };
 }
@@ -135,6 +138,7 @@ interface LoanFormDialogProps {
 const fieldSx = { flex: '1 1 200px' } as const;
 
 export default function LoanFormDialog({ open, loan, users, projects, accounts, onClose, onSubmit }: LoanFormDialogProps) {
+  const { t } = useTranslation('loans');
   const [form, setForm] = useState<LoanFormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -160,23 +164,22 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
   };
 
   const isDeferred = form.loan_type === 'deferred_interest';
-  const typeOption = LOAN_TYPE_OPTIONS.find((option) => option.value === form.loan_type);
 
   const handleSubmit = async () => {
     setError(null);
     if (!form.name.trim()) {
-      setError('A loan needs a name');
+      setError(t('formDialog.nameRequired'));
       return;
     }
     if (isDeferred && !form.promo_end_date) {
-      setError('Enter the date the balance must be paid by to avoid deferred interest');
+      setError(t('formDialog.promoEndRequired'));
       return;
     }
     let input: LoanInput;
     try {
-      input = loanInputFromForm(form);
+      input = loanInputFromForm(form, t);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Check the loan details');
+      setError(err instanceof Error ? err.message : t('formDialog.checkDetails'));
       return;
     }
     setSaving(true);
@@ -184,7 +187,7 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
       await onSubmit(input);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save loan');
+      setError(err instanceof Error ? err.message : t('formDialog.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -192,7 +195,7 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{loan ? `Edit ${loan.name}` : 'Add Loan'}</DialogTitle>
+      <DialogTitle>{loan ? t('formDialog.editTitle', { name: loan.name }) : t('formDialog.addTitle')}</DialogTitle>
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} data-testid="loan-form-error">
@@ -201,11 +204,11 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
         )}
 
         <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1, mb: 1 }}>
-          Basics
+          {t('formDialog.basics')}
         </Typography>
         <Box display="flex" flexWrap="wrap" gap={2} mb={3}>
           <TextField
-            label="Name"
+            label={t('formDialog.name')}
             value={form.name}
             onChange={set('name')}
             required
@@ -214,14 +217,14 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
             sx={{ flex: '2 1 260px' }}
             slotProps={{ htmlInput: { 'data-testid': 'loan-name' } }}
           />
-          <TextField select label="Type" value={form.loan_type} onChange={set('loan_type')} size="small" sx={fieldSx} helperText={typeOption?.description}>
-            {LOAN_TYPE_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
+          <TextField select label={t('formDialog.type')} value={form.loan_type} onChange={set('loan_type')} size="small" sx={fieldSx} helperText={loanTypeDescription(t, form.loan_type)}>
+            {LOAN_TYPE_VALUES.map((value) => (
+              <MenuItem key={value} value={value}>
+                {loanTypeLabel(t, value)}
               </MenuItem>
             ))}
           </TextField>
-          <TextField select label="Owner" value={form.owner_user_id} onChange={set('owner_user_id')} size="small" required sx={fieldSx}>
+          <TextField select label={t('formDialog.owner')} value={form.owner_user_id} onChange={set('owner_user_id')} size="small" required sx={fieldSx}>
             {users.map((user) => (
               <MenuItem key={user.id} value={String(user.id)}>
                 {user.display_name}
@@ -229,15 +232,15 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
             ))}
           </TextField>
           <TextField
-            label="Lender"
+            label={t('formDialog.lender')}
             value={form.lender}
             onChange={set('lender')}
             size="small"
             sx={fieldSx}
-            helperText="Who the loan is through (bank, Synchrony, dealer…)"
+            helperText={t('formDialog.lenderHelp')}
           />
-          <TextField select label="Project" value={form.project_id} onChange={set('project_id')} size="small" sx={fieldSx} helperText="Optional: the work this loan paid for">
-            <MenuItem value="">None</MenuItem>
+          <TextField select label={t('formDialog.project')} value={form.project_id} onChange={set('project_id')} size="small" sx={fieldSx} helperText={t('formDialog.projectHelp')}>
+            <MenuItem value="">{t('formDialog.none')}</MenuItem>
             {projects.map((project) => (
               <MenuItem key={project.id} value={String(project.id)}>
                 {project.name}
@@ -247,14 +250,14 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
           </TextField>
           <TextField
             select
-            label="Linked account"
+            label={t('formDialog.linkedAccount')}
             value={form.account_id}
             onChange={set('account_id')}
             size="small"
             sx={fieldSx}
-            helperText="Optional: a tracked loan / credit account whose balance follows this loan"
+            helperText={t('formDialog.linkedAccountHelp')}
           >
-            <MenuItem value="">None</MenuItem>
+            <MenuItem value="">{t('formDialog.none')}</MenuItem>
             {liabilityAccounts.map((account) => (
               <MenuItem key={account.id} value={String(account.id)}>
                 {account.name}
@@ -262,10 +265,10 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
             ))}
           </TextField>
           {loan && (
-            <TextField select label="Status" value={form.status} onChange={set('status')} size="small" sx={fieldSx}>
+            <TextField select label={t('formDialog.status')} value={form.status} onChange={set('status')} size="small" sx={fieldSx}>
               {LOAN_STATUS_OPTIONS.map((option) => (
                 <MenuItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(`status.${option.value}`)}
                 </MenuItem>
               ))}
             </TextField>
@@ -273,11 +276,11 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
         </Box>
 
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-          Terms
+          {t('formDialog.terms')}
         </Typography>
         <Box display="flex" flexWrap="wrap" gap={2} mb={3}>
           <TextField
-            label="Opened"
+            label={t('formDialog.opened')}
             type="date"
             value={form.opened_date}
             onChange={set('opened_date')}
@@ -286,7 +289,7 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
             slotProps={{ inputLabel: { shrink: true } }}
           />
           <TextField
-            label="Original amount"
+            label={t('formDialog.originalAmount')}
             value={form.original_principal}
             onChange={set('original_principal')}
             size="small"
@@ -294,16 +297,16 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
             slotProps={{ htmlInput: { inputMode: 'decimal', 'data-testid': 'loan-original-principal' } }}
           />
           <TextField
-            label={isDeferred ? 'Promo APR (%)' : 'APR (%)'}
+            label={isDeferred ? t('formDialog.promoApr') : t('formDialog.apr')}
             value={form.interest_rate}
             onChange={set('interest_rate')}
             size="small"
             sx={fieldSx}
-            helperText={isDeferred ? 'Usually 0 during the promo' : 'Leave empty for no interest'}
+            helperText={isDeferred ? t('formDialog.promoAprHelp') : t('formDialog.aprHelp')}
             slotProps={{ htmlInput: { inputMode: 'decimal' } }}
           />
           <TextField
-            label="Term (months)"
+            label={t('formDialog.termMonths')}
             value={form.term_months}
             onChange={set('term_months')}
             size="small"
@@ -311,16 +314,16 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
             slotProps={{ htmlInput: { inputMode: 'numeric' } }}
           />
           <TextField
-            label="Expected payment"
+            label={t('formDialog.expectedPayment')}
             value={form.expected_payment}
             onChange={set('expected_payment')}
             size="small"
             sx={fieldSx}
-            helperText="Scheduled monthly payment; drives the projection"
+            helperText={t('formDialog.expectedPaymentHelp')}
             slotProps={{ htmlInput: { inputMode: 'decimal', 'data-testid': 'loan-expected-payment' } }}
           />
           <TextField
-            label="Due day of month"
+            label={t('formDialog.dueDay')}
             value={form.payment_due_day}
             onChange={set('payment_due_day')}
             size="small"
@@ -328,7 +331,7 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
             slotProps={{ htmlInput: { inputMode: 'numeric', min: 1, max: 31 } }}
           />
           <TextField
-            label="First payment"
+            label={t('formDialog.firstPayment')}
             type="date"
             value={form.first_payment_date}
             onChange={set('first_payment_date')}
@@ -341,27 +344,27 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
         {isDeferred && (
           <>
             <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-              Deferred interest
+              {t('formDialog.deferredInterest')}
             </Typography>
             <Box display="flex" flexWrap="wrap" gap={2} mb={3}>
               <TextField
-                label="Pay off by"
+                label={t('formDialog.payOffBy')}
                 type="date"
                 value={form.promo_end_date}
                 onChange={set('promo_end_date')}
                 size="small"
                 required
                 sx={fieldSx}
-                helperText="Balance must be zero by this date to avoid the charge"
+                helperText={t('formDialog.payOffByHelp')}
                 slotProps={{ inputLabel: { shrink: true }, htmlInput: { 'data-testid': 'loan-promo-end' } }}
               />
               <TextField
-                label="Deferred APR (%)"
+                label={t('formDialog.deferredApr')}
                 value={form.deferred_interest_rate}
                 onChange={set('deferred_interest_rate')}
                 size="small"
                 sx={fieldSx}
-                helperText="Charged back from the opening date if the promo is missed"
+                helperText={t('formDialog.deferredAprHelp')}
                 slotProps={{ htmlInput: { inputMode: 'decimal' } }}
               />
             </Box>
@@ -369,7 +372,7 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
         )}
 
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-          Payoff and notes
+          {t('formDialog.payoffAndNotes')}
         </Typography>
         <Box display="flex" flexWrap="wrap" gap={2} alignItems="flex-start">
           <FormControlLabel
@@ -379,28 +382,28 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
                 onChange={(event) => setForm((previous) => ({ ...previous, allows_full_payoff: event.target.checked }))}
               />
             }
-            label="Full payoff allowed at any time"
+            label={t('formDialog.fullPayoffAllowed')}
             sx={{ flex: '1 1 240px' }}
           />
           {!form.allows_full_payoff && (
             <TextField
-              label="Prepayment terms"
+              label={t('formDialog.prepaymentTerms')}
               value={form.prepayment_terms}
               onChange={set('prepayment_terms')}
               size="small"
               sx={{ flex: '2 1 260px' }}
-              helperText="Penalty or restriction the lender applies"
+              helperText={t('formDialog.prepaymentTermsHelp')}
             />
           )}
-          <TextField label="Notes" value={form.notes} onChange={set('notes')} size="small" fullWidth multiline minRows={2} />
+          <TextField label={t('formDialog.notes')} value={form.notes} onChange={set('notes')} size="small" fullWidth multiline minRows={2} />
         </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t('formDialog.cancel')}
         </Button>
         <Button variant="contained" onClick={handleSubmit} disabled={saving} data-testid="loan-form-save">
-          {saving ? 'Saving…' : loan ? 'Save' : 'Add Loan'}
+          {saving ? t('formDialog.saving') : loan ? t('formDialog.save') : t('formDialog.addTitle')}
         </Button>
       </DialogActions>
     </Dialog>

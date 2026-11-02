@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { Add, Delete, Edit } from '@mui/icons-material';
 import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, IconButton, InputLabel, MenuItem, Paper, Select, Stack, Switch, TextField, Tooltip, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
+import { useFormatters } from '@/contexts/useFormatters';
 import type { Account, IncomeSource, User } from '@/types/database';
 
 interface IncomeSourcesManagerProps {
@@ -15,10 +17,12 @@ interface IncomeSourcesManagerProps {
   onDelete: (id: number) => Promise<void>;
 }
 
-const formatCurrency = (value: number | null | undefined) =>
-  value == null
-    ? 'Not set'
-    : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+const FREQUENCIES = ['weekly', 'biweekly', 'semi_monthly', 'monthly'] as const;
+type Frequency = (typeof FREQUENCIES)[number];
+
+function isFrequency(value: unknown): value is Frequency {
+  return typeof value === 'string' && (FREQUENCIES as ReadonlyArray<string>).includes(value);
+}
 
 function monthlyEquivalent(source: IncomeSource) {
   if (source.amount == null) return null;
@@ -38,6 +42,15 @@ function monthlyEquivalent(source: IncomeSource) {
 }
 
 export function IncomeSourcesManager({ accounts, users, sources, onAdd, onUpdate, onDelete }: IncomeSourcesManagerProps) {
+  const { t } = useTranslation(['budget', 'common']);
+  // Income-source amounts are in the default currency.
+  const { money } = useFormatters();
+  const formatCurrency = (value: number | null | undefined) => (value == null ? t('incomeSources.notSet') : money(value));
+  const frequencyWord = (frequency: IncomeSource['frequency'] | undefined, fallback?: Frequency) => {
+    const key = isFrequency(frequency) ? frequency : fallback;
+    return key ? t(`incomeSources.frequency.${key}`) : '';
+  };
+
   const [open, setOpen] = useState(false);
   const [editingSource, setEditingSource] = useState<IncomeSource | null>(null);
   const [kind, setKind] = useState<IncomeSource['kind']>('recurring_salary');
@@ -119,11 +132,15 @@ export function IncomeSourcesManager({ accounts, users, sources, onAdd, onUpdate
     }
   };
 
+  const frequencyOptions = FREQUENCIES.map((value) => (
+    <MenuItem key={value} value={value}>{t(`incomeSources.frequencyOption.${value}`)}</MenuItem>
+  ));
+
   return (
     <Paper sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mb: 2 }}>
-        <Typography variant="h6">Income Sources</Typography>
-        <Button size="small" startIcon={<Add />} onClick={openForAdd}>Add</Button>
+        <Typography variant="h6">{t('incomeSources.title')}</Typography>
+        <Button size="small" startIcon={<Add />} onClick={openForAdd}>{t('common:actions.add')}</Button>
       </Box>
       <Stack spacing={1.5}>
         {sources.map((source) => (
@@ -131,35 +148,43 @@ export function IncomeSourcesManager({ accounts, users, sources, onAdd, onUpdate
             <Box sx={{ minWidth: 0 }}>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.25 }}>
                 <Typography variant="body2" fontWeight={700} noWrap>{source.name}</Typography>
-                {source.is_active !== 1 && <Chip label="Inactive" size="small" />}
+                {source.is_active !== 1 && <Chip label={t('common:status.inactive')} size="small" />}
               </Stack>
               <Typography variant="body2" color="text.secondary" noWrap>
-                User: {source.user_display_name || source.owner_display_name || 'Unassigned'}
+                {t('incomeSources.user', { name: source.user_display_name || source.owner_display_name || t('incomeSources.unassigned') })}
               </Typography>
               {source.kind === 'linked_account' ? (
                 <Stack spacing={0.25}>
                   <Typography variant="body2" color="text.secondary" noWrap>
-                    Linked account: {source.account_name || 'Unknown account'}
+                    {t('incomeSources.linkedAccount', { name: source.account_name || t('incomeSources.unknownAccount') })}
                   </Typography>
                   {source.amount != null && (
                     <Typography variant="body2" color="text.secondary">
-                      Expected {formatCurrency(source.amount)} {source.frequency?.replace('_', '-') || 'monthly'} • {formatCurrency(monthlyEquivalent(source))} / month
+                      {t('incomeSources.expectedSummary', {
+                        amount: formatCurrency(source.amount),
+                        frequency: frequencyWord(source.frequency, 'monthly'),
+                        monthly: formatCurrency(monthlyEquivalent(source)),
+                      })}
                     </Typography>
                   )}
                 </Stack>
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  {formatCurrency(source.amount)} {source.frequency?.replace('_', '-')} • {formatCurrency(monthlyEquivalent(source))} / month
+                  {t('incomeSources.summary', {
+                    amount: formatCurrency(source.amount),
+                    frequency: frequencyWord(source.frequency),
+                    monthly: formatCurrency(monthlyEquivalent(source)),
+                  })}
                 </Typography>
               )}
             </Box>
             <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
-              <Tooltip title="Edit income source">
+              <Tooltip title={t('incomeSources.editTooltip')}>
                 <IconButton size="small" onClick={() => openForEdit(source)}>
                   <Edit fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Delete income source">
+              <Tooltip title={t('incomeSources.deleteTooltip')}>
                 <IconButton size="small" color="error" onClick={() => { void onDelete(source.id); }}>
                   <Delete fontSize="small" />
                 </IconButton>
@@ -167,76 +192,70 @@ export function IncomeSourcesManager({ accounts, users, sources, onAdd, onUpdate
             </Box>
           </Box>
         ))}
-        {sources.length === 0 && <Typography variant="body2" color="text.secondary">No income sources configured.</Typography>}
+        {sources.length === 0 && <Typography variant="body2" color="text.secondary">{t('incomeSources.empty')}</Typography>}
       </Stack>
 
       <Dialog open={open} onClose={closeDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingSource ? 'Edit Income Source' : 'Add Income Source'}</DialogTitle>
+        <DialogTitle>{editingSource ? t('incomeSources.editTitle') : t('incomeSources.addTitle')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} fullWidth />
+            <TextField label={t('common:fields.name')} value={name} onChange={(event) => setName(event.target.value)} fullWidth />
             <FormControl fullWidth>
-              <InputLabel>Kind</InputLabel>
-              <Select value={kind} label="Kind" onChange={(event) => setKind(event.target.value as IncomeSource['kind'])}>
-                <MenuItem value="recurring_salary">Recurring Salary</MenuItem>
-                <MenuItem value="linked_account">Linked Account</MenuItem>
+              <InputLabel>{t('incomeSources.kind')}</InputLabel>
+              <Select value={kind} label={t('incomeSources.kind')} onChange={(event) => setKind(event.target.value as IncomeSource['kind'])}>
+                <MenuItem value="recurring_salary">{t('incomeSources.kindOption.recurring_salary')}</MenuItem>
+                <MenuItem value="linked_account">{t('incomeSources.kindOption.linked_account')}</MenuItem>
               </Select>
             </FormControl>
             <FormControl fullWidth>
-              <InputLabel>User</InputLabel>
-              <Select<number | ''> value={userId} label="User" onChange={(event) => setUserId(event.target.value === '' ? '' : Number(event.target.value))}>
-                <MenuItem value="">Unassigned</MenuItem>
+              <InputLabel>{t('common:fields.user')}</InputLabel>
+              <Select<number | ''> value={userId} label={t('common:fields.user')} onChange={(event) => setUserId(event.target.value === '' ? '' : Number(event.target.value))}>
+                <MenuItem value="">{t('incomeSources.unassigned')}</MenuItem>
                 {users.map((user) => <MenuItem key={user.id} value={user.id}>{user.display_name}</MenuItem>)}
               </Select>
             </FormControl>
             {kind === 'linked_account' ? (
               <>
                 <FormControl fullWidth>
-                  <InputLabel>Account</InputLabel>
-                  <Select value={accountId} label="Account" onChange={(event) => setAccountId(Number(event.target.value))}>
+                  <InputLabel>{t('common:fields.account')}</InputLabel>
+                  <Select value={accountId} label={t('common:fields.account')} onChange={(event) => setAccountId(Number(event.target.value))}>
                     {accounts.map((account) => <MenuItem key={account.id} value={account.id}>{account.name}</MenuItem>)}
                   </Select>
                 </FormControl>
-                <TextField label="Expected Amount" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} fullWidth helperText="Optional. Leave blank to use actual deposits only." />
+                <TextField label={t('incomeSources.expectedAmount')} type="number" value={amount} onChange={(event) => setAmount(event.target.value)} fullWidth helperText={t('incomeSources.expectedAmountHelp')} />
                 <FormControl fullWidth disabled={!amount}>
-                  <InputLabel>Frequency</InputLabel>
-                  <Select value={frequency || 'monthly'} label="Frequency" onChange={(event) => setFrequency(event.target.value as IncomeSource['frequency'])}>
-                    <MenuItem value="weekly">Weekly</MenuItem>
-                    <MenuItem value="biweekly">Biweekly</MenuItem>
-                    <MenuItem value="semi_monthly">Semi-monthly</MenuItem>
-                    <MenuItem value="monthly">Monthly</MenuItem>
+                  <InputLabel>{t('incomeSources.frequencyLabel')}</InputLabel>
+                  <Select value={frequency || 'monthly'} label={t('incomeSources.frequencyLabel')} onChange={(event) => setFrequency(event.target.value as IncomeSource['frequency'])}>
+                    {frequencyOptions}
                   </Select>
                 </FormControl>
               </>
             ) : (
               <>
-                <TextField label="Amount" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} fullWidth />
+                <TextField label={t('common:fields.amount')} type="number" value={amount} onChange={(event) => setAmount(event.target.value)} fullWidth />
                 <FormControl fullWidth>
-                  <InputLabel>Frequency</InputLabel>
-                  <Select value={frequency || 'monthly'} label="Frequency" onChange={(event) => setFrequency(event.target.value as IncomeSource['frequency'])}>
-                    <MenuItem value="weekly">Weekly</MenuItem>
-                    <MenuItem value="biweekly">Biweekly</MenuItem>
-                    <MenuItem value="semi_monthly">Semi-monthly</MenuItem>
-                    <MenuItem value="monthly">Monthly</MenuItem>
+                  <InputLabel>{t('incomeSources.frequencyLabel')}</InputLabel>
+                  <Select value={frequency || 'monthly'} label={t('incomeSources.frequencyLabel')} onChange={(event) => setFrequency(event.target.value as IncomeSource['frequency'])}>
+                    {frequencyOptions}
                   </Select>
                 </FormControl>
               </>
             )}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField label="Start Date" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
-              <TextField label="End Date" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
+              <TextField label={t('incomeSources.startDate')} type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
+              <TextField label={t('incomeSources.endDate')} type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
             </Stack>
-            <TextField label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} fullWidth multiline minRows={2} />
+            <TextField label={t('common:fields.notes')} value={notes} onChange={(event) => setNotes(event.target.value)} fullWidth multiline minRows={2} />
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="body2">Active</Typography>
+              <Typography variant="body2">{t('common:status.active')}</Typography>
               <Switch checked={isActive} onChange={(event) => setIsActive(event.target.checked)} />
             </Box>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeDialog}>Cancel</Button>
+          <Button onClick={closeDialog}>{t('common:actions.cancel')}</Button>
           <Button variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
-            {saving ? 'Saving...' : editingSource ? 'Save' : 'Add'}
+            {saving ? t('incomeSources.saving') : editingSource ? t('common:actions.save') : t('common:actions.add')}
           </Button>
         </DialogActions>
       </Dialog>

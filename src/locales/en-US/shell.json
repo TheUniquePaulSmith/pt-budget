@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "projects": "Projects",
+    "trips": "Trips",
+    "budget": "Budget",
+    "accounts": "Accounts",
+    "loans": "Loans",
+    "transactions": "Transactions",
+    "subscriptions": "Subscriptions",
+    "notifications": "Notifications",
+    "sql-query": "SQL Query",
+    "settings": "Settings",
+    "developer-console": "Developer Console",
+    "pages": "Pages",
+    "more": "More",
+    "quickActions": "Quick actions",
+    "addTransaction": "Add Transaction",
+    "importCsv": "Import CSV",
+    "manageData": "Manage Data"
+  },
+  "dataGrid": {
+    "noRows": "No rows to display"
+  },
+  "sidebar": {
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar"
+  },
+  "pageFallback": {
+    "loading": "Loading page"
+  },
+  "notificationBell": {
+    "label": "Notifications",
+    "due": "{{count}} due",
+    "titleWithDue": "{{label}}: {{count}} due",
+    "more": "{{count}} more… click the bell to see all."
+  },
+  "aiLauncher": {
+    "label": "Local AI",
+    "title": "{{label}} (right-click for window options)",
+    "openSidebar": "Open as sidebar",
+    "openMaximized": "Open maximized",
+    "openWindow": "Open in a new window"
+  },
+  "statusBar": {
+    "synced": "Synced",
+    "pendingChanges": "Pending changes",
+    "syncing": "Syncing…",
+    "reconnect": "Reconnect",
+    "resolveConflict": "Resolve conflict",
+    "offline": "Offline",
+    "syncError": "Sync error",
+    "lastSynced": "Last synced: {{time}}",
+    "unsyncedSince": "Unsynced changes since: {{time}}",
+    "lastError": "Last error: {{error}}",
+    "cloudSyncStatus": "Cloud sync status",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "heartbeat": "Heartbeat: {{seconds}}s ago",
+    "noHeartbeat": "No heartbeat received",
+    "workerAlive": "Alive",
+    "workerDead": "Dead",
+    "tooltip": "App Version: {{version}}\nWorker Status: {{worker}}\nDatabase Status: {{status}}\n{{heartbeat}}"
+  },
+  "storageQuota": {
+    "unavailableChip": "Storage: N/A",
+    "unavailable": "Storage quota unavailable",
+    "loadingChip": "Loading...",
+    "loading": "Loading storage info...",
+    "used": "Used: {{size}}",
+    "available": "Available: {{size}}",
+    "information": "Storage information",
+    "usageChip": "Storage: {{percent}}",
+    "title": "Storage Usage",
+    "refresh": "Refresh storage info",
+    "percentUsed": "{{percent}} used",
+    "usageOfQuota": "{{usage}} / {{quota}}",
+    "indexedDb": "IndexedDB: {{size}}",
+    "runningLow": "⚠️ Storage is running low. Consider exporting and backing up your data.",
+    "notAvailable": "Storage information not available",
+    "bytes": "{{value}} B",
+    "kilobytes": "{{value}} KB",
+    "megabytes": "{{value}} MB",
+    "gigabytes": "{{value}} GB"
+  },
+  "masterDetail": {
+    "backToList": "Back to list",
+    "resizeList": "Resize list",
+    "emptyDetail": "Select a record to see its details."
+  },
+  "resetApp": {
+    "button": "Reset App",
+    "title": "Reset app to its original state?",
+    "body": "This permanently deletes your database, settings, and cookies, then reloads the app as if freshly installed. This cannot be undone.",
+    "passwordLabel": "Database password",
+    "passwordHelp": "Enter your password to confirm the reset.",
+    "failed": "Reset failed",
+    "resetting": "Resetting…"
+  }
+}

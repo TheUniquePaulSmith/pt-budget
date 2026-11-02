@@ -140,6 +140,8 @@ export interface TransferCandidate {
   id: number;
   account_id: number;
   account_name: string;
+  /** The candidate account's ISO 4217 currency (its amount is in it). */
+  account_currency?: string;
   date: string;
   amount: number;
   description: string;

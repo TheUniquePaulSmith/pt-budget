@@ -1,0 +1,17 @@
+{
+  "manage": {
+    "addCategoryFailed": "添加分类失败",
+    "updateCategoryFailed": "更新分类失败",
+    "addCompanyFailed": "添加商家失败",
+    "updateCompanyFailed": "更新商家失败",
+    "title": "管理分类与商家",
+    "categoriesTab": "分类",
+    "companiesTab": "商家",
+    "addCategoryTitle": "添加新分类",
+    "categoryNameLabel": "分类名称",
+    "existingCategories": "现有分类",
+    "addCompanyTitle": "添加新商家",
+    "companyNameLabel": "商家名称",
+    "existingCompanies": "现有商家"
+  }
+}

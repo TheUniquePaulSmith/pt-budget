@@ -1,0 +1,18 @@
+{
+  "page": {
+    "headline": "Esta página foi gasta",
+    "body": "Auditamos todas as contas e este endereço não consta nos registros. Seus fundos criaram asas e saíram do prédio.",
+    "home": "Voltar ao orçamento",
+    "back": "Voltar"
+  },
+  "recorder": {
+    "aria": "De onde você veio",
+    "title": "Caixa-preta",
+    "loading": "Consultando a caixa-preta…",
+    "requested": "Você pediu",
+    "sender": "Enviado por",
+    "event": "O que aconteceu",
+    "campaign": "Marcado com",
+    "privacy": "Calculado no seu navegador a partir do que ele já sabe. Nada foi enviado a lugar algum."
+  }
+}

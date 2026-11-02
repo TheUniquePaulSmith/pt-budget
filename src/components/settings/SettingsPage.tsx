@@ -47,7 +47,10 @@ import {
   BugReport,
   Download,
   Upload,
+  Tune,
 } from '@mui/icons-material';
+import type { TFunction } from 'i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import StorageQuota from '@/components/common/Storage/StorageQuota';
 import { CloudConflictDialog } from './CloudConflictDialog';
 import { ChangePasswordSection } from './ChangePasswordSection';
@@ -55,56 +58,65 @@ import { CloudFilePickerDialog } from '@/components/setup/CloudFilePickerDialog'
 import { EncryptionProgress } from '@/components/setup/EncryptionProgress';
 import NotificationsSettingsTab from '@/components/notifications/NotificationsSettingsTab';
 import DeveloperSettingsTab from '@/components/common/Console/DeveloperSettingsTab';
+import PreferencesSettingsTab from './PreferencesSettingsTab';
 import { useSettingsSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { ThemeDensityPreference, ThemePresetId, useThemePreferences } from '@/theme/theme';
 import { isDebugMode } from '@/lib/debugMode';
 import type { AutoSyncSnapshot } from '@/lib/cloudAutoSyncScheduler';
 import type { CloudProvider, DatabaseSource } from '@/lib/databaseSourceStorage';
 
-const SYNC_INTERVAL_OPTIONS: Array<{ minutes: number; label: string }> = [
-  { minutes: 15, label: '15 minutes' },
-  { minutes: 30, label: '30 minutes' },
-  { minutes: 60, label: '1 hour' },
-  { minutes: 120, label: '2 hours' },
-  { minutes: 240, label: '4 hours' },
-  { minutes: 360, label: '6 hours' },
-  { minutes: 720, label: '12 hours' },
-];
+type SettingsT = TFunction<'settings'>;
 
-function providerLabel(source: DatabaseSource): string {
-  if (source === 'gdrive') return 'Google Drive';
-  if (source === 'onedrive') return 'OneDrive';
-  return 'Local';
+/** Sync intervals in minutes; the label is resolved through `t` at render time. */
+const SYNC_INTERVAL_OPTIONS: number[] = [15, 30, 60, 120, 240, 360, 720];
+
+function syncIntervalLabel(minutes: number, t: SettingsT): string {
+  return minutes < 60 ? t('syncInterval.minutes', { count: minutes }) : t('syncInterval.hours', { count: minutes / 60 });
 }
 
-function syncStateLabel(status: AutoSyncSnapshot): string {
+function providerLabel(source: DatabaseSource, t: SettingsT): string {
+  if (source === 'gdrive') return t('providers.gdrive');
+  if (source === 'onedrive') return t('providers.onedrive');
+  return t('providers.local');
+}
+
+function syncStateLabel(status: AutoSyncSnapshot, t: SettingsT): string {
   switch (status.state) {
     case 'idle':
-      return 'Synced';
+      return t('syncState.synced');
     case 'pending':
-      return 'Pending changes';
+      return t('syncState.pending');
     case 'syncing':
-      return 'Syncing…';
+      return t('syncState.syncing');
     case 'paused-auth':
-      return status.pauseReason === 'encryption-locked'
-        ? 'Locked — needs password'
-        : 'Needs reconnect';
+      return status.pauseReason === 'encryption-locked' ? t('syncState.locked') : t('syncState.needsReconnect');
     case 'paused-conflict':
-      return 'Conflict — needs resolution';
+      return t('syncState.conflict');
     case 'offline':
-      return 'Offline';
+      return t('syncState.offline');
     case 'error':
-      return status.lastError ? `Error: ${status.lastError}` : 'Sync error';
+      return status.lastError ? t('syncState.error', { error: status.lastError }) : t('syncState.syncError');
     case 'disabled':
     default:
-      return 'Disabled';
+      return t('syncState.disabled');
   }
 }
 
+type SettingsTabId =
+  | 'preferences'
+  | 'storage'
+  | 'source'
+  | 'security'
+  | 'backup'
+  | 'display'
+  | 'notifications'
+  | 'developer';
+
 interface TabPanelProps {
   children?: React.ReactNode;
-  index: number;
-  value: number;
+  index: SettingsTabId;
+  value: SettingsTabId;
 }
 
 function TabPanel({ children, value, index }: TabPanelProps) {
@@ -120,7 +132,9 @@ interface SettingsPageProps {
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
-  const [tabValue, setTabValue] = useState(0);
+  const { t } = useTranslation(['settings', 'common']);
+  const { dateTime } = useFormatters();
+  const [tabValue, setTabValue] = useState<SettingsTabId>('preferences');
   const debugMode = isDebugMode();
 
   const {
@@ -219,7 +233,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
       const counts = await getMerchantRuleCounts();
       setRuleCounts(counts);
     } catch (err) {
-      setRulesImportError(err instanceof Error ? err.message : 'Failed to import rules file');
+      setRulesImportError(err instanceof Error ? err.message : t('backup.importFailed'));
     } finally {
       setImportingRules(false);
     }
@@ -320,6 +334,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const linkedGoogleFile = databaseSourceState.linkedFiles.gdrive ?? null;
   const linkedOneDriveFile = databaseSourceState.linkedFiles.onedrive ?? null;
 
+  const renderLinkedFile = (provider: CloudProvider, file: { fileName: string; modifiedAt?: string | null }) => (
+    <Trans
+      i18nKey={file.modifiedAt ? 'source.linkedFileWithDate' : 'source.linkedFile'}
+      ns="settings"
+      values={{ provider: providerLabel(provider, t), file: file.fileName, time: file.modifiedAt ? dateTime(file.modifiedAt) : '' }}
+      components={{ strong: <strong /> }}
+    />
+  );
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
@@ -328,13 +351,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           <IconButton
             edge="start"
             onClick={onClose}
-            aria-label="Close settings"
+            aria-label={t('page.close')}
             sx={{ mr: 2 }}
           >
             <ArrowBack />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Settings
+            {t('page.title')}
           </Typography>
         </Toolbar>
       </AppBar>
@@ -344,7 +367,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tabs
               value={tabValue}
-              onChange={(_, newValue) => setTabValue(newValue)}
+              onChange={(_, newValue) => setTabValue(newValue as SettingsTabId)}
               variant="scrollable"
               scrollButtons="auto"
               allowScrollButtonsMobile
@@ -356,25 +379,31 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                 },
               }}
             >
-              <Tab icon={<Storage />} label="Storage" />
-              <Tab icon={<CloudSync />} label="Database Source" />
-              <Tab icon={<Security />} label="Security" />
-              <Tab icon={<Backup />} label="Data & Backup" />
-              <Tab icon={<Palette />} label="Display" />
-              <Tab icon={<Notifications />} label="Notifications" />
-              {debugMode && <Tab icon={<BugReport />} label="Developer" />}
+              <Tab icon={<Tune />} label={t('tabs.preferences')} value="preferences" data-testid="settings-tab-preferences" />
+              <Tab icon={<Storage />} label={t('tabs.storage')} value="storage" />
+              <Tab icon={<CloudSync />} label={t('tabs.source')} value="source" />
+              <Tab icon={<Security />} label={t('tabs.security')} value="security" />
+              <Tab icon={<Backup />} label={t('tabs.backup')} value="backup" />
+              <Tab icon={<Palette />} label={t('tabs.display')} value="display" />
+              <Tab icon={<Notifications />} label={t('tabs.notifications')} value="notifications" />
+              {debugMode && <Tab icon={<BugReport />} label={t('tabs.developer')} value="developer" />}
             </Tabs>
           </Box>
 
+          {/* Preferences Tab — language, default currency, exchange rates */}
+          <TabPanel value={tabValue} index="preferences">
+            <PreferencesSettingsTab />
+          </TabPanel>
+
           {/* Storage Tab */}
-          <TabPanel value={tabValue} index={0}>
+          <TabPanel value={tabValue} index="storage">
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>
-                  Storage Management
+                  {t('storage.title')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" paragraph>
-                  Monitor your browser storage usage and manage your data storage.
+                  {t('storage.description')}
                 </Typography>
               </Box>
 
@@ -382,7 +411,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Current Storage Usage
+                  {t('storage.currentUsage')}
                 </Typography>
                 <Box sx={{ maxWidth: 600 }}>
                   <StorageQuota variant="card" />
@@ -393,21 +422,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Storage Information
+                  {t('storage.infoTitle')}
                 </Typography>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Your budget data is stored locally in your browser using OPFS (Origin Private File System).
-                  This data persists between sessions and is tied to this specific browser and origin.
+                  {t('storage.infoAlert')}
                 </Alert>
                 <Stack spacing={2}>
                   <Typography variant="body2">
-                    • <strong>Local Storage:</strong> Data is stored on your device and never sent to external servers
+                    <Trans i18nKey="storage.localStorage" ns="settings" components={{ strong: <strong /> }} />
                   </Typography>
                   <Typography variant="body2">
-                    • <strong>Browser Limits:</strong> Most browsers allow up to 60% of available disk space
+                    <Trans i18nKey="storage.browserLimits" ns="settings" components={{ strong: <strong /> }} />
                   </Typography>
                   <Typography variant="body2">
-                    • <strong>Backup Recommended:</strong> Export your data regularly to prevent loss
+                    <Trans i18nKey="storage.backupRecommended" ns="settings" components={{ strong: <strong /> }} />
                   </Typography>
                 </Stack>
               </Box>
@@ -415,15 +443,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           </TabPanel>
 
           {/* Database Source Tab */}
-          <TabPanel value={tabValue} index={1}>
+          <TabPanel value={tabValue} index="source">
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>
-                  Database Source
+                  {t('source.title')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" paragraph>
-                  Choose whether the working copy is local, Google Drive, or OneDrive. Cloud
-                  sources sync automatically about 15 seconds after changes settle, or on demand.
+                  {t('source.description')}
                 </Typography>
               </Box>
 
@@ -431,27 +458,43 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Sync Status
+                  {t('source.syncStatus')}
                 </Typography>
                 <Stack spacing={1.5}>
                   <Typography variant="body2">
-                    <strong>Active source:</strong> {providerLabel(databaseSource)}
+                    <Trans
+                      i18nKey="source.activeSource"
+                      ns="settings"
+                      values={{ provider: providerLabel(databaseSource, t) }}
+                      components={{ strong: <strong /> }}
+                    />
                   </Typography>
                   {databaseSource !== 'local' && (
                     <>
                       <Typography variant="body2">
-                        <strong>Status:</strong> {syncStateLabel(syncStatus)}
+                        <Trans
+                          i18nKey="source.status"
+                          ns="settings"
+                          values={{ status: syncStateLabel(syncStatus, t) }}
+                          components={{ strong: <strong /> }}
+                        />
                       </Typography>
                       <Typography variant="body2">
-                        <strong>Last synced:</strong>{' '}
-                        {syncStatus.lastSyncAt
-                          ? new Date(syncStatus.lastSyncAt).toLocaleString()
-                          : 'Not synced yet'}
+                        <Trans
+                          i18nKey="source.lastSynced"
+                          ns="settings"
+                          values={{ time: syncStatus.lastSyncAt ? dateTime(syncStatus.lastSyncAt) : t('source.notSyncedYet') }}
+                          components={{ strong: <strong /> }}
+                        />
                       </Typography>
                       {syncStatus.pendingSince && (
                         <Typography variant="body2">
-                          <strong>Unsynced changes since:</strong>{' '}
-                          {new Date(syncStatus.pendingSince).toLocaleString()}
+                          <Trans
+                            i18nKey="source.unsyncedSince"
+                            ns="settings"
+                            values={{ time: dateTime(syncStatus.pendingSince) }}
+                            components={{ strong: <strong /> }}
+                          />
                         </Typography>
                       )}
                     </>
@@ -470,11 +513,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   severity="warning"
                   action={
                     <Button color="inherit" size="small" onClick={() => setConflictDialogOpen(true)}>
-                      Resolve…
+                      {t('source.resolve')}
                     </Button>
                   }
                 >
-                  The cloud copy changed while this device also had unsynced changes.
+                  {t('source.conflictAlert')}
                 </Alert>
               )}
 
@@ -483,13 +526,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   severity="warning"
                   action={
                     <Button color="inherit" size="small" onClick={() => void handleReconnect()}>
-                      Reconnect
+                      {t('source.reconnect')}
                     </Button>
                   }
                 >
                   {syncStatus.pauseReason === 'encryption-locked'
-                    ? 'Enter your database password to resume cloud sync.'
-                    : `Reconnect to ${providerLabel(databaseSource)} to resume syncing.`}
+                    ? t('source.enterPassword')
+                    : t('source.reconnectTo', { provider: providerLabel(databaseSource, t) })}
                 </Alert>
               )}
 
@@ -508,31 +551,30 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                       disabled={databaseSource === 'local'}
                     />
                   }
-                  label="Automatically sync changes"
+                  label={t('source.autoSync')}
                 />
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  When enabled, edits upload automatically shortly after you stop editing. Turn
-                  this off to only sync when you click &quot;Sync Now&quot;.
+                  {t('source.autoSyncHelp')}
                 </Typography>
 
                 <FormControl size="small" sx={{ mt: 2, minWidth: 200 }}>
-                  <InputLabel id="sync-frequency-label">Sync frequency</InputLabel>
+                  <InputLabel id="sync-frequency-label">{t('source.syncFrequency')}</InputLabel>
                   <Select
                     labelId="sync-frequency-label"
-                    label="Sync frequency"
+                    label={t('source.syncFrequency')}
                     value={databaseSourceState.syncIntervalMinutes}
                     onChange={handleSyncIntervalChange}
                     disabled={databaseSource === 'local'}
                   >
-                    {SYNC_INTERVAL_OPTIONS.map((option) => (
-                      <MenuItem key={option.minutes} value={option.minutes}>
-                        {option.label}
+                    {SYNC_INTERVAL_OPTIONS.map((minutes) => (
+                      <MenuItem key={minutes} value={minutes}>
+                        {syncIntervalLabel(minutes, t)}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  How long to wait after a local change before syncing automatically.
+                  {t('source.syncFrequencyHelp')}
                 </Typography>
               </Box>
 
@@ -541,42 +583,32 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   <Divider />
                   <Box>
                     <Typography variant="h6" gutterBottom>
-                      Linked Cloud Files
+                      {t('source.linkedFiles')}
                     </Typography>
                     <Stack spacing={1.5}>
                       {linkedGoogleFile && (
                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                          <Typography variant="body2">
-                            <strong>Google Drive:</strong> {linkedGoogleFile.fileName}
-                            {linkedGoogleFile.modifiedAt
-                              ? ` (${new Date(linkedGoogleFile.modifiedAt).toLocaleString()})`
-                              : ''}
-                          </Typography>
+                          <Typography variant="body2">{renderLinkedFile('gdrive', linkedGoogleFile)}</Typography>
                           <Button
                             size="small"
                             color="inherit"
                             startIcon={<LinkOff />}
                             onClick={() => handleDisconnect('gdrive')}
                           >
-                            Disconnect
+                            {t('source.disconnect')}
                           </Button>
                         </Stack>
                       )}
                       {linkedOneDriveFile && (
                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                          <Typography variant="body2">
-                            <strong>OneDrive:</strong> {linkedOneDriveFile.fileName}
-                            {linkedOneDriveFile.modifiedAt
-                              ? ` (${new Date(linkedOneDriveFile.modifiedAt).toLocaleString()})`
-                              : ''}
-                          </Typography>
+                          <Typography variant="body2">{renderLinkedFile('onedrive', linkedOneDriveFile)}</Typography>
                           <Button
                             size="small"
                             color="inherit"
                             startIcon={<LinkOff />}
                             onClick={() => handleDisconnect('onedrive')}
                           >
-                            Disconnect
+                            {t('source.disconnect')}
                           </Button>
                         </Stack>
                       )}
@@ -589,11 +621,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Source Actions
+                  {t('source.sourceActions')}
                 </Typography>
 
                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Connect
+                  {t('source.connect')}
                 </Typography>
                 <Box
                   sx={{
@@ -610,7 +642,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                       void handleConnectCloudSource('gdrive');
                     }}
                   >
-                    Open from Google Drive
+                    {t('source.openFromGoogleDrive')}
                   </Button>
                   <Button
                     variant="contained"
@@ -619,12 +651,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                       void handleConnectCloudSource('onedrive');
                     }}
                   >
-                    Open from OneDrive
+                    {t('source.openFromOneDrive')}
                   </Button>
                 </Box>
 
                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Convert
+                  {t('source.convert')}
                 </Typography>
                 <Box
                   sx={{
@@ -642,7 +674,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     }}
                     disabled={!isDatabaseLoaded || migratingProvider !== null}
                   >
-                    {migratingProvider === 'gdrive' ? 'Converting…' : 'Convert Local to Google Drive'}
+                    {migratingProvider === 'gdrive' ? t('source.converting') : t('source.convertToGoogleDrive')}
                   </Button>
                   <Button
                     variant="outlined"
@@ -652,12 +684,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     }}
                     disabled={!isDatabaseLoaded || migratingProvider !== null}
                   >
-                    {migratingProvider === 'onedrive' ? 'Converting…' : 'Convert Local to OneDrive'}
+                    {migratingProvider === 'onedrive' ? t('source.converting') : t('source.convertToOneDrive')}
                   </Button>
                 </Box>
 
                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Sync
+                  {t('source.sync')}
                 </Typography>
                 <Box
                   sx={{
@@ -681,10 +713,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     }
                   >
                     {syncStatus.state === 'syncing'
-                      ? 'Syncing…'
+                      ? t('source.syncing')
                       : syncStatus.state === 'paused-auth'
-                        ? 'Reconnect'
-                        : 'Sync Now'}
+                        ? t('source.reconnect')
+                        : t('source.syncNow')}
                   </Button>
                   <Button
                     variant="outlined"
@@ -694,7 +726,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     }}
                     disabled={!isDatabaseLoaded || databaseSource === 'local'}
                   >
-                    Save Current Cloud Copy
+                    {t('source.saveCloudCopy')}
                   </Button>
                 </Box>
 
@@ -706,7 +738,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     onClick={switchToLocalSource}
                     disabled={databaseSource === 'local'}
                   >
-                    Switch Back to Local
+                    {t('source.switchToLocal')}
                   </Button>
                 </Box>
               </Box>
@@ -731,14 +763,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           </TabPanel>
 
           {/* Security Tab */}
-          <TabPanel value={tabValue} index={2}>
+          <TabPanel value={tabValue} index="security">
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>
-                  Security
+                  {t('security.title')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" paragraph>
-                  Manage the password that protects your exports and cloud backups.
+                  {t('security.description')}
                 </Typography>
               </Box>
 
@@ -754,11 +786,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Lock Database
+                  {t('security.lockTitle')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Syncs your database to the cloud (if connected), then locks it — you&apos;ll need
-                  your password to continue.
+                  {t('security.lockHelp')}
                 </Typography>
                 <Button
                   variant="outlined"
@@ -767,42 +798,42 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                   onClick={() => void handleLockDatabase()}
                   disabled={!isDatabaseLoaded || isLocking}
                 >
-                  {isLocking ? 'Locking…' : 'Lock Database'}
+                  {isLocking ? t('security.locking') : t('security.lock')}
                 </Button>
               </Box>
             </Stack>
 
             <Dialog open={lockConfirmOpen} onClose={() => setLockConfirmOpen(false)}>
-              <DialogTitle>Lock without syncing?</DialogTitle>
+              <DialogTitle>{t('security.lockDialogTitle')}</DialogTitle>
               <DialogContent>
                 <Typography variant="body2">
-                  Your database couldn&apos;t be fully synced{lockSyncError ? ` (${lockSyncError})` : ''}.
-                  Locking now leaves those changes unsynced until you unlock and reconnect. Lock
-                  anyway?
+                  {lockSyncError
+                    ? t('security.lockDialogBodyWithError', { error: lockSyncError })
+                    : t('security.lockDialogBody')}
                 </Typography>
               </DialogContent>
               <DialogActions>
-                <Button onClick={() => setLockConfirmOpen(false)}>Cancel</Button>
+                <Button onClick={() => setLockConfirmOpen(false)}>{t('common:actions.cancel')}</Button>
                 <Button
                   variant="contained"
                   color="warning"
                   onClick={() => void handleLockDatabase({ skipSync: true })}
                 >
-                  Lock Anyway
+                  {t('security.lockAnyway')}
                 </Button>
               </DialogActions>
             </Dialog>
           </TabPanel>
 
           {/* Data & Backup Tab */}
-          <TabPanel value={tabValue} index={3}>
+          <TabPanel value={tabValue} index="backup">
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>
-                  Data & Backup
+                  {t('backup.title')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" paragraph>
-                  Export your data for backup or import into other applications.
+                  {t('backup.description')}
                 </Typography>
               </Box>
 
@@ -810,7 +841,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Export Data
+                  {t('backup.exportTitle')}
                 </Typography>
                 <Stack spacing={2}>
                   <Button
@@ -820,10 +851,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     disabled={!isDatabaseLoaded || isExporting}
                     aria-busy={isExporting}
                   >
-                    {isExporting ? 'Exporting…' : 'Export Database'}
+                    {isExporting ? t('backup.exporting') : t('backup.exportDatabase')}
                   </Button>
                   <Typography variant="body2" color="text.secondary">
-                    Downloads a complete backup archive containing the VFS snapshot and dbstatus.json
+                    {t('backup.exportHelp')}
                   </Typography>
                 </Stack>
               </Box>
@@ -832,16 +863,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Merchant Rules
+                  {t('backup.merchantRules')}
                 </Typography>
                 <Stack spacing={2}>
                   <Typography variant="body2" color="text.secondary">
-                    Merchant rules match bank charge descriptions to merchants and subscriptions on
-                    the Subscriptions page.
-                    {ruleCounts &&
-                      ` Currently ${ruleCounts.community} community rules and ${ruleCounts.user} of your own.`}
-                    {rulesSeedVersion != null && rulesSeedVersion > 0 &&
-                      ` Community list version: ${rulesSeedVersion}.`}
+                    {t('backup.merchantRulesHelp')}
+                    {ruleCounts && ` ${t('backup.ruleCounts', { community: ruleCounts.community, user: ruleCounts.user })}`}
+                    {rulesSeedVersion != null && rulesSeedVersion > 0 && ` ${t('backup.seedVersion', { version: rulesSeedVersion })}`}
                   </Typography>
                   <Box>
                     <Button
@@ -849,21 +877,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                       onClick={handleReseedCommunityRules}
                       disabled={!isDatabaseLoaded || reseeding}
                     >
-                      {reseeding ? 'Re-applying…' : 'Re-apply Community Rules'}
+                      {reseeding ? t('backup.reapplying') : t('backup.reapply')}
                     </Button>
                   </Box>
                   <Typography variant="body2" color="text.secondary">
-                    Restores the bundled community rule list. Rules you have edited or disabled are
-                    left untouched.
+                    {t('backup.reapplyHelp')}
                   </Typography>
 
                   <Divider />
 
-                  <Typography variant="subtitle2">Your Custom Rules</Typography>
+                  <Typography variant="subtitle2">{t('backup.customRules')}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Download the rules you&apos;ve created (not the community list) as a JSON file,
-                    in priority order, to back them up or move them to another browser. Importing
-                    the same file again updates matching rules instead of duplicating them.
+                    {t('backup.customRulesHelp')}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                     <Button
@@ -872,7 +897,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                       onClick={handleExportCustomRules}
                       disabled={!isDatabaseLoaded || !ruleCounts?.user}
                     >
-                      Export Custom Rules
+                      {t('backup.exportCustomRules')}
                     </Button>
                     <input
                       accept="application/json"
@@ -888,19 +913,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                         startIcon={<Upload />}
                         disabled={!isDatabaseLoaded || importingRules}
                       >
-                        {importingRules ? 'Importing…' : 'Import Custom Rules'}
+                        {importingRules ? t('backup.importing') : t('backup.importCustomRules')}
                       </Button>
                     </label>
                   </Box>
                   {rulesImportError && <Alert severity="error">{rulesImportError}</Alert>}
                   {rulesImportResult && (
                     <Alert severity={rulesImportResult.rejected > 0 ? 'warning' : 'success'}>
-                      Imported {rulesImportResult.imported} rule
-                      {rulesImportResult.imported === 1 ? '' : 's'}.
-                      {rulesImportResult.rejected > 0 &&
-                        ` Skipped ${rulesImportResult.rejected} invalid entr${
-                          rulesImportResult.rejected === 1 ? 'y' : 'ies'
-                        }.`}
+                      {t('backup.imported', { count: rulesImportResult.imported })}
+                      {rulesImportResult.rejected > 0 && ` ${t('backup.skipped', { count: rulesImportResult.rejected })}`}
                     </Alert>
                   )}
                 </Stack>
@@ -912,14 +933,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           </TabPanel>
 
           {/* Display Tab */}
-          <TabPanel value={tabValue} index={4}>
+          <TabPanel value={tabValue} index="display">
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h5" gutterBottom>
-                  Display Settings
+                  {t('display.title')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" paragraph>
-                  Customize the appearance of your budget tracker.
+                  {t('display.description')}
                 </Typography>
               </Box>
 
@@ -927,17 +948,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Theme Presets
+                  {t('display.themePresets')}
                 </Typography>
 
                 <FormControl fullWidth>
-                  <FormLabel id="theme-preset-label">Built-in Styles</FormLabel>
+                  <FormLabel id="theme-preset-label">{t('display.builtInStyles')}</FormLabel>
                   <Typography
                     variant="body2"
                     color="text.secondary"
                     sx={{ mt: 1, mb: 2 }}
                   >
-                    Choose how the app looks. Your selection is saved locally in this browser.
+                    {t('display.presetsHelp')}
                   </Typography>
 
                   <RadioGroup
@@ -953,14 +974,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                         const isSelected = themePreset.id === selectedThemeId;
                         const modeLabel =
                           themePreset.paletteMode === 'system'
-                            ? 'Uses device theme'
+                            ? t('display.modeSystem')
                             : themePreset.paletteMode === 'dark'
-                            ? 'Dark surfaces'
-                            : 'Light surfaces';
+                            ? t('display.modeDark')
+                            : t('display.modeLight');
                         const densityLabel =
                           themePreset.density === 'compact'
-                            ? 'Compact density'
-                            : 'Comfortable density';
+                            ? t('display.densityCompact')
+                            : t('display.densityComfortable');
+                        // Preset text lives in the frozen theme module; translate by id, falling back to its English.
+                        const presetLabel = t(`display.presets.${themePreset.id}.label`, { defaultValue: themePreset.label });
+                        const presetDescription = t(`display.presets.${themePreset.id}.description`, { defaultValue: themePreset.description });
 
                         return (
                           <Paper
@@ -996,13 +1020,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                                     sx={{ mb: 0.75 }}
                                   >
                                     <Typography variant="subtitle1">
-                                      {themePreset.label}
+                                      {presetLabel}
                                     </Typography>
                                     <Chip size="small" label={modeLabel} />
                                     <Chip size="small" label={densityLabel} />
                                   </Stack>
                                   <Typography variant="body2" color="text.secondary">
-                                    {themePreset.description}
+                                    {presetDescription}
                                   </Typography>
                                 </Box>
                               }
@@ -1019,13 +1043,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Density
+                  {t('display.density')}
                 </Typography>
                 <FormControl>
-                  <FormLabel id="theme-density-label">Spacing</FormLabel>
+                  <FormLabel id="theme-density-label">{t('display.spacing')}</FormLabel>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 1 }}>
-                    Automatic uses the compact layout on desktop widths and the comfortable
-                    layout on phones. Currently {density}.
+                    {t('display.densityHelp', { density: t(`display.densityValues.${density}`) })}
                   </Typography>
                   <RadioGroup
                     row
@@ -1036,9 +1059,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                       setDensityPreference(event.target.value as ThemeDensityPreference)
                     }
                   >
-                    <FormControlLabel value="auto" control={<Radio />} label="Automatic" />
-                    <FormControlLabel value="compact" control={<Radio />} label="Compact" />
-                    <FormControlLabel value="comfortable" control={<Radio />} label="Comfortable" />
+                    <FormControlLabel value="auto" control={<Radio />} label={t('display.densityAuto')} />
+                    <FormControlLabel value="compact" control={<Radio />} label={t('display.densityCompactOption')} />
+                    <FormControlLabel value="comfortable" control={<Radio />} label={t('display.densityComfortableOption')} />
                   </RadioGroup>
                 </FormControl>
               </Box>
@@ -1046,13 +1069,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
           </TabPanel>
 
           {/* Notifications Tab — body owned by the notifications feature */}
-          <TabPanel value={tabValue} index={5}>
+          <TabPanel value={tabValue} index="notifications">
             <NotificationsSettingsTab />
           </TabPanel>
 
           {/* Developer Tab — only visible with ?debug; body owned by the logging feature */}
           {debugMode && (
-            <TabPanel value={tabValue} index={6}>
+            <TabPanel value={tabValue} index="developer">
               <DeveloperSettingsTab />
             </TabPanel>
           )}

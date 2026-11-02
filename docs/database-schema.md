@@ -16,7 +16,14 @@ erDiagram
         string name
         string type
         int owner_user_id FK
+        string currency
         datetime created_at
+        datetime updated_at
+    }
+
+    EXCHANGE_RATES {
+        string currency PK
+        real rate
         datetime updated_at
     }
 
@@ -329,3 +336,5 @@ Schema changes are delivered by a `PRAGMA user_version`-gated migration runner i
 | 2 | budget tables and income_sources (back-filled), import_batches, account_balance_snapshots, accounts/transactions rebuilds, SHA-256 rehash |
 | 3 | notifications, notification_settings, ai_tool_packs, ai_tool_settings; `recurring_series.is_autopay` / `due_day`; `budget_plan_categories.carry_mode` / `carry_reset`; `projects` and `trips` fund columns (`budget_category_id`, `monthly_contribution`, `contribution_start_month`). Every added column is nullable or defaulted, so sample-data fixtures need no regeneration |
 | 4 | classification_rules; `transactions.type_source` / `type_confidence` (defaulted; rows with `type_locked = 1` are backfilled to `manual`); `temp_import_transactions` recreated with `transfer_group_id` / `type_source` / `type_confidence`. On the first open after the upgrade the app runs one classification scan so pre-existing card payments and merchant credits get typed |
+| 5 | loans, loan_match_rules, loan_payments (loan terms, loan-owned payment rules, payment ledger) |
+| 6 | `accounts.currency` (ISO 4217, `NOT NULL DEFAULT 'USD'`) and `exchange_rates` (`currency` PK, nullable `rate`, `updated_at`). The household's default currency lives in `app_metadata` under `preferences.defaultCurrency` (USD when absent); `rate` is units of the default currency per 1 unit of `currency`, NULL = unknown. `sqlMoneyExpressions.ts` multiplies every money row by that rate inside `spendExpr` / `incomeExpr`, so every cross-account SUM is in the default currency and rows in a currency without a rate are skipped. Fixtures regenerated for the new column |

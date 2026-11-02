@@ -1,0 +1,154 @@
+{
+  "typeShort": {
+    "checking": "Conto corrente",
+    "savings": "Risparmio",
+    "credit": "Carta di credito",
+    "loan": "Prestito",
+    "investment": "Investimenti",
+    "retirement": "Previdenza"
+  },
+  "display": {
+    "accountOwner": "Titolare del conto",
+    "unknownUser": "Utente sconosciuto"
+  },
+  "validation": {
+    "nameRequired": "Il nome del conto è obbligatorio",
+    "numbersInvalid": "Saldo iniziale e limite di credito devono essere numeri",
+    "cardDigitsRequired": "Inserisci almeno le ultime 4 cifre"
+  },
+  "formFields": {
+    "nameLabel": "Nome del conto",
+    "typeLabel": "Tipo di conto",
+    "currencyLabel": "Valuta",
+    "ownershipLabel": "Intestazione",
+    "ownershipJoint": "Cointestato (condiviso dal nucleo familiare)",
+    "institutionLabel": "Istituto (facoltativo)",
+    "institutionPlaceholder": "Nome della banca o dell'intermediario",
+    "openingBalanceLabel": "Saldo iniziale",
+    "openingBalanceHelp": "Saldo prima della prima transazione registrata",
+    "asOfLabel": "Alla data del",
+    "creditLimitLabel": "Limite di credito",
+    "creditLimitHelp": "Usato per mostrare quanta parte del limite è in uso",
+    "activeLabel": "Attivo",
+    "closedLabel": "Chiuso (conservato per lo storico)",
+    "ownerLabel": "Titolare",
+    "selectOwner": "Seleziona titolare",
+    "cardNumberLabel": "Numero di carta / conto",
+    "cardNumberHelp": "Inserisci il numero completo o solo le ultime 4 cifre: altrove vengono mostrate solo le ultime 4",
+    "cardNicknameLabel": "Alias (facoltativo)",
+    "cardholderLabel": "Intestatario della carta",
+    "cardholderOwner": "Titolare del conto"
+  },
+  "formDialog": {
+    "addTitle": "Aggiungi nuovo conto",
+    "editTitle": "Modifica conto",
+    "newPerson": "+ Nuova persona…",
+    "firstCard": "Prima carta",
+    "displayNameRequired": "Il nome visualizzato è obbligatorio",
+    "addPersonFailed": "Impossibile aggiungere la persona",
+    "ownerRequired": "Il titolare è obbligatorio",
+    "saveFailed": "Impossibile salvare il conto",
+    "saving": "Salvataggio..."
+  },
+  "detailForm": {
+    "ownerChip": "Titolare: {{name}}",
+    "saved": "Salvato.",
+    "saveFailed": "Impossibile salvare il conto",
+    "accountSectionTitle": "Conto",
+    "accountSectionDescription": "Le modifiche vengono applicate quando premi Salva.",
+    "cardsSectionTitle": "Carte",
+    "cardsSectionDescription": "Carte e numeri di conto su cui le importazioni CSV cercano corrispondenze. Ogni conto ne conserva almeno uno.",
+    "dangerZoneTitle": "Zona pericolosa",
+    "deleteAccount": "Elimina conto",
+    "deleteHint": "Le transazioni già registrate su questo conto vengono conservate."
+  },
+  "grid": {
+    "noCards": "Nessuna carta",
+    "columnAccount": "Conto",
+    "columnType": "Tipo",
+    "columnInstitution": "Istituto",
+    "columnOwner": "Titolare",
+    "columnCards": "Carte",
+    "columnCurrency": "Valuta",
+    "columnOpening": "Saldo iniziale",
+    "columnActive": "Attivo",
+    "columnNetWorth": "Patrimonio netto",
+    "ownerJoint": "{{owner}} (cointestato)",
+    "activeTitle": "Attivo",
+    "closedTitle": "Chiuso",
+    "countedInNetWorth": "Incluso nel patrimonio netto",
+    "excluded": "Escluso",
+    "empty": "Nessun conto ancora. Aggiungi il tuo primo conto per iniziare."
+  },
+  "page": {
+    "summary": "{{accounts}} • {{people}}",
+    "people_one": "{{count}} persona",
+    "people_other": "{{count}} persone",
+    "addAccount": "Aggiungi conto",
+    "displayNameRequired": "Il nome visualizzato è obbligatorio",
+    "saveUserFailed": "Impossibile salvare l'utente",
+    "deleteFailed": {
+      "user": "Impossibile eliminare l'utente",
+      "account": "Impossibile eliminare il conto",
+      "card": "Impossibile eliminare la carta"
+    },
+    "emptyNoAccounts": "Aggiungi un conto per iniziare.",
+    "emptySelect": "Seleziona un conto per modificarlo."
+  },
+  "cardsTable": {
+    "cardholderOwner": "Titolare del conto",
+    "saveFailed": "Impossibile salvare la carta",
+    "numberLabel": "Numero di carta / conto",
+    "nicknameLabel": "Alias",
+    "cardholderLabel": "Intestatario della carta",
+    "tableLabel": "Carte",
+    "columnNumber": "Numero",
+    "columnNickname": "Alias",
+    "columnCardholder": "Intestatario",
+    "empty": "Nessuna carta su questo conto.",
+    "saveCard": "Salva carta",
+    "cancelCardEdit": "Annulla la modifica della carta",
+    "editCard": "Modifica carta",
+    "editCardTitle": "Modifica carta",
+    "lastCardTooltip": "Un conto deve conservare almeno una carta",
+    "deleteCard": "Elimina carta",
+    "saveNewCard": "Salva nuova carta",
+    "cancelNewCard": "Annulla nuova carta",
+    "addCard": "Aggiungi carta"
+  },
+  "deleteDialog": {
+    "title": {
+      "user": "Elimina utente",
+      "account": "Elimina conto",
+      "card": "Elimina carta"
+    },
+    "question": {
+      "user": "Vuoi davvero eliminare questo utente?",
+      "account": "Vuoi davvero eliminare questo conto?",
+      "card": "Vuoi davvero eliminare questa carta?"
+    },
+    "hint": {
+      "user": "L'utente verrà rimosso da tutti i conti condivisi.",
+      "account": "Tutte le transazioni associate a questo conto verranno conservate.",
+      "card": "Le importazioni CSV che corrispondono a questo numero di carta non funzioneranno più."
+    },
+    "deleting": "Eliminazione..."
+  },
+  "peoplePanel": {
+    "title": "Persone",
+    "empty": "Nessuna persona ancora.",
+    "rename": "Rinomina {{name}}",
+    "editUser": "Modifica utente",
+    "primaryCannotDelete": "L'utente principale non può essere eliminato",
+    "deleteUser": "Elimina utente",
+    "delete": "Elimina {{name}}",
+    "primaryUser": "Utente principale",
+    "counts": "{{owned}} intestati • {{cardholder}} come intestatario di carta"
+  },
+  "userDialog": {
+    "addTitle": "Aggiungi nuovo utente",
+    "editTitle": "Modifica utente",
+    "displayNameLabel": "Nome visualizzato",
+    "saving": "Salvataggio..."
+  }
+}

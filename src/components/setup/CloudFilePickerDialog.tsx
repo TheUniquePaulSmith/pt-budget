@@ -18,7 +18,9 @@ import {
   ListItemText,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
+import { useFormatters } from '@/contexts/useFormatters';
 import type { CloudLinkedFile, CloudProvider } from '@/lib/databaseSourceStorage';
 
 interface CloudFilePickerDialogProps {
@@ -31,23 +33,6 @@ interface CloudFilePickerDialogProps {
   onClose: () => void;
 }
 
-function providerLabel(provider: CloudProvider | null): string {
-  if (provider === 'gdrive') return 'Google Drive';
-  if (provider === 'onedrive') return 'OneDrive';
-  return 'cloud storage';
-}
-
-function formatFileSubtitle(file: CloudLinkedFile): string {
-  const parts: string[] = [];
-  if (file.modifiedAt) {
-    parts.push(new Date(file.modifiedAt).toLocaleString());
-  }
-  if (file.size !== null) {
-    parts.push(`${(file.size / 1024).toFixed(0)} KB`);
-  }
-  return parts.join(' • ');
-}
-
 export function CloudFilePickerDialog({
   open,
   provider,
@@ -57,6 +42,8 @@ export function CloudFilePickerDialog({
   onSelect,
   onClose,
 }: CloudFilePickerDialogProps) {
+  const { t } = useTranslation(['setup', 'common']);
+  const { dateTime, number } = useFormatters();
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
 
@@ -65,6 +52,24 @@ export function CloudFilePickerDialog({
       setSelectedFileId(files[0]?.fileId ?? null);
     }
   }, [open, files]);
+
+  const providerLabel =
+    provider === 'gdrive'
+      ? t('provider.gdrive')
+      : provider === 'onedrive'
+        ? t('provider.onedrive')
+        : t('cloudFilePicker.cloudStorage');
+
+  const formatFileSubtitle = (file: CloudLinkedFile): string => {
+    const parts: string[] = [];
+    if (file.modifiedAt) {
+      parts.push(dateTime(file.modifiedAt));
+    }
+    if (file.size !== null) {
+      parts.push(t('cloudFilePicker.fileSize', { size: number(file.size / 1024, { maximumFractionDigits: 0 }) }));
+    }
+    return parts.join(' • ');
+  };
 
   const selectedFile = files.find((file) => file.fileId === selectedFileId) ?? null;
   const isBusy = isLoading || isConfirming;
@@ -83,7 +88,7 @@ export function CloudFilePickerDialog({
 
   return (
     <Dialog open={open} onClose={isBusy ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Open from {providerLabel(provider)}</DialogTitle>
+      <DialogTitle>{t('cloudFilePicker.title', { provider: providerLabel })}</DialogTitle>
       <DialogContent dividers>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -99,7 +104,7 @@ export function CloudFilePickerDialog({
 
         {!isLoading && files.length === 0 && !error && (
           <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-            No backup archives were found in {providerLabel(provider)}.
+            {t('cloudFilePicker.empty', { provider: providerLabel })}
           </Typography>
         )}
 
@@ -123,7 +128,7 @@ export function CloudFilePickerDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={isBusy}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           variant="contained"
@@ -131,7 +136,7 @@ export function CloudFilePickerDialog({
           disabled={!selectedFile || isBusy}
           startIcon={isConfirming ? <CircularProgress size={16} color="inherit" /> : undefined}
         >
-          {isConfirming ? 'Opening…' : 'Open'}
+          {isConfirming ? t('cloudFilePicker.opening') : t('common:actions.open')}
         </Button>
       </DialogActions>
     </Dialog>

@@ -1,0 +1,153 @@
+{
+  "typeShort": {
+    "checking": "입출금",
+    "savings": "저축",
+    "credit": "신용카드",
+    "loan": "대출",
+    "investment": "투자",
+    "retirement": "퇴직연금"
+  },
+  "display": {
+    "accountOwner": "계좌 소유자",
+    "unknownUser": "알 수 없는 사용자"
+  },
+  "validation": {
+    "nameRequired": "계좌 이름은 필수 항목이에요",
+    "numbersInvalid": "기초 잔액과 신용 한도는 숫자여야 해요",
+    "cardDigitsRequired": "최소한 마지막 4자리를 입력하세요"
+  },
+  "formFields": {
+    "nameLabel": "계좌 이름",
+    "typeLabel": "계좌 유형",
+    "currencyLabel": "통화",
+    "ownershipLabel": "소유 형태",
+    "ownershipJoint": "공동 (가구 구성원이 함께 사용)",
+    "institutionLabel": "금융기관 (선택 사항)",
+    "institutionPlaceholder": "은행 또는 증권사 이름",
+    "openingBalanceLabel": "기초 잔액",
+    "openingBalanceHelp": "첫 기록 거래 이전의 잔액",
+    "asOfLabel": "기준일",
+    "creditLimitLabel": "신용 한도",
+    "creditLimitHelp": "한도를 얼마나 사용 중인지 표시하는 데 쓰여요",
+    "activeLabel": "활성",
+    "closedLabel": "해지됨 (기록 보관용)",
+    "ownerLabel": "소유자",
+    "selectOwner": "소유자 선택",
+    "cardNumberLabel": "카드 / 계좌 번호",
+    "cardNumberHelp": "전체 번호 또는 마지막 4자리만 입력하세요. 다른 곳에는 마지막 4자리만 표시돼요",
+    "cardNicknameLabel": "별명 (선택 사항)",
+    "cardholderLabel": "카드 명의자",
+    "cardholderOwner": "계좌 소유자"
+  },
+  "formDialog": {
+    "addTitle": "새 계좌 추가",
+    "editTitle": "계좌 편집",
+    "newPerson": "+ 새 구성원…",
+    "firstCard": "첫 번째 카드",
+    "displayNameRequired": "표시 이름은 필수 항목이에요",
+    "addPersonFailed": "구성원을 추가하지 못했어요",
+    "ownerRequired": "소유자는 필수 항목이에요",
+    "saveFailed": "계좌를 저장하지 못했어요",
+    "saving": "저장 중..."
+  },
+  "detailForm": {
+    "ownerChip": "소유자: {{name}}",
+    "saved": "저장됐어요.",
+    "saveFailed": "계좌를 저장하지 못했어요",
+    "accountSectionTitle": "계좌",
+    "accountSectionDescription": "저장을 누르면 변경 사항이 적용돼요.",
+    "cardsSectionTitle": "카드",
+    "cardsSectionDescription": "CSV 가져오기에서 매칭에 사용하는 카드와 계좌 번호예요. 계좌마다 최소 하나는 있어야 해요.",
+    "dangerZoneTitle": "위험 구역",
+    "deleteAccount": "계좌 삭제",
+    "deleteHint": "이 계좌에 이미 기록된 거래는 유지돼요."
+  },
+  "grid": {
+    "noCards": "카드 없음",
+    "columnAccount": "계좌",
+    "columnType": "유형",
+    "columnInstitution": "금융기관",
+    "columnOwner": "소유자",
+    "columnCards": "카드",
+    "columnCurrency": "통화",
+    "columnOpening": "기초 잔액",
+    "columnActive": "활성",
+    "columnNetWorth": "순자산",
+    "ownerJoint": "{{owner}} (공동)",
+    "activeTitle": "활성",
+    "closedTitle": "해지됨",
+    "countedInNetWorth": "순자산에 포함",
+    "excluded": "제외됨",
+    "empty": "아직 계좌가 없어요. 첫 계좌를 추가해 시작하세요."
+  },
+  "page": {
+    "summary": "{{accounts}} • {{people}}",
+    "people_other": "구성원 {{count}}명",
+    "addAccount": "계좌 추가",
+    "displayNameRequired": "표시 이름은 필수 항목이에요",
+    "saveUserFailed": "사용자를 저장하지 못했어요",
+    "deleteFailed": {
+      "user": "사용자를 삭제하지 못했어요",
+      "account": "계좌를 삭제하지 못했어요",
+      "card": "카드를 삭제하지 못했어요"
+    },
+    "emptyNoAccounts": "계좌를 추가해 시작하세요.",
+    "emptySelect": "편집할 계좌를 선택하세요."
+  },
+  "cardsTable": {
+    "cardholderOwner": "계좌 소유자",
+    "saveFailed": "카드를 저장하지 못했어요",
+    "numberLabel": "카드 / 계좌 번호",
+    "nicknameLabel": "별명",
+    "cardholderLabel": "카드 명의자",
+    "tableLabel": "카드",
+    "columnNumber": "번호",
+    "columnNickname": "별명",
+    "columnCardholder": "카드 명의자",
+    "empty": "이 계좌에는 카드가 없어요.",
+    "saveCard": "카드 저장",
+    "cancelCardEdit": "카드 편집 취소",
+    "editCard": "카드 편집",
+    "editCardTitle": "카드 편집",
+    "lastCardTooltip": "계좌에는 카드가 최소 하나 있어야 해요",
+    "deleteCard": "카드 삭제",
+    "saveNewCard": "새 카드 저장",
+    "cancelNewCard": "새 카드 취소",
+    "addCard": "카드 추가"
+  },
+  "deleteDialog": {
+    "title": {
+      "user": "사용자 삭제",
+      "account": "계좌 삭제",
+      "card": "카드 삭제"
+    },
+    "question": {
+      "user": "이 사용자를 삭제할까요?",
+      "account": "이 계좌를 삭제할까요?",
+      "card": "이 카드를 삭제할까요?"
+    },
+    "hint": {
+      "user": "이 사용자가 모든 공동 계좌에서 제거돼요.",
+      "account": "이 계좌와 연결된 모든 거래는 유지돼요.",
+      "card": "이 카드 번호로 매칭되던 CSV 가져오기가 더 이상 동작하지 않아요."
+    },
+    "deleting": "삭제 중..."
+  },
+  "peoplePanel": {
+    "title": "구성원",
+    "empty": "아직 구성원이 없어요.",
+    "rename": "{{name}} 이름 변경",
+    "editUser": "사용자 편집",
+    "primaryCannotDelete": "기본 사용자는 삭제할 수 없어요",
+    "deleteUser": "사용자 삭제",
+    "delete": "{{name}} 삭제",
+    "primaryUser": "기본 사용자",
+    "counts": "소유 {{owned}} • 카드 명의 {{cardholder}}"
+  },
+  "userDialog": {
+    "addTitle": "새 사용자 추가",
+    "editTitle": "사용자 편집",
+    "displayNameLabel": "표시 이름",
+    "saving": "저장 중..."
+  }
+}

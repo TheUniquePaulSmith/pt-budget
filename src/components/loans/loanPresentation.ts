@@ -1,44 +1,28 @@
+import type { TFunction } from 'i18next';
+
 import type { Loan, LoanStatus, LoanType } from '@/types/database';
 
-export const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+/** Loan types in the order they are offered; labels resolve through `loans:loanType.<value>`. */
+export const LOAN_TYPE_VALUES: ReadonlyArray<LoanType> = ['installment', 'deferred_interest', 'line_of_credit', 'other'];
 
-export const formatCurrency = (value: number | null | undefined): string =>
-  value == null || Number.isNaN(value) ? '—' : CURRENCY.format(value);
-
-export const formatPercent = (value: number | null | undefined): string =>
-  value == null || Number.isNaN(value) ? '—' : `${Number(value).toFixed(2)}%`;
-
-export const LOAN_TYPE_OPTIONS: ReadonlyArray<{ value: LoanType; label: string; description: string }> = [
-  {
-    value: 'installment',
-    label: 'Installment loan',
-    description: 'Fixed APR and term with a scheduled payment (auto, personal, mortgage, financed work).',
-  },
-  {
-    value: 'deferred_interest',
-    label: 'Deferred-interest financing',
-    description: 'No interest if the balance is paid by the promo end date; otherwise interest since opening is charged back.',
-  },
-  {
-    value: 'line_of_credit',
-    label: 'Line of credit',
-    description: 'Revolving balance (HELOC, store credit line); interest accrues on what is outstanding.',
-  },
-  { value: 'other', label: 'Other', description: 'Tracked by its payments only.' },
+/** Loan statuses in the order they are offered, with the chip colour for each. */
+export const LOAN_STATUS_OPTIONS: ReadonlyArray<{ value: LoanStatus; color: 'success' | 'default' | 'warning' }> = [
+  { value: 'active', color: 'success' },
+  { value: 'paid_off', color: 'default' },
+  { value: 'closed', color: 'warning' },
 ];
 
-export const LOAN_STATUS_OPTIONS: ReadonlyArray<{ value: LoanStatus; label: string; color: 'success' | 'default' | 'warning' }> = [
-  { value: 'active', label: 'Active', color: 'success' },
-  { value: 'paid_off', label: 'Paid off', color: 'default' },
-  { value: 'closed', label: 'Closed', color: 'warning' },
-];
-
-export function loanTypeLabel(type: LoanType): string {
-  return LOAN_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? type;
+export function loanTypeLabel(t: TFunction<'loans'>, type: LoanType): string {
+  return t(`loanType.${type}`, { defaultValue: type });
 }
 
-export function loanStatusOption(status: LoanStatus) {
-  return LOAN_STATUS_OPTIONS.find((option) => option.value === status) ?? LOAN_STATUS_OPTIONS[0];
+export function loanTypeDescription(t: TFunction<'loans'>, type: LoanType): string {
+  return t(`loanTypeDescription.${type}`, { defaultValue: '' });
+}
+
+export function loanStatusOption(t: TFunction<'loans'>, status: LoanStatus): { value: LoanStatus; label: string; color: 'success' | 'default' | 'warning' } {
+  const option = LOAN_STATUS_OPTIONS.find((candidate) => candidate.value === status) ?? LOAN_STATUS_OPTIONS[0];
+  return { ...option, label: t(`status.${option.value}`) };
 }
 
 /** "Lender · Owner" style secondary line for a loan. */
@@ -46,10 +30,11 @@ export function loanSubtitle(loan: Loan): string {
   return [loan.lender, loan.owner_display_name].filter(Boolean).join(' · ');
 }
 
-export function daysLabel(days: number): string {
-  if (days === 0) return 'today';
-  if (days === 1) return 'tomorrow';
-  if (days === -1) return 'yesterday';
-  if (days < 0) return `${Math.abs(days)} days ago`;
-  return `in ${days} days`;
+/** "today" / "tomorrow" / "in 3 days" / "2 days ago" for a day offset. */
+export function daysLabel(t: TFunction<'loans'>, days: number): string {
+  if (days === 0) return t('days.today');
+  if (days === 1) return t('days.tomorrow');
+  if (days === -1) return t('days.yesterday');
+  if (days < 0) return t('days.ago', { count: Math.abs(days) });
+  return t('days.in', { count: days });
 }

@@ -1,0 +1,168 @@
+{
+  "carryMode": {
+    "none": "Pas de report",
+    "surplus": "Reporter l'excédent",
+    "deficit": "Reporter le déficit",
+    "both": "Reporter les deux"
+  },
+  "carryModeDescription": {
+    "none": "Chaque mois repart du montant du plan.",
+    "surplus": "Le budget non dépensé est reporté sur le mois suivant ; le dépassement est effacé.",
+    "deficit": "Le dépassement est déduit du mois suivant ; le budget non dépensé est perdu.",
+    "both": "Le solde net, positif ou négatif, est reporté sur le mois suivant."
+  },
+  "carryBadge": {
+    "none": "Pas de report",
+    "surplus": "Reporte l'excédent",
+    "deficit": "Reporte le déficit",
+    "both": "Reporte les deux"
+  },
+  "page": {
+    "title": "Budget",
+    "subtitle": "Les plans mensuels restent en vigueur jusqu'à modification. Les vues trimestre et année cumulent les budgets mensuels effectifs.",
+    "managePlan": "Gérer le plan"
+  },
+  "periodSelector": {
+    "previous": "Période précédente",
+    "next": "Période suivante",
+    "quarter": "Trimestre"
+  },
+  "statusPanel": {
+    "spentTooltip": "{{amount}} dépensés dans cette catégorie.",
+    "fundSpendTooltip": "{{amount}} ont été payés par un fonds lié et sont exclus.",
+    "fundContributionsTooltip": "{{amount}} sont réservés en contributions aux fonds.",
+    "noBudgetSet": "Aucun budget défini",
+    "noBudgetHelp": "Créez un plan budgétaire pour ce mois. Les plans restent en vigueur jusqu'à ce qu'un plan à date d'effet ultérieure les remplace.",
+    "title": "État du budget",
+    "monthsCovered_one": "{{covered}} mois couvert sur {{count}}",
+    "monthsCovered_other": "{{covered}} mois couverts sur {{count}}",
+    "over": "{{amount}} de dépassement",
+    "left": "{{amount}} restants",
+    "noThresholdsHelp": "Créez un plan budgétaire pour définir des seuils de dépenses. Les sources de revenus restent incluses ci-dessous.",
+    "notSet": "Non défini",
+    "budgeted": "Budgété",
+    "carriedIn": "Report entrant",
+    "effectiveBudget": "Budget effectif",
+    "actualExpenses": "Dépenses réelles",
+    "fundContributions": "Contributions aux fonds",
+    "expectedIncome": "Revenus attendus",
+    "linkedIncome": "Revenus liés",
+    "categories": "Catégories",
+    "categoriesTable": "Catégories budgétaires",
+    "columnBudget": "Budget",
+    "columnEffective": "Effectif",
+    "columnSpent": "Dépensé",
+    "columnRemaining": "Restant",
+    "categoryFallback": "Catégorie {{id}}",
+    "resetTooltip": "Solde reporté réinitialisé à partir de {{month}}",
+    "fundTooltip": "{{amount}} réservés pour les fonds de projet ou de voyage liés",
+    "fundBadge": "Fonds",
+    "unbudgetedSpend": "Dépenses hors budget : {{amount}}"
+  },
+  "historyList": {
+    "title": "Historique",
+    "noPlan": "{{period}} : aucun plan",
+    "over": "{{period}} : {{amount}} de dépassement",
+    "under": "{{period}} : {{amount}} en dessous"
+  },
+  "planEditor": {
+    "title": "Plan budgétaire",
+    "effectiveMonth": "Mois d'effet",
+    "totalAmount": "Montant total",
+    "appliesHelp": "Ce plan s'applique à partir de son mois d'effet jusqu'à ce qu'un autre plan le remplace.",
+    "carryOver": "Report",
+    "resetTooltip": "Abandonner tout solde reporté dans le mois d'effet de ce plan pour cette catégorie et repartir du montant du plan.",
+    "resetAria": "Réinitialiser le solde reporté à partir de ce mois",
+    "resetLabel": "Réinitialiser à partir de ce mois",
+    "removeCategory": "Retirer la catégorie",
+    "addCategory": "Ajouter une catégorie",
+    "carryHelp": "Le report transfère le reliquat de chaque mois (excédent, déficit ou les deux) sur le mois suivant, à partir du mois d'effet de ce plan. « Réinitialiser à partir de ce mois » abandonne le solde qu'une catégorie apporte dans ce mois.",
+    "deletePlan": "Supprimer le plan"
+  },
+  "fundFields": {
+    "entity": {
+      "project": "projet",
+      "trip": "voyage"
+    },
+    "categoryFallback": "catégorie",
+    "theCategoryFallback": "la catégorie",
+    "helpUnlinked": "Facultatif : choisissez une catégorie budgétaire pour épargner un peu chaque mois pour ce {{entity}}.",
+    "helpNoContribution": "Saisissez une contribution mensuelle pour démarrer le fonds {{category}}.",
+    "helpNoStart": "Définissez un mois de début (ou une date de début) pour que les contributions s'accumulent.",
+    "helpReserves": "Réserve {{amount}} par mois depuis {{category}} à partir de {{month}} ; le budget le compte comme dépense planifiée et les dépenses du {{entity}} puisent dans le fonds.",
+    "title": "Fonds d'épargne",
+    "linkedCategory": "Catégorie budgétaire liée",
+    "notLinked": "Non lié",
+    "monthlyContribution": "Contribution mensuelle",
+    "startMonth": "Mois de début des contributions"
+  },
+  "fundSummary": {
+    "noEstimate": "aucune estimation",
+    "goalReached": "objectif atteint",
+    "toGoal": "{{amount}} avant l'objectif",
+    "fund": "Fonds",
+    "perMonth": "{{amount}}/mois",
+    "tooltip": "{{contributed}} versés, {{spent}} dépensés, {{detail}}",
+    "saved": "{{amount}} épargnés",
+    "balance": "solde {{amount}}"
+  },
+  "fundsCard": {
+    "noEstimatedCost": "Aucun coût estimé défini",
+    "goalReached": "Objectif atteint",
+    "monthsToGo_one": "{{count}} mois restant",
+    "monthsToGo_other": "{{count}} mois restants",
+    "toGoal": "{{amount}} avant l'objectif",
+    "title": "Fonds",
+    "subtitle": "Projets et voyages épargnant via une catégorie budgétaire, au {{month}}.",
+    "empty": "Liez un projet ou un voyage à une catégorie budgétaire avec une contribution mensuelle pour démarrer un fonds.",
+    "contributionsFrom": "Contributions depuis {{start}}",
+    "contributionsFromTo": "Contributions de {{start}} à {{end}}",
+    "setStartMonth": "Définissez un mois ou une date de début pour accumuler des contributions",
+    "notContributing": "Aucune contribution",
+    "savedOfEstimated": "{{contributed}} épargnés sur {{estimated}}",
+    "setEstimatedCost": "Définissez un coût estimé pour suivre la progression",
+    "progressAria": "Progression de {{name}}",
+    "saved": "{{amount}} épargnés",
+    "perMonth": "{{amount}}/mois",
+    "balance": "Solde {{amount}}",
+    "spent": "{{amount}} dépensés"
+  },
+  "incomeSources": {
+    "notSet": "Non défini",
+    "title": "Sources de revenus",
+    "user": "Utilisateur : {{name}}",
+    "unassigned": "Non attribué",
+    "linkedAccount": "Compte lié : {{name}}",
+    "unknownAccount": "Compte inconnu",
+    "expectedSummary": "Attendu {{amount}} {{frequency}} • {{monthly}} / mois",
+    "summary": "{{amount}} {{frequency}} • {{monthly}} / mois",
+    "frequency": {
+      "weekly": "par semaine",
+      "biweekly": "toutes les deux semaines",
+      "semi_monthly": "deux fois par mois",
+      "monthly": "par mois"
+    },
+    "frequencyOption": {
+      "weekly": "Hebdomadaire",
+      "biweekly": "Toutes les deux semaines",
+      "semi_monthly": "Bimensuel",
+      "monthly": "Mensuel"
+    },
+    "editTooltip": "Modifier la source de revenus",
+    "deleteTooltip": "Supprimer la source de revenus",
+    "empty": "Aucune source de revenus configurée.",
+    "editTitle": "Modifier la source de revenus",
+    "addTitle": "Ajouter une source de revenus",
+    "kind": "Nature",
+    "kindOption": {
+      "recurring_salary": "Salaire récurrent",
+      "linked_account": "Compte lié"
+    },
+    "expectedAmount": "Montant attendu",
+    "expectedAmountHelp": "Facultatif. Laissez vide pour n'utiliser que les dépôts réels.",
+    "frequencyLabel": "Fréquence",
+    "startDate": "Date de début",
+    "endDate": "Date de fin",
+    "saving": "Enregistrement..."
+  }
+}

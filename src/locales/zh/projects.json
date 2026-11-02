@@ -1,0 +1,49 @@
+{
+  "category": {
+    "plumbing": "水管",
+    "electrical": "电路",
+    "hvac": "暖通空调",
+    "roofing": "屋顶",
+    "flooring": "地板",
+    "painting": "粉刷",
+    "landscaping": "园艺景观",
+    "general_contractor": "总承包",
+    "other": "其他"
+  },
+  "status": {
+    "planning": "规划中",
+    "in_progress": "进行中",
+    "completed": "已完成",
+    "on_hold": "已暂停"
+  },
+  "manage": {
+    "title": "房屋项目",
+    "addProject": "添加项目",
+    "empty": "还没有项目。点击“添加项目”创建您的第一个房屋项目。",
+    "estimatedCost": "预估费用",
+    "actualCost": "实际费用",
+    "notSet": "未设置",
+    "transactionTotal": "交易合计",
+    "detailsTitle": "项目详情与交易",
+    "detailsTitleWithCount": "项目详情与交易（{{count}}）",
+    "contactDetails": "联系方式",
+    "timeline": "时间线",
+    "start": "开始：{{date}}",
+    "end": "结束：{{date}}",
+    "linkedTransactions": "关联交易",
+    "transactionSecondary": "{{date}} • {{amount}} • {{category}}",
+    "uncategorized": "未分类",
+    "noTransactions": "没有交易关联到此项目。",
+    "editTitle": "编辑项目",
+    "addTitle": "添加新项目",
+    "projectName": "项目名称",
+    "companyName": "商家名称",
+    "projectCategory": "项目类别",
+    "contactPlaceholder": "电话、电子邮件、地址等",
+    "startDate": "开始日期",
+    "endDate": "结束日期",
+    "notesPlaceholder": "关于项目的补充说明...",
+    "updateProject": "更新项目",
+    "deleteConfirm": "确定要删除“{{name}}”吗？这将移除关联交易中对该项目的引用。"
+  }
+}

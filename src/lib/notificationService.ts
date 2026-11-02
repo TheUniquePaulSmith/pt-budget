@@ -17,7 +17,12 @@
  *   history     dismissed / done
  */
 
+import type { TFunction } from 'i18next';
+
+import { DEFAULT_CURRENCY } from './currencies';
 import { addDaysISO, todayLocalISO } from './dateOnly';
+import { DEFAULT_LOCALE, formatMoney } from './formatting';
+import { i18n, intlLocaleFor, isLanguageCode } from './i18n';
 import { logger } from './logging';
 import { DEFAULT_NOTIFICATION_SETTINGS } from './databaseServiceNotifications';
 import type {
@@ -333,12 +338,134 @@ export function hasPaymentInWindow(
   return payments.some((payment) => payment.series_id === seriesId && payment.date >= start && payment.date <= end);
 }
 
-export function formatDueLabel(daysUntil: number): string {
-  if (daysUntil === 0) return 'due today';
-  if (daysUntil === 1) return 'due tomorrow';
-  if (daysUntil > 1) return `due in ${daysUntil} days`;
-  if (daysUntil === -1) return '1 day overdue';
-  return `${-daysUntil} days overdue`;
+/** `t` bound to the `notifications` namespace in the current language (for text produced outside React). */
+export function notificationsT(): TFunction<'notifications'> {
+  return i18n.getFixedT(null, 'notifications');
+}
+
+/** "due today", "due tomorrow", "due in 3 days", "1 day overdue", "4 days overdue" (lower case, for alert titles). */
+export function formatDueLabel(daysUntil: number, t: TFunction<'notifications'> = notificationsT()): string {
+  if (daysUntil === 0) return t('dueLabel.today');
+  if (daysUntil === 1) return t('dueLabel.tomorrow');
+  if (daysUntil > 1) return t('dueLabel.inDays', { count: daysUntil });
+  return t('dueLabel.overdue', { count: -daysUntil });
+}
+
+/**
+ * Locale and currency the scan formats stored alert text in. Defaults to the
+ * active i18n language (en-US until the user picks another) and USD; the
+ * surfaces rebuild alert text from the payload in the current language and
+ * default currency anyway (`describeNotification`), so the stored text is a
+ * fallback and what OS notifications show.
+ */
+export interface AlertFormatOptions {
+  locale?: string;
+  currency?: string;
+}
+
+function resolveAlertLocale(): string {
+  const language = i18n.language;
+  return isLanguageCode(language) ? intlLocaleFor(language) : DEFAULT_LOCALE;
+}
+
+/** Money as the alert text shows it: absolute value, in the scan's locale / currency. */
+export function formatCurrency(amount: number, format: AlertFormatOptions = {}): string {
+  return formatMoney(Math.abs(amount), {
+    locale: format.locale ?? resolveAlertLocale(),
+    currency: format.currency ?? DEFAULT_CURRENCY,
+  });
+}
+
+/** Stored `loan_promo_ending` payload: the typed contract plus the figures the body text needs. */
+export type StoredLoanPromoPayload = LoanPromoPayload & {
+  charged_amount?: number;
+  deferred_interest_accrued?: number;
+};
+
+/** Stored `budget_overspend` payload: the typed contract plus the carried balance quoted in the body. */
+export type StoredBudgetOverspendPayload = BudgetOverspendPayload & {
+  carried_in?: number | null;
+};
+
+export interface OverduePaymentText {
+  name: string;
+  daysUntil: number;
+  dueDate: string;
+  expectedAmount: number | null;
+}
+
+export function overduePaymentText(
+  input: OverduePaymentText,
+  t: TFunction<'notifications'>,
+  money: (amount: number) => string,
+  date: (iso: string) => string = (iso) => iso
+): { title: string; body: string } {
+  const due = formatDueLabel(input.daysUntil, t);
+  const title = t('alerts.overduePayment.title', { name: input.name, due });
+  const body =
+    input.expectedAmount != null
+      ? t('alerts.overduePayment.bodyWithAmount', { amount: money(input.expectedAmount), date: date(input.dueDate) })
+      : t('alerts.overduePayment.body', { date: date(input.dueDate) });
+  return { title, body };
+}
+
+export function loanPromoTitle(
+  payload: Pick<LoanPromoPayload, 'loan_name' | 'promo_end_date' | 'on_track' | 'charged'>,
+  t: TFunction<'notifications'>,
+  date: (iso: string) => string = (iso) => iso
+): string {
+  if (payload.charged) return t('alerts.loanPromo.chargedTitle', { name: payload.loan_name });
+  if (payload.on_track) return t('alerts.loanPromo.onTrackTitle', { name: payload.loan_name, date: date(payload.promo_end_date) });
+  return t('alerts.loanPromo.offTrackTitle', { name: payload.loan_name, date: date(payload.promo_end_date) });
+}
+
+/** Null when the payload lacks a figure the body quotes (older rows), so callers keep the stored text. */
+export function loanPromoBody(
+  payload: StoredLoanPromoPayload,
+  daysUntil: number,
+  t: TFunction<'notifications'>,
+  money: (amount: number) => string,
+  date: (iso: string) => string = (iso) => iso
+): string | null {
+  if (payload.charged) {
+    if (payload.charged_amount == null) return null;
+    return t('alerts.loanPromo.chargedBody', { date: date(payload.promo_end_date), amount: money(payload.charged_amount) });
+  }
+  const due = formatDueLabel(daysUntil, t);
+  if (payload.on_track) {
+    if (payload.deferred_interest_accrued == null) return null;
+    return t('alerts.loanPromo.onTrackBody', {
+      balance: money(payload.balance),
+      due,
+      interest: money(payload.deferred_interest_accrued),
+    });
+  }
+  const values = { balance: money(payload.balance), due, interest: money(payload.deferred_interest_at_risk) };
+  return payload.required_monthly != null
+    ? t('alerts.loanPromo.offTrackBodyWithRequired', { ...values, amount: money(payload.required_monthly) })
+    : t('alerts.loanPromo.offTrackBody', values);
+}
+
+export function budgetOverspendText(
+  payload: StoredBudgetOverspendPayload,
+  t: TFunction<'notifications'>,
+  money: (amount: number) => string,
+  month: (monthKey: string) => string = (key) => key
+): { title: string; body: string } {
+  const values = {
+    spent: money(payload.actual),
+    budgeted: money(payload.budgeted),
+    month: month(payload.month),
+    over: money(payload.actual - payload.budgeted),
+  };
+  const carried = payload.carried_in;
+  const body = carried
+    ? t(carried > 0 ? 'alerts.budgetOverspend.bodyCarriedIn' : 'alerts.budgetOverspend.bodyCarriedOver', {
+        ...values,
+        carried: money(carried),
+      })
+    : t('alerts.budgetOverspend.body', values);
+  return { title: t('alerts.budgetOverspend.title', { name: payload.category_name }), body };
 }
 
 export interface PaymentAlertPlan {
@@ -354,13 +481,16 @@ export function planPaymentAlerts(
   payments: ReadonlyArray<SeriesPaymentRow>,
   existing: ReadonlyArray<AppNotification>,
   settings: ReadonlyArray<NotificationSetting>,
-  today: string
+  today: string,
+  format: AlertFormatOptions = {}
 ): PaymentAlertPlan {
   const plan: PaymentAlertPlan = { upserts: [], paidIds: [], staleIds: [] };
   const enabled = isTypeEnabled(settings, 'overdue_payment');
   const leadDays = resolveLeadDays({ type: 'overdue_payment', lead_days: null }, settings);
   const wantedKeys = new Set<string>();
   const paidKeys = new Set<string>();
+  const t = notificationsT();
+  const money = (amount: number) => formatCurrency(amount, format);
 
   if (enabled) {
     for (const entry of selectManualPaySeries(series)) {
@@ -380,12 +510,16 @@ export function planPaymentAlerts(
         due_date: dueDate,
         expected_amount: entry.expected_amount,
       };
-      const amount = entry.expected_amount != null ? ` (${formatCurrency(entry.expected_amount)})` : '';
+      const text = overduePaymentText(
+        { name: entry.name, daysUntil, dueDate, expectedAmount: entry.expected_amount },
+        t,
+        money
+      );
       plan.upserts.push({
         kind: 'alert',
         type: 'overdue_payment',
-        title: `${entry.name} ${formatDueLabel(daysUntil)}`,
-        body: `Payment${amount} expected ${dueDate}. Mark the series as autopay to stop these alerts.`,
+        title: text.title,
+        body: text.body,
         due_date: dueDate,
         recurrence: 'once',
         lead_days: leadDays,
@@ -441,12 +575,15 @@ export function planLoanPromoAlerts(
   summaries: ReadonlyMap<number, LoanSummary>,
   existing: ReadonlyArray<AppNotification>,
   settings: ReadonlyArray<NotificationSetting>,
-  today: string
+  today: string,
+  format: AlertFormatOptions = {}
 ): LoanPromoAlertPlan {
   const plan: LoanPromoAlertPlan = { upserts: [], resolvedIds: [] };
   const enabled = isTypeEnabled(settings, 'loan_promo_ending');
   const leadDays = resolveLeadDays({ type: 'loan_promo_ending', lead_days: null }, settings);
   const wantedKeys = new Set<string>();
+  const t = notificationsT();
+  const money = (amount: number) => formatCurrency(amount, format);
 
   if (enabled) {
     for (const loan of loans) {
@@ -459,7 +596,7 @@ export function planLoanPromoAlerts(
 
       const key = loanPromoDedupeKey(loan.id, deferred.promoEndDate);
       wantedKeys.add(key);
-      const payload: LoanPromoPayload = {
+      const payload: StoredLoanPromoPayload = {
         loan_id: loan.id,
         loan_name: loan.name,
         promo_end_date: deferred.promoEndDate,
@@ -468,25 +605,14 @@ export function planLoanPromoAlerts(
         required_monthly: deferred.requiredMonthlyToAvoid,
         on_track: deferred.onTrack,
         charged: deferred.charged,
+        charged_amount: deferred.chargedAmount,
+        deferred_interest_accrued: deferred.deferredInterestAccrued,
       };
-      let title: string;
-      let body: string;
-      if (deferred.charged) {
-        title = `${loan.name}: deferred interest charged`;
-        body = `The pay-by date ${deferred.promoEndDate} passed with a balance; ${formatCurrency(deferred.chargedAmount)} of deferred interest was added.`;
-      } else if (deferred.onTrack) {
-        title = `${loan.name}: pay off by ${deferred.promoEndDate}`;
-        body = `${formatCurrency(summary.payoffAmount)} left, ${formatDueLabel(daysUntil)}. On track at the expected payment; keep paying to avoid ${formatCurrency(deferred.deferredInterestAccrued)}+ of deferred interest.`;
-      } else {
-        title = `${loan.name}: not on track for ${deferred.promoEndDate}`;
-        const required = deferred.requiredMonthlyToAvoid != null ? ` Pay ${formatCurrency(deferred.requiredMonthlyToAvoid)} a month to clear it in time.` : '';
-        body = `${formatCurrency(summary.payoffAmount)} left, ${formatDueLabel(daysUntil)}. About ${formatCurrency(deferred.deferredInterestAtRisk)} of deferred interest would be charged.${required}`;
-      }
       plan.upserts.push({
         kind: 'alert',
         type: 'loan_promo_ending',
-        title,
-        body,
+        title: loanPromoTitle(payload, t),
+        body: loanPromoBody(payload, daysUntil, t, money) ?? '',
         due_date: deferred.promoEndDate,
         recurrence: 'once',
         lead_days: leadDays,
@@ -523,36 +649,39 @@ export function planBudgetAlerts(
   month: string,
   existing: ReadonlyArray<AppNotification>,
   settings: ReadonlyArray<NotificationSetting>,
-  today: string
+  today: string,
+  format: AlertFormatOptions = {}
 ): BudgetAlertPlan {
   const plan: BudgetAlertPlan = { upserts: [], resolvedIds: [] };
   const wantedKeys = new Set<string>();
+  const t = notificationsT();
+  const money = (amount: number) => formatCurrency(amount, format);
 
   if (status && isTypeEnabled(settings, 'budget_overspend')) {
     for (const category of status.categories) {
       if (!category.isOverBudget || category.budgetedAmount <= 0) continue;
       const key = budgetDedupeKey(month, category.category_id);
       wantedKeys.add(key);
-      const name = category.category_name ?? `Category ${category.category_id}`;
+      const name = category.category_name ?? t('alerts.budgetOverspend.categoryFallback', { id: category.category_id });
       // With budget carry-over (schema v3) the category row also carries the
       // effective budget (plan + carried balance) and committed spend; quote
       // those when present so the alert matches what the Budget page shows.
       const budgeted = carryField(category, 'effectiveBudget') ?? category.budgetedAmount;
       const spent = carryField(category, 'committedSpend') ?? category.actualExpenses;
-      const payload: BudgetOverspendPayload = {
+      const payload: StoredBudgetOverspendPayload = {
         month,
         category_id: category.category_id,
         category_name: name,
         budgeted,
         actual: spent,
+        carried_in: carryField(category, 'carriedIn'),
       };
-      const carried = carryField(category, 'carriedIn');
-      const carriedNote = carried ? ` incl. ${formatCurrency(carried)} carried ${carried > 0 ? 'in' : 'over'}` : '';
+      const text = budgetOverspendText(payload, t, money);
       plan.upserts.push({
         kind: 'alert',
         type: 'budget_overspend',
-        title: `${name} is over budget`,
-        body: `Spent ${formatCurrency(spent)} of ${formatCurrency(budgeted)}${carriedNote} in ${month} (${formatCurrency(spent - budgeted)} over).`,
+        title: text.title,
+        body: text.body,
         due_date: today,
         recurrence: 'once',
         lead_days: 0,
@@ -626,7 +755,11 @@ export function paymentsWindowStart(today: string): string {
   return addDaysISO(today, -200);
 }
 
-export async function scanNotifications(ctx: NotificationScanContext, today: string = todayLocalISO()): Promise<NotificationScanSummary> {
+export async function scanNotifications(
+  ctx: NotificationScanContext,
+  today: string = todayLocalISO(),
+  format: AlertFormatOptions = {}
+): Promise<NotificationScanSummary> {
   const summary: NotificationScanSummary = { today, alertsUpserted: 0, alertsResolved: 0, remindersAdvanced: 0, snoozesExpired: 0, writes: 0 };
   const month = currentMonthKey(today);
 
@@ -653,7 +786,7 @@ export async function scanNotifications(ctx: NotificationScanContext, today: str
   ]);
 
   if (payments) {
-    const paymentPlan = planPaymentAlerts(ctx.recurringSeries, payments, ctx.notifications, ctx.settings, today);
+    const paymentPlan = planPaymentAlerts(ctx.recurringSeries, payments, ctx.notifications, ctx.settings, today, format);
     for (const upsert of paymentPlan.upserts) {
       await ctx.upsertByDedupeKey(upsert);
       summary.alertsUpserted += 1;
@@ -669,7 +802,7 @@ export async function scanNotifications(ctx: NotificationScanContext, today: str
   }
 
   if (budgetStatus) {
-    const budgetPlan = planBudgetAlerts(budgetStatus, month, ctx.notifications, ctx.settings, today);
+    const budgetPlan = planBudgetAlerts(budgetStatus, month, ctx.notifications, ctx.settings, today, format);
     for (const upsert of budgetPlan.upserts) {
       await ctx.upsertByDedupeKey(upsert);
       summary.alertsUpserted += 1;
@@ -688,7 +821,7 @@ export async function scanNotifications(ctx: NotificationScanContext, today: str
         const loanSummary = await ctx.getLoanSummary(loan.id);
         if (loanSummary) summaries.set(loan.id, loanSummary);
       }
-      const loanPlan = planLoanPromoAlerts(ctx.loans, summaries, ctx.notifications, ctx.settings, today);
+      const loanPlan = planLoanPromoAlerts(ctx.loans, summaries, ctx.notifications, ctx.settings, today, format);
       for (const upsert of loanPlan.upserts) {
         await ctx.upsertByDedupeKey(upsert);
         summary.alertsUpserted += 1;
@@ -831,16 +964,6 @@ export function selectOsNotifiable(
     const last = entry.notification.last_notified_at;
     return !last || last.slice(0, 10) < today;
   });
-}
-
-// ---------------------------------------------------------------------------
-// Formatting
-// ---------------------------------------------------------------------------
-
-const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
-export function formatCurrency(amount: number): string {
-  return CURRENCY.format(Math.abs(amount));
 }
 
 export function isTerminalStatus(status: NotificationStatus): boolean {

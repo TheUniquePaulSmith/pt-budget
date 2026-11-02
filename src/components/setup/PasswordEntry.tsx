@@ -14,6 +14,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import { ResetAppButton } from '@/components/common/ResetAppButton';
 
@@ -42,6 +43,7 @@ export function PasswordEntry({
   isLoading,
   error,
 }: PasswordEntryProps) {
+  const { t } = useTranslation(['setup', 'common']);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -68,11 +70,10 @@ export function PasswordEntry({
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <LockOpenOutlined sx={{ fontSize: 56, color: 'primary.main', mb: 1.5 }} />
           <Typography variant="h5" gutterBottom fontWeight="bold">
-            Enter Password
+            {t('passwordEntry.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {description ??
-              'This database is encrypted. Enter the password to open it.'}
+            {description ?? t('passwordEntry.defaultDescription')}
           </Typography>
         </Box>
 
@@ -83,7 +84,7 @@ export function PasswordEntry({
         )}
 
         <TextField
-          label="Password"
+          label={t('passwordEntry.passwordLabel')}
           type={showPassword ? 'text' : 'password'}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -99,7 +100,7 @@ export function PasswordEntry({
               endAdornment: (
                 <InputAdornment position="end">
                   <IconButton
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? t('passwordEntry.hidePassword') : t('passwordEntry.showPassword')}
                     onClick={() => setShowPassword((v) => !v)}
                     edge="end"
                   >
@@ -119,7 +120,7 @@ export function PasswordEntry({
               onClick={onCancel}
               disabled={isLoading}
             >
-              Cancel
+              {t('common:actions.cancel')}
             </Button>
           )}
           <Button
@@ -131,7 +132,7 @@ export function PasswordEntry({
               isLoading ? <CircularProgress size={18} color="inherit" /> : undefined
             }
           >
-            {isLoading ? 'Decrypting…' : 'Unlock'}
+            {isLoading ? t('passwordEntry.decrypting') : t('passwordEntry.unlock')}
           </Button>
         </Box>
 

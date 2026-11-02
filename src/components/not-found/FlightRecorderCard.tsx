@@ -8,6 +8,8 @@ import {
   PlaceOutlined as RequestedIcon,
   SensorsOutlined as SenderIcon,
 } from '@mui/icons-material';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 
 import type { NotFoundOriginReport } from '@/lib/notFoundOrigin';
 
@@ -25,26 +27,26 @@ interface RecorderRow {
   monospace?: boolean;
 }
 
-function buildRows(report: NotFoundOriginReport): RecorderRow[] {
+function buildRows(report: NotFoundOriginReport, t: TFunction<'notFound'>): RecorderRow[] {
   const rows: RecorderRow[] = [
     {
       testId: 'not-found-requested',
       icon: <RequestedIcon fontSize="small" />,
-      label: 'You asked for',
+      label: t('recorder.requested'),
       value: report.requested,
       monospace: true,
     },
     {
       testId: 'not-found-sender',
       icon: <SenderIcon fontSize="small" />,
-      label: 'Sent by',
+      label: t('recorder.sender'),
       value: report.sender.label,
       detail: report.sender.detail,
     },
     {
       testId: 'not-found-event',
       icon: <EventIcon fontSize="small" />,
-      label: 'What happened',
+      label: t('recorder.event'),
       value: report.event.label,
     },
   ];
@@ -52,7 +54,7 @@ function buildRows(report: NotFoundOriginReport): RecorderRow[] {
     rows.push({
       testId: 'not-found-campaign',
       icon: <CampaignIcon fontSize="small" />,
-      label: 'Tagged with',
+      label: t('recorder.campaign'),
       value: report.campaign,
       monospace: true,
     });
@@ -65,10 +67,11 @@ function buildRows(report: NotFoundOriginReport): RecorderRow[] {
  * ended up on a missing page. Worked out locally; nothing leaves the device.
  */
 export default function FlightRecorderCard({ report }: FlightRecorderCardProps) {
+  const { t } = useTranslation('notFound');
   return (
     <Box
       component="section"
-      aria-label="Where you came from"
+      aria-label={t('recorder.aria')}
       data-testid="not-found-flight-recorder"
       sx={{
         width: '100%',
@@ -87,17 +90,17 @@ export default function FlightRecorderCard({ report }: FlightRecorderCardProps) 
         component="h2"
         sx={{ display: 'block', color: 'rgba(255, 216, 74, 0.95)', letterSpacing: '0.14em', lineHeight: 1.6, mb: 1 }}
       >
-        Flight recorder
+        {t('recorder.title')}
       </Typography>
 
       {!report ? (
         <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-          Consulting the flight recorder…
+          {t('recorder.loading')}
         </Typography>
       ) : (
         <>
           <Box component="dl" sx={{ m: 0, display: 'grid', gap: 1.5 }}>
-            {buildRows(report).map((row) => (
+            {buildRows(report, t).map((row) => (
               <Box key={row.testId} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
                 <Box aria-hidden sx={{ color: 'rgba(255, 255, 255, 0.55)', display: 'flex', pt: '2px' }}>
                   {row.icon}
@@ -145,7 +148,7 @@ export default function FlightRecorderCard({ report }: FlightRecorderCardProps) 
             {report.quip}
           </Typography>
           <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'rgba(255, 255, 255, 0.5)' }}>
-            Worked out in your browser from what it already knows. Nothing was sent anywhere.
+            {t('recorder.privacy')}
           </Typography>
         </>
       )}

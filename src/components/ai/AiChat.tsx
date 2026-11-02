@@ -20,8 +20,11 @@ import {
   DeleteSweep,
   Send,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { useAiToolExecutionSlice } from '@/contexts/useAiToolsSlices';
+import { useOptionalLocale } from '@/contexts/LocaleContext';
+import { useFormatters } from '@/contexts/useFormatters';
 import { useAiChatRuntimeSlice } from '@/contexts/useWllamaSlices';
 import { runAiChatCompletion } from '@/lib/aiChatService';
 import { logger } from '@/lib/logging';
@@ -57,35 +60,8 @@ function createMessage(
   };
 }
 
-function formatTokenCount(count?: number): string | null {
-  if (!count || count <= 0) {
-    return null;
-  }
-
-  return new Intl.NumberFormat('en-US').format(count);
-}
-
-function getTokenCaption(message: AiChatMessage): string | null {
-  if (message.role === 'user') {
-    const promptTokens = formatTokenCount(message.tokenUsage?.promptTokens);
-    return promptTokens ? `Input context: ${promptTokens} tokens` : null;
-  }
-
-  if (message.role === 'assistant') {
-    const completionTokens = formatTokenCount(message.tokenUsage?.completionTokens);
-    return completionTokens ? `Output: ${completionTokens} tokens` : null;
-  }
-
-  return null;
-}
-
-const examplePrompts = [
-  'Look at my transaction history and flag likely recurring subscriptions.',
-  'Suggest categories for my recent uncategorized transactions.',
-  'Which merchants appear most often in my expenses?',
-  'How am I doing against this month\'s budget?',
-  'Name the unmatched recurring merchants and propose merchant rules for them.',
-];
+/** Keys under `ai:chat.prompts.*`, in menu order. */
+const EXAMPLE_PROMPT_IDS = ['subscriptions', 'categories', 'merchants', 'budget', 'merchantRules'] as const;
 
 function TypingIndicatorIcon() {
   return (
@@ -179,6 +155,9 @@ interface AiChatProps {
 }
 
 export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatProps) {
+  const { t } = useTranslation('ai');
+  const { number, defaultCurrency } = useFormatters();
+  const languageName = useOptionalLocale()?.definition.nativeLabel ?? 'English';
   const {
     messages,
     setMessages,
@@ -204,6 +183,20 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
     () => (isLocalProvider ? maxOutputTokens : Math.max(maxOutputTokens, CLOUD_MIN_OUTPUT_TOKENS)),
     [isLocalProvider, maxOutputTokens]
   );
+
+  const getTokenCaption = (message: AiChatMessage): string | null => {
+    if (message.role === 'user') {
+      const promptTokens = message.tokenUsage?.promptTokens;
+      return promptTokens && promptTokens > 0 ? t('chat.inputContext', { tokens: number(promptTokens) }) : null;
+    }
+
+    if (message.role === 'assistant') {
+      const completionTokens = message.tokenUsage?.completionTokens;
+      return completionTokens && completionTokens > 0 ? t('chat.outputTokens', { tokens: number(completionTokens) }) : null;
+    }
+
+    return null;
+  };
 
   const updateMessage = useCallback(
     (id: string, updater: (message: AiChatMessage) => AiChatMessage) => {
@@ -254,7 +247,7 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
     if (!isProviderReady) {
       setMessages((current) => [
         ...current,
-        createMessage('assistant', 'Load a local model or activate a cloud provider in Setup before asking questions.', undefined, true),
+        createMessage('assistant', t('chat.notReady'), undefined, true),
       ]);
       return;
     }
@@ -277,6 +270,7 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
         createChatCompletion: provider.createChatCompletion,
         createChatCompletionStream: provider.createChatCompletionStream,
         databaseToolContext,
+        locale: { languageName, defaultCurrency },
         registry,
         evaluateConsent,
         requestConsent,
@@ -323,7 +317,7 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
         if (message.id === pendingAssistantMessage.id) {
           return {
             ...message,
-            content: result.assistantMessage || message.content || 'Done.',
+            content: result.assistantMessage || message.content || t('chat.done'),
             toolCalls: result.toolCalls,
             providerLabel,
             tokenUsage: {
@@ -338,12 +332,12 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
       opLog.info('Chat turn finished', { toolCalls: result.toolCalls.length });
     } catch (err) {
       if (!abortController.signal.aborted) {
-        const errorMessage = err instanceof Error ? err.message : 'AI request failed';
+        const errorMessage = err instanceof Error ? err.message : t('chat.requestFailed');
         opLog.error('Chat turn failed', { error: err });
-        updateMessage(pendingAssistantMessage.id, (message) => ({ ...message, content: `Error: ${errorMessage}`, isError: true }));
+        updateMessage(pendingAssistantMessage.id, (message) => ({ ...message, content: t('chat.errorPrefix', { message: errorMessage }), isError: true }));
       } else {
         updateMessage(pendingAssistantMessage.id, (message) => (
-          message.content === '...' ? { ...message, content: 'Stopped.' } : message
+          message.content === '...' ? { ...message, content: t('chat.stopped') } : message
         ));
       }
     } finally {
@@ -387,13 +381,11 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
             sx={{ mb: 2 }}
             action={onOpenSetup ? (
               <Button color="inherit" size="small" onClick={onOpenSetup}>
-                Open Setup
+                {t('chat.openSetup')}
               </Button>
             ) : undefined}
           >
-            {isLocalProvider
-              ? 'Load a local model, or choose a cloud provider, in Setup to start chatting.'
-              : 'The active provider is not ready. Check Setup.'}
+            {isLocalProvider ? t('chat.localNotReady') : t('chat.providerNotReady')}
           </Alert>
         )}
 
@@ -498,7 +490,7 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
                 void submitPrompt(input);
               }
             }}
-            label="Ask about transactions"
+            label={t('chat.askLabel')}
             multiline
             minRows={2}
             maxRows={5}
@@ -506,13 +498,13 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
             disabled={inputDisabled}
           />
           <Stack spacing={0.5} alignItems="center">
-            <Tooltip title="Prompt suggestions">
+            <Tooltip title={t('chat.suggestionsTooltip')}>
               <span>
                 <IconButton
                   color="inherit"
                   onClick={(event) => setSuggestionsAnchorEl(event.currentTarget)}
                   disabled={inputDisabled}
-                  aria-label="Show prompt suggestions"
+                  aria-label={t('chat.showSuggestions')}
                   aria-controls={suggestionsOpen ? 'ai-prompt-suggestions-menu' : undefined}
                   aria-haspopup="menu"
                   aria-expanded={suggestionsOpen ? 'true' : undefined}
@@ -523,20 +515,20 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
               </span>
             </Tooltip>
             {running ? (
-              <IconButton color="inherit" onClick={stopGeneration} aria-label="Stop AI response">
+              <IconButton color="inherit" onClick={stopGeneration} aria-label={t('chat.stop')}>
                 <AnimatedStopIcon />
               </IconButton>
             ) : (
-              <IconButton color="primary" onClick={() => void submitPrompt(input)} disabled={!isProviderReady || !input.trim()} aria-label="Send AI prompt">
+              <IconButton color="primary" onClick={() => void submitPrompt(input)} disabled={!isProviderReady || !input.trim()} aria-label={t('chat.send')}>
                 <Send />
               </IconButton>
             )}
           </Stack>
         </Stack>
         <Stack direction="row" justifyContent="flex-end" sx={{ mt: 0.5 }}>
-          <Tooltip title="Clear the conversation in every window">
+          <Tooltip title={t('chat.clearTooltip')}>
             <span>
-              <IconButton size="small" onClick={clearTranscript} disabled={running || messages.length === 0} aria-label="Clear conversation">
+              <IconButton size="small" onClick={clearTranscript} disabled={running || messages.length === 0} aria-label={t('chat.clearConversation')}>
                 <DeleteSweep fontSize="small" />
               </IconButton>
             </span>
@@ -550,14 +542,17 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
           anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
           transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         >
-          {examplePrompts.map((prompt) => (
-            <MenuItem key={prompt} onClick={() => handleSuggestionSelect(prompt)}>
-              <ListItemIcon>
-                <AutoAwesome fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary={prompt} />
-            </MenuItem>
-          ))}
+          {EXAMPLE_PROMPT_IDS.map((promptId) => {
+            const prompt = t(`chat.prompts.${promptId}`);
+            return (
+              <MenuItem key={promptId} onClick={() => handleSuggestionSelect(prompt)}>
+                <ListItemIcon>
+                  <AutoAwesome fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary={prompt} />
+              </MenuItem>
+            );
+          })}
         </Menu>
       </Box>
     </Box>

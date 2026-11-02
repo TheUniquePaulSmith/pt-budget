@@ -4,8 +4,9 @@
  * Pure state + validation; no React.
  */
 
+import { DEFAULT_CURRENCY, normalizeCurrencyCode } from '@/lib/currencies';
 import type { Account, AccountOwnership, AccountType } from '@/types/database';
-import { parseCardNumberInput } from './accountCardNumber';
+import { parseCardNumberInput, type CardNumberErrorCode } from './accountCardNumber';
 
 export interface AccountFormValues {
   name: string;
@@ -16,15 +17,21 @@ export interface AccountFormValues {
   opening_balance_date: string | null;
   credit_limit: number | null;
   is_active: number;
+  /** ISO 4217 code the account's amounts are in. */
+  currency: string;
 }
 
-export const ACCOUNT_TYPE_OPTIONS: ReadonlyArray<{ value: AccountType; label: string }> = [
-  { value: 'checking', label: 'Checking' },
-  { value: 'savings', label: 'Savings' },
-  { value: 'credit', label: 'Credit Card' },
-  { value: 'loan', label: 'Loan / Mortgage' },
-  { value: 'investment', label: 'Investment / Brokerage' },
-  { value: 'retirement', label: 'Retirement (401k, IRA, Roth)' },
+/**
+ * The selectable account types in display order. Labels are resolved at
+ * render time with `t(\`common:accountType.${value}\`)`.
+ */
+export const ACCOUNT_TYPE_OPTIONS: ReadonlyArray<{ value: AccountType }> = [
+  { value: 'checking' },
+  { value: 'savings' },
+  { value: 'credit' },
+  { value: 'loan' },
+  { value: 'investment' },
+  { value: 'retirement' },
 ];
 
 /** Raw field state (strings as typed) for the account itself. */
@@ -37,6 +44,7 @@ export interface AccountFormState {
   openingBalanceDate: string;
   creditLimit: string;
   isActive: boolean;
+  currency: string;
 }
 
 /** Raw field state for the first card captured when adding an account. */
@@ -53,13 +61,15 @@ export interface AccountCardInput {
   user_id: number | null;
 }
 
-export type AccountFormPrefill = Partial<Pick<AccountFormState, 'name' | 'type' | 'ownership' | 'institution'>> & {
+export type AccountFormPrefill = Partial<Pick<AccountFormState, 'name' | 'type' | 'ownership' | 'institution' | 'currency'>> & {
   cardNumberInput?: string;
 };
 
 export function createAccountFormState(
   account?: Account | null,
-  prefill: AccountFormPrefill = {}
+  prefill: AccountFormPrefill = {},
+  /** The household's default currency: what a new account starts with. */
+  defaultCurrency: string = DEFAULT_CURRENCY
 ): AccountFormState {
   if (account) {
     return {
@@ -71,6 +81,7 @@ export function createAccountFormState(
       openingBalanceDate: account.opening_balance_date ?? '',
       creditLimit: account.credit_limit != null ? String(account.credit_limit) : '',
       isActive: (account.is_active ?? 1) === 1,
+      currency: normalizeCurrencyCode(account.currency, defaultCurrency),
     };
   }
   return {
@@ -82,6 +93,7 @@ export function createAccountFormState(
     openingBalanceDate: '',
     creditLimit: '',
     isActive: true,
+    currency: normalizeCurrencyCode(prefill.currency, defaultCurrency),
   };
 }
 
@@ -93,18 +105,21 @@ export function createAccountCardFormState(prefill: AccountFormPrefill = {}): Ac
   };
 }
 
-export type AccountFormResult<T> = { ok: true; value: T } | { ok: false; error: string };
+/** Validation error codes; components map them through `t('accounts:validation.<code>')`. */
+export type AccountFormErrorCode = 'nameRequired' | 'numbersInvalid' | CardNumberErrorCode;
+
+export type AccountFormResult<T> = { ok: true; value: T } | { ok: false; error: AccountFormErrorCode };
 
 /** Validates the raw state and produces the values the service expects. */
 export function buildAccountFormValues(state: AccountFormState): AccountFormResult<AccountFormValues> {
   if (!state.name.trim()) {
-    return { ok: false, error: 'Account name is required' };
+    return { ok: false, error: 'nameRequired' };
   }
 
   const parsedOpeningBalance = state.openingBalance.trim() === '' ? 0 : Number(state.openingBalance);
   const parsedCreditLimit = state.creditLimit.trim() === '' ? null : Number(state.creditLimit);
   if (!Number.isFinite(parsedOpeningBalance) || (parsedCreditLimit != null && !Number.isFinite(parsedCreditLimit))) {
-    return { ok: false, error: 'Opening balance and credit limit must be numbers' };
+    return { ok: false, error: 'numbersInvalid' };
   }
 
   return {
@@ -118,6 +133,7 @@ export function buildAccountFormValues(state: AccountFormState): AccountFormResu
       opening_balance_date: state.openingBalanceDate || null,
       credit_limit: state.type === 'credit' ? parsedCreditLimit : null,
       is_active: state.isActive ? 1 : 0,
+      currency: normalizeCurrencyCode(state.currency),
     },
   };
 }

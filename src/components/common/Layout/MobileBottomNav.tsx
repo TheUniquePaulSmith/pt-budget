@@ -31,7 +31,9 @@ import {
 
 import AiLauncherSlot from './slots/AiLauncherSlot';
 import NotificationBellSlot from './slots/NotificationBellSlot';
-import type { PageDefinition, PageId } from './pageRegistry';
+import { useTranslation } from 'react-i18next';
+
+import { getPageLabel, type PageDefinition, type PageId } from './pageRegistry';
 import { BOTTOM_NAV_HEIGHT } from './sidebarPreference';
 
 export const MOBILE_BOTTOM_NAV_SLOTS = 4;
@@ -65,6 +67,7 @@ export default function MobileBottomNav({
   settingsPage,
   developerConsolePage,
 }: MobileBottomNavProps) {
+  const { t } = useTranslation('shell');
   const barHasCurrent = barPages.some((page) => page.id === currentPage);
   const closeSheet = () => onMoreOpenChange(false);
 
@@ -86,7 +89,7 @@ export default function MobileBottomNav({
       >
         <BottomNavigation
           component="nav"
-          aria-label="Pages"
+          aria-label={t('nav.pages')}
           showLabels
           value={barHasCurrent ? currentPage : moreOpen ? 'more' : false}
           sx={{ height: BOTTOM_NAV_HEIGHT, '& .MuiBottomNavigationAction-root': { minWidth: 0, px: 0.5 } }}
@@ -97,9 +100,9 @@ export default function MobileBottomNav({
               <BottomNavigationAction
                 key={page.id}
                 value={page.id}
-                label={page.label}
+                label={getPageLabel(page, t)}
                 icon={<Icon />}
-                aria-label={page.label}
+                aria-label={getPageLabel(page, t)}
                 aria-current={currentPage === page.id ? 'page' : undefined}
                 data-testid={page.testId}
                 onClick={() => onNavigate(page.id)}
@@ -108,9 +111,9 @@ export default function MobileBottomNav({
           })}
           <BottomNavigationAction
             value="more"
-            label="More"
+            label={t('nav.more')}
             icon={<MoreIcon />}
-            aria-label="More"
+            aria-label={t('nav.more')}
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
             data-testid="nav-more"
@@ -130,7 +133,7 @@ export default function MobileBottomNav({
         <Box sx={{ pt: 1, pb: 2 }} data-testid="mobile-more-sheet">
           <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'divider', mx: 'auto', mb: 1 }} />
           <Typography variant="overline" color="text.secondary" sx={{ px: 2 }}>
-            More
+            {t('nav.more')}
           </Typography>
           <List dense>
             <ListItem disablePadding>
@@ -144,7 +147,7 @@ export default function MobileBottomNav({
                 <ListItemIcon>
                   <AddTransactionIcon />
                 </ListItemIcon>
-                <ListItemText primary="Add Transaction" />
+                <ListItemText primary={t('nav.addTransaction')} />
               </ListItemButton>
             </ListItem>
             <ListItem disablePadding>
@@ -158,7 +161,7 @@ export default function MobileBottomNav({
                 <ListItemIcon>
                   <ImportCsvIcon />
                 </ListItemIcon>
-                <ListItemText primary="Import CSV" />
+                <ListItemText primary={t('nav.importCsv')} />
               </ListItemButton>
             </ListItem>
           </List>
@@ -177,7 +180,7 @@ export default function MobileBottomNav({
                     <ListItemIcon>
                       <Icon />
                     </ListItemIcon>
-                    <ListItemText primary={page.label} />
+                    <ListItemText primary={getPageLabel(page, t)} />
                   </ListItemButton>
                 </ListItem>
               );
@@ -198,7 +201,7 @@ export default function MobileBottomNav({
                 <ListItemIcon>
                   <ManageDataIcon />
                 </ListItemIcon>
-                <ListItemText primary="Manage Data" />
+                <ListItemText primary={t('nav.manageData')} />
               </ListItemButton>
             </ListItem>
             <ListItem disablePadding>
@@ -206,7 +209,7 @@ export default function MobileBottomNav({
                 <ListItemIcon>
                   <developerConsolePage.icon />
                 </ListItemIcon>
-                <ListItemText primary={developerConsolePage.label} />
+                <ListItemText primary={getPageLabel(developerConsolePage, t)} />
               </ListItemButton>
             </ListItem>
             <ListItem disablePadding>
@@ -214,7 +217,7 @@ export default function MobileBottomNav({
                 <ListItemIcon>
                   <settingsPage.icon />
                 </ListItemIcon>
-                <ListItemText primary={settingsPage.label} />
+                <ListItemText primary={getPageLabel(settingsPage, t)} />
               </ListItemButton>
             </ListItem>
           </List>

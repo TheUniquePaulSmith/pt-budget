@@ -1,0 +1,154 @@
+{
+  "typeShort": {
+    "checking": "Giro",
+    "savings": "Sparen",
+    "credit": "Kreditkarte",
+    "loan": "Darlehen",
+    "investment": "Anlage",
+    "retirement": "Altersvorsorge"
+  },
+  "display": {
+    "accountOwner": "Kontoinhaber",
+    "unknownUser": "Unbekannter Benutzer"
+  },
+  "validation": {
+    "nameRequired": "Der Kontoname ist erforderlich",
+    "numbersInvalid": "Anfangssaldo und Kreditlimit müssen Zahlen sein",
+    "cardDigitsRequired": "Geben Sie mindestens die letzten 4 Ziffern ein"
+  },
+  "formFields": {
+    "nameLabel": "Kontoname",
+    "typeLabel": "Kontotyp",
+    "currencyLabel": "Währung",
+    "ownershipLabel": "Inhaberschaft",
+    "ownershipJoint": "Gemeinschaftskonto (für den Haushalt)",
+    "institutionLabel": "Institut (optional)",
+    "institutionPlaceholder": "Name der Bank oder des Brokers",
+    "openingBalanceLabel": "Anfangssaldo",
+    "openingBalanceHelp": "Saldo vor der ersten erfassten Transaktion",
+    "asOfLabel": "Stand vom",
+    "creditLimitLabel": "Kreditlimit",
+    "creditLimitHelp": "Zeigt an, wie viel vom Limit ausgeschöpft ist",
+    "activeLabel": "Aktiv",
+    "closedLabel": "Geschlossen (für den Verlauf behalten)",
+    "ownerLabel": "Inhaber",
+    "selectOwner": "Inhaber auswählen",
+    "cardNumberLabel": "Karten- / Kontonummer",
+    "cardNumberHelp": "Geben Sie die vollständige Nummer oder nur die letzten 4 Ziffern ein – anderswo werden nur die letzten 4 angezeigt",
+    "cardNicknameLabel": "Bezeichnung (optional)",
+    "cardholderLabel": "Karteninhaber",
+    "cardholderOwner": "Kontoinhaber"
+  },
+  "formDialog": {
+    "addTitle": "Neues Konto hinzufügen",
+    "editTitle": "Konto bearbeiten",
+    "newPerson": "+ Neue Person…",
+    "firstCard": "Erste Karte",
+    "displayNameRequired": "Der Anzeigename ist erforderlich",
+    "addPersonFailed": "Person konnte nicht hinzugefügt werden",
+    "ownerRequired": "Der Inhaber ist erforderlich",
+    "saveFailed": "Konto konnte nicht gespeichert werden",
+    "saving": "Wird gespeichert..."
+  },
+  "detailForm": {
+    "ownerChip": "Inhaber: {{name}}",
+    "saved": "Gespeichert.",
+    "saveFailed": "Konto konnte nicht gespeichert werden",
+    "accountSectionTitle": "Konto",
+    "accountSectionDescription": "Änderungen werden übernommen, wenn Sie auf Speichern klicken.",
+    "cardsSectionTitle": "Karten",
+    "cardsSectionDescription": "Karten und Kontonummern, anhand derer CSV-Importe zugeordnet werden. Jedes Konto behält mindestens eine.",
+    "dangerZoneTitle": "Gefahrenbereich",
+    "deleteAccount": "Konto löschen",
+    "deleteHint": "Bereits auf diesem Konto erfasste Transaktionen bleiben erhalten."
+  },
+  "grid": {
+    "noCards": "Keine Karten",
+    "columnAccount": "Konto",
+    "columnType": "Typ",
+    "columnInstitution": "Institut",
+    "columnOwner": "Inhaber",
+    "columnCards": "Karten",
+    "columnCurrency": "Währung",
+    "columnOpening": "Anfangssaldo",
+    "columnActive": "Aktiv",
+    "columnNetWorth": "Nettovermögen",
+    "ownerJoint": "{{owner}} (gemeinsam)",
+    "activeTitle": "Aktiv",
+    "closedTitle": "Geschlossen",
+    "countedInNetWorth": "Im Nettovermögen enthalten",
+    "excluded": "Ausgeschlossen",
+    "empty": "Noch keine Konten. Fügen Sie Ihr erstes Konto hinzu, um loszulegen."
+  },
+  "page": {
+    "summary": "{{accounts}} • {{people}}",
+    "people_one": "{{count}} Person",
+    "people_other": "{{count}} Personen",
+    "addAccount": "Konto hinzufügen",
+    "displayNameRequired": "Der Anzeigename ist erforderlich",
+    "saveUserFailed": "Benutzer konnte nicht gespeichert werden",
+    "deleteFailed": {
+      "user": "Benutzer konnte nicht gelöscht werden",
+      "account": "Konto konnte nicht gelöscht werden",
+      "card": "Karte konnte nicht gelöscht werden"
+    },
+    "emptyNoAccounts": "Fügen Sie ein Konto hinzu, um loszulegen.",
+    "emptySelect": "Wählen Sie ein Konto aus, um es zu bearbeiten."
+  },
+  "cardsTable": {
+    "cardholderOwner": "Kontoinhaber",
+    "saveFailed": "Karte konnte nicht gespeichert werden",
+    "numberLabel": "Karten- / Kontonummer",
+    "nicknameLabel": "Bezeichnung",
+    "cardholderLabel": "Karteninhaber",
+    "tableLabel": "Karten",
+    "columnNumber": "Nummer",
+    "columnNickname": "Bezeichnung",
+    "columnCardholder": "Karteninhaber",
+    "empty": "Keine Karten auf diesem Konto.",
+    "saveCard": "Karte speichern",
+    "cancelCardEdit": "Kartenbearbeitung abbrechen",
+    "editCard": "Karte bearbeiten",
+    "editCardTitle": "Karte bearbeiten",
+    "lastCardTooltip": "Ein Konto muss mindestens eine Karte behalten",
+    "deleteCard": "Karte löschen",
+    "saveNewCard": "Neue Karte speichern",
+    "cancelNewCard": "Neue Karte verwerfen",
+    "addCard": "Karte hinzufügen"
+  },
+  "deleteDialog": {
+    "title": {
+      "user": "Benutzer löschen",
+      "account": "Konto löschen",
+      "card": "Karte löschen"
+    },
+    "question": {
+      "user": "Möchten Sie diesen Benutzer wirklich löschen?",
+      "account": "Möchten Sie dieses Konto wirklich löschen?",
+      "card": "Möchten Sie diese Karte wirklich löschen?"
+    },
+    "hint": {
+      "user": "Der Benutzer wird aus allen gemeinsamen Konten entfernt.",
+      "account": "Alle mit diesem Konto verbundenen Transaktionen bleiben erhalten.",
+      "card": "CSV-Importe mit dieser Kartennummer funktionieren dann nicht mehr."
+    },
+    "deleting": "Wird gelöscht..."
+  },
+  "peoplePanel": {
+    "title": "Personen",
+    "empty": "Noch keine Personen.",
+    "rename": "{{name}} umbenennen",
+    "editUser": "Benutzer bearbeiten",
+    "primaryCannotDelete": "Der Hauptbenutzer kann nicht gelöscht werden",
+    "deleteUser": "Benutzer löschen",
+    "delete": "{{name}} löschen",
+    "primaryUser": "Hauptbenutzer",
+    "counts": "{{owned}} Inhaber • {{cardholder}} Karteninhaber"
+  },
+  "userDialog": {
+    "addTitle": "Neuen Benutzer hinzufügen",
+    "editTitle": "Benutzer bearbeiten",
+    "displayNameLabel": "Anzeigename",
+    "saving": "Wird gespeichert..."
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "category": {
+    "business": "出張",
+    "vacation": "休暇",
+    "family": "家族",
+    "medical": "医療",
+    "education": "教育",
+    "other": "その他"
+  },
+  "status": {
+    "planning": "計画中",
+    "in_progress": "進行中",
+    "completed": "完了",
+    "cancelled": "中止"
+  },
+  "statusOption": {
+    "planning": "計画中",
+    "in_progress": "進行中",
+    "completed": "完了",
+    "cancelled": "中止"
+  },
+  "manage": {
+    "title": "旅行の管理",
+    "addTrip": "旅行を追加",
+    "editTrip": "旅行を編集",
+    "deleteTrip": "旅行を削除",
+    "destination": "目的地：",
+    "purpose": "目的：",
+    "dates": "日程：",
+    "dateRange": "{{start}} - {{end}}",
+    "tbd": "未定",
+    "estimatedCost": "見積費用：",
+    "emptyTitle": "旅行が見つかりません",
+    "emptyHelp": "最初の旅行を作成して、旅費の記録を始めましょう",
+    "addFirstTrip": "最初の旅行を追加",
+    "addTitle": "新しい旅行を追加",
+    "tripName": "旅行名",
+    "destinationField": "目的地",
+    "purposeField": "目的",
+    "startDate": "開始日",
+    "endDate": "終了日",
+    "estimatedCostField": "見積費用",
+    "saving": "保存中...",
+    "deleteConfirm": "「{{name}}」を削除してもよろしいですか？この操作は取り消せません。",
+    "deleting": "削除中...",
+    "nameRequired": "旅行名は必須です",
+    "saveFailed": "旅行の保存に失敗しました",
+    "deleteFailed": "旅行の削除に失敗しました"
+  }
+}

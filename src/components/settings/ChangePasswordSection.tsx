@@ -14,6 +14,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import type { DatabaseSource } from '@/lib/databaseSourceStorage';
 import type { SyncStage } from '@/lib/cloudSyncService';
@@ -34,6 +35,7 @@ export function ChangePasswordSection({
   databaseSource,
   syncStage,
 }: ChangePasswordSectionProps) {
+  const { t } = useTranslation('settings');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -52,11 +54,11 @@ export function ChangePasswordSection({
     setSyncWarning(null);
 
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      setValidationError(`New password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      setValidationError(t('changePassword.tooShort', { count: MIN_PASSWORD_LENGTH }));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setValidationError('New passwords do not match.');
+      setValidationError(t('changePassword.mismatch'));
       return;
     }
 
@@ -66,18 +68,16 @@ export function ChangePasswordSection({
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setSuccessMessage('Password updated.');
+      setSuccessMessage(t('changePassword.updated'));
       if (syncError) {
-        setSyncWarning(
-          `Password changed locally, but the cloud backup could not be re-encrypted yet (${syncError}). It will retry automatically.`
-        );
+        setSyncWarning(t('changePassword.syncWarning', { error: syncError }));
       }
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to change password.');
+      setSubmitError(err instanceof Error ? err.message : t('changePassword.failed'));
     } finally {
       setIsSubmitting(false);
     }
-  }, [currentPassword, newPassword, confirmPassword, changePassword]);
+  }, [currentPassword, newPassword, confirmPassword, changePassword, t]);
 
   const displayError = validationError ?? submitError;
   const canSubmit =
@@ -91,11 +91,10 @@ export function ChangePasswordSection({
   return (
     <Box>
       <Typography variant="h6" gutterBottom>
-        Change Password
+        {t('changePassword.title')}
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        This password encrypts your database on this device, as well as exports and cloud
-        backups. There is no password recovery, so store it somewhere safe.
+        {t('changePassword.description')}
       </Typography>
 
       {displayError && (
@@ -116,7 +115,7 @@ export function ChangePasswordSection({
 
       <Stack spacing={2} sx={{ maxWidth: 420 }}>
         <TextField
-          label="Current Password"
+          label={t('changePassword.current')}
           type={showCurrent ? 'text' : 'password'}
           value={currentPassword}
           onChange={(e) => setCurrentPassword(e.target.value)}
@@ -127,7 +126,7 @@ export function ChangePasswordSection({
               endAdornment: (
                 <InputAdornment position="end">
                   <IconButton
-                    aria-label={showCurrent ? 'Hide password' : 'Show password'}
+                    aria-label={showCurrent ? t('changePassword.hide') : t('changePassword.show')}
                     onClick={() => setShowCurrent((v) => !v)}
                     edge="end"
                   >
@@ -139,7 +138,7 @@ export function ChangePasswordSection({
           }}
         />
         <TextField
-          label="New Password"
+          label={t('changePassword.new')}
           type={showNew ? 'text' : 'password'}
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
@@ -150,7 +149,7 @@ export function ChangePasswordSection({
               endAdornment: (
                 <InputAdornment position="end">
                   <IconButton
-                    aria-label={showNew ? 'Hide password' : 'Show password'}
+                    aria-label={showNew ? t('changePassword.hide') : t('changePassword.show')}
                     onClick={() => setShowNew((v) => !v)}
                     edge="end"
                   >
@@ -162,7 +161,7 @@ export function ChangePasswordSection({
           }}
         />
         <TextField
-          label="Confirm New Password"
+          label={t('changePassword.confirm')}
           type={showNew ? 'text' : 'password'}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
@@ -182,10 +181,10 @@ export function ChangePasswordSection({
             onClick={() => void handleSubmit()}
           >
             {isSyncingAfterChange
-              ? 'Updating cloud backup…'
+              ? t('changePassword.updatingCloud')
               : isSubmitting
-                ? 'Changing Password…'
-                : 'Change Password'}
+                ? t('changePassword.changing')
+                : t('changePassword.submit')}
           </Button>
         </Box>
       </Stack>

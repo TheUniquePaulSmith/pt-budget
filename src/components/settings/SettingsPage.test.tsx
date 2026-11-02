@@ -16,6 +16,15 @@ import SettingsPage from './SettingsPage';
 
 vi.mock('@/contexts/useDatabaseSlices', () => ({
   useSettingsSlice: vi.fn(),
+  useCurrencyPreferencesSlice: () => ({
+    defaultCurrency: 'USD',
+    exchangeRates: [],
+    accountCurrencies: ['USD'],
+    missingRateCurrencies: [],
+    setDefaultCurrency: vi.fn().mockResolvedValue(undefined),
+    setExchangeRate: vi.fn().mockResolvedValue(undefined),
+    deleteExchangeRate: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 const mockedUseSettingsSlice = vi.mocked(useSettingsSlice);

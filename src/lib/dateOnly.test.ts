@@ -70,4 +70,31 @@ describe('dateOnly', () => {
       expect(parseCsvDate(input)).toBeNull();
     }
   );
+
+  it('resolves ambiguous numeric dates by the requested day/month order', () => {
+    expect(parseCsvDate('04/06/2026')).toBe('2026-04-06');
+    expect(parseCsvDate('04/06/2026', { order: 'MDY' })).toBe('2026-04-06');
+    expect(parseCsvDate('04/06/2026', { order: 'DMY' })).toBe('2026-06-04');
+    expect(parseCsvDate('04/06/2026', { order: 'YMD' })).toBe('2026-06-04');
+    expect(parseCsvDate('04.06.2026', { order: 'DMY' })).toBe('2026-06-04');
+    expect(parseCsvDate('4.6.26', { order: 'DMY' })).toBe('2026-06-04');
+  });
+
+  it('falls through to the other order when the first reading is impossible', () => {
+    // 26 cannot be a month, so a US reader still gets 26 April.
+    expect(parseCsvDate('26/04/2026', { order: 'MDY' })).toBe('2026-04-26');
+    // 13 cannot be a month either, so a European reader still gets 13 November.
+    expect(parseCsvDate('11/13/2026', { order: 'DMY' })).toBe('2026-11-13');
+  });
+
+  it.each([
+    ['2026/04/06', '2026-04-06'],
+    ['2026年4月6日', '2026-04-06'],
+    ['2026.04.06', '2026-04-06'],
+    ['20260406', '2026-04-06'],
+  ])('parses year-first date %s as %s regardless of order', (input, expected) => {
+    expect(parseCsvDate(input, { order: 'YMD' })).toBe(expected);
+    expect(parseCsvDate(input, { order: 'DMY' })).toBe(expected);
+    expect(parseCsvDate(input, { order: 'MDY' })).toBe(expected);
+  });
 });

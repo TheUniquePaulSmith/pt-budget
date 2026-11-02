@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "projects": "Projets",
+    "trips": "Voyages",
+    "budget": "Budget",
+    "accounts": "Comptes",
+    "loans": "Prêts",
+    "transactions": "Transactions",
+    "subscriptions": "Abonnements",
+    "notifications": "Notifications",
+    "sql-query": "Requête SQL",
+    "settings": "Paramètres",
+    "developer-console": "Console développeur",
+    "pages": "Pages",
+    "more": "Plus",
+    "quickActions": "Actions rapides",
+    "addTransaction": "Ajouter une transaction",
+    "importCsv": "Importer un CSV",
+    "manageData": "Gérer les données"
+  },
+  "dataGrid": {
+    "noRows": "Aucune ligne à afficher"
+  },
+  "sidebar": {
+    "collapse": "Réduire la barre latérale",
+    "expand": "Développer la barre latérale"
+  },
+  "pageFallback": {
+    "loading": "Chargement de la page"
+  },
+  "notificationBell": {
+    "label": "Notifications",
+    "due": "{{count}} à traiter",
+    "titleWithDue": "{{label}} : {{count}} à traiter",
+    "more": "{{count}} de plus… cliquez sur la cloche pour tout voir."
+  },
+  "aiLauncher": {
+    "label": "IA locale",
+    "title": "{{label}} (clic droit pour les options de fenêtre)",
+    "openSidebar": "Ouvrir en barre latérale",
+    "openMaximized": "Ouvrir en plein écran",
+    "openWindow": "Ouvrir dans une nouvelle fenêtre"
+  },
+  "statusBar": {
+    "synced": "Synchronisé",
+    "pendingChanges": "Modifications en attente",
+    "syncing": "Synchronisation…",
+    "reconnect": "Reconnecter",
+    "resolveConflict": "Résoudre le conflit",
+    "offline": "Hors ligne",
+    "syncError": "Erreur de synchronisation",
+    "lastSynced": "Dernière synchronisation : {{time}}",
+    "unsyncedSince": "Modifications non synchronisées depuis : {{time}}",
+    "lastError": "Dernière erreur : {{error}}",
+    "cloudSyncStatus": "État de la synchronisation cloud",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "heartbeat": "Signal de vie : il y a {{seconds}} s",
+    "noHeartbeat": "Aucun signal de vie reçu",
+    "workerAlive": "Actif",
+    "workerDead": "Inactif",
+    "tooltip": "Version de l'application : {{version}}\nÉtat du worker : {{worker}}\nÉtat de la base de données : {{status}}\n{{heartbeat}}"
+  },
+  "storageQuota": {
+    "unavailableChip": "Stockage : N/D",
+    "unavailable": "Quota de stockage indisponible",
+    "loadingChip": "Chargement...",
+    "loading": "Chargement des informations de stockage...",
+    "used": "Utilisé : {{size}}",
+    "available": "Disponible : {{size}}",
+    "information": "Informations de stockage",
+    "usageChip": "Stockage : {{percent}}",
+    "title": "Utilisation du stockage",
+    "refresh": "Actualiser les informations de stockage",
+    "percentUsed": "{{percent}} utilisé",
+    "usageOfQuota": "{{usage}} / {{quota}}",
+    "indexedDb": "IndexedDB : {{size}}",
+    "runningLow": "⚠️ L'espace de stockage est presque plein. Pensez à exporter et sauvegarder vos données.",
+    "notAvailable": "Informations de stockage non disponibles",
+    "bytes": "{{value}} o",
+    "kilobytes": "{{value}} Ko",
+    "megabytes": "{{value}} Mo",
+    "gigabytes": "{{value}} Go"
+  },
+  "masterDetail": {
+    "backToList": "Retour à la liste",
+    "resizeList": "Redimensionner la liste",
+    "emptyDetail": "Sélectionnez un élément pour voir ses détails."
+  },
+  "resetApp": {
+    "button": "Réinitialiser l'application",
+    "title": "Réinitialiser l'application à son état d'origine ?",
+    "body": "Cette action supprime définitivement votre base de données, vos paramètres et vos cookies, puis recharge l'application comme si elle venait d'être installée. Cette action est irréversible.",
+    "passwordLabel": "Mot de passe de la base de données",
+    "passwordHelp": "Saisissez votre mot de passe pour confirmer la réinitialisation.",
+    "failed": "Échec de la réinitialisation",
+    "resetting": "Réinitialisation…"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "category": {
+    "plumbing": "배관",
+    "electrical": "전기",
+    "hvac": "냉난방·환기",
+    "roofing": "지붕",
+    "flooring": "바닥",
+    "painting": "도장",
+    "landscaping": "조경",
+    "general_contractor": "종합 시공",
+    "other": "기타"
+  },
+  "status": {
+    "planning": "계획 중",
+    "in_progress": "진행 중",
+    "completed": "완료",
+    "on_hold": "보류"
+  },
+  "manage": {
+    "title": "집 프로젝트",
+    "addProject": "프로젝트 추가",
+    "empty": "아직 프로젝트가 없어요. \"프로젝트 추가\"를 클릭해 첫 집 프로젝트를 만드세요.",
+    "estimatedCost": "예상 비용",
+    "actualCost": "실제 비용",
+    "notSet": "설정 안 됨",
+    "transactionTotal": "거래 합계",
+    "detailsTitle": "프로젝트 상세 및 거래",
+    "detailsTitleWithCount": "프로젝트 상세 및 거래 ({{count}})",
+    "contactDetails": "연락처",
+    "timeline": "일정",
+    "start": "시작: {{date}}",
+    "end": "종료: {{date}}",
+    "linkedTransactions": "연결된 거래",
+    "transactionSecondary": "{{date}} • {{amount}} • {{category}}",
+    "uncategorized": "미분류",
+    "noTransactions": "이 프로젝트에 연결된 거래가 없어요.",
+    "editTitle": "프로젝트 편집",
+    "addTitle": "새 프로젝트 추가",
+    "projectName": "프로젝트 이름",
+    "companyName": "업체 이름",
+    "projectCategory": "프로젝트 분류",
+    "contactPlaceholder": "전화, 이메일, 주소 등",
+    "startDate": "시작일",
+    "endDate": "종료일",
+    "notesPlaceholder": "프로젝트에 대한 추가 메모...",
+    "updateProject": "프로젝트 업데이트",
+    "deleteConfirm": "\"{{name}}\"을(를) 삭제할까요? 연결된 거래에서 프로젝트 참조가 제거돼요."
+  }
+}

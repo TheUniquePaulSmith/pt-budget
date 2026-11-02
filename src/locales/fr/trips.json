@@ -1,0 +1,50 @@
+{
+  "category": {
+    "business": "Professionnel",
+    "vacation": "Vacances",
+    "family": "Famille",
+    "medical": "Médical",
+    "education": "Études",
+    "other": "Autre"
+  },
+  "status": {
+    "planning": "En planification",
+    "in_progress": "En cours",
+    "completed": "Terminé",
+    "cancelled": "Annulé"
+  },
+  "statusOption": {
+    "planning": "En planification",
+    "in_progress": "En cours",
+    "completed": "Terminé",
+    "cancelled": "Annulé"
+  },
+  "manage": {
+    "title": "Gérer les voyages",
+    "addTrip": "Ajouter un voyage",
+    "editTrip": "Modifier le voyage",
+    "deleteTrip": "Supprimer le voyage",
+    "destination": "Destination :",
+    "purpose": "Motif :",
+    "dates": "Dates :",
+    "dateRange": "{{start}} - {{end}}",
+    "tbd": "À définir",
+    "estimatedCost": "Coût estimé :",
+    "emptyTitle": "Aucun voyage trouvé",
+    "emptyHelp": "Créez votre premier voyage pour commencer à suivre vos frais de déplacement",
+    "addFirstTrip": "Ajouter votre premier voyage",
+    "addTitle": "Ajouter un voyage",
+    "tripName": "Nom du voyage",
+    "destinationField": "Destination",
+    "purposeField": "Motif",
+    "startDate": "Date de début",
+    "endDate": "Date de fin",
+    "estimatedCostField": "Coût estimé",
+    "saving": "Enregistrement...",
+    "deleteConfirm": "Voulez-vous vraiment supprimer « {{name}} » ? Cette action est irréversible.",
+    "deleting": "Suppression...",
+    "nameRequired": "Le nom du voyage est obligatoire",
+    "saveFailed": "Échec de l'enregistrement du voyage",
+    "deleteFailed": "Échec de la suppression du voyage"
+  }
+}

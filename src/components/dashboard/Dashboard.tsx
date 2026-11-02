@@ -1,9 +1,12 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box } from '@mui/material';
+import { Box, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { useDashboardSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { format, parseISO, subDays, subMonths, startOfMonth, endOfMonth, differenceInCalendarDays } from 'date-fns';
+import { accountCurrencies } from '@/lib/currencies';
 import { todayLocalISO } from '@/lib/dateOnly';
 import NotificationsDashboardCard from '@/components/notifications/NotificationsDashboardCard';
 import DateRangeSelector from './DateRangeSelector';
@@ -11,18 +14,23 @@ import SummaryStats from './SummaryStats';
 import ChartsSection from './ChartsSection';
 import RecentTransactions from './RecentTransactions';
 import { BudgetStatusCard } from './BudgetStatusCard';
+import MissingRatesNotice from './MissingRatesNotice';
 import type { Transaction, DashboardSummary, ChartData, BudgetStatus, TransactionScopeFilters } from '@/types/database';
 
 interface DashboardProps {
   onNavigateToBudget?: () => void;
+  onNavigateToSettings?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget, onNavigateToSettings }) => {
+  const { t } = useTranslation('dashboard');
+  const { date } = useFormatters();
   const {
     transactionVersion,
     budgetVersion,
     accounts,
     users,
+    defaultCurrency,
     getRecentTransactions,
     getDashboardSummary,
     getChartData,
@@ -116,13 +124,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
 
   const getTimeRangeLabel = () => {
     switch (timeRange) {
-      case 'week': return 'This Week';
-      case 'month': return 'This Month';
-      case 'year': return 'This Year';
-      case 'custom': return `${format(new Date(dateRanges.start), 'MMM dd, yyyy')} - ${format(new Date(dateRanges.end), 'MMM dd, yyyy')}`;
-      default: return 'This Month';
+      case 'week': return t('timeRangeLabel.week');
+      case 'month': return t('timeRangeLabel.month');
+      case 'year': return t('timeRangeLabel.year');
+      case 'custom': return t('timeRangeLabel.customRange', { start: date(dateRanges.start), end: date(dateRanges.end) });
+      default: return t('timeRangeLabel.month');
     }
   };
+
+  // More than one account currency means the summary figures were converted
+  // into the default currency; say so once above the stat cards.
+  const showTotalsIn = useMemo(() => accountCurrencies(accounts).length > 1, [accounts]);
 
   const handleCustomDateChange = (start: string, end: string) => {
     setCustomStartDate(start);
@@ -149,6 +161,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
         scopeFilters={scopeFilters}
         onScopeFiltersChange={setScopeFilters}
       />
+
+      <MissingRatesNotice onOpenPreferences={onNavigateToSettings} />
+
+      {showTotalsIn && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }} data-testid="dashboard-totals-in">
+          {t('totalsIn', { code: defaultCurrency })}
+        </Typography>
+      )}
 
       <SummaryStats
         summary={dashboardSummary}

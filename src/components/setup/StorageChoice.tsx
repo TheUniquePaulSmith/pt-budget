@@ -4,6 +4,7 @@ import React, { type ReactNode } from 'react';
 
 import { Cloud, Computer, Storage } from '@mui/icons-material';
 import { Alert, Box, ButtonBase, Paper, Stack, Tooltip, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import { createCloudProviderClient } from '@/lib/cloudProviderClients';
 import type { CloudProvider } from '@/lib/databaseSourceStorage';
@@ -16,33 +17,18 @@ interface StorageChoiceProps {
 
 interface StorageOption {
   id: 'local' | CloudProvider;
-  label: string;
-  description: string;
   icon: ReactNode;
 }
 
+/** The storage targets in display order; labels and descriptions resolve through `t` at render time. */
 const OPTIONS: StorageOption[] = [
-  {
-    id: 'local',
-    label: 'Keep Local',
-    description: 'Stored only on this device.',
-    icon: <Computer sx={{ fontSize: 40 }} />,
-  },
-  {
-    id: 'gdrive',
-    label: 'Google Drive',
-    description: 'Automatically synced to your Google Drive.',
-    icon: <Cloud sx={{ fontSize: 40 }} />,
-  },
-  {
-    id: 'onedrive',
-    label: 'OneDrive',
-    description: 'Automatically synced to your OneDrive.',
-    icon: <Storage sx={{ fontSize: 40 }} />,
-  },
+  { id: 'local', icon: <Computer sx={{ fontSize: 40 }} /> },
+  { id: 'gdrive', icon: <Cloud sx={{ fontSize: 40 }} /> },
+  { id: 'onedrive', icon: <Storage sx={{ fontSize: 40 }} /> },
 ];
 
 export function StorageChoice({ onChoiceSelected, isLoading, error }: StorageChoiceProps) {
+  const { t } = useTranslation('setup');
   const googleConfigured = createCloudProviderClient('gdrive').isConfigured();
   const oneDriveConfigured = createCloudProviderClient('onedrive').isConfigured();
 
@@ -63,10 +49,10 @@ export function StorageChoice({ onChoiceSelected, isLoading, error }: StorageCho
     >
       <Paper sx={{ p: 4, maxWidth: 640, width: '100%', textAlign: 'center' }}>
         <Typography variant="h5" gutterBottom fontWeight="bold">
-          Where should this database live?
+          {t('storageChoice.title')}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          You can change this later in Settings.
+          {t('storageChoice.description')}
         </Typography>
 
         {error && (
@@ -78,11 +64,12 @@ export function StorageChoice({ onChoiceSelected, isLoading, error }: StorageCho
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           {OPTIONS.map((option) => {
             const configured = isOptionConfigured(option.id);
+            const label = t(`storageChoice.${option.id}Label`);
 
             return (
               <Tooltip
                 key={option.id}
-                title={configured ? '' : `${option.label} is not configured for this deployment.`}
+                title={configured ? '' : t('storageChoice.notConfigured', { provider: label })}
               >
                 <Box component="span" sx={{ display: 'flex', flex: 1 }}>
                   <ButtonBase
@@ -112,10 +99,10 @@ export function StorageChoice({ onChoiceSelected, isLoading, error }: StorageCho
                   >
                     {option.icon}
                     <Typography variant="subtitle1" fontWeight="bold" color="text.primary">
-                      {option.label}
+                      {label}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {option.description}
+                      {t(`storageChoice.${option.id}Description`)}
                     </Typography>
                   </ButtonBase>
                 </Box>

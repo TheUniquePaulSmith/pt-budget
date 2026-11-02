@@ -18,8 +18,10 @@ import {
   Typography,
 } from '@mui/material';
 import { LinkOff as UnlinkIcon, SwapHoriz as TransferIcon } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { useTransactionTypeActionsSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import type { Transaction } from '@/types/database';
 import type { TransferCandidate } from '@/types/classification';
 
@@ -29,20 +31,14 @@ interface TransferLinkDialogProps {
   onClose: () => void;
 }
 
-const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
-function gapLabel(days: number): string {
-  if (days === 0) return 'same day';
-  const abs = Math.abs(days);
-  return `${abs} day${abs === 1 ? '' : 's'} ${days > 0 ? 'later' : 'earlier'}`;
-}
-
 /**
  * Links a transaction to the other leg of a transfer by hand. Candidates are
  * opposite-direction rows in other accounts within two weeks, exact amount
  * matches first; both rows become locked transfers.
  */
 export default function TransferLinkDialog({ open, transaction, onClose }: TransferLinkDialogProps) {
+  const { t } = useTranslation(['transactions', 'common']);
+  const { money, date } = useFormatters();
   const { getTransferCandidates, linkTransfer, unlinkTransfer } = useTransactionTypeActionsSlice();
 
   const [candidates, setCandidates] = useState<TransferCandidate[]>([]);
@@ -62,7 +58,7 @@ export default function TransferLinkDialog({ open, transaction, onClose }: Trans
         if (!cancelled) setCandidates(rows);
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load candidates');
+        if (!cancelled) setError(err instanceof Error ? err.message : t('transferLink.loadFailed'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -70,7 +66,7 @@ export default function TransferLinkDialog({ open, transaction, onClose }: Trans
     return () => {
       cancelled = true;
     };
-  }, [open, transaction, getTransferCandidates]);
+  }, [open, transaction, getTransferCandidates, t]);
 
   const runAction = async (action: () => Promise<void>, failureMessage: string) => {
     setSaving(true);
@@ -88,39 +84,47 @@ export default function TransferLinkDialog({ open, transaction, onClose }: Trans
   if (!transaction) return null;
 
   const isLinked = transaction.transfer_counterpart_id != null;
-  const direction = transaction.amount < 0 ? 'out of' : 'into';
+  const summaryValues = {
+    amount: money(Math.abs(transaction.amount), transaction.account_currency),
+    account: transaction.account_name ?? t('transferLink.thisAccount'),
+  };
+  const gapLabel = (days: number): string => {
+    if (days === 0) return t('transferLink.gapSameDay');
+    const count = Math.abs(days);
+    return days > 0 ? t('transferLink.gapLater', { count }) : t('transferLink.gapEarlier', { count });
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <TransferIcon />
-          Link Transfer
+          {t('transferLink.title')}
         </Box>
       </DialogTitle>
       <DialogContent>
         <Box sx={{ mb: 2 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Transaction
+            {t('transferLink.transaction')}
           </Typography>
           <Typography variant="body1" fontWeight="medium">
             {transaction.description}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {CURRENCY.format(Math.abs(transaction.amount))} {direction} {transaction.account_name ?? 'this account'} •{' '}
-            {transaction.date}
+            {transaction.amount < 0 ? t('transferLink.summaryOut', summaryValues) : t('transferLink.summaryIn', summaryValues)} •{' '}
+            {date(transaction.date)}
           </Typography>
         </Box>
 
         <Box sx={{ mb: 2 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Other leg
+            {t('transferLink.otherLeg')}
           </Typography>
           <Chip
             label={
               isLinked
-                ? `Linked to ${transaction.transfer_counterpart_account_name ?? 'another account'}`
-                : 'Not linked'
+                ? t('transferLink.linkedTo', { account: transaction.transfer_counterpart_account_name ?? t('transferLink.anotherAccount') })
+                : t('transferLink.notLinked')
             }
             color={isLinked ? 'info' : 'default'}
             variant="outlined"
@@ -135,8 +139,7 @@ export default function TransferLinkDialog({ open, transaction, onClose }: Trans
         )}
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          Pick the row in another account that is the other side of this transfer. Both rows become transfers
-          and count as neither income nor spending.
+          {t('transferLink.help')}
         </Typography>
 
         {loading ? (
@@ -145,8 +148,7 @@ export default function TransferLinkDialog({ open, transaction, onClose }: Trans
           </Box>
         ) : candidates.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            No opposite-direction rows in other accounts within two weeks of this date. Import the other
-            account&apos;s statement first, or mark this row as a transfer on its own.
+            {t('transferLink.noCandidates')}
           </Typography>
         ) : (
           <List dense disablePadding sx={{ maxHeight: 320, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
@@ -162,13 +164,18 @@ export default function TransferLinkDialog({ open, transaction, onClose }: Trans
                   primary={
                     <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
                       <span>{candidate.description}</span>
-                      {candidate.amountMatches && <Chip label="Same amount" size="small" color="success" variant="outlined" />}
+                      {candidate.amountMatches && <Chip label={t('transferLink.sameAmount')} size="small" color="success" variant="outlined" />}
                       {candidate.transfer_group_id && candidate.id !== transaction.transfer_counterpart_id && (
-                        <Chip label="Already paired elsewhere" size="small" color="warning" variant="outlined" />
+                        <Chip label={t('transferLink.alreadyPaired')} size="small" color="warning" variant="outlined" />
                       )}
                     </Box>
                   }
-                  secondary={`${CURRENCY.format(Math.abs(candidate.amount))} • ${candidate.account_name} • ${candidate.date} (${gapLabel(candidate.dateGapDays)})`}
+                  secondary={t('transferLink.candidateSecondary', {
+                    amount: money(Math.abs(candidate.amount), candidate.account_currency),
+                    account: candidate.account_name,
+                    date: date(candidate.date),
+                    gap: gapLabel(candidate.dateGapDays),
+                  })}
                 />
               </ListItemButton>
             ))}
@@ -177,26 +184,26 @@ export default function TransferLinkDialog({ open, transaction, onClose }: Trans
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           color="inherit"
           startIcon={<UnlinkIcon />}
-          onClick={() => void runAction(() => unlinkTransfer(transaction.id), 'Failed to unlink transfer')}
+          onClick={() => void runAction(() => unlinkTransfer(transaction.id), t('transferLink.unlinkFailed'))}
           disabled={saving || !isLinked}
         >
-          Unlink
+          {t('transferLink.unlink')}
         </Button>
         <Button
           variant="contained"
           onClick={() => {
             if (selectedId != null) {
-              void runAction(() => linkTransfer(transaction.id, selectedId), 'Failed to link transfer');
+              void runAction(() => linkTransfer(transaction.id, selectedId), t('transferLink.linkFailed'));
             }
           }}
           disabled={saving || selectedId == null || selectedId === transaction.transfer_counterpart_id}
         >
-          {saving ? 'Saving…' : 'Link'}
+          {saving ? t('common:status.saving') : t('transferLink.link')}
         </Button>
       </DialogActions>
     </Dialog>

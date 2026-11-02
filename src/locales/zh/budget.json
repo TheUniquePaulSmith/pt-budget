@@ -1,0 +1,166 @@
+{
+  "carryMode": {
+    "none": "不结转",
+    "surplus": "结转结余",
+    "deficit": "结转超支",
+    "both": "两者都结转"
+  },
+  "carryModeDescription": {
+    "none": "每个月都从方案金额重新开始。",
+    "surplus": "未用完的预算结转到下个月；超支部分不予追究。",
+    "deficit": "超支部分从下个月扣除；未用完的预算作废。",
+    "both": "净余额（无论正负）结转到下个月。"
+  },
+  "carryBadge": {
+    "none": "不结转",
+    "surplus": "结转结余",
+    "deficit": "结转超支",
+    "both": "两者都结转"
+  },
+  "page": {
+    "title": "预算",
+    "subtitle": "月度方案在更改前持续沿用。季度和年度视图会汇总各月的生效预算。",
+    "managePlan": "管理方案"
+  },
+  "periodSelector": {
+    "previous": "上一周期",
+    "next": "下一周期",
+    "quarter": "季度"
+  },
+  "statusPanel": {
+    "spentTooltip": "此分类已花费{{amount}}。",
+    "fundSpendTooltip": "其中{{amount}}由关联储备金支付，已排除在外。",
+    "fundContributionsTooltip": "{{amount}}作为储备金存入款预留。",
+    "noBudgetSet": "未设置预算",
+    "noBudgetHelp": "为本月创建一个预算方案。方案会持续沿用，直到被更晚生效月份的方案取代。",
+    "title": "预算状态",
+    "monthsCovered_other": "{{count}}个月中已覆盖{{covered}}个月",
+    "over": "超出{{amount}}",
+    "left": "剩余{{amount}}",
+    "noThresholdsHelp": "创建一个预算方案以设置支出限额。下方仍会列出收入来源。",
+    "notSet": "未设置",
+    "budgeted": "预算",
+    "carriedIn": "结转转入",
+    "effectiveBudget": "生效预算",
+    "actualExpenses": "实际支出",
+    "fundContributions": "储备金存入",
+    "expectedIncome": "预期收入",
+    "linkedIncome": "关联收入",
+    "categories": "分类",
+    "categoriesTable": "预算分类",
+    "columnBudget": "预算",
+    "columnEffective": "生效",
+    "columnSpent": "已花费",
+    "columnRemaining": "剩余",
+    "categoryFallback": "分类 {{id}}",
+    "resetTooltip": "结转余额自{{month}}起重置",
+    "fundTooltip": "{{amount}}预留给关联的项目或旅行储备金",
+    "fundBadge": "储备金",
+    "unbudgetedSpend": "未列入预算的支出：{{amount}}"
+  },
+  "historyList": {
+    "title": "历史",
+    "noPlan": "{{period}}：无方案",
+    "over": "{{period}}：超出{{amount}}",
+    "under": "{{period}}：结余{{amount}}"
+  },
+  "planEditor": {
+    "title": "预算方案",
+    "effectiveMonth": "生效月份",
+    "totalAmount": "总金额",
+    "appliesHelp": "此方案从其生效月份起适用，直到被另一个方案取代。",
+    "carryOver": "结转",
+    "resetTooltip": "丢弃此分类结转到本方案生效月份的所有余额，从方案金额重新开始。",
+    "resetAria": "从本月起重置结转余额",
+    "resetLabel": "从本月起重置",
+    "removeCategory": "移除分类",
+    "addCategory": "添加分类",
+    "carryHelp": "结转会从本方案的生效月份起，把每个月的剩余（结余、超支或两者）滚入下个月。“从本月起重置”会丢弃某个分类带入本月的全部余额。",
+    "deletePlan": "删除方案"
+  },
+  "fundFields": {
+    "entity": {
+      "project": "项目",
+      "trip": "旅行"
+    },
+    "categoryFallback": "分类",
+    "theCategoryFallback": "该分类",
+    "helpUnlinked": "可选：选择一个预算分类，每月为此{{entity}}存一点钱。",
+    "helpNoContribution": "输入每月存入金额以启动{{category}}储备金。",
+    "helpNoStart": "设置开始月份（或开始日期），存入款才能累积。",
+    "helpReserves": "自{{month}}起每月从{{category}}预留{{amount}}；预算将其计为计划支出，{{entity}}支出从储备金中扣除。",
+    "title": "储备金",
+    "linkedCategory": "关联预算分类",
+    "notLinked": "未关联",
+    "monthlyContribution": "每月存入",
+    "startMonth": "存入开始月份"
+  },
+  "fundSummary": {
+    "noEstimate": "无预估",
+    "goalReached": "已达目标",
+    "toGoal": "距目标还差{{amount}}",
+    "fund": "储备金",
+    "perMonth": "{{amount}}/月",
+    "tooltip": "已存入{{contributed}}，已花费{{spent}}，{{detail}}",
+    "saved": "已存{{amount}}",
+    "balance": "余额{{amount}}"
+  },
+  "fundsCard": {
+    "noEstimatedCost": "未设置预估费用",
+    "goalReached": "已达目标",
+    "monthsToGo_other": "还需{{count}}个月",
+    "toGoal": "距目标还差{{amount}}",
+    "title": "储备金",
+    "subtitle": "通过预算分类储蓄的项目和旅行，截至{{month}}。",
+    "empty": "将项目或旅行关联到预算分类并设置每月存入金额，即可启动储备金。",
+    "contributionsFrom": "存入从{{start}}开始",
+    "contributionsFromTo": "存入从{{start}}持续到{{end}}",
+    "setStartMonth": "设置开始月份或开始日期以累积存入款",
+    "notContributing": "未在存入",
+    "savedOfEstimated": "预估{{estimated}}，已存{{contributed}}",
+    "setEstimatedCost": "设置预估费用以跟踪进度",
+    "progressAria": "{{name}}进度",
+    "saved": "已存{{amount}}",
+    "perMonth": "{{amount}}/月",
+    "balance": "余额{{amount}}",
+    "spent": "已花费{{amount}}"
+  },
+  "incomeSources": {
+    "notSet": "未设置",
+    "title": "收入来源",
+    "user": "用户：{{name}}",
+    "unassigned": "未分配",
+    "linkedAccount": "关联账户：{{name}}",
+    "unknownAccount": "未知账户",
+    "expectedSummary": "预期{{frequency}}{{amount}} • 每月{{monthly}}",
+    "summary": "{{frequency}}{{amount}} • 每月{{monthly}}",
+    "frequency": {
+      "weekly": "每周",
+      "biweekly": "每两周",
+      "semi_monthly": "每半月",
+      "monthly": "每月"
+    },
+    "frequencyOption": {
+      "weekly": "每周",
+      "biweekly": "每两周",
+      "semi_monthly": "每半月",
+      "monthly": "每月"
+    },
+    "editTooltip": "编辑收入来源",
+    "deleteTooltip": "删除收入来源",
+    "empty": "尚未配置收入来源。",
+    "editTitle": "编辑收入来源",
+    "addTitle": "添加收入来源",
+    "kind": "类别",
+    "kindOption": {
+      "recurring_salary": "固定工资",
+      "linked_account": "关联账户"
+    },
+    "expectedAmount": "预期金额",
+    "expectedAmountHelp": "可选。留空则仅使用实际入账。",
+    "frequencyLabel": "频率",
+    "startDate": "开始日期",
+    "endDate": "结束日期",
+    "saving": "正在保存..."
+  }
+}

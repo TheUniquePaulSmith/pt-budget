@@ -1,0 +1,50 @@
+{
+  "category": {
+    "business": "Lavoro",
+    "vacation": "Vacanza",
+    "family": "Famiglia",
+    "medical": "Salute",
+    "education": "Istruzione",
+    "other": "Altro"
+  },
+  "status": {
+    "planning": "In pianificazione",
+    "in_progress": "In corso",
+    "completed": "Completato",
+    "cancelled": "Annullato"
+  },
+  "statusOption": {
+    "planning": "In pianificazione",
+    "in_progress": "In corso",
+    "completed": "Completato",
+    "cancelled": "Annullato"
+  },
+  "manage": {
+    "title": "Gestisci viaggi",
+    "addTrip": "Aggiungi viaggio",
+    "editTrip": "Modifica viaggio",
+    "deleteTrip": "Elimina viaggio",
+    "destination": "Destinazione:",
+    "purpose": "Scopo:",
+    "dates": "Date:",
+    "dateRange": "{{start}} - {{end}}",
+    "tbd": "Da definire",
+    "estimatedCost": "Costo stimato:",
+    "emptyTitle": "Nessun viaggio trovato",
+    "emptyHelp": "Crea il tuo primo viaggio per iniziare a registrare le spese di viaggio",
+    "addFirstTrip": "Aggiungi il tuo primo viaggio",
+    "addTitle": "Aggiungi nuovo viaggio",
+    "tripName": "Nome del viaggio",
+    "destinationField": "Destinazione",
+    "purposeField": "Scopo",
+    "startDate": "Data di inizio",
+    "endDate": "Data di fine",
+    "estimatedCostField": "Costo stimato",
+    "saving": "Salvataggio...",
+    "deleteConfirm": "Vuoi davvero eliminare \"{{name}}\"? Questa azione non può essere annullata.",
+    "deleting": "Eliminazione...",
+    "nameRequired": "Il nome del viaggio è obbligatorio",
+    "saveFailed": "Impossibile salvare il viaggio",
+    "deleteFailed": "Impossibile eliminare il viaggio"
+  }
+}

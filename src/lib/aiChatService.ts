@@ -86,11 +86,31 @@ interface DatabaseSchemaForeignKeyRow {
   referenced_column?: unknown;
 }
 
+export interface AiChatLocale {
+  /** The language's own name ("Español") or English name; used verbatim in the prompt. */
+  languageName: string;
+  /** ISO 4217 code every cross-account total is expressed in. */
+  defaultCurrency: string;
+}
+
+/** The prompt lines that tell the model how to treat language and money (schema v6: per-account currencies). */
+export function buildLocalePromptSection(locale?: AiChatLocale): string {
+  const languageName = locale?.languageName?.trim() || 'English';
+  const defaultCurrency = locale?.defaultCurrency?.trim() || 'USD';
+  return `Reply in ${languageName}. The household's default currency is ${defaultCurrency}: every total you report should be in it. transactions.amount is stored in the row's account currency (accounts.currency), and exchange_rates holds the user's manual rates (units of ${defaultCurrency} per 1 unit of that currency; NULL = unknown, and such accounts are excluded from totals). Name the currency when you quote an amount from an account that is not in ${defaultCurrency}.`;
+}
+
 export interface RunAiChatOptions {
   messages: AiChatMessage[];
   createChatCompletion: (params: ChatCompletionParams) => Promise<ChatCompletionResponse>;
   createChatCompletionStream?: (params: ChatCompletionParams) => Promise<AsyncIterable<ChatCompletionChunk>>;
   databaseToolContext: AiDatabaseToolContext;
+  /**
+   * The user's language and the household's default currency; appended to
+   * the system prompt so replies come back in the user's language and money
+   * is interpreted correctly. Omitted = English / USD.
+   */
+  locale?: AiChatLocale;
   /** Tools offered to the model; defaults to the built-in registry with safe defaults. */
   registry?: AiToolRegistry;
   /** Policy check for a tool; defaults to the tool's stored/default consent with no session grants. */
@@ -177,18 +197,19 @@ function formatDatabaseSchemaForPrompt(
   ].join('\n');
 }
 
-async function buildSystemPrompt(databaseToolContext: AiDatabaseToolContext): Promise<string> {
+async function buildSystemPrompt(databaseToolContext: AiDatabaseToolContext, locale?: AiChatLocale): Promise<string> {
+  const basePrompt = `${SYSTEM_PROMPT}\n\n${buildLocalePromptSection(locale)}`;
   try {
     const [columnRows, foreignKeyRows] = await Promise.all([
       databaseToolContext.executeCustomQuery(DATABASE_SCHEMA_COLUMNS_QUERY, DATABASE_SCHEMA_TIMEOUT_MS),
       databaseToolContext.executeCustomQuery(DATABASE_SCHEMA_FOREIGN_KEYS_QUERY, DATABASE_SCHEMA_TIMEOUT_MS),
     ]);
 
-    return `${SYSTEM_PROMPT}\n\n${formatDatabaseSchemaForPrompt(columnRows, foreignKeyRows)}`;
+    return `${basePrompt}\n\n${formatDatabaseSchemaForPrompt(columnRows, foreignKeyRows)}`;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error';
 
-    return `${SYSTEM_PROMPT}\n\nCurrent SQLite database schema could not be loaded for this prompt (${message}). Use query_transactions to inspect sqlite_master before answering schema-sensitive questions.`;
+    return `${basePrompt}\n\nCurrent SQLite database schema could not be loaded for this prompt (${message}). Use query_transactions to inspect sqlite_master before answering schema-sensitive questions.`;
   }
 }
 
@@ -419,6 +440,7 @@ export async function runAiChatCompletion({
   createChatCompletion,
   createChatCompletionStream,
   databaseToolContext,
+  locale,
   registry = createDefaultToolRegistry(),
   evaluateConsent = defaultEvaluateConsent,
   requestConsent,
@@ -428,7 +450,7 @@ export async function runAiChatCompletion({
   maxOutputTokens = AI_OUTPUT_LIMIT_PRESETS.medium.tokens,
   onAssistantDelta,
 }: RunAiChatOptions): Promise<AiChatRunResult> {
-  const systemPrompt = await buildSystemPrompt(databaseToolContext);
+  const systemPrompt = await buildSystemPrompt(databaseToolContext, locale);
   const conversation = toWllamaMessages(messages, systemPrompt);
   const tools = registry.toChatTools();
   const toolCalls: AiToolCallRecord[] = [];

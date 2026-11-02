@@ -1,0 +1,49 @@
+{
+  "category": {
+    "plumbing": "Sanitär",
+    "electrical": "Elektrik",
+    "hvac": "Heizung / Klima / Lüftung",
+    "roofing": "Dach",
+    "flooring": "Bodenbelag",
+    "painting": "Malerarbeiten",
+    "landscaping": "Garten- und Landschaftsbau",
+    "general_contractor": "Generalunternehmer",
+    "other": "Sonstiges"
+  },
+  "status": {
+    "planning": "In Planung",
+    "in_progress": "In Arbeit",
+    "completed": "Abgeschlossen",
+    "on_hold": "Pausiert"
+  },
+  "manage": {
+    "title": "Hausprojekte",
+    "addProject": "Projekt hinzufügen",
+    "empty": "Noch keine Projekte. Klicken Sie auf „Projekt hinzufügen“, um Ihr erstes Hausprojekt anzulegen.",
+    "estimatedCost": "Geschätzte Kosten",
+    "actualCost": "Tatsächliche Kosten",
+    "notSet": "Nicht festgelegt",
+    "transactionTotal": "Summe der Transaktionen",
+    "detailsTitle": "Projektdetails & Transaktionen",
+    "detailsTitleWithCount": "Projektdetails & Transaktionen ({{count}})",
+    "contactDetails": "Kontaktdaten",
+    "timeline": "Zeitplan",
+    "start": "Beginn: {{date}}",
+    "end": "Ende: {{date}}",
+    "linkedTransactions": "Verknüpfte Transaktionen",
+    "transactionSecondary": "{{date}} • {{amount}} • {{category}}",
+    "uncategorized": "Ohne Kategorie",
+    "noTransactions": "Mit diesem Projekt sind keine Transaktionen verknüpft.",
+    "editTitle": "Projekt bearbeiten",
+    "addTitle": "Neues Projekt hinzufügen",
+    "projectName": "Projektname",
+    "companyName": "Firmenname",
+    "projectCategory": "Projektkategorie",
+    "contactPlaceholder": "Telefon, E-Mail, Adresse usw.",
+    "startDate": "Startdatum",
+    "endDate": "Enddatum",
+    "notesPlaceholder": "Weitere Notizen zum Projekt...",
+    "updateProject": "Projekt aktualisieren",
+    "deleteConfirm": "Möchten Sie „{{name}}“ wirklich löschen? Die Projektverweise werden aus den verknüpften Transaktionen entfernt."
+  }
+}

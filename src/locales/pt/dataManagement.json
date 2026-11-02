@@ -1,0 +1,17 @@
+{
+  "manage": {
+    "addCategoryFailed": "Falha ao adicionar categoria",
+    "updateCategoryFailed": "Falha ao atualizar categoria",
+    "addCompanyFailed": "Falha ao adicionar estabelecimento",
+    "updateCompanyFailed": "Falha ao atualizar estabelecimento",
+    "title": "Gerenciar categorias e estabelecimentos",
+    "categoriesTab": "Categorias",
+    "companiesTab": "Estabelecimentos",
+    "addCategoryTitle": "Adicionar nova categoria",
+    "categoryNameLabel": "Nome da categoria",
+    "existingCategories": "Categorias existentes",
+    "addCompanyTitle": "Adicionar novo estabelecimento",
+    "companyNameLabel": "Nome do estabelecimento",
+    "existingCompanies": "Estabelecimentos existentes"
+  }
+}

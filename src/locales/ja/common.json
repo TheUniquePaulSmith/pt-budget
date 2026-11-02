@@ -1,0 +1,153 @@
+{
+  "appName": "Budget Tracker",
+  "actions": {
+    "save": "保存",
+    "cancel": "キャンセル",
+    "close": "閉じる",
+    "delete": "削除",
+    "edit": "編集",
+    "add": "追加",
+    "remove": "除去",
+    "continue": "続行",
+    "skipForNow": "今はスキップ",
+    "back": "戻る",
+    "next": "次へ",
+    "done": "完了",
+    "apply": "適用",
+    "confirm": "確認",
+    "retry": "再試行",
+    "refresh": "更新",
+    "reset": "リセット",
+    "clear": "クリア",
+    "search": "検索",
+    "filter": "フィルター",
+    "export": "エクスポート",
+    "import": "インポート",
+    "download": "ダウンロード",
+    "upload": "アップロード",
+    "open": "開く",
+    "create": "作成",
+    "update": "更新",
+    "select": "選択",
+    "selectAll": "すべて選択",
+    "deselectAll": "選択をすべて解除",
+    "showMore": "もっと見る",
+    "showLess": "表示を減らす",
+    "viewAll": "すべて表示",
+    "learnMore": "詳細を見る",
+    "yes": "はい",
+    "no": "いいえ",
+    "ok": "OK"
+  },
+  "fields": {
+    "name": "名前",
+    "amount": "金額",
+    "date": "日付",
+    "description": "摘要",
+    "notes": "メモ",
+    "comment": "コメント",
+    "account": "口座",
+    "card": "カード",
+    "category": "カテゴリ",
+    "company": "取引先",
+    "project": "プロジェクト",
+    "trip": "旅行",
+    "owner": "名義人",
+    "user": "ユーザー",
+    "type": "種類",
+    "status": "状態",
+    "currency": "通貨",
+    "language": "言語",
+    "balance": "残高",
+    "total": "合計",
+    "startDate": "開始日",
+    "endDate": "終了日",
+    "month": "月",
+    "year": "年",
+    "actions": "操作",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "none": "なし",
+    "all": "すべて",
+    "other": "その他",
+    "unknown": "不明",
+    "optional": "任意",
+    "required": "必須"
+  },
+  "status": {
+    "loading": "読み込み中…",
+    "saving": "保存中…",
+    "deleting": "削除中…",
+    "importing": "インポート中…",
+    "exporting": "エクスポート中…",
+    "connected": "接続済み",
+    "disconnected": "未接続",
+    "active": "有効",
+    "inactive": "無効",
+    "closed": "解約済み",
+    "enabled": "オン",
+    "disabled": "オフ",
+    "error": "エラー",
+    "success": "成功",
+    "warning": "警告"
+  },
+  "errors": {
+    "generic": "問題が発生しました。",
+    "unknown": "不明なエラーが発生しました。",
+    "required": "{{field}}は必須です",
+    "mustBeNumber": "{{field}}は数値で入力してください",
+    "mustBePositive": "{{field}}は 0 より大きい値にしてください",
+    "databaseNotReady": "データベースの準備がまだできていません。"
+  },
+  "accountType": {
+    "checking": "普通預金",
+    "savings": "貯蓄預金",
+    "credit": "クレジットカード",
+    "loan": "ローン / 住宅ローン",
+    "investment": "投資 / 証券",
+    "retirement": "年金・退職金（401k、IRA、Roth）"
+  },
+  "accountOwnership": {
+    "individual": "個人",
+    "joint": "共同"
+  },
+  "transactionType": {
+    "expense": "支出",
+    "income": "収入",
+    "refund": "返金",
+    "transfer": "振替"
+  },
+  "categoryType": {
+    "expense": "支出",
+    "income": "収入"
+  },
+  "language": {
+    "label": "言語",
+    "menuLabel": "言語を変更",
+    "help": "このブラウザーにのみ適用されます。"
+  },
+  "currency": {
+    "label": "通貨",
+    "defaultLabel": "既定通貨",
+    "option": "{{code}} – {{name}}",
+    "totalsIn": "合計は {{code}} 建て",
+    "unknownRate": "為替レートなし",
+    "ratesHelp": "1 {{code}} = ? {{defaultCode}}"
+  },
+  "plurals": {
+    "transactions_other": "{{count}} 件の取引",
+    "accounts_other": "{{count}} 件の口座",
+    "days_other": "{{count}} 日",
+    "months_other": "{{count}} か月",
+    "rows_other": "{{count}} 行",
+    "items_other": "{{count}} 件"
+  },
+  "dataGrid": {
+    "noRows": "表示する行がありません",
+    "rowsPerPage": "1 ページあたりの行数"
+  },
+  "dialog": {
+    "confirmDeleteTitle": "削除の確認",
+    "unsavedChanges": "保存されていない変更があります。"
+  }
+}

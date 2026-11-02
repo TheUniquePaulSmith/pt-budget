@@ -20,28 +20,13 @@ import {
   VisibilityOff as IgnoreIcon,
 } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { cardColumn } from '@/components/common/DataGrid/columns';
+import { useFormatters } from '@/contexts/useFormatters';
 import { todayLocalISO } from '@/lib/dateOnly';
 import type { RecurringSeries } from '@/types/database';
-
-const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
-const CADENCE_LABELS: Record<RecurringSeries['cadence'], string> = {
-  weekly: 'Weekly',
-  biweekly: 'Every 2 weeks',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  yearly: 'Yearly',
-  irregular: 'Irregular',
-};
-
-function formatAmount(series: RecurringSeries): string {
-  if (series.expected_amount == null) return '—';
-  const formatted = CURRENCY.format(series.expected_amount);
-  return series.amount_is_variable ? `~${formatted} (varies)` : formatted;
-}
 
 function isOverdue(series: RecurringSeries): boolean {
   if (!series.next_expected_date || series.status !== 'active') return false;
@@ -73,145 +58,163 @@ const SeriesTable: React.FC<SeriesTableProps> = ({
   collapsible = true,
   defaultExpanded = true,
 }) => {
+  const { t } = useTranslation('subscriptions');
+  const { money } = useFormatters();
   const [expanded, setExpanded] = useState(defaultExpanded);
 
-  const columns = useMemo<GridColDef<RecurringSeries>[]>(() => [
-    {
-      field: 'name',
-      headerName: 'Name',
-      flex: 1.2,
-      minWidth: 170,
-      renderCell: (params) => (
-        <Typography variant="body2" fontWeight={600} noWrap>
-          {params.row.name}
-        </Typography>
-      ),
-    },
-    {
-      field: 'company_name',
-      headerName: 'Merchant',
-      flex: 1,
-      minWidth: 140,
-      valueGetter: (_, row) => row.company_name || '—',
-    },
-    cardColumn<RecurringSeries>(),
-    {
-      field: 'cadence',
-      headerName: 'Cadence',
-      width: 150,
-      renderCell: (params) => (
-        <Chip
-          label={CADENCE_LABELS[params.row.cadence]}
-          size="small"
-          color={params.row.cadence === 'irregular' ? 'default' : 'primary'}
-          variant="outlined"
-        />
-      ),
-    },
-    {
-      field: 'expected_amount',
-      headerName: 'Amount',
-      width: 150,
-      align: 'right',
-      headerAlign: 'right',
-      renderCell: (params) => formatAmount(params.row),
-    },
-    {
-      field: 'last_seen_date',
-      headerName: 'Last Paid',
-      width: 115,
-      valueGetter: (_, row) => row.last_seen_date || '—',
-    },
-    {
-      field: 'next_expected_date',
-      headerName: 'Next Expected',
-      width: 165,
-      renderCell: (params) => (
-        <Box display="flex" alignItems="center" gap={1}>
-          {params.row.next_expected_date || '—'}
-          {isOverdue(params.row) && (
-            <Chip label="Overdue" size="small" color="warning" />
-          )}
-        </Box>
-      ),
-    },
-    {
-      field: 'is_autopay',
-      headerName: 'Payment',
-      width: 130,
-      valueGetter: (_, row) => (row.is_autopay ? 'Autopay' : row.due_day ? `Manual, day ${row.due_day}` : 'Manual'),
-      renderCell: (params) => (
-        <Chip
-          label={params.row.is_autopay ? 'Autopay' : params.row.due_day ? `Manual · day ${params.row.due_day}` : 'Manual'}
-          size="small"
-          color={params.row.is_autopay ? 'success' : 'default'}
-          variant="outlined"
-          data-testid={`series-payment-${params.row.id}`}
-        />
-      ),
-    },
-    {
-      field: 'transaction_count',
-      headerName: 'Charges',
-      width: 100,
-      align: 'right',
-      headerAlign: 'right',
-      valueGetter: (_, row) => row.transaction_count ?? 0,
-    },
-    {
-      field: 'total_spent',
-      headerName: 'Total Spent',
-      width: 130,
-      align: 'right',
-      headerAlign: 'right',
-      renderCell: (params) =>
-        params.row.total_spent != null ? CURRENCY.format(params.row.total_spent) : '—',
-    },
-    {
-      field: 'actions',
-      headerName: 'Actions',
-      width: 180,
-      align: 'right',
-      headerAlign: 'right',
-      sortable: false,
-      filterable: false,
-      renderCell: (params) => (
-        <Box display="flex" justifyContent="flex-end">
-          {onConfirm && (
-            <Tooltip title="Confirm as active">
-              <IconButton size="small" color="success" onClick={() => onConfirm(params.row)}>
-                <ConfirmIcon fontSize="small" />
+  const columns = useMemo<GridColDef<RecurringSeries>[]>(() => {
+    // A series' expected amount and total are cross-transaction figures: default currency.
+    const formatAmount = (row: RecurringSeries): string => {
+      if (row.expected_amount == null) return '—';
+      const formatted = money(row.expected_amount);
+      return row.amount_is_variable ? t('seriesTable.variesAmount', { amount: formatted }) : formatted;
+    };
+
+    return [
+      {
+        field: 'name',
+        headerName: t('seriesTable.columnName'),
+        flex: 1.2,
+        minWidth: 170,
+        renderCell: (params) => (
+          <Typography variant="body2" fontWeight={600} noWrap>
+            {params.row.name}
+          </Typography>
+        ),
+      },
+      {
+        field: 'company_name',
+        headerName: t('seriesTable.columnMerchant'),
+        flex: 1,
+        minWidth: 140,
+        valueGetter: (_, row) => row.company_name || '—',
+      },
+      cardColumn<RecurringSeries>({ headerName: t('columns.card'), noCard: t('columns.noCard') }),
+      {
+        field: 'cadence',
+        headerName: t('seriesTable.columnCadence'),
+        width: 150,
+        renderCell: (params) => (
+          <Chip
+            label={t(`cadence.${params.row.cadence}`)}
+            size="small"
+            color={params.row.cadence === 'irregular' ? 'default' : 'primary'}
+            variant="outlined"
+          />
+        ),
+      },
+      {
+        field: 'expected_amount',
+        headerName: t('seriesTable.columnAmount'),
+        width: 150,
+        align: 'right',
+        headerAlign: 'right',
+        renderCell: (params) => formatAmount(params.row),
+      },
+      {
+        field: 'last_seen_date',
+        headerName: t('seriesTable.columnLastPaid'),
+        width: 115,
+        valueGetter: (_, row) => row.last_seen_date || '—',
+      },
+      {
+        field: 'next_expected_date',
+        headerName: t('seriesTable.columnNextExpected'),
+        width: 165,
+        renderCell: (params) => (
+          <Box display="flex" alignItems="center" gap={1}>
+            {params.row.next_expected_date || '—'}
+            {isOverdue(params.row) && (
+              <Chip label={t('seriesTable.overdue')} size="small" color="warning" />
+            )}
+          </Box>
+        ),
+      },
+      {
+        field: 'is_autopay',
+        headerName: t('seriesTable.columnPayment'),
+        width: 130,
+        valueGetter: (_, row) =>
+          row.is_autopay ? t('seriesTable.autopay') : row.due_day ? t('seriesTable.manualDayValue', { day: row.due_day }) : t('seriesTable.manual'),
+        renderCell: (params) => (
+          <Chip
+            label={
+              params.row.is_autopay
+                ? t('seriesTable.autopay')
+                : params.row.due_day
+                  ? t('seriesTable.manualDay', { day: params.row.due_day })
+                  : t('seriesTable.manual')
+            }
+            size="small"
+            color={params.row.is_autopay ? 'success' : 'default'}
+            variant="outlined"
+            data-testid={`series-payment-${params.row.id}`}
+          />
+        ),
+      },
+      {
+        field: 'transaction_count',
+        headerName: t('seriesTable.columnCharges'),
+        width: 100,
+        align: 'right',
+        headerAlign: 'right',
+        valueGetter: (_, row) => row.transaction_count ?? 0,
+      },
+      {
+        field: 'total_spent',
+        headerName: t('seriesTable.columnTotalSpent'),
+        width: 130,
+        align: 'right',
+        headerAlign: 'right',
+        renderCell: (params) =>
+          params.row.total_spent != null ? money(params.row.total_spent) : '—',
+      },
+      {
+        field: 'actions',
+        headerName: t('seriesTable.columnActions'),
+        width: 180,
+        align: 'right',
+        headerAlign: 'right',
+        sortable: false,
+        filterable: false,
+        renderCell: (params) => (
+          <Box display="flex" justifyContent="flex-end">
+            {onConfirm && (
+              <Tooltip title={t('seriesTable.confirmTooltip')}>
+                <IconButton size="small" color="success" onClick={() => onConfirm(params.row)}>
+                  <ConfirmIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {onIgnore && (
+              <Tooltip title={t('seriesTable.ignoreTooltip')}>
+                <IconButton size="small" onClick={() => onIgnore(params.row)}>
+                  <IgnoreIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {onRestore && (
+              <Tooltip title={t('seriesTable.restoreTooltip')}>
+                <IconButton size="small" color="primary" onClick={() => onRestore(params.row)}>
+                  <RestoreIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            <Tooltip title={t('seriesTable.editTooltip')}>
+              <IconButton size="small" onClick={() => onEdit(params.row)}>
+                <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-          )}
-          {onIgnore && (
-            <Tooltip title="Ignore (hide from this page)">
-              <IconButton size="small" onClick={() => onIgnore(params.row)}>
-                <IgnoreIcon fontSize="small" />
+            <Tooltip title={t('seriesTable.viewTransactionsTooltip')}>
+              <IconButton size="small" onClick={() => onViewTransactions(params.row)}>
+                <ViewIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-          )}
-          {onRestore && (
-            <Tooltip title="Restore to active">
-              <IconButton size="small" color="primary" onClick={() => onRestore(params.row)}>
-                <RestoreIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-          <Tooltip title="Edit">
-            <IconButton size="small" onClick={() => onEdit(params.row)}>
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="View transactions">
-            <IconButton size="small" onClick={() => onViewTransactions(params.row)}>
-              <ViewIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      ),
-    },
-  ], [onConfirm, onIgnore, onRestore, onEdit, onViewTransactions]);
+          </Box>
+        ),
+      },
+    ];
+  }, [money, onConfirm, onIgnore, onRestore, onEdit, onViewTransactions, t]);
 
   if (series.length === 0 && !emptyMessage) {
     return null;

@@ -20,12 +20,13 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import { isDateOnly, todayLocalISO } from '@/lib/dateOnly';
 import { resolveLeadDays } from '@/lib/notificationService';
 import type { AppNotification, AppNotificationInput, Category, NotificationRecurrence, NotificationSetting, RecurringSeries } from '@/types/database';
 import { REMINDER_TYPES, type ReminderType } from '@/types/notifications';
-import { NOTIFICATION_TYPE_LABELS, RECURRENCE_LABELS } from './notificationPresentation';
+import { RECURRENCE_VALUES, recurrenceLabel, typeLabel } from './notificationPresentation';
 
 export interface ReminderEditorDialogProps {
   open: boolean;
@@ -56,6 +57,7 @@ export default function ReminderEditorDialog({
   onClose,
   onSave,
 }: ReminderEditorDialogProps) {
+  const { t } = useTranslation(['notifications', 'common']);
   const [type, setType] = useState<ReminderType>('custom');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -106,16 +108,16 @@ export default function ReminderEditorDialog({
 
   const handleSave = async () => {
     if (!title.trim()) {
-      setError('Title is required');
+      setError(t('editor.titleRequired'));
       return;
     }
     if (!isDateOnly(dueDate)) {
-      setError('Enter a valid date');
+      setError(t('editor.dateInvalid'));
       return;
     }
     const parsedLead = overrideLead ? Number(leadDays) : null;
     if (parsedLead !== null && (!Number.isInteger(parsedLead) || parsedLead < 0 || parsedLead > 365)) {
-      setError('Lead time must be a whole number of days between 0 and 365');
+      setError(t('editor.leadInvalid'));
       return;
     }
     const entityId = linkKind === 'none' || linkId === '' ? null : Number(linkId);
@@ -144,7 +146,7 @@ export default function ReminderEditorDialog({
       );
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save reminder');
+      setError(err instanceof Error ? err.message : t('editor.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -159,7 +161,7 @@ export default function ReminderEditorDialog({
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="sm" fullWidth aria-labelledby="reminder-editor-title">
-      <DialogTitle id="reminder-editor-title">{reminder ? 'Edit reminder' : 'New reminder'}</DialogTitle>
+      <DialogTitle id="reminder-editor-title">{reminder ? t('editor.editTitle') : t('editor.newTitle')}</DialogTitle>
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -169,7 +171,7 @@ export default function ReminderEditorDialog({
         <Box display="flex" flexWrap="wrap" gap={2} mt={1}>
           <TextField
             select
-            label="Type"
+            label={t('editor.type')}
             value={type}
             onChange={(event) => handleTypeChange(event.target.value as ReminderType)}
             size="small"
@@ -178,12 +180,12 @@ export default function ReminderEditorDialog({
           >
             {REMINDER_TYPES.map((option) => (
               <MenuItem key={option} value={option}>
-                {NOTIFICATION_TYPE_LABELS[option]}
+                {typeLabel(option, t)}
               </MenuItem>
             ))}
           </TextField>
           <TextField
-            label="Title"
+            label={t('editor.title')}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             size="small"
@@ -192,7 +194,7 @@ export default function ReminderEditorDialog({
             slotProps={{ htmlInput: { 'data-testid': 'reminder-title' } }}
           />
           <TextField
-            label="Date"
+            label={t('editor.date')}
             type="date"
             value={dueDate}
             onChange={(event) => setDueDate(event.target.value)}
@@ -202,20 +204,20 @@ export default function ReminderEditorDialog({
           />
           <TextField
             select
-            label="Repeats"
+            label={t('editor.repeats')}
             value={recurrence}
             onChange={(event) => setRecurrence(event.target.value as NotificationRecurrence)}
             size="small"
             sx={{ flex: '1 1 160px' }}
           >
-            {(Object.keys(RECURRENCE_LABELS) as NotificationRecurrence[]).map((option) => (
+            {RECURRENCE_VALUES.map((option) => (
               <MenuItem key={option} value={option}>
-                {RECURRENCE_LABELS[option]}
+                {recurrenceLabel(option, t)}
               </MenuItem>
             ))}
           </TextField>
           <TextField
-            label="Notes"
+            label={t('editor.notes')}
             value={body}
             onChange={(event) => setBody(event.target.value)}
             size="small"
@@ -226,11 +228,11 @@ export default function ReminderEditorDialog({
           <Box sx={{ flex: '1 1 100%', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
             <FormControlLabel
               control={<Switch checked={overrideLead} onChange={(event) => setOverrideLead(event.target.checked)} data-testid="reminder-lead-override" />}
-              label="Custom lead time"
+              label={t('editor.customLead')}
             />
             {overrideLead ? (
               <TextField
-                label="Remind me (days before)"
+                label={t('editor.leadDaysLabel')}
                 type="number"
                 value={leadDays}
                 onChange={(event) => setLeadDays(event.target.value)}
@@ -240,13 +242,13 @@ export default function ReminderEditorDialog({
               />
             ) : (
               <Typography variant="body2" color="text.secondary">
-                Uses the {NOTIFICATION_TYPE_LABELS[type].toLowerCase()} default: {defaultLead} day{defaultLead === 1 ? '' : 's'} before.
+                {t('editor.leadDefault', { type: typeLabel(type, t).toLocaleLowerCase(), count: defaultLead })}
               </Typography>
             )}
           </Box>
           <TextField
             select
-            label="Link to"
+            label={t('editor.linkTo')}
             value={linkKind}
             onChange={(event) => {
               setLinkKind(event.target.value as LinkKind);
@@ -255,14 +257,14 @@ export default function ReminderEditorDialog({
             size="small"
             sx={{ flex: '1 1 160px' }}
           >
-            <MenuItem value="none">Nothing</MenuItem>
-            <MenuItem value="recurring_series">Subscription or bill</MenuItem>
-            <MenuItem value="categories">Budget category</MenuItem>
+            <MenuItem value="none">{t('editor.linkNothing')}</MenuItem>
+            <MenuItem value="recurring_series">{t('editor.linkSeries')}</MenuItem>
+            <MenuItem value="categories">{t('editor.linkCategory')}</MenuItem>
           </TextField>
           {linkKind !== 'none' && (
             <TextField
               select
-              label={linkKind === 'categories' ? 'Category' : 'Series'}
+              label={linkKind === 'categories' ? t('editor.category') : t('editor.series')}
               value={linkId}
               onChange={(event) => setLinkId(event.target.value)}
               size="small"
@@ -280,10 +282,10 @@ export default function ReminderEditorDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button variant="contained" onClick={handleSave} disabled={saving} data-testid="reminder-save">
-          {saving ? 'Saving…' : reminder ? 'Save' : 'Create reminder'}
+          {saving ? t('editor.saving') : reminder ? t('editor.save') : t('editor.create')}
         </Button>
       </DialogActions>
     </Dialog>

@@ -1,18 +1,13 @@
+import type { TFunction } from 'i18next';
+
 import type { Account, AccountCard, User } from '@/types/database';
-import { ACCOUNT_TYPE_OPTIONS } from './accountFormModel';
 
-/** Short labels for the grid's Type chip (the form keeps the longer descriptions). */
-export const ACCOUNT_TYPE_SHORT_LABELS: Record<Account['type'], string> = {
-  checking: 'Checking',
-  savings: 'Savings',
-  credit: 'Credit Card',
-  loan: 'Loan',
-  investment: 'Investment',
-  retirement: 'Retirement',
-};
+/** The `t` of `useTranslation(['accounts', 'common'])`; cross-namespace keys (`common:…`) work through it too. */
+export type AccountsT = TFunction<['accounts', 'common']>;
 
-export function accountTypeLabel(type: Account['type']): string {
-  return ACCOUNT_TYPE_SHORT_LABELS[type] ?? ACCOUNT_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? type;
+/** Short label for the grid's Type chip (the form keeps the longer `common:accountType` descriptions). */
+export function accountTypeLabel(type: Account['type'], t: AccountsT): string {
+  return t(`typeShort.${type}`, { defaultValue: type });
 }
 
 /** The institution shown in the grid: the stored name, or a placeholder that sorts last. */
@@ -31,13 +26,17 @@ export function compareInstitutions(a: string, b: string): number {
   return a.localeCompare(b, undefined, { sensitivity: 'base' });
 }
 
-export function ownerDisplayName(account: Account, users: User[]): string {
-  return account.owner_display_name ?? users.find((user) => user.id === account.owner_user_id)?.display_name ?? 'Unknown';
+export function ownerDisplayName(account: Account, users: User[], t: AccountsT): string {
+  return (
+    account.owner_display_name ??
+    users.find((user) => user.id === account.owner_user_id)?.display_name ??
+    t('common:fields.unknown')
+  );
 }
 
-export function cardholderName(card: AccountCard, users: User[], owner?: string): string {
-  if (!card.user_id) return owner ?? 'Account owner';
-  return card.user_display_name ?? users.find((user) => user.id === card.user_id)?.display_name ?? 'Unknown User';
+export function cardholderName(card: AccountCard, users: User[], t: AccountsT, owner?: string): string {
+  if (!card.user_id) return owner ?? t('display.accountOwner');
+  return card.user_display_name ?? users.find((user) => user.id === card.user_id)?.display_name ?? t('display.unknownUser');
 }
 
 export interface PersonCounts {
@@ -61,8 +60,4 @@ export function countPersonAccounts(
     }
   }
   return { owned, cardholder };
-}
-
-export function formatCurrency(amount: number | null | undefined): string {
-  return Number(amount ?? 0).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
 }

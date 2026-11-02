@@ -50,10 +50,13 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import type { GridColDef, GridColumnVisibilityModel, GridPaginationModel, GridRowSelectionModel, GridSortModel } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useLongPress } from '@/components/common/DataGrid/useLongPress';
+import { useOptionalLocale } from '@/contexts/LocaleContext';
+import { useFormatters } from '@/contexts/useFormatters';
 import { useClassificationRulesSlice, useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
 import type { ClassificationScanSummary } from '@/types/classification';
 import ClassificationRulesDialog from './ClassificationRulesDialog';
@@ -65,7 +68,7 @@ import BulkSetCompanyDialog from './BulkSetCompanyDialog';
 import BulkSetProjectDialog from './BulkSetProjectDialog';
 import BulkSubscriptionLinkDialog from './BulkSubscriptionLinkDialog';
 import { Transaction, TransactionType, Category, Company, Account, TransactionsPaginatedResult, User } from '@/types/database';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 
 type Order = 'asc' | 'desc';
 
@@ -88,6 +91,7 @@ const GRID_FIELD_TO_VISIBLE_COLUMN_KEY = {
 } as const;
 
 export default function TransactionReport() {
+  const { t } = useTranslation(['transactions', 'common']);
   const {
     transactionVersion,
     budgetVersion,
@@ -252,7 +256,7 @@ export default function TransactionReport() {
     try {
       setScanSummary(await runClassificationScan());
     } catch (err) {
-      setScanError(err instanceof Error ? err.message : 'Auto-classification failed');
+      setScanError(err instanceof Error ? err.message : t('report.autoClassifyFailed'));
     } finally {
       setClassifying(false);
     }
@@ -299,10 +303,10 @@ export default function TransactionReport() {
   }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, needsTypeReview, getTransactionsPaginated]);
 
   const columnLabels = {
-    date: 'Date', description: 'Description', comment: 'Comment', category: 'Category',
-    commentIndicator: 'Has Comment', company: 'Company', service: 'Service', project: 'Project', label: 'Label',
-    user: 'User', amount: 'Amount', account: 'Account', card: 'Card',
-    indicators: 'Indicators', actions: 'Actions',
+    date: t('common:fields.date'), description: t('common:fields.description'), comment: t('common:fields.comment'), category: t('common:fields.category'),
+    commentIndicator: t('report.columns.hasComment'), company: t('common:fields.company'), service: t('report.columns.service'), project: t('common:fields.project'), label: t('report.columns.label'),
+    user: t('common:fields.user'), amount: t('common:fields.amount'), account: t('common:fields.account'), card: t('common:fields.card'),
+    indicators: t('report.columns.indicators'), actions: t('common:fields.actions'),
   };
 
   const handleColumnToggle = (column: keyof typeof visibleColumns) => {
@@ -384,12 +388,14 @@ export default function TransactionReport() {
         .filter(([key]) => visibleColumns[key as keyof typeof visibleColumns] && key !== 'actions' && key !== 'label')
         .map(([, label]) => label);
 
+      const yesLabel = t('common:actions.yes');
+      const noLabel = t('common:actions.no');
       const csvData = rows.map((t: Transaction) => {
         const row: string[] = [];
         if (visibleColumns.date) row.push(t.date);
         if (visibleColumns.description) row.push(t.description);
         if (visibleColumns.comment) row.push(t.comment || '');
-        if (visibleColumns.commentIndicator) row.push(t.comment?.trim() ? 'Yes' : 'No');
+        if (visibleColumns.commentIndicator) row.push(t.comment?.trim() ? yesLabel : noLabel);
         if (visibleColumns.category) row.push(t.category_name || '');
         if (visibleColumns.company) row.push(t.company_name || '');
         if (visibleColumns.service) row.push(t.service_name || '');
@@ -419,19 +425,19 @@ export default function TransactionReport() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  };
+  const { money, date, number } = useFormatters();
+  const dateFnsLocale = useOptionalLocale()?.dateFnsLocale;
+  const formatCurrency = useCallback((amount: number, currency?: string | null) => money(amount, currency), [money]);
 
-  const renderTransactionLabel = (transaction: Transaction) => {
+  const renderTransactionLabel = useCallback((transaction: Transaction) => {
     if (transaction.project_id && transaction.project_name) {
-      return <Chip label={`Project: ${transaction.project_name}`} color="primary" size="small" variant="outlined" />;
+      return <Chip label={t('report.projectChip', { name: transaction.project_name })} color="primary" size="small" variant="outlined" />;
     }
     if (transaction.trip_id && transaction.trip_name) {
-      return <Chip label={`Trip: ${transaction.trip_name}`} color="secondary" size="small" variant="outlined" />;
+      return <Chip label={t('report.tripChip', { name: transaction.trip_name })} color="secondary" size="small" variant="outlined" />;
     }
     return null;
-  };
+  }, [t]);
 
   // Categories with a threshold in the budget plan effective this month —
   // drives the Budget chip in the indicators column.
@@ -450,72 +456,93 @@ export default function TransactionReport() {
 
   const gridColumns = React.useMemo<GridColDef<Transaction>[]>(() => [
     {
-      ...dateColumn<Transaction>('date'),
+      ...dateColumn<Transaction>('date', t('common:fields.date'), (value) => date(value)),
       flex: 0.65,
-      valueFormatter: (value) => value ? format(parseISO(String(value)), 'MMM dd, yyyy') : '',
     },
     {
       field: 'description',
-      headerName: 'Description',
+      headerName: t('common:fields.description'),
       flex: 1.5,
       minWidth: 220,
     },
     {
       field: 'comment',
-      headerName: 'Comment',
+      headerName: t('common:fields.comment'),
       flex: 1,
       minWidth: 180,
       valueGetter: (_, row) => row.comment || '',
     },
     {
       field: 'commentIndicator',
-      headerName: 'Has Comment',
+      headerName: t('report.columns.hasComment'),
       minWidth: 140,
       sortable: false,
       filterable: false,
       renderCell: (params) => {
         const hasComment = !!params.row.comment?.trim();
-        return <Chip label={hasComment ? 'Yes' : 'No'} color={hasComment ? 'success' : 'default'} size="small" variant="outlined" />;
+        return <Chip label={hasComment ? t('common:actions.yes') : t('common:actions.no')} color={hasComment ? 'success' : 'default'} size="small" variant="outlined" />;
       },
     },
-    categoryChipColumn<Transaction>(),
+    categoryChipColumn<Transaction>('category_name', { headerName: t('common:fields.category'), uncategorized: t('report.uncategorized') }),
     {
       field: 'company_name',
-      headerName: 'Company',
+      headerName: t('common:fields.company'),
       minWidth: 160,
       flex: 0.75,
       valueGetter: (_, row) => row.company_name || '',
     },
     {
       field: 'service_name',
-      headerName: 'Service',
+      headerName: t('report.columns.service'),
       minWidth: 160,
       flex: 0.75,
       valueGetter: (_, row) => row.service_name || '',
     },
     {
       field: 'project_name',
-      headerName: 'Project',
+      headerName: t('common:fields.project'),
       minWidth: 160,
       flex: 0.8,
       valueGetter: (_, row) => row.project_name || '',
     },
     {
       field: 'label',
-      headerName: 'Label',
+      headerName: t('report.columns.label'),
       minWidth: 160,
       sortable: false,
       filterable: false,
       renderCell: (params) => renderTransactionLabel(params.row),
     },
-    userColumn<Transaction>(),
-    accountColumn<Transaction>(),
-    cardColumn<Transaction>(),
-    indicatorsColumn(budgetedCategoryIds),
-    currencyColumn<Transaction>('amount'),
+    userColumn<Transaction>({
+      headerName: t('common:fields.user'),
+      owner: t('report.owner'),
+      effectiveUser: t('report.effectiveUser'),
+      unassigned: t('report.unassigned'),
+    }),
+    accountColumn<Transaction>({
+      headerName: t('common:fields.account'),
+      owner: t('report.owner'),
+      unknownAccount: t('report.unknownAccount'),
+    }),
+    cardColumn<Transaction>({ headerName: t('common:fields.card'), noCard: t('report.noCard') }),
+    indicatorsColumn(budgetedCategoryIds, {
+      headerName: t('report.columns.indicators'),
+      flagged: t('report.indicators.flagged'),
+      excluded: t('report.indicators.excluded'),
+      refund: t('report.indicators.refund'),
+      refundUnconfirmed: t('report.indicators.refundUnconfirmed'),
+      transfer: t('report.indicators.transfer'),
+      transferUnconfirmed: t('report.indicators.transferUnconfirmed'),
+      budget: t('report.indicators.budget'),
+      trip: t('report.indicators.trip'),
+      project: t('report.indicators.project'),
+      series: t('report.indicators.series'),
+      card: t('report.indicators.card'),
+    }),
+    currencyColumn<Transaction>('amount', money, { headerName: t('common:fields.amount'), currencyOf: (row) => row.account_currency }),
     {
       field: 'actions',
-      headerName: 'Actions',
+      headerName: t('common:fields.actions'),
       minWidth: 130,
       align: 'center',
       headerAlign: 'center',
@@ -523,10 +550,10 @@ export default function TransactionReport() {
       filterable: false,
       renderCell: (params) => (
         <Stack direction="row" spacing={0.5} justifyContent="center">
-          <IconButton size="small" onClick={() => handleOpenCommentDialog(params.row)} title="Edit Comment">
+          <IconButton size="small" onClick={() => handleOpenCommentDialog(params.row)} title={t('report.editComment')}>
             <EditNote fontSize="small" />
           </IconButton>
-          <IconButton size="small" onClick={() => handleLabelTransaction(params.row)} title="Label Transaction">
+          <IconButton size="small" onClick={() => handleLabelTransaction(params.row)} title={t('report.labelTransaction')}>
             <Receipt fontSize="small" />
           </IconButton>
           <IconButton
@@ -534,14 +561,14 @@ export default function TransactionReport() {
             onClick={(event) =>
               setQuickActions({ anchorEl: event.currentTarget, transaction: params.row })
             }
-            title="More Actions"
+            title={t('report.moreActions')}
           >
             <MoreVert fontSize="small" />
           </IconButton>
         </Stack>
       ),
     },
-  ], [budgetedCategoryIds]);
+  ], [budgetedCategoryIds, money, date, t, renderTransactionLabel]);
 
   const columnVisibilityModel = React.useMemo(() => ({
     date: visibleColumns.date,
@@ -616,7 +643,7 @@ export default function TransactionReport() {
   });
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateFnsLocale}>
       <Box sx={{ p: { xs: 2, sm: 3 } }}>
         {/* Header */}
         <Box sx={{
@@ -630,7 +657,7 @@ export default function TransactionReport() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Receipt color="primary" />
             <Typography variant="h4" component="h1" sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}>
-              Transaction Report
+              {t('report.title')}
             </Typography>
           </Box>
           <Stack
@@ -650,19 +677,19 @@ export default function TransactionReport() {
               sx={{ width: { xs: '100%', sm: 'auto' } }}
               data-testid="transactions-auto-classify"
             >
-              {classifying ? 'Classifying…' : 'Auto-classify'}
+              {classifying ? t('report.classifying') : t('report.autoClassify')}
             </Button>
             <Button variant="outlined" startIcon={<Rule />} onClick={() => setRulesDialogOpen(true)} size="small" sx={{ width: { xs: '100%', sm: 'auto' } }} data-testid="transactions-type-rules">
-              Type Rules
+              {t('report.typeRules')}
             </Button>
             <Button variant="outlined" startIcon={<ClearAll />} onClick={handleClearFilters} size="small" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-              Clear Filters
+              {t('report.clearFilters')}
             </Button>
             <Button variant="contained" startIcon={<Download />} onClick={handleExportCSV} disabled={totalCount === 0} size="small" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-              Export CSV
+              {t('report.exportCsv')}
             </Button>
             <Button variant="outlined" startIcon={<ViewColumn />} onClick={() => setShowColumnControls(!showColumnControls)} size="small" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-              Columns
+              {t('report.columnsButton')}
             </Button>
           </Stack>
         </Box>
@@ -672,11 +699,11 @@ export default function TransactionReport() {
           <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <ViewColumn />
-              <Typography variant="h6">Column Visibility</Typography>
+              <Typography variant="h6">{t('report.columnVisibility')}</Typography>
             </Box>
             <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Button variant="outlined" size="small" onClick={() => setVisibleColumns({ date: true, description: true, comment: true, commentIndicator: true, category: true, company: true, service: true, project: true, label: true, user: true, amount: true, account: true, card: true, indicators: true, actions: true })}>Show All</Button>
-              <Button variant="outlined" size="small" onClick={() => setVisibleColumns({ date: true, description: true, comment: true, commentIndicator: true, category: false, company: false, service: false, project: false, label: false, user: false, amount: true, account: false, card: false, indicators: false, actions: true })}>Mobile View</Button>
+              <Button variant="outlined" size="small" onClick={() => setVisibleColumns({ date: true, description: true, comment: true, commentIndicator: true, category: true, company: true, service: true, project: true, label: true, user: true, amount: true, account: true, card: true, indicators: true, actions: true })}>{t('report.showAll')}</Button>
+              <Button variant="outlined" size="small" onClick={() => setVisibleColumns({ date: true, description: true, comment: true, commentIndicator: true, category: false, company: false, service: false, project: false, label: false, user: false, amount: true, account: false, card: false, indicators: false, actions: true })}>{t('report.mobileView')}</Button>
             </Box>
             <FormGroup>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1 }}>
@@ -700,13 +727,11 @@ export default function TransactionReport() {
             data-testid="type-review-banner"
             action={
               <Button color="inherit" size="small" onClick={() => { setNeedsTypeReview(true); setFiltersExpanded(true); }}>
-                Review
+                {t('report.review')}
               </Button>
             }
           >
-            {reviewCount} transaction{reviewCount === 1 ? ' was' : 's were'} typed automatically as transfers, refunds or by your
-            rules and {reviewCount === 1 ? 'has' : 'have'} not been confirmed. Dashed chips mark them; confirm or change the type
-            from a row&apos;s menu.
+            {t('report.reviewBanner', { count: reviewCount })}
           </Alert>
         )}
 
@@ -714,19 +739,19 @@ export default function TransactionReport() {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: { xs: 2, sm: 3 }, mb: 3 }}>
           <Card><CardContent>
             <Typography variant="h6" color="success.main">{formatCurrency(totalIncome)}</Typography>
-            <Typography variant="body2" color="text.secondary">Total Income</Typography>
+            <Typography variant="body2" color="text.secondary">{t('report.totalIncome')}</Typography>
           </CardContent></Card>
           <Card><CardContent>
             <Typography variant="h6" color="error.main">{formatCurrency(totalExpenses)}</Typography>
-            <Typography variant="body2" color="text.secondary">Total Expenses</Typography>
+            <Typography variant="body2" color="text.secondary">{t('report.totalExpenses')}</Typography>
           </CardContent></Card>
           <Card><CardContent>
             <Typography variant="h6" color={netIncome >= 0 ? 'success.main' : 'error.main'}>{formatCurrency(netIncome)}</Typography>
-            <Typography variant="body2" color="text.secondary">Net Income</Typography>
+            <Typography variant="body2" color="text.secondary">{t('report.netIncome')}</Typography>
           </CardContent></Card>
           <Card><CardContent>
-            <Typography variant="h6" color="primary.main">{totalCount.toLocaleString()}</Typography>
-            <Typography variant="body2" color="text.secondary">Transactions</Typography>
+            <Typography variant="h6" color="primary.main">{number(totalCount)}</Typography>
+            <Typography variant="body2" color="text.secondary">{t('report.transactionsCount')}</Typography>
           </CardContent></Card>
         </Box>
 
@@ -739,41 +764,41 @@ export default function TransactionReport() {
           <AccordionSummary expandIcon={<ExpandMore />}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <FilterList />
-              <Typography variant="h6">Filters</Typography>
+              <Typography variant="h6">{t('report.filters')}</Typography>
             </Box>
           </AccordionSummary>
           <AccordionDetails>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' }, gap: 2 }}>
-              <TextField fullWidth label="Search" placeholder="Description, category, company..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <TextField fullWidth label={t('common:actions.search')} placeholder={t('report.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               <FormControl fullWidth>
-                <InputLabel>Type</InputLabel>
-                <Select value={typeFilter} label="Type" onChange={(e) => setTypeFilter(e.target.value as any)}>
-                  <MenuItem value="all">All</MenuItem>
-                  <MenuItem value="income">Income</MenuItem>
-                  <MenuItem value="expense">Expense</MenuItem>
-                  <MenuItem value="refund">Refund</MenuItem>
-                  <MenuItem value="transfer">Transfer</MenuItem>
+                <InputLabel>{t('common:fields.type')}</InputLabel>
+                <Select value={typeFilter} label={t('common:fields.type')} onChange={(e) => setTypeFilter(e.target.value as any)}>
+                  <MenuItem value="all">{t('common:fields.all')}</MenuItem>
+                  <MenuItem value="income">{t('common:transactionType.income')}</MenuItem>
+                  <MenuItem value="expense">{t('common:transactionType.expense')}</MenuItem>
+                  <MenuItem value="refund">{t('common:transactionType.refund')}</MenuItem>
+                  <MenuItem value="transfer">{t('common:transactionType.transfer')}</MenuItem>
                 </Select>
               </FormControl>
             </Box>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
-              <DatePicker label="Start Date" value={startDate} onChange={setStartDate} slotProps={{ textField: { fullWidth: true } }} />
-              <DatePicker label="End Date" value={endDate} onChange={setEndDate} slotProps={{ textField: { fullWidth: true } }} />
+              <DatePicker label={t('report.startDate')} value={startDate} onChange={setStartDate} slotProps={{ textField: { fullWidth: true } }} />
+              <DatePicker label={t('report.endDate')} value={endDate} onChange={setEndDate} slotProps={{ textField: { fullWidth: true } }} />
             </Box>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
-              <TextField fullWidth label="Min Amount" type="number" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} inputProps={{ min: 0, step: 0.01 }} />
-              <TextField fullWidth label="Max Amount" type="number" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} inputProps={{ min: 0, step: 0.01 }} />
+              <TextField fullWidth label={t('report.minAmount')} type="number" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} inputProps={{ min: 0, step: 0.01 }} />
+              <TextField fullWidth label={t('report.maxAmount')} type="number" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} inputProps={{ min: 0, step: 0.01 }} />
             </Box>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
               <Autocomplete multiple options={categories} getOptionLabel={(o) => o.name} value={categories.filter((c: Category) => categoryFilter.includes(c.id))} onChange={(_, v) => setCategoryFilter(v.map(x => x.id))}
-                renderInput={(p) => <TextField {...p} label="Categories" />}
+                renderInput={(p) => <TextField {...p} label={t('report.categories')} />}
                 renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.name} size="small" {...cp} />; })} />
               <Autocomplete multiple options={companies} getOptionLabel={(o) => o.name} value={companies.filter((c: Company) => companyFilter.includes(c.id))} onChange={(_, v) => setCompanyFilter(v.map(x => x.id))}
-                renderInput={(p) => <TextField {...p} label="Companies" />}
+                renderInput={(p) => <TextField {...p} label={t('report.companies')} />}
                 renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.name} size="small" {...cp} />; })} />
               <Autocomplete multiple options={projects} getOptionLabel={(o) => o.name} value={projects.filter((p: any) => projectFilter.includes(p.id))} onChange={(_, v) => setProjectFilter(v.map(x => x.id))}
-                renderInput={(p) => <TextField {...p} label="Projects" />}
+                renderInput={(p) => <TextField {...p} label={t('report.projects')} />}
                 renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.name} size="small" {...cp} />; })} />
               <Autocomplete multiple options={accounts}
                 getOptionLabel={(o) => o.owner_display_name ? `${o.owner_display_name} - ${o.name}` : o.name}
@@ -781,40 +806,40 @@ export default function TransactionReport() {
                 value={accounts.filter((a: Account) => accountFilter.includes(a.id))}
                 onChange={(_, v) => setAccountFilter(v.map(x => x.id))}
                 renderOption={(props, option) => { const { key, ...op } = props; return <li key={option.id} {...op}>{option.owner_display_name ? `${option.owner_display_name} - ${option.name}` : option.name}</li>; }}
-                renderInput={(p) => <TextField {...p} label="Accounts" />}
+                renderInput={(p) => <TextField {...p} label={t('report.accounts')} />}
                 renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.owner_display_name ? `${o.owner_display_name} - ${o.name}` : o.name} size="small" {...cp} />; })} />
               <Autocomplete multiple options={users}
                 getOptionLabel={(o) => o.display_name}
                 isOptionEqualToValue={(o, v) => o.id === v.id}
                 value={users.filter((user: User) => userFilter.includes(user.id))}
                 onChange={(_, v) => setUserFilter(v.map(x => x.id))}
-                renderInput={(p) => <TextField {...p} label="Users" />}
+                renderInput={(p) => <TextField {...p} label={t('report.users')} />}
                 renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.display_name} size="small" {...cp} />; })} />
             </Box>
             <FormGroup row>
               <FormControlLabel
                 control={<Checkbox checked={missingCategory} onChange={(e) => setMissingCategory(e.target.checked)} size="small" />}
-                label="Missing Category"
+                label={t('report.missingCategory')}
               />
               <FormControlLabel
                 control={<Checkbox checked={missingCompany} onChange={(e) => setMissingCompany(e.target.checked)} size="small" />}
-                label="Missing Company"
+                label={t('report.missingCompany')}
               />
               <FormControlLabel
                 control={<Checkbox checked={missingProject} onChange={(e) => setMissingProject(e.target.checked)} size="small" />}
-                label="Missing Project"
+                label={t('report.missingProject')}
               />
               <FormControlLabel
                 control={<Checkbox checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} size="small" />}
-                label="Flagged only"
+                label={t('report.flaggedOnly')}
               />
               <FormControlLabel
                 control={<Checkbox checked={includeExcluded} onChange={(e) => setIncludeExcluded(e.target.checked)} size="small" />}
-                label="Show excluded"
+                label={t('report.showExcluded')}
               />
               <FormControlLabel
                 control={<Checkbox checked={needsTypeReview} onChange={(e) => setNeedsTypeReview(e.target.checked)} size="small" />}
-                label="Needs type review"
+                label={t('report.needsTypeReview')}
               />
             </FormGroup>
           </Box>
@@ -860,12 +885,12 @@ export default function TransactionReport() {
               sx={{ '& .transaction-row--excluded': { opacity: 0.55 } }}
               footerSummary={
                 <Typography variant="body2" color="text.secondary">
-                  Income <Typography component="span" variant="body2" color="success.main">{formatCurrency(totalIncome)}</Typography>
-                  {' • '}Expenses <Typography component="span" variant="body2" color="error.main">{formatCurrency(totalExpenses)}</Typography>
-                  {' • '}Net <Typography component="span" variant="body2" color={netIncome >= 0 ? 'success.main' : 'error.main'}>{formatCurrency(netIncome)}</Typography>
+                  {t('report.footerIncome')} <Typography component="span" variant="body2" color="success.main">{formatCurrency(totalIncome)}</Typography>
+                  {' • '}{t('report.footerExpenses')} <Typography component="span" variant="body2" color="error.main">{formatCurrency(totalExpenses)}</Typography>
+                  {' • '}{t('report.footerNet')} <Typography component="span" variant="body2" color={netIncome >= 0 ? 'success.main' : 'error.main'}>{formatCurrency(netIncome)}</Typography>
                 </Typography>
               }
-              emptyMessage="No transactions found matching your filters"
+              emptyMessage={t('report.emptyMessage')}
               disableVirtualization={process.env.NODE_ENV === 'test'}
             />
           </Box>
@@ -873,8 +898,8 @@ export default function TransactionReport() {
 
         {!loading && totalCount === 0 && (
           <Box sx={{ textAlign: 'center', py: 4 }}>
-            <Typography variant="h6" color="text.secondary">No transactions found matching your filters</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Try adjusting your search criteria or clearing the filters</Typography>
+            <Typography variant="h6" color="text.secondary">{t('report.emptyMessage')}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{t('report.emptyHint')}</Typography>
           </Box>
         )}
 
@@ -911,10 +936,10 @@ export default function TransactionReport() {
           onClose={() => setBulkAction(null)}
         />
         <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Edit Comment</DialogTitle>
+          <DialogTitle>{t('report.editComment')}</DialogTitle>
           <DialogContent>
             <TextField
-              label="Comment"
+              label={t('common:fields.comment')}
               value={commentDraft}
               onChange={(event) => setCommentDraft(event.target.value)}
               fullWidth
@@ -924,8 +949,8 @@ export default function TransactionReport() {
             />
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setCommentDialogOpen(false)}>Cancel</Button>
-            <Button variant="contained" onClick={() => { void handleSaveComment(); }}>Save</Button>
+            <Button onClick={() => setCommentDialogOpen(false)}>{t('common:actions.cancel')}</Button>
+            <Button variant="contained" onClick={() => { void handleSaveComment(); }}>{t('common:actions.save')}</Button>
           </DialogActions>
         </Dialog>
         <ClassificationRulesDialog
@@ -948,7 +973,13 @@ export default function TransactionReport() {
           ) : (
             <Alert severity="success" variant="filled" onClose={() => setScanSummary(null)} data-testid="auto-classify-summary">
               {scanSummary
-                ? `Checked ${scanSummary.scanned} transactions: ${scanSummary.transfersPaired} transfer${scanSummary.transfersPaired === 1 ? '' : 's'} paired, ${scanSummary.refundsInferred} refund${scanSummary.refundsInferred === 1 ? '' : 's'} detected, ${scanSummary.rulesApplied} typed by rules${scanSummary.reverted > 0 ? `, ${scanSummary.reverted} reverted to the amount sign` : ''}.`
+                ? t(scanSummary.reverted > 0 ? 'report.scanSummaryReverted' : 'report.scanSummary', {
+                    scanned: scanSummary.scanned,
+                    transfers: t('report.scanTransfers', { count: scanSummary.transfersPaired }),
+                    refunds: t('report.scanRefunds', { count: scanSummary.refundsInferred }),
+                    rulesApplied: scanSummary.rulesApplied,
+                    reverted: scanSummary.reverted,
+                  })
                 : ''}
             </Alert>
           )}

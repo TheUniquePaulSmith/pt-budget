@@ -1,0 +1,181 @@
+{
+  "type": {
+    "birthday": "生日",
+    "anniversary": "纪念日",
+    "seasonal": "季节性事项",
+    "custom": "自定义提醒",
+    "overdue_payment": "付款到期",
+    "budget_overspend": "预算超支",
+    "loan_promo_ending": "贷款还款截止日"
+  },
+  "typeDescription": {
+    "birthday": "您想记住的生日，每年重复。",
+    "anniversary": "纪念日和其他每年一次的日期。",
+    "seasonal": "季节性事务和续期（税务、保险、入冬准备）。",
+    "custom": "其他任何事项，一次性或重复。",
+    "overdue_payment": "需要您手动支付、已到期或已逾期的订阅和账单（未标记为自动扣款的系列）。",
+    "budget_overspend": "超出当月金额的预算分类。",
+    "loan_promo_ending": "递延利息贷款的还款截止日临近，或已过期且仍有余额，可能被追收利息。"
+  },
+  "recurrence": {
+    "once": "一次",
+    "monthly": "每月",
+    "yearly": "每年"
+  },
+  "status": {
+    "active": "活跃",
+    "snoozed": "已延后",
+    "dismissed": "已忽略",
+    "done": "已完成"
+  },
+  "timing": {
+    "dueToday": "今天到期",
+    "dueTomorrow": "明天到期",
+    "dueInDays_other": "{{count}}天后到期",
+    "overdue_other": "已逾期{{count}}天",
+    "noDate": "无日期",
+    "snoozedUntil": "延后至{{date}}"
+  },
+  "dueLabel": {
+    "today": "今天到期",
+    "tomorrow": "明天到期",
+    "inDays_other": "{{count}}天后到期",
+    "overdue_other": "已逾期{{count}}天"
+  },
+  "alerts": {
+    "overduePayment": {
+      "title": "{{name}}{{due}}",
+      "body": "预计{{date}}付款。将该系列标记为自动扣款可停止此类警报。",
+      "bodyWithAmount": "预计{{date}}付款（{{amount}}）。将该系列标记为自动扣款可停止此类警报。"
+    },
+    "loanPromo": {
+      "chargedTitle": "{{name}}：已收取递延利息",
+      "chargedBody": "还款截止日{{date}}已过且仍有余额；已追加{{amount}}递延利息。",
+      "onTrackTitle": "{{name}}：请在{{date}}前还清",
+      "onTrackBody": "剩余{{balance}}，{{due}}。按预期还款额进度正常；请继续还款，以避免{{interest}}以上的递延利息。",
+      "offTrackTitle": "{{name}}：无法按时在{{date}}前还清",
+      "offTrackBody": "剩余{{balance}}，{{due}}。将被收取约{{interest}}的递延利息。",
+      "offTrackBodyWithRequired": "剩余{{balance}}，{{due}}。将被收取约{{interest}}的递延利息。每月还款{{amount}}可按时还清。"
+    },
+    "budgetOverspend": {
+      "categoryFallback": "分类 {{id}}",
+      "title": "{{name}}已超出预算",
+      "body": "{{month}}预算{{budgeted}}，已花费{{spent}}（超出{{over}}）。",
+      "bodyCarriedIn": "{{month}}预算{{budgeted}}（含结转转入{{carried}}），已花费{{spent}}（超出{{over}}）。",
+      "bodyCarriedOver": "{{month}}预算{{budgeted}}（含结转{{carried}}），已花费{{spent}}（超出{{over}}）。"
+    }
+  },
+  "page": {
+    "title": "通知",
+    "subtitle": "您创建的提醒，以及关于付款和预算的警报。上次扫描：{{lastScan}}。",
+    "lastScanNever": "从未",
+    "scanning": "正在扫描…",
+    "rescan": "重新扫描",
+    "newReminder": "新建提醒",
+    "disabledInfo": "通知已在“设置”中关闭。此处仍会列出现有条目，但不会扫描或统计新的内容。",
+    "empty": "还没有通知。",
+    "tabLabel": "{{label}}（{{n}}）",
+    "tabDue": "到期",
+    "tabUpcoming": "即将到来",
+    "tabHistory": "历史",
+    "emptyDue": "当前没有到期事项。",
+    "emptyUpcoming": "没有即将到来的提醒。",
+    "emptyHistory": "还没有已完成或已忽略的通知。",
+    "columnType": "类型",
+    "columnTitle": "标题",
+    "columnWhen": "时间",
+    "columnRepeats": "重复",
+    "columnStatus": "状态",
+    "columnActions": "操作",
+    "edit": "编辑",
+    "editAria": "编辑{{title}}",
+    "delete": "删除",
+    "deleteAria": "删除{{title}}",
+    "reminderCreated": "提醒已创建",
+    "reminderUpdated": "提醒已更新",
+    "reminderDeleted": "提醒已删除",
+    "deleteFailed": "删除提醒失败"
+  },
+  "rowActions": {
+    "done": "完成",
+    "doneAdvance": "完成（推进到下一次）",
+    "doneAria": "将{{title}}标记为完成",
+    "snooze": "稍后提醒",
+    "snoozeAria": "稍后提醒{{title}}",
+    "dismiss": "忽略",
+    "dismissAria": "忽略{{title}}",
+    "snoozeDay": "延后 1 天",
+    "snoozeWeek": "延后 1 周",
+    "pickDate": "选择日期…",
+    "snoozeUntilTitle": "延后至",
+    "dateLabel": "日期",
+    "snoozeConfirm": "稍后提醒",
+    "completeFailed": "无法完成该通知",
+    "dismissFailed": "无法忽略该通知",
+    "snoozeFailed": "无法延后该通知"
+  },
+  "dashboardCard": {
+    "title": "提醒与警报",
+    "summary": "{{due}}项到期 · 未来{{days}}天内{{upcoming}}项",
+    "comingUp": "即将到来",
+    "more_other": "还有{{count}}项，请前往“通知”页面查看。"
+  },
+  "settingsTab": {
+    "title": "通知",
+    "description": "提醒和警报会显示在仪表盘、顶栏铃铛和“通知”页面。更改会立即保存。",
+    "general": "常规",
+    "enable": "启用通知",
+    "enableHelp": "关闭后将停止扫描警报并隐藏角标；您的提醒会被保留。",
+    "osEnable": "同时显示浏览器（系统）通知",
+    "osHelp": "{{permission}}。浏览器通知仅在 Budget Tracker 于某个标签页中打开时触发，每项每天一次，且仅针对下方勾选的类型。",
+    "permissionUnsupported": "此浏览器不支持",
+    "permissionGranted": "浏览器已允许",
+    "permissionDenied": "浏览器已阻止",
+    "permissionDefault": "开启时将请求权限",
+    "typesTitle": "类型与提前天数",
+    "typesHelp": "提前天数是指事项在日期前多少天变为到期。单个提醒可以覆盖此设置。",
+    "columnType": "类型",
+    "columnEnabled": "已启用",
+    "columnLeadDays": "提前天数",
+    "columnBrowser": "浏览器",
+    "enableType": "启用{{type}}",
+    "leadDaysFor": "{{type}}提前天数",
+    "browserFor": "{{type}}的浏览器通知",
+    "loadFailed": "加载通知设置失败",
+    "saveSettingFailed": "保存通知设置失败",
+    "saveFailed": "保存设置失败",
+    "leadInvalid": "提前天数必须是 0 到 365 之间的整数",
+    "osUnsupported": "此浏览器不支持系统通知。",
+    "osBlocked": "浏览器已阻止此站点的通知。请在浏览器的站点设置中允许，然后重试。",
+    "osNotGranted": "未授予通知权限。"
+  },
+  "editor": {
+    "editTitle": "编辑提醒",
+    "newTitle": "新建提醒",
+    "type": "类型",
+    "title": "标题",
+    "date": "日期",
+    "repeats": "重复",
+    "notes": "备注",
+    "customLead": "自定义提前时间",
+    "leadDaysLabel": "提前提醒我（天）",
+    "leadDefault_other": "使用{{type}}的默认值：提前{{count}}天。",
+    "linkTo": "关联到",
+    "linkNothing": "无",
+    "linkSeries": "订阅或账单",
+    "linkCategory": "预算分类",
+    "category": "分类",
+    "series": "系列",
+    "titleRequired": "标题为必填项",
+    "dateInvalid": "请输入有效日期",
+    "leadInvalid": "提前天数必须是 0 到 365 之间的整数",
+    "saveFailed": "保存提醒失败",
+    "saving": "正在保存…",
+    "save": "保存",
+    "create": "创建提醒"
+  },
+  "runtime": {
+    "scanFailed": "通知扫描失败",
+    "loadFailed": "加载通知设置失败"
+  }
+}

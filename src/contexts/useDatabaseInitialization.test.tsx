@@ -75,6 +75,7 @@ type MockService = {
   getEncryptedArchiveTimestamp: ReturnType<typeof vi.fn>;
   canDecryptArchive: ReturnType<typeof vi.fn>;
   getDatabaseStatus: ReturnType<typeof vi.fn>;
+  preferences: { setDefaultCurrency: ReturnType<typeof vi.fn> };
 };
 
 const mockedDatabaseService = vi.mocked(DatabaseService);
@@ -140,6 +141,7 @@ function createServiceMock(overrides: Partial<MockService> = {}): MockService {
     lockDatabase: vi.fn().mockResolvedValue(undefined),
     ensurePrimaryUser: vi.fn().mockResolvedValue(1),
     addAccountWithCard: vi.fn().mockResolvedValue({ accountId: 1, cardId: 1 }),
+    preferences: { setDefaultCurrency: vi.fn().mockResolvedValue(undefined) },
     ensureIndexes: vi.fn().mockResolvedValue(undefined),
     clearAndRecreateDatabase: vi.fn().mockResolvedValue(undefined),
     loadDatabaseFromFile: vi.fn().mockResolvedValue(undefined),
@@ -466,11 +468,11 @@ describe('useDatabaseInitialization', () => {
         onProgress: expect.any(Function),
       })
     );
-    expect(result.current.initializationState).toBe('needs-initial-account');
+    expect(result.current.initializationState).toBe('needs-preferences');
     expect(result.current.isLoading).toBe(false);
   });
 
-  it('cancels sample data import and recreates the database, then proceeds to needs-initial-account', async () => {
+  it('cancels sample data import and recreates the database, then proceeds to needs-preferences', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
     mockedDatabaseService.mockImplementation(
       () => service as unknown as DatabaseService
@@ -533,7 +535,7 @@ describe('useDatabaseInitialization', () => {
     });
     expect(service.clearAndRecreateDatabase).toHaveBeenCalledTimes(1);
     expect(service.ensureIndexes).toHaveBeenCalledTimes(1);
-    expect(result.current.initializationState).toBe('needs-initial-account');
+    expect(result.current.initializationState).toBe('needs-preferences');
     expect(result.current.sampleDataImportProgress).toBeNull();
     expect(result.current.isLoading).toBe(false);
   });
@@ -572,7 +574,7 @@ describe('useDatabaseInitialization', () => {
     expect(result.current.initializationState).toBe('initialized');
   });
 
-  it('goes to needs-initial-account after password setup completes, right after password entry', async () => {
+  it('goes to needs-preferences after password setup completes, right after password entry', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
     mockedDatabaseService.mockImplementation(
       () => service as unknown as DatabaseService
@@ -594,7 +596,7 @@ describe('useDatabaseInitialization', () => {
     expect(service.createNewDatabase).toHaveBeenCalledWith('correcthorsebatterystaple', {
       deferIndexes: false,
     });
-    expect(result.current.initializationState).toBe('needs-initial-account');
+    expect(result.current.initializationState).toBe('needs-preferences');
   });
 
   it('handleInitialAccountConfirmed creates the account for the newly-created primary user, then goes to needs-storage-choice', async () => {
@@ -613,6 +615,10 @@ describe('useDatabaseInitialization', () => {
     await act(async () => {
       await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
     });
+    await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
+    await act(async () => {
+      await result.current.skipPreferences();
+    });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-initial-account'));
 
     await act(async () => {
@@ -620,11 +626,79 @@ describe('useDatabaseInitialization', () => {
     });
 
     expect(service.addAccountWithCard).toHaveBeenCalledWith(
-      { name: 'Checking', type: 'checking' },
+      { name: 'Checking', type: 'checking', currency: 'USD' },
       1,
       { last_four: '1234', nickname: null, user_id: 1 }
     );
     expect(result.current.initializationState).toBe('needs-storage-choice');
+  });
+
+  it('handlePreferencesConfirmed saves the default currency and the initial account starts with it', async () => {
+    const service = createServiceMock({ dbExistsBeforeInit: false });
+    mockedDatabaseService.mockImplementation(
+      () => service as unknown as DatabaseService
+    );
+    mockedShouldLoadSampleData.mockReturnValue(false);
+    const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useDatabaseInitialization({ loadAllData })
+    );
+    await completeBrowserTest(result);
+    await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
+    await act(async () => {
+      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+    });
+    await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
+    expect(result.current.setupDefaultCurrency).toBe('USD');
+
+    await act(async () => {
+      await result.current.handlePreferencesConfirmed('eur');
+    });
+
+    expect(service.preferences.setDefaultCurrency).toHaveBeenCalledWith('EUR');
+    expect(result.current.setupDefaultCurrency).toBe('EUR');
+    expect(result.current.initializationState).toBe('needs-initial-account');
+
+    await act(async () => {
+      await result.current.handleInitialAccountConfirmed('Girokonto', 'checking', '1234');
+    });
+    expect(service.addAccountWithCard).toHaveBeenCalledWith(
+      { name: 'Girokonto', type: 'checking', currency: 'EUR' },
+      1,
+      { last_four: '1234', nickname: null, user_id: 1 }
+    );
+    expect(result.current.initializationState).toBe('needs-storage-choice');
+  });
+
+  it('handlePreferencesConfirmed stays on the preferences step with an error when saving fails', async () => {
+    const service = createServiceMock({
+      dbExistsBeforeInit: false,
+      preferences: { setDefaultCurrency: vi.fn().mockRejectedValue(new Error('locked')) },
+    });
+    mockedDatabaseService.mockImplementation(
+      () => service as unknown as DatabaseService
+    );
+    mockedShouldLoadSampleData.mockReturnValue(false);
+    const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useDatabaseInitialization({ loadAllData })
+    );
+    await completeBrowserTest(result);
+    await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
+    await act(async () => {
+      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+    });
+    await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
+
+    await act(async () => {
+      await result.current.handlePreferencesConfirmed('EUR');
+    });
+
+    expect(result.current.initializationState).toBe('needs-preferences');
+    expect(result.current.error).toBe('locked');
+    expect(result.current.setupDefaultCurrency).toBe('USD');
   });
 
   it('skipInitialAccount goes to needs-storage-choice without creating an account', async () => {
@@ -642,6 +716,10 @@ describe('useDatabaseInitialization', () => {
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
       await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+    });
+    await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
+    await act(async () => {
+      await result.current.skipPreferences();
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-initial-account'));
 
@@ -668,6 +746,10 @@ describe('useDatabaseInitialization', () => {
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
       await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+    });
+    await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
+    await act(async () => {
+      await result.current.skipPreferences();
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-initial-account'));
     await act(async () => {
@@ -702,6 +784,10 @@ describe('useDatabaseInitialization', () => {
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
       await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+    });
+    await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
+    await act(async () => {
+      await result.current.skipPreferences();
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-initial-account'));
     await act(async () => {
@@ -738,6 +824,10 @@ describe('useDatabaseInitialization', () => {
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
       await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+    });
+    await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
+    await act(async () => {
+      await result.current.skipPreferences();
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-initial-account'));
     await act(async () => {

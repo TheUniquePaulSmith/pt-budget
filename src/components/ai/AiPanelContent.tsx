@@ -15,7 +15,9 @@ import {
   OpenInNew,
   ViewSidebar,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
+import { useFormatters } from '@/contexts/useFormatters';
 import { useAiChatRuntimeSlice } from '@/contexts/useWllamaSlices';
 import { kindLabel } from '@/lib/aiProviderConfig';
 import AiAutomationPanel from './AiAutomationPanel';
@@ -59,6 +61,8 @@ function CountBadge({ count }: { count: number }) {
 }
 
 export default function AiPanelContent({ onClose }: AiPanelContentProps) {
+  const { t } = useTranslation('ai');
+  const { number } = useFormatters();
   const panel = useAiPanel();
   const { provider, providerLabel, isLocalProvider, isProviderReady, activeProfile } = useAiProviderContext();
   const { loadedModel, contextSizeTokens, maxOutputTokens } = useAiChatRuntimeSlice();
@@ -73,15 +77,17 @@ export default function AiPanelContent({ onClose }: AiPanelContentProps) {
   }, [isProviderReady]);
 
   const automationCount = panel.classificationSuggestions.length + panel.merchantRuleSuggestions.length;
-  const numberFormatter = new Intl.NumberFormat('en-US');
 
   let caption: string;
   if (isLocalProvider) {
     caption = isProviderReady && loadedModel
-      ? `Input ${numberFormatter.format(loadedModel.contextLength ?? contextSizeTokens)} · Output ${numberFormatter.format(maxOutputTokens)} tokens`
-      : 'No model loaded';
+      ? t('panelContent.localCaption', {
+          input: number(loadedModel.contextLength ?? contextSizeTokens),
+          output: number(maxOutputTokens),
+        })
+      : t('panelContent.noModelLoaded');
   } else {
-    caption = `${kindLabel(provider.kind)} · ${provider.model}`;
+    caption = t('panelContent.cloudCaption', { provider: kindLabel(provider.kind), model: provider.model });
   }
 
   const showModeControls = !panel.isStandalone;
@@ -130,32 +136,32 @@ export default function AiPanelContent({ onClose }: AiPanelContentProps) {
 
         <Stack direction="row" spacing={0} alignItems="center">
           {showModeControls && panel.mode === 'maximized' && (
-            <Tooltip title="Show as sidebar">
-              <IconButton size="small" onClick={() => panel.setMode('sidebar')} aria-label="Show as sidebar" data-testid="ai-mode-sidebar">
+            <Tooltip title={t('panelContent.showAsSidebar')}>
+              <IconButton size="small" onClick={() => panel.setMode('sidebar')} aria-label={t('panelContent.showAsSidebar')} data-testid="ai-mode-sidebar">
                 <FullscreenExit fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
           {showModeControls && panel.mode !== 'maximized' && (
-            <Tooltip title="Maximize">
-              <IconButton size="small" onClick={() => panel.setMode('maximized')} aria-label="Maximize AI panel" data-testid="ai-mode-maximize">
+            <Tooltip title={t('panelContent.maximize')}>
+              <IconButton size="small" onClick={() => panel.setMode('maximized')} aria-label={t('panelContent.maximizeAria')} data-testid="ai-mode-maximize">
                 <Fullscreen fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
           {showModeControls && (
-            <Tooltip title="Open in a new window">
-              <IconButton size="small" onClick={panel.openPopout} aria-label="Open AI panel in a new window" data-testid="ai-mode-popout">
+            <Tooltip title={t('panelContent.openNewWindow')}>
+              <IconButton size="small" onClick={panel.openPopout} aria-label={t('panelContent.openNewWindowAria')} data-testid="ai-mode-popout">
                 <OpenInNew fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
           {panel.isStandalone && (
-            <Tooltip title="This window shares the app's database. Local models must be loaded here again.">
+            <Tooltip title={t('panelContent.standaloneHint')}>
               <ViewSidebar fontSize="small" color="disabled" sx={{ mx: 1 }} />
             </Tooltip>
           )}
-          <IconButton onClick={onClose} aria-label="Close AI panel" data-testid="ai-panel-close">
+          <IconButton onClick={onClose} aria-label={t('panelContent.close')} data-testid="ai-panel-close">
             <Close />
           </IconButton>
         </Stack>
@@ -167,20 +173,20 @@ export default function AiPanelContent({ onClose }: AiPanelContentProps) {
         variant="fullWidth"
         sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 44 }}
       >
-        <Tab value="chat" label="Chat" sx={{ minHeight: 44 }} data-testid="ai-tab-chat" />
+        <Tab value="chat" label={t('panelContent.tabChat')} sx={{ minHeight: 44 }} data-testid="ai-tab-chat" />
         <Tab
           value="automation"
           label={
             <Stack direction="row" spacing={0.75} alignItems="center">
-              <span>Automation</span>
+              <span>{t('panelContent.tabAutomation')}</span>
               <CountBadge count={automationCount} />
             </Stack>
           }
           sx={{ minHeight: 44 }}
           data-testid="ai-tab-automation"
         />
-        <Tab value="tools" label="Tools" sx={{ minHeight: 44 }} data-testid="ai-tab-tools" />
-        <Tab value="setup" label="Setup" sx={{ minHeight: 44 }} data-testid="ai-tab-setup" />
+        <Tab value="tools" label={t('panelContent.tabTools')} sx={{ minHeight: 44 }} data-testid="ai-tab-tools" />
+        <Tab value="setup" label={t('panelContent.tabSetup')} sx={{ minHeight: 44 }} data-testid="ai-tab-setup" />
       </Tabs>
 
       <Box sx={{ display: activeTab === 'chat' ? 'flex' : 'none', flex: 1, minHeight: 0 }}>

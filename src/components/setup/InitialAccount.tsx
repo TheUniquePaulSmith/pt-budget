@@ -18,14 +18,20 @@ import {
   Typography,
 } from '@mui/material';
 
+import { useTranslation } from 'react-i18next';
+
+import CurrencySelect from '@/components/common/CurrencySelect';
 import type { Account } from '@/types/database';
 
 interface InitialAccountProps {
+  /** The household's default currency (chosen on the preferences step); the account starts with it. */
+  defaultCurrency: string;
   /** Called after the user confirms their first account. */
   onAccountConfirmed: (
     name: string,
     type: Account['type'],
-    lastFour: string
+    lastFour: string,
+    currency: string
   ) => Promise<void>;
   /** Skips creating an initial account and continues setup. */
   onSkip: () => Promise<void>;
@@ -36,13 +42,16 @@ interface InitialAccountProps {
 const LAST_FOUR_PATTERN = /^\d{4}$/;
 
 export function InitialAccount({
+  defaultCurrency,
   onAccountConfirmed,
   onSkip,
   isLoading,
   error,
 }: InitialAccountProps) {
+  const { t } = useTranslation(['setup', 'common']);
   const [name, setName] = useState('');
   const [type, setType] = useState<Account['type']>('checking');
+  const [currency, setCurrency] = useState(defaultCurrency);
   const [lastFour, setLastFour] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -51,21 +60,21 @@ export function InitialAccount({
 
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setValidationError('Account name is required.');
+      setValidationError(t('initialAccount.nameRequired'));
       return;
     }
 
     if (!LAST_FOUR_PATTERN.test(lastFour)) {
-      setValidationError('Last four digits must be exactly 4 numbers.');
+      setValidationError(t('initialAccount.lastFourInvalid'));
       return;
     }
 
     try {
-      await onAccountConfirmed(trimmedName, type, lastFour);
+      await onAccountConfirmed(trimmedName, type, lastFour, currency);
     } catch {
       // Error is surfaced via the `error` prop from the parent.
     }
-  }, [name, type, lastFour, onAccountConfirmed]);
+  }, [name, type, lastFour, currency, onAccountConfirmed, t]);
 
   const displayError = validationError ?? error;
   const canSubmit =
@@ -85,11 +94,10 @@ export function InitialAccount({
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <CreditCardOutlined sx={{ fontSize: 56, color: 'primary.main', mb: 1.5 }} />
           <Typography variant="h5" gutterBottom fontWeight="bold">
-            Add Your First Account
+            {t('initialAccount.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Set up an account or card so your transactions have somewhere to
-            go. You can add more accounts later in Settings.
+            {t('initialAccount.description')}
           </Typography>
         </Box>
 
@@ -100,7 +108,7 @@ export function InitialAccount({
         )}
 
         <TextField
-          label="Account Name"
+          label={t('initialAccount.nameLabel')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           fullWidth
@@ -111,24 +119,33 @@ export function InitialAccount({
         />
 
         <FormControl fullWidth disabled={isLoading} sx={{ mb: 2 }}>
-          <InputLabel id="initial-account-type-label">Account Type</InputLabel>
+          <InputLabel id="initial-account-type-label">{t('initialAccount.typeLabel')}</InputLabel>
           <Select
             labelId="initial-account-type-label"
-            label="Account Type"
+            label={t('initialAccount.typeLabel')}
             value={type}
             onChange={(e: SelectChangeEvent) =>
               setType(e.target.value as Account['type'])
             }
           >
-            <MenuItem value="checking">Checking</MenuItem>
-            <MenuItem value="savings">Savings</MenuItem>
-            <MenuItem value="credit">Credit Card</MenuItem>
-            <MenuItem value="joint">Joint Account</MenuItem>
+            <MenuItem value="checking">{t('common:accountType.checking')}</MenuItem>
+            <MenuItem value="savings">{t('common:accountType.savings')}</MenuItem>
+            <MenuItem value="credit">{t('common:accountType.credit')}</MenuItem>
           </Select>
         </FormControl>
 
+        <CurrencySelect
+          id="initial-account-currency"
+          label={t('initialAccount.currencyLabel')}
+          value={currency}
+          onChange={setCurrency}
+          disabled={isLoading}
+          testId="initial-account-currency"
+          sx={{ mb: 2 }}
+        />
+
         <TextField
-          label="Last Four Digits"
+          label={t('initialAccount.lastFourLabel')}
           value={lastFour}
           onChange={(e) => setLastFour(e.target.value.replace(/\D/g, '').slice(0, 4))}
           fullWidth
@@ -152,7 +169,7 @@ export function InitialAccount({
           }
           sx={{ mb: 1.5 }}
         >
-          {isLoading ? 'Saving Account…' : 'Continue'}
+          {isLoading ? t('initialAccount.saving') : t('common:actions.continue')}
         </Button>
 
         <Button
@@ -163,7 +180,7 @@ export function InitialAccount({
           onClick={() => void onSkip()}
           data-testid="skip-initial-account"
         >
-          Skip for now
+          {t('common:actions.skipForNow')}
         </Button>
       </Paper>
     </Box>

@@ -6,6 +6,8 @@ import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { Gauge, gaugeClasses } from '@mui/x-charts/Gauge';
+import { Trans, useTranslation } from 'react-i18next';
+import { useFormatters } from '@/contexts/useFormatters';
 import type { ChartData, ChartCategoryData, Account, BudgetStatus, User } from '@/types/database';
 
 const PIE_CHART_TOP_N = 10;
@@ -22,29 +24,12 @@ const ACTUAL_COLOR = '#1976d2';
 const SPENT_LESS_COLOR = '#2e7d32';
 const SPENT_MORE_COLOR = '#d32f2f';
 
-function topNWithOther(data: ChartCategoryData[], limit = PIE_CHART_TOP_N): ChartCategoryData[] {
+function topNWithOther(data: ChartCategoryData[], otherLabel: string, limit = PIE_CHART_TOP_N): ChartCategoryData[] {
   if (data.length <= limit) return data;
   const top = data.slice(0, limit - 1);
   const otherValue = data.slice(limit - 1).reduce((sum, item) => sum + item.value, 0);
-  return [...top, { id: 'other', label: 'Other', value: otherValue, color: OTHER_SLICE_COLOR }];
+  return [...top, { id: 'other', label: otherLabel, value: otherValue, color: OTHER_SLICE_COLOR }];
 }
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
-
-const percentLabel = (value: number, total: number) => {
-  if (total <= 0) return '0%';
-  const percent = (value / total) * 100;
-  return `${percent.toFixed(percent >= 10 ? 0 : 1)}%`;
-};
-
-// Formats 'yyyy-MM' as 'MMM yy' for the denser month-axis charts.
-const shortMonth = (month: string) => {
-  const [year, monthNumber] = month.split('-');
-  if (!year || !monthNumber) return month;
-  const date = new Date(Date.UTC(Number(year), Number(monthNumber) - 1, 1));
-  return `${date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })} ${year.slice(2)}`;
-};
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -89,28 +74,49 @@ interface ChartsSectionProps {
 }
 
 const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel, budgetStatus, onManageBudget }) => {
+  const { t } = useTranslation(['dashboard', 'common']);
+  const { money, month, percent } = useFormatters();
   const [tabValue, setTabValue] = useState(0);
   const theme = useTheme();
   // Charts drop their side legends below the sm breakpoint; the colored
   // value chips underneath each pie take over that role.
   const isCompact = useMediaQuery(theme.breakpoints.down('sm'));
 
+  // Chart totals are converted into the default currency by SQL; the charts
+  // show them without decimals.
+  const formatCurrency = (value: number) => money(value, undefined, { whole: true });
+
+  const percentLabel = (value: number, total: number) => {
+    if (total <= 0) return percent(0, { fromPercent: true, maximumFractionDigits: 0 });
+    const ratio = (value / total) * 100;
+    const digits = ratio >= 10 ? 0 : 1;
+    return percent(ratio, { fromPercent: true, minimumFractionDigits: digits, maximumFractionDigits: digits });
+  };
+  const wholePercent = (value: number) =>
+    percent(value, { fromPercent: true, maximumFractionDigits: 0 });
+
+  // 'yyyy-MM' as a short month + year for the denser month-axis charts.
+  const shortMonth = (monthKey: string) => month(monthKey, true);
+
+  const otherLabel = t('common:fields.other');
   const spendingData = chartData?.spendingByCategory ?? [];
   const companySpendingData = chartData?.spendingByCompany ?? [];
   const recurringSpendingData = chartData?.spendingByRecurring ?? [];
   const incomeData = chartData?.incomeBySource ?? [];
 
-  const spendingPieData = topNWithOther(spendingData);
-  const companySpendingPieData = topNWithOther(companySpendingData);
-  const recurringSpendingPieData = topNWithOther(recurringSpendingData);
-  const incomePieData = topNWithOther(incomeData);
+  const spendingPieData = topNWithOther(spendingData, otherLabel);
+  const companySpendingPieData = topNWithOther(companySpendingData, otherLabel);
+  const recurringSpendingPieData = topNWithOther(recurringSpendingData, otherLabel);
+  const incomePieData = topNWithOther(incomeData, otherLabel);
   const trendsData = chartData?.trends ?? { months: [], income: [], expenses: [] };
   const accountData = chartData?.accountAnalysis ?? { accountNames: [], income: [], expenses: [] };
   const categoryTrends = chartData?.categoryTrends ?? { months: [], series: [] };
   const committedSplit = chartData?.committedSplit ?? { months: [], committed: [], discretionary: [] };
   const upcomingCommitments = chartData?.upcomingCommitments ?? { months: [], amounts: [] };
   const categoryDeltas = chartData?.categoryDeltas ?? [];
-  const comparisonPeriodLabel = chartData?.comparisonPeriodLabel ?? 'previous period';
+  const comparisonPeriodLabel = chartData?.comparisonPeriodDays
+    ? t('charts.previousDays', { count: chartData.comparisonPeriodDays })
+    : t('charts.previousPeriod');
   const totalSpending = spendingData.reduce((sum, category) => sum + category.value, 0);
 
   const netCashFlow = trendsData.income.map((income, idx) => income - (trendsData.expenses[idx] ?? 0));
@@ -120,10 +126,10 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
   });
 
   const topSpendingCategories = spendingData.slice(0, 5).map((category) => {
-    const percent = totalSpending > 0 ? (category.value / totalSpending) * 100 : 0;
+    const percentOfTotal = totalSpending > 0 ? (category.value / totalSpending) * 100 : 0;
     return {
       ...category,
-      percent,
+      percent: percentOfTotal,
     };
   });
 
@@ -166,6 +172,9 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
   // Largest change at the top of a horizontal band axis, which renders bottom-up.
   const deltaRows = [...topDeltas].reverse();
 
+  const sliceChipLabel = (item: ChartCategoryData, total: number) =>
+    t('charts.sliceChip', { label: item.label, amount: formatCurrency(item.value), percent: percentLabel(item.value, total) });
+
   const renderPiePanel = (title: string, data: typeof spendingData, emptyMessage: string) => (
     <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
       <Typography variant="subtitle1" fontWeight={700} gutterBottom>{title}</Typography>
@@ -192,7 +201,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
             {data.slice(0, 5).map((item) => (
               <Chip
                 key={String(item.id)}
-                label={`${item.label}: ${formatCurrency(item.value)} (${percentLabel(item.value, data.reduce((sum, row) => sum + row.value, 0))})`}
+                label={sliceChipLabel(item, data.reduce((sum, row) => sum + row.value, 0))}
                 size="small"
                 sx={{ borderLeft: `4px solid ${item.color}`, backgroundColor: 'background.default' }}
               />
@@ -216,39 +225,43 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
           variant="scrollable"
           scrollButtons="auto"
           allowScrollButtonsMobile
-          aria-label="Dashboard chart sections"
+          aria-label={t('charts.tabsLabel')}
         >
-          <Tab label="Spending Breakdown" {...tabA11yProps(0)} />
-          <Tab label="Budget Health" {...tabA11yProps(1)} />
-          <Tab label="Trends" {...tabA11yProps(2)} />
-          <Tab label="Commitments" {...tabA11yProps(3)} />
-          <Tab label="Income Sources" {...tabA11yProps(4)} />
-          <Tab label="User Analysis" {...tabA11yProps(5)} />
+          <Tab label={t('charts.tabs.spendingBreakdown')} {...tabA11yProps(0)} />
+          <Tab label={t('charts.tabs.budgetHealth')} {...tabA11yProps(1)} />
+          <Tab label={t('charts.tabs.trends')} {...tabA11yProps(2)} />
+          <Tab label={t('charts.tabs.commitments')} {...tabA11yProps(3)} />
+          <Tab label={t('charts.tabs.incomeSources')} {...tabA11yProps(4)} />
+          <Tab label={t('charts.tabs.userAnalysis')} {...tabA11yProps(5)} />
         </Tabs>
       </Box>
 
       <TabPanel value={tabValue} index={0}>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
           <Typography variant="h6" gutterBottom>
-            Spending Breakdown - {timeRangeLabel}
+            {t('charts.spendingBreakdownTitle', { timeRangeLabel })}
           </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
-            {renderPiePanel('Categories', spendingPieData, 'No category spending for this period')}
-            {renderPiePanel('Companies / Services', companySpendingPieData, 'No company spending for this period')}
-            {renderPiePanel('Subscriptions & Recurring Bills', recurringSpendingPieData, 'No recurring spending for this period')}
+            {renderPiePanel(t('charts.categoriesPanel'), spendingPieData, t('charts.categoriesEmpty'))}
+            {renderPiePanel(t('charts.companiesPanel'), companySpendingPieData, t('charts.companiesEmpty'))}
+            {renderPiePanel(t('charts.recurringPanel'), recurringSpendingPieData, t('charts.recurringEmpty'))}
           </Box>
 
           {spendingData.length > 0 && (
             <>
               <Divider sx={{ my: 2 }} />
               <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-                Top Expense Categories
+                {t('charts.topExpenseCategories')}
               </Typography>
               <Stack direction="row" flexWrap="wrap" gap={1}>
                 {topSpendingCategories.map((category) => (
                   <Chip
                     key={String(category.id)}
-                    label={`${category.label}: ${formatCurrency(category.value)} (${category.percent.toFixed(1)}%)`}
+                    label={t('charts.sliceChip', {
+                      label: category.label,
+                      amount: formatCurrency(category.value),
+                      percent: percent(category.percent, { fromPercent: true, minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+                    })}
                     sx={{ borderLeft: `4px solid ${category.color}`, backgroundColor: 'background.default' }}
                   />
                 ))}
@@ -258,10 +271,10 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
 
           <Divider sx={{ my: 2 }} />
           <Typography variant="subtitle1" fontWeight={700}>
-            What Changed
+            {t('charts.whatChanged')}
           </Typography>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Category spend versus the {comparisonPeriodLabel}. Red bars mean you spent more.
+            {t('charts.whatChangedHelp', { period: comparisonPeriodLabel })}
           </Typography>
           {deltaRows.length > 0 ? (
             <Box sx={{ height: Math.max(240, deltaRows.length * 38), width: '100%' }}>
@@ -269,7 +282,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
                 layout="horizontal"
                 series={[{
                   data: deltaRows.map((entry) => entry.delta),
-                  label: 'Change vs previous period',
+                  label: t('charts.changeSeries'),
                   valueFormatter: (value: number | null) => (value == null ? '' : formatCurrency(value)),
                 }]}
                 yAxis={[{ scaleType: 'band', data: deltaRows.map((entry) => entry.label), width: 120 }]}
@@ -286,16 +299,16 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
               />
             </Box>
           ) : (
-            <EmptyPanel message="No category changes to compare for this period" height={140} />
+            <EmptyPanel message={t('charts.whatChangedEmpty')} height={140} />
           )}
         </Box>
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
-          <Typography variant="h6">Budget Health</Typography>
+          <Typography variant="h6">{t('charts.budgetHealthTitle')}</Typography>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Current month · all accounts — this tab ignores the date range and scope filters above.
+            {t('charts.budgetHealthHelp')}
           </Typography>
 
           {hasBudget ? (
@@ -312,7 +325,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
                     valueMax={100}
                     startAngle={-110}
                     endAngle={110}
-                    text={`${budgetPercent.toFixed(0)}%`}
+                    text={wholePercent(budgetPercent)}
                     sx={{
                       [`& .${gaugeClasses.valueArc}`]: {
                         fill: budgetStatus?.isOverBudget ? theme.palette.error.main : theme.palette.primary.main,
@@ -322,29 +335,33 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
                 </Box>
                 <Stack spacing={1} sx={{ minWidth: 0 }}>
                   <Typography variant="body1">
-                    <strong>{budgetPercent.toFixed(0)}%</strong> of budget spent ·{' '}
-                    <strong>{monthElapsedPercent.toFixed(0)}%</strong> through the month
+                    <Trans
+                      i18nKey="charts.budgetPace"
+                      ns="dashboard"
+                      values={{ spent: wholePercent(budgetPercent), elapsed: wholePercent(monthElapsedPercent) }}
+                      components={{ strong: <strong /> }}
+                    />
                   </Typography>
                   <Stack direction="row" flexWrap="wrap" gap={1}>
-                    <Chip size="small" variant="outlined" label={`Budgeted: ${formatCurrency(budgetedTotal!)}`} />
-                    <Chip size="small" variant="outlined" label={`Spent: ${formatCurrency(budgetStatus!.actualExpenses)}`} />
+                    <Chip size="small" variant="outlined" label={t('charts.budgetedChip', { amount: formatCurrency(budgetedTotal!) })} />
+                    <Chip size="small" variant="outlined" label={t('charts.spentChip', { amount: formatCurrency(budgetStatus!.actualExpenses) })} />
                     <Chip
                       size="small"
                       color={budgetStatus?.isOverBudget ? 'error' : 'success'}
                       label={
                         budgetStatus?.isOverBudget
-                          ? `Over by ${formatCurrency(Math.abs(budgetStatus.remaining ?? 0))}`
-                          : `${formatCurrency(budgetStatus?.remaining ?? 0)} remaining`
+                          ? t('charts.overByChip', { amount: formatCurrency(Math.abs(budgetStatus.remaining ?? 0)) })
+                          : t('charts.remainingChip', { amount: formatCurrency(budgetStatus?.remaining ?? 0) })
                       }
                     />
                     {budgetPercent > monthElapsedPercent && !budgetStatus?.isOverBudget && (
-                      <Chip size="small" color="warning" variant="outlined" label="Ahead of pace" />
+                      <Chip size="small" color="warning" variant="outlined" label={t('charts.aheadOfPace')} />
                     )}
                     {(budgetStatus?.unbudgetedSpend ?? 0) > 0 && (
                       <Chip
                         size="small"
                         variant="outlined"
-                        label={`Unbudgeted: ${formatCurrency(budgetStatus!.unbudgetedSpend)}`}
+                        label={t('charts.unbudgetedChip', { amount: formatCurrency(budgetStatus!.unbudgetedSpend) })}
                       />
                     )}
                   </Stack>
@@ -358,7 +375,10 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
                       key={category.category_id}
                       size="small"
                       color="error"
-                      label={`${category.category_name ?? 'Category'} over by ${formatCurrency(Math.abs(category.remaining))}`}
+                      label={t('charts.categoryOverBy', {
+                        name: category.category_name ?? t('common:fields.category'),
+                        amount: formatCurrency(Math.abs(category.remaining)),
+                      })}
                     />
                   ))}
                 </Stack>
@@ -366,7 +386,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
 
               <Divider sx={{ my: 2 }} />
               <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-                Budgeted vs Actual by Category
+                {t('charts.budgetedVsActual')}
               </Typography>
               {budgetCategories.length > 0 ? (
                 <Box sx={{ height: Math.max(280, budgetCategories.length * 42), width: '100%' }}>
@@ -375,20 +395,20 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
                     series={[
                       {
                         data: budgetCategories.map((category) => category.budgetedAmount),
-                        label: 'Budgeted',
+                        label: t('charts.budgetedSeries'),
                         color: BUDGETED_COLOR,
                         valueFormatter: (value: number | null) => (value == null ? '' : formatCurrency(value)),
                       },
                       {
                         data: budgetCategories.map((category) => category.actualExpenses),
-                        label: 'Actual',
+                        label: t('charts.actualSeries'),
                         color: ACTUAL_COLOR,
                         valueFormatter: (value: number | null) => (value == null ? '' : formatCurrency(value)),
                       },
                     ]}
                     yAxis={[{
                       scaleType: 'band',
-                      data: budgetCategories.map((category) => category.category_name ?? 'Category'),
+                      data: budgetCategories.map((category) => category.category_name ?? t('common:fields.category')),
                       width: 120,
                     }]}
                     xAxis={[{ valueFormatter: (value: number) => formatCurrency(value) }]}
@@ -396,14 +416,14 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
                   />
                 </Box>
               ) : (
-                <EmptyPanel message="This month's plan has no category thresholds" height={160} />
+                <EmptyPanel message={t('charts.noThresholds')} height={160} />
               )}
             </>
           ) : (
-            <EmptyPanel message="No budget plan is in effect for this month" height={220}>
+            <EmptyPanel message={t('charts.noBudgetPlan')} height={220}>
               {onManageBudget && (
                 <Button variant="outlined" size="small" onClick={onManageBudget}>
-                  Manage budget
+                  {t('charts.manageBudget')}
                 </Button>
               )}
             </EmptyPanel>
@@ -413,20 +433,20 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
 
       <TabPanel value={tabValue} index={2}>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
-          <Typography variant="h6" gutterBottom>Income vs Expenses Trend</Typography>
+          <Typography variant="h6" gutterBottom>{t('charts.trendTitle')}</Typography>
           {trendsData.months.length > 0 ? (
             <Box>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} mb={2}>
-                <Chip label={`Avg monthly income: ${formatCurrency(avgMonthlyIncome)}`} color="success" variant="outlined" />
-                <Chip label={`Avg monthly expenses: ${formatCurrency(avgMonthlyExpenses)}`} color="error" variant="outlined" />
-                <Chip label={`Avg monthly net: ${formatCurrency(avgMonthlyNet)}`} color={avgMonthlyNet >= 0 ? 'success' : 'warning'} variant="filled" />
+                <Chip label={t('charts.avgMonthlyIncome', { amount: formatCurrency(avgMonthlyIncome) })} color="success" variant="outlined" />
+                <Chip label={t('charts.avgMonthlyExpenses', { amount: formatCurrency(avgMonthlyExpenses) })} color="error" variant="outlined" />
+                <Chip label={t('charts.avgMonthlyNet', { amount: formatCurrency(avgMonthlyNet) })} color={avgMonthlyNet >= 0 ? 'success' : 'warning'} variant="filled" />
               </Stack>
 
               <Box height={320}>
                 <LineChart
                   series={[
-                    { data: trendsData.income, label: 'Income', color: '#4caf50' },
-                    { data: trendsData.expenses, label: 'Expenses', color: '#f44336' },
+                    { data: trendsData.income, label: t('charts.incomeSeries'), color: '#4caf50' },
+                    { data: trendsData.expenses, label: t('charts.expensesSeries'), color: '#f44336' },
                   ]}
                   xAxis={[{ scaleType: 'point', data: trendsData.months }]}
                   yAxis={[{ width: 80 }]}
@@ -435,10 +455,10 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
 
               <Box height={280} mt={3}>
                 <Typography variant="subtitle1" gutterBottom>
-                  Net Cash Flow by Month
+                  {t('charts.netCashFlowTitle')}
                 </Typography>
                 <BarChart
-                  series={[{ data: netCashFlow, label: 'Net Cash Flow', color: '#1976d2' }]}
+                  series={[{ data: netCashFlow, label: t('charts.netCashFlowSeries'), color: '#1976d2' }]}
                   xAxis={[{ scaleType: 'band', data: trendsData.months }]}
                   yAxis={[{ width: 80 }]}
                   margin={{ top: 20, right: 20, bottom: 50, left: 80 }}
@@ -447,10 +467,10 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
 
               <Box mt={3}>
                 <Typography variant="subtitle1">
-                  Spending by Category over Time
+                  {t('charts.categoryTrendTitle')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                  What drove each month&apos;s total. Smaller categories are grouped into &quot;Other&quot;.
+                  {t('charts.categoryTrendHelp')}
                 </Typography>
                 {categoryTrends.series.length > 0 ? (
                   <Box height={340}>
@@ -469,49 +489,48 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
                     />
                   </Box>
                 ) : (
-                  <EmptyPanel message="No categorized spending in this window" height={160} />
+                  <EmptyPanel message={t('charts.categoryTrendEmpty')} height={160} />
                 )}
               </Box>
 
               <Box height={260} mt={3}>
                 <Typography variant="subtitle1" gutterBottom>
-                  Spending Pressure (Expense/Income)
+                  {t('charts.spendingPressureTitle')}
                 </Typography>
                 <LineChart
-                  series={[{ data: spendingPressure, label: 'Expense Ratio %', color: '#ef6c00' }]}
+                  series={[{ data: spendingPressure, label: t('charts.expenseRatioSeries'), color: '#ef6c00' }]}
                   xAxis={[{ scaleType: 'point', data: trendsData.months }]}
-                  yAxis={[{ width: 80, valueFormatter: (value: number) => `${value}%` }]}
+                  yAxis={[{ width: 80, valueFormatter: (value: number) => percent(value, { fromPercent: true }) }]}
                 />
               </Box>
             </Box>
           ) : (
-            <EmptyPanel message="No trend data available" />
+            <EmptyPanel message={t('charts.trendEmpty')} />
           )}
         </Box>
       </TabPanel>
 
       <TabPanel value={tabValue} index={3}>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
-          <Typography variant="h6">Committed vs Discretionary Spending</Typography>
+          <Typography variant="h6">{t('charts.committedTitle')}</Typography>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            &quot;Committed&quot; is spending linked to a subscription or recurring bill — the part of each
-            month that is already spoken for.
+            {t('charts.committedHelp')}
           </Typography>
 
           {hasCommittedData ? (
             <>
               <Stack direction="row" flexWrap="wrap" gap={1} mb={2}>
                 <Chip
-                  label={`Latest month committed: ${percentLabel(latestCommitted, latestCommittedTotal)}`}
+                  label={t('charts.latestCommitted', { percent: percentLabel(latestCommitted, latestCommittedTotal) })}
                   sx={{ borderLeft: `4px solid ${COMMITTED_COLOR}`, backgroundColor: 'background.default' }}
                 />
                 <Chip
-                  label={`Committed: ${formatCurrency(latestCommitted)}`}
+                  label={t('charts.committedChip', { amount: formatCurrency(latestCommitted) })}
                   size="small"
                   variant="outlined"
                 />
                 <Chip
-                  label={`Discretionary: ${formatCurrency(latestDiscretionary)}`}
+                  label={t('charts.discretionaryChip', { amount: formatCurrency(latestDiscretionary) })}
                   size="small"
                   variant="outlined"
                 />
@@ -522,14 +541,14 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
                   series={[
                     {
                       data: committedSplit.committed,
-                      label: 'Committed (recurring & bills)',
+                      label: t('charts.committedSeries'),
                       color: COMMITTED_COLOR,
                       stack: 'total',
                       valueFormatter: (value: number | null) => (value == null ? '' : formatCurrency(value)),
                     },
                     {
                       data: committedSplit.discretionary,
-                      label: 'Discretionary',
+                      label: t('charts.discretionarySeries'),
                       color: DISCRETIONARY_COLOR,
                       stack: 'total',
                       valueFormatter: (value: number | null) => (value == null ? '' : formatCurrency(value)),
@@ -543,23 +562,22 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
               </Box>
             </>
           ) : (
-            <EmptyPanel message="No spending is linked to a recurring series yet" height={200} />
+            <EmptyPanel message={t('charts.committedEmpty')} height={200} />
           )}
 
           <Divider sx={{ my: 3 }} />
           <Typography variant="subtitle1" fontWeight={700}>
-            Upcoming Commitments
+            {t('charts.upcomingTitle')}
           </Typography>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Estimated from active series cadence and expected amounts. Not affected by the account or
-            user filters above.
+            {t('charts.upcomingHelp')}
           </Typography>
           {upcomingTotal > 0 ? (
             <Box height={260}>
               <BarChart
                 series={[{
                   data: upcomingCommitments.amounts,
-                  label: 'Expected charges',
+                  label: t('charts.expectedChargesSeries'),
                   color: UPCOMING_COLOR,
                   valueFormatter: (value: number | null) => (value == null ? '' : formatCurrency(value)),
                 }]}
@@ -570,7 +588,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
               />
             </Box>
           ) : (
-            <EmptyPanel message="No active recurring series with an expected amount" height={160} />
+            <EmptyPanel message={t('charts.upcomingEmpty')} height={160} />
           )}
         </Box>
       </TabPanel>
@@ -578,7 +596,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
       <TabPanel value={tabValue} index={4}>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
           <Typography variant="h6" gutterBottom>
-            Income by Source - {timeRangeLabel}
+            {t('charts.incomeBySourceTitle', { timeRangeLabel })}
           </Typography>
           {incomePieData.length > 0 ? (
             <>
@@ -605,7 +623,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
                 {incomePieData.slice(0, 5).map((item) => (
                   <Chip
                     key={String(item.id)}
-                    label={`${item.label}: ${formatCurrency(item.value)} (${percentLabel(item.value, incomePieData.reduce((sum, row) => sum + row.value, 0))})`}
+                    label={sliceChipLabel(item, incomePieData.reduce((sum, row) => sum + row.value, 0))}
                     size="small"
                     sx={{ borderLeft: `4px solid ${item.color}`, backgroundColor: 'background.default' }}
                   />
@@ -613,7 +631,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
               </Stack>
             </>
           ) : (
-            <EmptyPanel message="No income data for this period" />
+            <EmptyPanel message={t('charts.incomeEmpty')} />
           )}
         </Box>
       </TabPanel>
@@ -621,25 +639,25 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData, timeRangeLabel
       <TabPanel value={tabValue} index={5}>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
           <Typography variant="h6" gutterBottom>
-            Income and Expenses by User - {timeRangeLabel}
+            {t('charts.byUserTitle', { timeRangeLabel })}
           </Typography>
           {accountData.accountNames.length > 0 ? (
             <Box height={400}>
               <BarChart
                 series={[
-                  { data: accountData.income, label: 'Income', color: '#4caf50' },
-                  { data: accountData.expenses, label: 'Expenses', color: '#f44336' },
+                  { data: accountData.income, label: t('charts.incomeSeries'), color: '#4caf50' },
+                  { data: accountData.expenses, label: t('charts.expensesSeries'), color: '#f44336' },
                 ]}
                 xAxis={[{ scaleType: 'band', data: accountData.accountNames }]}
                 yAxis={[{
                   width: 80,
-                  valueFormatter: (value: string) => `$${value.toLocaleString()}`,
+                  valueFormatter: (value: number) => formatCurrency(Number(value)),
                 }]}
                 margin={{ top: 20, right: 20, bottom: 60, left: 80 }}
               />
             </Box>
           ) : (
-            <EmptyPanel message="No user data for this period" />
+            <EmptyPanel message={t('charts.userEmpty')} />
           )}
         </Box>
       </TabPanel>

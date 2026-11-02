@@ -13,6 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Autorenew as AutorenewIcon } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
 import { RecurringSeries } from '@/types/database';
 
@@ -27,6 +28,7 @@ export default function BulkSubscriptionLinkDialog({
   transactionIds,
   onClose,
 }: BulkSubscriptionLinkDialogProps) {
+  const { t } = useTranslation(['transactions', 'common']);
   const { recurringSeries, bulkLinkTransactionsToSeries } = useTransactionReportSlice();
 
   const [selected, setSelected] = useState<RecurringSeries | null>(null);
@@ -57,7 +59,7 @@ export default function BulkSubscriptionLinkDialog({
       await bulkLinkTransactionsToSeries(transactionIds, selected.id);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to link transactions');
+      setError(err instanceof Error ? err.message : t('bulkSeries.linkFailed'));
     } finally {
       setLoading(false);
     }
@@ -68,14 +70,14 @@ export default function BulkSubscriptionLinkDialog({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <AutorenewIcon />
-          Subscription Link
+          {t('bulkSeries.title')}
         </Box>
       </DialogTitle>
 
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary">
-            Link {transactionIds.length} selected transaction{transactionIds.length === 1 ? '' : 's'} to a recurring series
+            {t('bulkSeries.linkTo', { count: transactionIds.length })}
           </Typography>
         </Box>
 
@@ -95,13 +97,13 @@ export default function BulkSubscriptionLinkDialog({
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Subscription / Bill"
-              placeholder="Search recurring series..."
+              label={t('bulkSeries.seriesLabel')}
+              placeholder={t('bulkSeries.searchPlaceholder')}
               autoFocus
               helperText={
                 options.length === 0
-                  ? 'No recurring series yet — run a scan from the Subscriptions page first'
-                  : 'Active and candidate series are shown'
+                  ? t('bulkSeries.noSeriesHelp')
+                  : t('bulkSeries.seriesHelp')
               }
               fullWidth
             />
@@ -123,13 +125,13 @@ export default function BulkSubscriptionLinkDialog({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           variant="contained"
           onClick={() => void apply()}
           disabled={loading || !selected}
         >
-          {loading ? 'Saving…' : 'Link'}
+          {loading ? t('common:status.saving') : t('bulkSeries.link')}
         </Button>
       </DialogActions>
     </Dialog>

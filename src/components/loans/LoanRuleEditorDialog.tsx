@@ -15,10 +15,11 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
+import { useFormatters } from '@/contexts/useFormatters';
 import type { Account, Loan, LoanMatchRule, LoanMatchRuleInput, MerchantRuleMatchType } from '@/types/database';
 import type { LoanLinkCandidate } from '@/types/loans';
-import { formatCurrency } from './loanPresentation';
 
 export interface LoanRulePrefill {
   loan_id?: number | null;
@@ -41,6 +42,8 @@ interface LoanRuleEditorDialogProps {
   previewMatches: (rule: { pattern: string; match_type: MerchantRuleMatchType; account_id?: number | null }) => Promise<LoanLinkCandidate[]>;
 }
 
+const MATCH_TYPES: ReadonlyArray<MerchantRuleMatchType> = ['contains', 'prefix', 'exact'];
+
 export default function LoanRuleEditorDialog({
   open,
   loan,
@@ -53,6 +56,8 @@ export default function LoanRuleEditorDialog({
   onUpdate,
   previewMatches,
 }: LoanRuleEditorDialogProps) {
+  const { t } = useTranslation('loans');
+  const { money } = useFormatters();
   const [loanId, setLoanId] = useState('');
   const [pattern, setPattern] = useState('');
   const [matchType, setMatchType] = useState<MerchantRuleMatchType>('contains');
@@ -114,11 +119,11 @@ export default function LoanRuleEditorDialog({
   const handleSave = async () => {
     setError(null);
     if (!pattern.trim()) {
-      setError('Enter the description text that identifies the payment');
+      setError(t('ruleEditorDialog.patternRequired'));
       return;
     }
     if (!editingRule && !loanId) {
-      setError('Pick the loan these payments belong to');
+      setError(t('ruleEditorDialog.loanRequired'));
       return;
     }
     setSaving(true);
@@ -137,13 +142,17 @@ export default function LoanRuleEditorDialog({
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save rule');
+      setError(err instanceof Error ? err.message : t('ruleEditorDialog.saveFailed'));
     } finally {
       setSaving(false);
     }
   };
 
-  const title = editingRule ? 'Edit Loan Payment Rule' : loan ? `Track payments for ${loan.name}` : 'Track as Loan Payment';
+  const title = editingRule
+    ? t('ruleEditorDialog.editTitle')
+    : loan
+      ? t('ruleEditorDialog.trackForTitle', { name: loan.name })
+      : t('ruleEditorDialog.trackTitle');
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="sm" fullWidth>
@@ -155,12 +164,11 @@ export default function LoanRuleEditorDialog({
           </Alert>
         )}
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: 1 }}>
-          Outgoing transactions whose description matches are recorded as payments on the loan. Loan rules win over
-          subscription detection: matched transactions never show up as subscriptions or bills.
+          {t('ruleEditorDialog.intro')}
         </Typography>
         <Box display="flex" flexDirection="column" gap={2}>
           {!loan && !editingRule && (
-            <TextField select label="Loan" value={loanId} onChange={(event) => setLoanId(event.target.value)} size="small" required>
+            <TextField select label={t('ruleEditorDialog.loan')} value={loanId} onChange={(event) => setLoanId(event.target.value)} size="small" required>
               {loans.map((candidate) => (
                 <MenuItem key={candidate.id} value={String(candidate.id)}>
                   {candidate.name}
@@ -170,38 +178,40 @@ export default function LoanRuleEditorDialog({
             </TextField>
           )}
           <TextField
-            label="Description pattern"
+            label={t('ruleEditorDialog.pattern')}
             value={pattern}
             onChange={(event) => setPattern(event.target.value)}
             size="small"
             required
             autoFocus
-            helperText="Matched against the normalized bank description (case-insensitive, reference numbers stripped)"
+            helperText={t('ruleEditorDialog.patternHelp')}
             slotProps={{ htmlInput: { 'data-testid': 'loan-rule-pattern' } }}
           />
           <Box display="flex" gap={2} flexWrap="wrap">
             <TextField
               select
-              label="Match"
+              label={t('ruleEditorDialog.match')}
               value={matchType}
               onChange={(event) => setMatchType(event.target.value as MerchantRuleMatchType)}
               size="small"
               sx={{ flex: '1 1 140px' }}
             >
-              <MenuItem value="contains">Contains</MenuItem>
-              <MenuItem value="prefix">Starts with</MenuItem>
-              <MenuItem value="exact">Exact</MenuItem>
+              {MATCH_TYPES.map((value) => (
+                <MenuItem key={value} value={value}>
+                  {t(`matchType.${value}`)}
+                </MenuItem>
+              ))}
             </TextField>
             <TextField
               select
-              label="Paid from account"
+              label={t('ruleEditorDialog.paidFrom')}
               value={accountId}
               onChange={(event) => setAccountId(event.target.value)}
               size="small"
               sx={{ flex: '2 1 200px' }}
-              helperText="Optional: only payments leaving this account"
+              helperText={t('ruleEditorDialog.paidFromHelp')}
             >
-              <MenuItem value="">Any account</MenuItem>
+              <MenuItem value="">{t('ruleEditorDialog.anyAccount')}</MenuItem>
               {accounts.map((account) => (
                 <MenuItem key={account.id} value={String(account.id)}>
                   {account.name}
@@ -209,40 +219,40 @@ export default function LoanRuleEditorDialog({
               ))}
             </TextField>
           </Box>
-          <TextField label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} size="small" />
+          <TextField label={t('ruleEditorDialog.notes')} value={notes} onChange={(event) => setNotes(event.target.value)} size="small" />
           {editingRule && (
             <FormControlLabel
               control={<Switch checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />}
-              label="Enabled"
+              label={t('ruleEditorDialog.enabled')}
             />
           )}
           <Box>
             <Typography variant="subtitle2" gutterBottom>
-              Would match now
+              {t('ruleEditorDialog.wouldMatch')}
             </Typography>
             {previewing ? (
               <Typography variant="body2" color="text.secondary">
-                Checking…
+                {t('ruleEditorDialog.checking')}
               </Typography>
             ) : preview == null ? (
               <Typography variant="body2" color="text.secondary">
-                Enter a pattern to preview matching transactions.
+                {t('ruleEditorDialog.enterPattern')}
               </Typography>
             ) : preview.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
-                No unlinked outgoing transactions match yet. The rule still applies to future imports.
+                {t('ruleEditorDialog.noMatches')}
               </Typography>
             ) : (
               <Box component="ul" sx={{ m: 0, pl: 2, maxHeight: 160, overflowY: 'auto' }} data-testid="loan-rule-preview">
                 {preview.slice(0, 8).map((row) => (
                   <Typography component="li" variant="body2" key={row.id}>
-                    {row.date} · {row.description} · {formatCurrency(Math.abs(row.amount))}
+                    {[row.date, row.description, money(Math.abs(row.amount))].join(' · ')}
                     {row.account_name ? ` · ${row.account_name}` : ''}
                   </Typography>
                 ))}
                 {preview.length > 8 && (
                   <Typography component="li" variant="body2" color="text.secondary">
-                    and {preview.length - 8} more
+                    {t('ruleEditorDialog.andMore', { count: preview.length - 8 })}
                   </Typography>
                 )}
               </Box>
@@ -252,10 +262,10 @@ export default function LoanRuleEditorDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t('ruleEditorDialog.cancel')}
         </Button>
         <Button variant="contained" onClick={handleSave} disabled={saving} data-testid="loan-rule-save">
-          {saving ? 'Saving…' : editingRule ? 'Save' : 'Create Rule'}
+          {saving ? t('ruleEditorDialog.saving') : editingRule ? t('ruleEditorDialog.save') : t('ruleEditorDialog.createRule')}
         </Button>
       </DialogActions>
     </Dialog>

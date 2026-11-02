@@ -1,0 +1,49 @@
+{
+  "category": {
+    "plumbing": "Plumbing",
+    "electrical": "Electrical",
+    "hvac": "HVAC",
+    "roofing": "Roofing",
+    "flooring": "Flooring",
+    "painting": "Painting",
+    "landscaping": "Landscaping",
+    "general_contractor": "General Contractor",
+    "other": "Other"
+  },
+  "status": {
+    "planning": "Planning",
+    "in_progress": "In Progress",
+    "completed": "Completed",
+    "on_hold": "On Hold"
+  },
+  "manage": {
+    "title": "House Projects",
+    "addProject": "Add Project",
+    "empty": "No projects yet. Click \"Add Project\" to create your first house project.",
+    "estimatedCost": "Estimated Cost",
+    "actualCost": "Actual Cost",
+    "notSet": "Not set",
+    "transactionTotal": "Transaction Total",
+    "detailsTitle": "Project Details & Transactions",
+    "detailsTitleWithCount": "Project Details & Transactions ({{count}})",
+    "contactDetails": "Contact Details",
+    "timeline": "Timeline",
+    "start": "Start: {{date}}",
+    "end": "End: {{date}}",
+    "linkedTransactions": "Linked Transactions",
+    "transactionSecondary": "{{date}} • {{amount}} • {{category}}",
+    "uncategorized": "Uncategorized",
+    "noTransactions": "No transactions linked to this project.",
+    "editTitle": "Edit Project",
+    "addTitle": "Add New Project",
+    "projectName": "Project Name",
+    "companyName": "Company Name",
+    "projectCategory": "Project Category",
+    "contactPlaceholder": "Phone, email, address, etc.",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "notesPlaceholder": "Additional notes about the project...",
+    "updateProject": "Update Project",
+    "deleteConfirm": "Are you sure you want to delete \"{{name}}\"? This will remove project references from linked transactions."
+  }
+}

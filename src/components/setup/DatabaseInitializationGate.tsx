@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 
 import { CloudSync, CreateNewFolder, Upload } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   Box,
@@ -16,7 +17,10 @@ import {
 } from '@mui/material';
 
 import AppLogo from '@/components/common/AppLogo';
+import LanguageMenu from '@/components/common/LanguageMenu';
+import { useFormatters } from '@/contexts/useFormatters';
 import { PasswordSetup } from './PasswordSetup';
+import { PreferencesSetup } from './PreferencesSetup';
 import { InitialAccount } from './InitialAccount';
 import { PasswordEntry } from './PasswordEntry';
 import { StorageChoice } from './StorageChoice';
@@ -54,11 +58,18 @@ interface DatabaseInitializationGateProps {
   onCancelSampleDataImport: () => void;
   /** Called when the user confirms a new password on the setup screen. */
   onPasswordSetupConfirmed: (password: string, primaryUserName: string) => Promise<void>;
+  /** Called when the user confirms the preferences step (default currency). */
+  onPreferencesConfirmed: (defaultCurrency: string) => Promise<void>;
+  /** Skips the preferences step (keeps English / USD) and continues setup. */
+  onSkipPreferences: () => Promise<void>;
+  /** The default currency chosen on the preferences step; the first account starts with it. */
+  setupDefaultCurrency: string;
   /** Called when the user confirms their first account on the initial-account screen. */
   onInitialAccountConfirmed: (
     name: string,
     type: Account['type'],
-    lastFour: string
+    lastFour: string,
+    currency: string
   ) => Promise<void>;
   /** Skips the initial-account screen and continues setup. */
   onSkipInitialAccount: () => Promise<void>;
@@ -89,6 +100,15 @@ const centeredBoxSx = {
   p: 2,
 } as const;
 
+/** Language picker pinned to the top-right of the screens shown before a database exists. */
+function LanguageMenuCorner() {
+  return (
+    <Box sx={{ position: 'fixed', top: 8, right: 8, zIndex: (theme) => theme.zIndex.appBar }}>
+      <LanguageMenu />
+    </Box>
+  );
+}
+
 export function DatabaseInitializationGate({
   databaseSource,
   initializationState,
@@ -106,6 +126,9 @@ export function DatabaseInitializationGate({
   onSwitchToLocalSource,
   onCancelSampleDataImport,
   onPasswordSetupConfirmed,
+  onPreferencesConfirmed,
+  onSkipPreferences,
+  setupDefaultCurrency,
   onInitialAccountConfirmed,
   onSkipInitialAccount,
   onPasswordEntrySubmitted,
@@ -114,6 +137,9 @@ export function DatabaseInitializationGate({
   onUnlockSubmitted,
   onResetApp,
 }: DatabaseInitializationGateProps) {
+  const { t } = useTranslation(['setup', 'common']);
+  const { number } = useFormatters();
+
   const handleCreateNew = useCallback(async () => {
     try {
       await onCreateOrOpenDatabase(true);
@@ -173,7 +199,7 @@ export function DatabaseInitializationGate({
       <Box sx={centeredBoxSx}>
         <Box sx={{ textAlign: 'center' }}>
           <CircularProgress size={60} sx={{ mb: 2 }} />
-          <Typography variant="h6">Initializing database...</Typography>
+          <Typography variant="h6">{t('gate.initializing')}</Typography>
         </Box>
       </Box>
     );
@@ -193,8 +219,22 @@ export function DatabaseInitializationGate({
 
   if (initializationState === 'needs-password-setup') {
     return (
-      <PasswordSetup
-        onPasswordConfirmed={onPasswordSetupConfirmed}
+      <>
+        <LanguageMenuCorner />
+        <PasswordSetup
+          onPasswordConfirmed={onPasswordSetupConfirmed}
+          isLoading={isLoading}
+          error={error}
+        />
+      </>
+    );
+  }
+
+  if (initializationState === 'needs-preferences') {
+    return (
+      <PreferencesSetup
+        onPreferencesConfirmed={onPreferencesConfirmed}
+        onSkip={onSkipPreferences}
         isLoading={isLoading}
         error={error}
       />
@@ -204,6 +244,7 @@ export function DatabaseInitializationGate({
   if (initializationState === 'needs-initial-account') {
     return (
       <InitialAccount
+        defaultCurrency={setupDefaultCurrency}
         onAccountConfirmed={onInitialAccountConfirmed}
         onSkip={onSkipInitialAccount}
         isLoading={isLoading}
@@ -214,13 +255,16 @@ export function DatabaseInitializationGate({
 
   if (initializationState === 'needs-password-entry') {
     return (
-      <PasswordEntry
-        description="This database file is encrypted. Enter your password to unlock and import it."
-        onPasswordSubmitted={onPasswordEntrySubmitted}
-        onCancel={onCancelPasswordEntry}
-        isLoading={isLoading}
-        error={error}
-      />
+      <>
+        <LanguageMenuCorner />
+        <PasswordEntry
+          description={t('gate.importPasswordDescription')}
+          onPasswordSubmitted={onPasswordEntrySubmitted}
+          onCancel={onCancelPasswordEntry}
+          isLoading={isLoading}
+          error={error}
+        />
+      </>
     );
   }
 
@@ -240,13 +284,16 @@ export function DatabaseInitializationGate({
 
   if (initializationState === 'needs-unlock') {
     return (
-      <PasswordEntry
-        description="This database is encrypted. Enter your password to unlock it."
-        onPasswordSubmitted={onUnlockSubmitted}
-        onResetApp={onResetApp}
-        isLoading={isLoading}
-        error={error}
-      />
+      <>
+        <LanguageMenuCorner />
+        <PasswordEntry
+          description={t('gate.unlockDescription')}
+          onPasswordSubmitted={onUnlockSubmitted}
+          onResetApp={onResetApp}
+          isLoading={isLoading}
+          error={error}
+        />
+      </>
     );
   }
 
@@ -256,15 +303,16 @@ export function DatabaseInitializationGate({
 
     return (
       <Box sx={centeredBoxSx}>
+        <LanguageMenuCorner />
         <Paper sx={{ p: 4, maxWidth: 560, textAlign: 'center' }}>
           <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
             <AppLogo scale={6} />
           </Box>
           <Typography variant="h4" gutterBottom>
-            Welcome to Budget Tracker
+            {t('gate.welcomeTitle')}
           </Typography>
           <Typography variant="body1" sx={{ mb: 4 }}>
-            To get started, you can create a new database or load an existing one from a file.
+            {t('gate.welcomeDescription')}
           </Typography>
 
           {/* Suppressed while the picker dialog is open — connectCloudSource
@@ -286,7 +334,7 @@ export function DatabaseInitializationGate({
               disabled={isLoading}
               size="large"
             >
-              Create New Database
+              {t('gate.createNewDatabase')}
             </Button>
 
             <Button
@@ -296,19 +344,19 @@ export function DatabaseInitializationGate({
               disabled={isLoading}
               size="large"
             >
-              Load from File
+              {t('gate.loadFromFile')}
             </Button>
           </Box>
 
           <Divider sx={{ my: 3 }}>
             <Typography variant="caption" color="text.secondary">
-              or open an existing cloud backup
+              {t('gate.orOpenCloudBackup')}
             </Typography>
           </Divider>
 
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Tooltip
-              title={googleConfigured ? '' : 'Google Drive is not configured for this deployment.'}
+              title={googleConfigured ? '' : t('gate.providerNotConfigured', { provider: t('provider.gdrive') })}
             >
               <span>
                 <Button
@@ -317,12 +365,12 @@ export function DatabaseInitializationGate({
                   onClick={() => handleOpenFromCloud('gdrive')}
                   disabled={isLoading || !googleConfigured}
                 >
-                  Open from Google Drive
+                  {t('gate.openFromProvider', { provider: t('provider.gdrive') })}
                 </Button>
               </span>
             </Tooltip>
             <Tooltip
-              title={oneDriveConfigured ? '' : 'OneDrive is not configured for this deployment.'}
+              title={oneDriveConfigured ? '' : t('gate.providerNotConfigured', { provider: t('provider.onedrive') })}
             >
               <span>
                 <Button
@@ -331,7 +379,7 @@ export function DatabaseInitializationGate({
                   onClick={() => handleOpenFromCloud('onedrive')}
                   disabled={isLoading || !oneDriveConfigured}
                 >
-                  Open from OneDrive
+                  {t('gate.openFromProvider', { provider: t('provider.onedrive') })}
                 </Button>
               </span>
             </Tooltip>
@@ -342,7 +390,7 @@ export function DatabaseInitializationGate({
               {sampleDataImportProgress ? (
                 <Box sx={{ textAlign: 'left' }}>
                   <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                    Importing sample data
+                    {t('gate.importingSampleData')}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                     {sampleDataImportProgress.message}
@@ -355,21 +403,28 @@ export function DatabaseInitializationGate({
                     sx={{ mb: 1 }}
                   />
                   <Typography variant="caption" display="block" color="text.secondary">
-                    Files completed: {sampleDataImportProgress.completedFiles} /{' '}
-                    {sampleDataImportProgress.totalFiles}
+                    {t('gate.filesCompleted', {
+                      completed: sampleDataImportProgress.completedFiles,
+                      total: sampleDataImportProgress.totalFiles,
+                    })}
                   </Typography>
                   {sampleDataImportProgress.currentFile && (
                     <Typography variant="caption" display="block" color="text.secondary">
-                      Current file: {sampleDataImportProgress.currentFile}
+                      {t('gate.currentFile', { file: sampleDataImportProgress.currentFile })}
                     </Typography>
                   )}
                   {sampleDataImportProgress.currentTable && (
                     <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 2 }}>
-                      {sampleDataImportProgress.currentTable}: {sampleDataImportProgress.importedRows.toLocaleString()}
                       {sampleDataImportProgress.expectedRows !== null
-                        ? ` / ${sampleDataImportProgress.expectedRows.toLocaleString()}`
-                        : ''}{' '}
-                      rows
+                        ? t('gate.tableRowsOfExpected', {
+                            table: sampleDataImportProgress.currentTable,
+                            imported: number(sampleDataImportProgress.importedRows),
+                            expected: number(sampleDataImportProgress.expectedRows),
+                          })
+                        : t('gate.tableRows', {
+                            table: sampleDataImportProgress.currentTable,
+                            imported: number(sampleDataImportProgress.importedRows),
+                          })}
                     </Typography>
                   )}
                   <Button
@@ -378,7 +433,7 @@ export function DatabaseInitializationGate({
                     onClick={onCancelSampleDataImport}
                     disabled={!sampleDataImportProgress.isCancelable}
                   >
-                    Cancel Sample Data Import
+                    {t('gate.cancelSampleDataImport')}
                   </Button>
                 </Box>
               ) : (
@@ -408,18 +463,17 @@ export function DatabaseInitializationGate({
     // a failed attempt from a fresh local session never persists
     // databaseSource away from 'local'.
     const providerLabel =
-      (cloudFilePicker.provider ?? databaseSource) === 'gdrive' ? 'Google Drive' : 'OneDrive';
+      (cloudFilePicker.provider ?? databaseSource) === 'gdrive' ? t('provider.gdrive') : t('provider.onedrive');
 
     return (
       <Box sx={centeredBoxSx}>
         <Paper sx={{ p: 4, maxWidth: 560, textAlign: 'center' }}>
           <CloudSync sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
           <Typography variant="h4" gutterBottom>
-            Connect {providerLabel}
+            {t('gate.connectProvider', { provider: providerLabel })}
           </Typography>
           <Typography variant="body1" sx={{ mb: 4 }}>
-            This browser is configured to use {providerLabel} as the database source.
-            Authenticate and choose a backup archive to continue.
+            {t('gate.cloudAuthDescription', { provider: providerLabel })}
           </Typography>
 
           {/* Suppressed while the picker dialog is open — see the matching comment above. */}
@@ -439,7 +493,7 @@ export function DatabaseInitializationGate({
               disabled={isLoading}
               size="large"
             >
-              Connect {providerLabel}
+              {t('gate.connectProvider', { provider: providerLabel })}
             </Button>
             <Button
               variant="outlined"
@@ -447,7 +501,7 @@ export function DatabaseInitializationGate({
               disabled={isLoading}
               size="large"
             >
-              Use Local Database Instead
+              {t('gate.useLocalInstead')}
             </Button>
           </Box>
 
@@ -476,10 +530,10 @@ export function DatabaseInitializationGate({
       <Box sx={centeredBoxSx}>
         <Paper sx={{ p: 4, maxWidth: 500, textAlign: 'center' }}>
           <Typography variant="h5" color="error" gutterBottom>
-            Database Error
+            {t('gate.databaseError')}
           </Typography>
           <Typography variant="body1" sx={{ mb: 3 }}>
-            {error || 'An unknown error occurred while initializing the database.'}
+            {error || t('gate.unknownInitError')}
           </Typography>
           <Button
             variant="contained"
@@ -487,7 +541,7 @@ export function DatabaseInitializationGate({
               window.location.reload();
             }}
           >
-            Reload Page
+            {t('gate.reloadPage')}
           </Button>
         </Paper>
       </Box>

@@ -16,6 +16,7 @@ import {
   Category as CategoryIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
 import { Category } from '@/types/database';
 
@@ -30,6 +31,7 @@ export default function BulkSetCategoryDialog({
   transactionIds,
   onClose,
 }: BulkSetCategoryDialogProps) {
+  const { t } = useTranslation(['transactions', 'common']);
   const { categories, applyTransactionClassifications } = useTransactionReportSlice();
 
   const [selected, setSelected] = useState<Category | null>(null);
@@ -53,7 +55,7 @@ export default function BulkSetCategoryDialog({
       );
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to set category');
+      setError(err instanceof Error ? err.message : t('bulkCategory.setFailed'));
     } finally {
       setLoading(false);
     }
@@ -64,14 +66,14 @@ export default function BulkSetCategoryDialog({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CategoryIcon />
-          Set Category
+          {t('bulkCategory.title')}
         </Box>
       </DialogTitle>
 
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary">
-            Apply to {transactionIds.length} selected transaction{transactionIds.length === 1 ? '' : 's'}
+            {t('bulkCategory.applyTo', { count: transactionIds.length })}
           </Typography>
         </Box>
 
@@ -91,8 +93,8 @@ export default function BulkSetCategoryDialog({
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Category"
-              placeholder="Search categories..."
+              label={t('common:fields.category')}
+              placeholder={t('bulkCategory.searchPlaceholder')}
               autoFocus
               fullWidth
             />
@@ -120,21 +122,21 @@ export default function BulkSetCategoryDialog({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           color="inherit"
           startIcon={<ClearIcon />}
           onClick={() => void apply(null)}
           disabled={loading}
         >
-          Clear
+          {t('common:actions.clear')}
         </Button>
         <Button
           variant="contained"
           onClick={() => void apply(selected?.id ?? null)}
           disabled={loading || !selected}
         >
-          {loading ? 'Saving…' : 'Apply'}
+          {loading ? t('common:status.saving') : t('common:actions.apply')}
         </Button>
       </DialogActions>
     </Dialog>

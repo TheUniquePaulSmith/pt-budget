@@ -1,0 +1,17 @@
+{
+  "manage": {
+    "addCategoryFailed": "카테고리를 추가하지 못했어요",
+    "updateCategoryFailed": "카테고리를 업데이트하지 못했어요",
+    "addCompanyFailed": "가맹점을 추가하지 못했어요",
+    "updateCompanyFailed": "가맹점을 업데이트하지 못했어요",
+    "title": "카테고리 및 가맹점 관리",
+    "categoriesTab": "카테고리",
+    "companiesTab": "가맹점",
+    "addCategoryTitle": "새 카테고리 추가",
+    "categoryNameLabel": "카테고리 이름",
+    "existingCategories": "기존 카테고리",
+    "addCompanyTitle": "새 가맹점 추가",
+    "companyNameLabel": "가맹점 이름",
+    "existingCompanies": "기존 가맹점"
+  }
+}

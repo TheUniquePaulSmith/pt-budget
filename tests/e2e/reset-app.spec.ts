@@ -112,6 +112,7 @@ test('Reset App terminates the shared worker for every tab and comes back as a f
   await page.getByRole('button', { name: 'Create New Database' }).click();
   await fillDatabaseSetupForm(page, { password: SECOND_PASSWORD, primaryUserName: 'AfterReset' });
   await page.getByRole('button', { name: 'Create Database' }).click();
+  await page.getByTestId('skip-preferences').click();
   await page.getByTestId('skip-initial-account').click();
   await page.getByTestId('storage-choice-local').click();
 

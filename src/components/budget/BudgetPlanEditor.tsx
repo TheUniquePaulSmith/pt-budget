@@ -21,6 +21,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import type { BudgetPlanInput } from '@/contexts/useDatabaseBudgetSlice';
 import { BUDGET_CARRY_MODES, currentMonthKey, isBudgetCarryMode } from '@/lib/budgetCarry';
@@ -45,6 +46,7 @@ interface EditorRow {
 const emptyRow = (): EditorRow => ({ category_id: '', amount: '', carry_mode: 'none', carry_reset: false });
 
 export function BudgetPlanEditor({ open, onClose, categories, plans, onSave, onDelete }: BudgetPlanEditorProps) {
+  const { t } = useTranslation(['budget', 'common']);
   const expenseCategories = categories.filter((category) => category.type === 'expense');
   const [effectiveMonth, setEffectiveMonth] = useState(currentMonthKey());
   const [totalAmount, setTotalAmount] = useState('');
@@ -88,83 +90,82 @@ export function BudgetPlanEditor({ open, onClose, categories, plans, onSave, onD
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Budget Plan</DialogTitle>
+      <DialogTitle>{t('planEditor.title')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          <TextField label="Effective Month" type="month" value={effectiveMonth} onChange={(event) => setEffectiveMonth(event.target.value)} fullWidth />
-          <TextField label="Total Amount" type="number" value={totalAmount} onChange={(event) => setTotalAmount(event.target.value)} fullWidth />
-          <Typography variant="body2" color="text.secondary">This plan applies from its effective month until another plan supersedes it.</Typography>
+          <TextField label={t('planEditor.effectiveMonth')} type="month" value={effectiveMonth} onChange={(event) => setEffectiveMonth(event.target.value)} fullWidth />
+          <TextField label={t('planEditor.totalAmount')} type="number" value={totalAmount} onChange={(event) => setTotalAmount(event.target.value)} fullWidth />
+          <Typography variant="body2" color="text.secondary">{t('planEditor.appliesHelp')}</Typography>
           {rows.map((row, index) => {
             const carryLabelId = `budget-plan-row-${index}-carry-label`;
             return (
               <Box key={index} data-testid={`budget-plan-row-${index}`} sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
                 <FormControl sx={{ flex: '1 1 180px', minWidth: 180 }}>
-                  <InputLabel id={`budget-plan-row-${index}-category-label`}>Category</InputLabel>
+                  <InputLabel id={`budget-plan-row-${index}-category-label`}>{t('common:fields.category')}</InputLabel>
                   <Select
                     labelId={`budget-plan-row-${index}-category-label`}
                     value={row.category_id}
-                    label="Category"
+                    label={t('common:fields.category')}
                     onChange={(event) => updateRow(index, { category_id: Number(event.target.value) })}
                   >
                     {expenseCategories.map((category) => <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>)}
                   </Select>
                 </FormControl>
                 <TextField
-                  label="Amount"
+                  label={t('common:fields.amount')}
                   type="number"
                   value={row.amount}
                   onChange={(event) => updateRow(index, { amount: event.target.value })}
                   sx={{ width: 140 }}
                 />
                 <FormControl sx={{ width: 170 }}>
-                  <InputLabel id={carryLabelId}>Carry-over</InputLabel>
+                  <InputLabel id={carryLabelId}>{t('planEditor.carryOver')}</InputLabel>
                   <Select
                     labelId={carryLabelId}
                     value={row.carry_mode}
-                    label="Carry-over"
+                    label={t('planEditor.carryOver')}
                     onChange={(event) => updateRow(index, { carry_mode: event.target.value as BudgetCarryMode })}
                   >
                     {BUDGET_CARRY_MODES.map((mode) => (
-                      <MenuItem key={mode.value} value={mode.value} title={mode.description}>
-                        {mode.label}
+                      <MenuItem key={mode.value} value={mode.value} title={t(`carryModeDescription.${mode.value}`)}>
+                        {t(`carryMode.${mode.value}`)}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
-                <Tooltip describeChild title="Discard any balance carried into this plan's effective month for this category and start again from the plan amount.">
+                <Tooltip describeChild title={t('planEditor.resetTooltip')}>
                   <FormControlLabel
                     control={
                       <Checkbox
                         checked={row.carry_reset}
                         onChange={(event) => updateRow(index, { carry_reset: event.target.checked })}
-                        inputProps={{ 'aria-label': 'Reset carried balance from this month' }}
+                        inputProps={{ 'aria-label': t('planEditor.resetAria') }}
                       />
                     }
-                    label="Reset from this month"
+                    label={t('planEditor.resetLabel')}
                     sx={{ mr: 0 }}
                   />
                 </Tooltip>
-                <IconButton onClick={() => setRows((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remove category">
+                <IconButton onClick={() => setRows((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={t('planEditor.removeCategory')}>
                   <Delete />
                 </IconButton>
               </Box>
             );
           })}
-          <Button startIcon={<Add />} onClick={() => setRows((current) => [...current, emptyRow()])} sx={{ alignSelf: 'flex-start' }}>Add Category</Button>
+          <Button startIcon={<Add />} onClick={() => setRows((current) => [...current, emptyRow()])} sx={{ alignSelf: 'flex-start' }}>{t('planEditor.addCategory')}</Button>
           {anyCarry && (
             <Typography variant="caption" color="text.secondary">
-              Carry-over rolls each month&apos;s leftover (surplus, deficit, or both) into the next month from this plan&apos;s effective month on.
-              &quot;Reset from this month&quot; drops whatever balance a category brings into this month.
+              {t('planEditor.carryHelp')}
             </Typography>
           )}
-          <TextField label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={2} fullWidth />
+          <TextField label={t('common:fields.notes')} value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={2} fullWidth />
         </Stack>
       </DialogContent>
       <DialogActions>
-        {selectedPlan && <Button color="error" onClick={() => onDelete(selectedPlan.id)}>Delete Plan</Button>}
+        {selectedPlan && <Button color="error" onClick={() => onDelete(selectedPlan.id)}>{t('planEditor.deletePlan')}</Button>}
         <Box sx={{ flex: 1 }} />
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleSave}>Save</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
+        <Button variant="contained" onClick={handleSave}>{t('common:actions.save')}</Button>
       </DialogActions>
     </Dialog>
   );

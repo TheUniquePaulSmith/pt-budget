@@ -5,6 +5,8 @@ import { useCallback, useMemo, useState } from 'react';
 import type { DatabaseService } from '../lib/databaseService';
 import type { ClassificationService } from '../lib/databaseServiceClassification';
 import type { LoansService } from '../lib/databaseServiceLoans';
+import type { PreferencesService } from '../lib/databaseServicePreferences';
+import { EMPTY_CURRENCY_PREFERENCES } from './CurrencyPreferencesContext';
 import { logger } from '../lib/logging';
 import type {
   Account,
@@ -12,6 +14,7 @@ import type {
   Category,
   ClassificationRule,
   Company,
+  CurrencyPreferences,
   Loan,
   MerchantRule,
   Project,
@@ -37,6 +40,8 @@ export interface DatabaseCollectionsSlice {
   classificationRules: ClassificationRule[];
   /** Loans (schema v5) with their payment stats; refreshed by every loan mutation. */
   loans: Loan[];
+  /** Default currency + manual exchange rates (schema v6); refreshed by every preferences mutation. */
+  currencyPreferences: CurrencyPreferences;
 }
 
 type CollectionDataService = Pick<
@@ -54,6 +59,7 @@ type CollectionDataService = Pick<
 > & {
   classification: Pick<ClassificationService, 'listRules' | 'runInitialScanIfNeeded'>;
   loans: Pick<LoansService, 'list'>;
+  preferences: Pick<PreferencesService, 'getCurrencyPreferences'>;
 };
 
 interface UseDatabaseCollectionsStateOptions {
@@ -76,6 +82,7 @@ interface UseDatabaseCollectionsStateResult {
   refreshNotifications: () => Promise<void>;
   refreshClassificationRules: () => Promise<void>;
   refreshLoans: () => Promise<void>;
+  refreshCurrencyPreferences: () => Promise<void>;
 }
 
 export function useDatabaseCollectionsState({
@@ -94,6 +101,7 @@ export function useDatabaseCollectionsState({
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [classificationRules, setClassificationRules] = useState<ClassificationRule[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
+  const [currencyPreferences, setCurrencyPreferences] = useState<CurrencyPreferences>(EMPTY_CURRENCY_PREFERENCES);
 
   const loadAllData = useCallback(async (service: CollectionDataService) => {
     // Seed/refresh the bundled community merchant rules before reading
@@ -131,6 +139,7 @@ export function useDatabaseCollectionsState({
         notificationsData,
         classificationRulesData,
         loansData,
+        currencyPreferencesData,
       ] = await Promise.all([
         service.getCategories(),
         service.getCompanies(),
@@ -143,6 +152,7 @@ export function useDatabaseCollectionsState({
         service.getNotifications(),
         service.classification.listRules(),
         service.loans.list(),
+        service.preferences.getCurrencyPreferences(),
       ]);
 
       setCategories(categoriesData);
@@ -156,6 +166,7 @@ export function useDatabaseCollectionsState({
       setNotifications(notificationsData);
       setClassificationRules(classificationRulesData);
       setLoans(loansData);
+      setCurrencyPreferences(currencyPreferencesData);
     } catch (err) {
       console.error('Failed to load data:', err);
       throw err;
@@ -303,6 +314,18 @@ export function useDatabaseCollectionsState({
     }
   }, [getDatabaseService]);
 
+  const refreshCurrencyPreferences = useCallback(async () => {
+    const databaseService = getDatabaseService();
+    if (!databaseService) return;
+
+    try {
+      const data = await databaseService.preferences.getCurrencyPreferences();
+      setCurrencyPreferences(data);
+    } catch (err) {
+      log.error('Failed to refresh currency preferences', { operation: 'refreshCurrencyPreferences', error: err });
+    }
+  }, [getDatabaseService]);
+
   const collections = useMemo(
     () => ({
       transactionVersion,
@@ -318,8 +341,9 @@ export function useDatabaseCollectionsState({
       notifications,
       classificationRules,
       loans,
+      currencyPreferences,
     }),
-    [transactionVersion, budgetVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries, notifications, classificationRules, loans]
+    [transactionVersion, budgetVersion, categories, companies, accounts, projects, users, trips, merchantRules, recurringSeries, notifications, classificationRules, loans, currencyPreferences]
   );
 
   return {
@@ -338,5 +362,6 @@ export function useDatabaseCollectionsState({
     refreshNotifications,
     refreshClassificationRules,
     refreshLoans,
+    refreshCurrencyPreferences,
   };
 }

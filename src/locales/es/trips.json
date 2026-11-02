@@ -1,0 +1,50 @@
+{
+  "category": {
+    "business": "Negocios",
+    "vacation": "Vacaciones",
+    "family": "Familia",
+    "medical": "Médico",
+    "education": "Educación",
+    "other": "Otro"
+  },
+  "status": {
+    "planning": "En planificación",
+    "in_progress": "En curso",
+    "completed": "Completado",
+    "cancelled": "Cancelado"
+  },
+  "statusOption": {
+    "planning": "En planificación",
+    "in_progress": "En curso",
+    "completed": "Completado",
+    "cancelled": "Cancelado"
+  },
+  "manage": {
+    "title": "Gestionar viajes",
+    "addTrip": "Añadir viaje",
+    "editTrip": "Editar viaje",
+    "deleteTrip": "Eliminar viaje",
+    "destination": "Destino:",
+    "purpose": "Motivo:",
+    "dates": "Fechas:",
+    "dateRange": "{{start}} - {{end}}",
+    "tbd": "Por determinar",
+    "estimatedCost": "Costo estimado:",
+    "emptyTitle": "No se encontraron viajes",
+    "emptyHelp": "Cree su primer viaje para empezar a registrar los gastos de viaje",
+    "addFirstTrip": "Añada su primer viaje",
+    "addTitle": "Añadir nuevo viaje",
+    "tripName": "Nombre del viaje",
+    "destinationField": "Destino",
+    "purposeField": "Motivo",
+    "startDate": "Fecha de inicio",
+    "endDate": "Fecha de fin",
+    "estimatedCostField": "Costo estimado",
+    "saving": "Guardando...",
+    "deleteConfirm": "¿Seguro que desea eliminar \"{{name}}\"? Esta acción no se puede deshacer.",
+    "deleting": "Eliminando...",
+    "nameRequired": "El nombre del viaje es obligatorio",
+    "saveFailed": "No se pudo guardar el viaje",
+    "deleteFailed": "No se pudo eliminar el viaje"
+  }
+}

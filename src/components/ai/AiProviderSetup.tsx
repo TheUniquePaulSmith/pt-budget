@@ -50,6 +50,7 @@ import {
   Visibility,
   VisibilityOff,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { createDefaultProfile, isCloudKind, kindLabel, redactApiKey, validateProfile } from '@/lib/aiProviderConfig';
 import {
@@ -91,8 +92,9 @@ interface ProfileManagerProps {
 }
 
 function TestStatusChip({ result, testing }: { result: AiProviderTestResult | null; testing: boolean }) {
+  const { t } = useTranslation('ai');
   if (testing) {
-    return <Chip size="small" icon={<CircularProgress size={12} />} label="Testing…" data-testid="ai-provider-test-status" />;
+    return <Chip size="small" icon={<CircularProgress size={12} />} label={t('providerSetup.testing')} data-testid="ai-provider-test-status" />;
   }
   if (!result) {
     return null;
@@ -102,7 +104,11 @@ function TestStatusChip({ result, testing }: { result: AiProviderTestResult | nu
       size="small"
       color={result.ok ? 'success' : 'error'}
       icon={result.ok ? <CheckCircle /> : <ErrorOutline />}
-      label={result.ok ? `${result.message}${result.latencyMs !== undefined ? ` · ${result.latencyMs} ms` : ''}` : result.message}
+      label={
+        result.ok && result.latencyMs !== undefined
+          ? t('providerSetup.testResultWithLatency', { message: result.message, latency: result.latencyMs })
+          : result.message
+      }
       data-testid="ai-provider-test-status"
       data-ok={String(result.ok)}
       sx={{ maxWidth: '100%', '& .MuiChip-label': { whiteSpace: 'normal' }, height: 'auto', py: 0.5 }}
@@ -111,6 +117,7 @@ function TestStatusChip({ result, testing }: { result: AiProviderTestResult | nu
 }
 
 function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileFormProps) {
+  const { t } = useTranslation(['ai', 'common']);
   const [profile, setProfile] = useState<AiProviderProfile>(initial);
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -184,7 +191,7 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
         useClientCertificate: profile.useClientCertificate || undefined,
       });
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save the profile');
+      setSaveError(err instanceof Error ? err.message : t('providerSetup.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -195,22 +202,22 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
       return validation.errors.model;
     }
     if (models.length > 0) {
-      return `${models.length} model${models.length === 1 ? '' : 's'} available on the server. Pick one or type a name.`;
+      return t('providerSetup.modelsAvailable', { count: models.length });
     }
     if (profile.kind === 'anthropic') {
-      return `Default ${AI_PROVIDER_DEFAULT_MODELS.anthropic}`;
+      return t('providerSetup.defaultModel', { model: AI_PROVIDER_DEFAULT_MODELS.anthropic });
     }
-    return 'Run Test connection to list the models the server offers.';
+    return t('providerSetup.runTestHint');
   };
 
   return (
     <Stack spacing={2} component="form" onSubmit={(event) => { event.preventDefault(); void save(); }} data-testid="ai-provider-form">
       {!isLocal && (
         <FormControl size="small" fullWidth>
-          <InputLabel id="ai-provider-kind-label">Provider</InputLabel>
+          <InputLabel id="ai-provider-kind-label">{t('providerSetup.provider')}</InputLabel>
           <Select
             labelId="ai-provider-kind-label"
-            label="Provider"
+            label={t('providerSetup.provider')}
             value={profile.kind}
             onChange={(event) => changeKind(event.target.value as AiCloudProviderKind)}
             inputProps={{ 'data-testid': 'ai-provider-kind' }}
@@ -240,7 +247,7 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
 
       <TextField
         size="small"
-        label="Name"
+        label={t('common:fields.name')}
         value={profile.label}
         onChange={(event) => update({ label: event.target.value })}
         error={showErrors && Boolean(validation.errors.label)}
@@ -251,22 +258,22 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
 
       <TextField
         size="small"
-        label="Base URL"
+        label={t('providerSetup.baseUrl')}
         value={profile.baseUrl ?? ''}
         onChange={(event) => update({ baseUrl: event.target.value })}
         error={showErrors && Boolean(validation.errors.baseUrl)}
         helperText={showErrors && validation.errors.baseUrl
           ? validation.errors.baseUrl
           : profile.kind === 'anthropic'
-            ? 'Requests go straight from the browser to the API.'
-            : 'Must end with the API version segment, e.g. …/v1. Local servers must allow this origin (CORS).'}
+            ? t('providerSetup.anthropicBaseUrlHelp')
+            : t('providerSetup.baseUrlHelp')}
         inputProps={{ 'data-testid': 'ai-provider-base-url' }}
         fullWidth
       />
 
       <TextField
         size="small"
-        label="API key"
+        label={t('providerSetup.apiKey')}
         type={showKey ? 'text' : 'password'}
         value={profile.apiKey ?? ''}
         onChange={(event) => update({ apiKey: event.target.value })}
@@ -274,14 +281,14 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
         helperText={showErrors && validation.errors.apiKey
           ? validation.errors.apiKey
           : isLocal
-            ? 'Optional: only if your server expects a bearer token. Stored only inside the encrypted database.'
-            : 'Stored only inside the encrypted database.'}
+            ? t('providerSetup.apiKeyHelpLocal')
+            : t('providerSetup.apiKeyHelp')}
         autoComplete="off"
         inputProps={{ 'data-testid': 'ai-provider-api-key' }}
         InputProps={{
           endAdornment: (
             <InputAdornment position="end">
-              <IconButton size="small" onClick={() => setShowKey((current) => !current)} aria-label={showKey ? 'Hide API key' : 'Show API key'}>
+              <IconButton size="small" onClick={() => setShowKey((current) => !current)} aria-label={showKey ? t('providerSetup.hideApiKey') : t('providerSetup.showApiKey')}>
                 {showKey ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
               </IconButton>
             </InputAdornment>
@@ -303,7 +310,7 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
         renderInput={(params) => (
           <TextField
             {...params}
-            label="Model"
+            label={t('providerSetup.model')}
             error={showErrors && Boolean(validation.errors.model)}
             helperText={modelHelperText()}
             inputProps={{ ...params.inputProps, 'data-testid': 'ai-provider-model' }}
@@ -313,7 +320,7 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
 
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
         <Button size="small" variant="outlined" onClick={() => void runTest()} disabled={testing || saving} data-testid="ai-provider-test">
-          Test connection
+          {t('providerSetup.testConnection')}
         </Button>
         <TestStatusChip result={testResult} testing={testing} />
       </Stack>
@@ -344,10 +351,10 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
           >
             <Box sx={{ textAlign: 'left' }}>
               <Typography variant="subtitle2" fontWeight={600}>
-                Advanced
+                {t('providerSetup.advanced')}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Client certificate (PFX / mTLS)
+                {t('providerSetup.advancedSubtitle')}
               </Typography>
             </Box>
           </Button>
@@ -361,17 +368,13 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
                     inputProps={{ 'data-testid': 'ai-provider-client-cert' } as React.InputHTMLAttributes<HTMLInputElement>}
                   />
                 )}
-                label="Present my client certificate to this endpoint"
+                label={t('providerSetup.presentCertificate')}
               />
               <Typography variant="caption" color="text.secondary">
-                A browser cannot read a .pfx file or attach it to a request, so the certificate has to live in your
-                system certificate store. On Windows, double-click the .pfx, choose Current User, enter its password
-                and keep the Personal store; then restart the browser. With this switch on, requests to the endpoint
-                include credentials so the browser offers that certificate.
+                {t('providerSetup.certificateHelp')}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                The server must answer CORS with Access-Control-Allow-Credentials: true and an explicit
-                Access-Control-Allow-Origin (not *).
+                {t('providerSetup.certificateCorsHelp')}
               </Typography>
             </Stack>
           </Collapse>
@@ -382,10 +385,10 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
 
       <Stack direction="row" spacing={1} justifyContent="flex-end">
         <Button size="small" onClick={onCancel} disabled={saving}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button size="small" variant="contained" type="submit" disabled={saving} data-testid="ai-provider-save">
-          Save
+          {t('common:actions.save')}
         </Button>
       </Stack>
     </Stack>
@@ -393,6 +396,7 @@ function ProfileForm({ initial, variant, onCancel, onSave, onTest }: ProfileForm
 }
 
 function useActionRunner() {
+  const { t } = useTranslation('ai');
   const [actionError, setActionError] = useState<string | null>(null);
 
   const runAction = async (action: () => Promise<void>) => {
@@ -400,7 +404,7 @@ function useActionRunner() {
     try {
       await action();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'The action failed');
+      setActionError(err instanceof Error ? err.message : t('providerSetup.actionFailed'));
     }
   };
 
@@ -409,6 +413,7 @@ function useActionRunner() {
 
 /** The saved profiles for one tab (cloud providers or local endpoints) plus the add / edit form. */
 function ProfileManager({ scope, title, description, showBrowserModelRow = false }: ProfileManagerProps) {
+  const { t } = useTranslation(['ai', 'common']);
   const providers = useAiProviderContext();
   const [editing, setEditing] = useState<AiProviderProfile | null>(null);
   const { actionError, clearActionError, runAction } = useActionRunner();
@@ -426,12 +431,17 @@ function ProfileManager({ scope, title, description, showBrowserModelRow = false
   };
 
   const describeProfile = (profile: AiProviderProfile) => {
-    const key = profile.apiKey ? ` · key ${redactApiKey(profile.apiKey)}` : '';
-    if (isLocal) {
-      const certificate = profile.useClientCertificate ? ' · client certificate' : '';
-      return `${profile.baseUrl || AI_PROVIDER_DEFAULT_BASE_URLS.local_endpoint} · ${profile.model || 'no model'}${certificate}${key}`;
+    const parts: string[] = [
+      isLocal ? profile.baseUrl || AI_PROVIDER_DEFAULT_BASE_URLS.local_endpoint : kindLabel(profile.kind),
+      profile.model || t('providerSetup.noModel'),
+    ];
+    if (isLocal && profile.useClientCertificate) {
+      parts.push(t('providerSetup.clientCertificate'));
     }
-    return `${kindLabel(profile.kind)} · ${profile.model || 'no model'}${key}`;
+    if (profile.apiKey) {
+      parts.push(t('providerSetup.keyLabel', { key: redactApiKey(profile.apiKey) }));
+    }
+    return parts.join(' · ');
   };
 
   return (
@@ -451,13 +461,13 @@ function ProfileManager({ scope, title, description, showBrowserModelRow = false
       {providers.isLoading ? (
         <Stack direction="row" spacing={1} alignItems="center">
           <CircularProgress size={16} />
-          <Typography variant="body2">Loading profiles…</Typography>
+          <Typography variant="body2">{t('providerSetup.loadingProfiles')}</Typography>
         </Stack>
       ) : (
         <>
           {isLocal && profiles.length === 0 && !editing && (
             <Typography variant="body2" color="text.secondary">
-              No local endpoints yet. Add one to chat with Ollama, LM Studio, vLLM or any other OpenAI-compatible server.
+              {t('providerSetup.noLocalEndpoints')}
             </Typography>
           )}
           {(showBrowserModelRow || profiles.length > 0) && (
@@ -466,14 +476,14 @@ function ProfileManager({ scope, title, description, showBrowserModelRow = false
                 <ListItem
                   divider
                   secondaryAction={!providers.activeProfile ? (
-                    <Chip size="small" color="primary" label="Active" />
+                    <Chip size="small" color="primary" label={t('common:status.active')} />
                   ) : (
                     <Button size="small" onClick={() => void runAction(() => providers.activateProfile(null))}>
-                      Use
+                      {t('providerSetup.use')}
                     </Button>
                   )}
                 >
-                  <ListItemText primary="Local AI (in-browser model)" secondary="No data leaves this device." />
+                  <ListItemText primary={t('providerSetup.browserModelRow')} secondary={t('providerSetup.browserModelRowSecondary')} />
                 </ListItem>
               )}
               {profiles.map((profile) => (
@@ -484,19 +494,19 @@ function ProfileManager({ scope, title, description, showBrowserModelRow = false
                   secondaryAction={(
                     <Stack direction="row" spacing={0.5} alignItems="center">
                       {profile.isActive ? (
-                        <Chip size="small" color="primary" label="Active" />
+                        <Chip size="small" color="primary" label={t('common:status.active')} />
                       ) : (
                         <Button size="small" onClick={() => void runAction(() => providers.activateProfile(profile.id))} data-testid={`ai-provider-activate-${profile.id}`}>
-                          Use
+                          {t('providerSetup.use')}
                         </Button>
                       )}
-                      <Tooltip title="Edit">
-                        <IconButton size="small" onClick={() => setEditing(profile)} aria-label={`Edit ${profile.label}`}>
+                      <Tooltip title={t('common:actions.edit')}>
+                        <IconButton size="small" onClick={() => setEditing(profile)} aria-label={t('providerSetup.editProfile', { label: profile.label })}>
                           <Edit fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton size="small" onClick={() => void runAction(() => providers.deleteProfile(profile.id))} aria-label={`Delete ${profile.label}`}>
+                      <Tooltip title={t('common:actions.delete')}>
+                        <IconButton size="small" onClick={() => void runAction(() => providers.deleteProfile(profile.id))} aria-label={t('providerSetup.deleteProfile', { label: profile.label })}>
                           <Delete fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -536,7 +546,7 @@ function ProfileManager({ scope, title, description, showBrowserModelRow = false
           data-testid={isLocal ? 'ai-local-endpoint-add' : 'ai-provider-add'}
           sx={{ alignSelf: 'flex-start' }}
         >
-          {isLocal ? 'Add local endpoint' : 'Add cloud profile'}
+          {isLocal ? t('providerSetup.addLocalEndpoint') : t('providerSetup.addCloudProfile')}
         </Button>
       )}
     </Stack>
@@ -545,6 +555,7 @@ function ProfileManager({ scope, title, description, showBrowserModelRow = false
 
 /** Local tab: run the model inside the browser (wllama + GGUF) or point at a local OpenAI-compatible server. */
 function LocalSetup({ activeProfileLabel }: { activeProfileLabel: string | null }) {
+  const { t } = useTranslation('ai');
   const providers = useAiProviderContext();
   const [mode, setMode] = useState<LocalMode>(providers.activeProfile?.kind === 'local_endpoint' ? 'endpoint' : 'browser');
   const { actionError, clearActionError, runAction } = useActionRunner();
@@ -554,7 +565,7 @@ function LocalSetup({ activeProfileLabel }: { activeProfileLabel: string | null 
     <Box sx={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
       <Box sx={{ p: 2, pb: 0 }}>
         <Typography variant="subtitle1" fontWeight={600}>
-          Where does the model run?
+          {t('providerSetup.whereRuns')}
         </Typography>
         <ToggleButtonGroup
           exclusive
@@ -571,17 +582,15 @@ function LocalSetup({ activeProfileLabel }: { activeProfileLabel: string | null 
         >
           <ToggleButton value="browser" data-testid="ai-local-mode-browser" sx={{ textTransform: 'none', gap: 0.75 }}>
             <Computer fontSize="small" />
-            Browser (GGUF file)
+            {t('providerSetup.browserMode')}
           </ToggleButton>
           <ToggleButton value="endpoint" data-testid="ai-local-mode-endpoint" sx={{ textTransform: 'none', gap: 0.75 }}>
             <Dns fontSize="small" />
-            Local endpoint
+            {t('providerSetup.endpointMode')}
           </ToggleButton>
         </ToggleButtonGroup>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {mode === 'browser'
-            ? 'Runs a GGUF model file inside this browser tab with wllama. No data leaves this device.'
-            : 'Connects to an OpenAI-compatible server on your machine or network, such as Ollama, LM Studio or vLLM.'}
+          {mode === 'browser' ? t('providerSetup.browserModeHelp') : t('providerSetup.endpointModeHelp')}
         </Typography>
       </Box>
 
@@ -593,11 +602,13 @@ function LocalSetup({ activeProfileLabel }: { activeProfileLabel: string | null 
               sx={{ m: 2, mb: 0 }}
               action={(
                 <Button color="inherit" size="small" onClick={() => void runAction(() => providers.activateProfile(null))} data-testid="ai-provider-use-local">
-                  Use local
+                  {t('providerSetup.useLocal')}
                 </Button>
               )}
             >
-              Chat currently uses the {activeKind === 'local_endpoint' ? 'local endpoint' : 'cloud profile'} &quot;{activeProfileLabel}&quot;.
+              {activeKind === 'local_endpoint'
+                ? t('providerSetup.chatUsesLocalEndpoint', { label: activeProfileLabel })
+                : t('providerSetup.chatUsesCloudProfile', { label: activeProfileLabel })}
             </Alert>
           )}
           {actionError && <Alert severity="error" sx={{ m: 2, mb: 0 }} onClose={clearActionError}>{actionError}</Alert>}
@@ -609,8 +620,8 @@ function LocalSetup({ activeProfileLabel }: { activeProfileLabel: string | null 
         <Box sx={{ p: 2 }}>
           <ProfileManager
             scope="local"
-            title="Local endpoints"
-            description="Profiles and API keys are stored in the encrypted database and sent only to the server you configure."
+            title={t('providerSetup.localEndpointsTitle')}
+            description={t('providerSetup.localEndpointsDescription')}
           />
         </Box>
       )}
@@ -619,6 +630,7 @@ function LocalSetup({ activeProfileLabel }: { activeProfileLabel: string | null 
 }
 
 export default function AiProviderSetup({ activeProfileLabel }: AiProviderSetupProps) {
+  const { t } = useTranslation('ai');
   const providers = useAiProviderContext();
   const [tab, setTab] = useState<SetupTab>(providers.activeProfile && isCloudKind(providers.activeProfile.kind) ? 'cloud' : 'local');
 
@@ -630,8 +642,8 @@ export default function AiProviderSetup({ activeProfileLabel }: AiProviderSetupP
         variant="fullWidth"
         sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 40 }}
       >
-        <Tab value="local" icon={<Computer fontSize="small" />} iconPosition="start" label="Local" sx={{ minHeight: 40 }} data-testid="ai-setup-tab-local" />
-        <Tab value="cloud" icon={<Cloud fontSize="small" />} iconPosition="start" label="Cloud" sx={{ minHeight: 40 }} data-testid="ai-setup-tab-cloud" />
+        <Tab value="local" icon={<Computer fontSize="small" />} iconPosition="start" label={t('providerSetup.localTab')} sx={{ minHeight: 40 }} data-testid="ai-setup-tab-local" />
+        <Tab value="cloud" icon={<Cloud fontSize="small" />} iconPosition="start" label={t('providerSetup.cloudTab')} sx={{ minHeight: 40 }} data-testid="ai-setup-tab-cloud" />
       </Tabs>
 
       {tab === 'local' && <LocalSetup activeProfileLabel={activeProfileLabel} />}
@@ -640,8 +652,8 @@ export default function AiProviderSetup({ activeProfileLabel }: AiProviderSetupP
         <Box sx={{ p: 2, overflow: 'auto', flex: 1, minHeight: 0 }}>
           <ProfileManager
             scope="cloud"
-            title="Cloud providers"
-            description="Profiles and API keys are stored in the encrypted database and sent only to the provider you configure."
+            title={t('providerSetup.cloudProvidersTitle')}
+            description={t('providerSetup.cloudProvidersDescription')}
             showBrowserModelRow
           />
         </Box>

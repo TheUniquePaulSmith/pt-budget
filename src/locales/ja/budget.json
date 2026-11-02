@@ -1,0 +1,166 @@
+{
+  "carryMode": {
+    "none": "繰越なし",
+    "surplus": "余剰を繰越",
+    "deficit": "不足を繰越",
+    "both": "両方を繰越"
+  },
+  "carryModeDescription": {
+    "none": "毎月プランの金額から始まります。",
+    "surplus": "使い残した予算は翌月に繰り越され、超過分は帳消しになります。",
+    "deficit": "超過分は翌月から差し引かれ、使い残した予算は切り捨てられます。",
+    "both": "差引残高がプラスでもマイナスでも翌月に繰り越されます。"
+  },
+  "carryBadge": {
+    "none": "繰越なし",
+    "surplus": "余剰を繰越",
+    "deficit": "不足を繰越",
+    "both": "両方を繰越"
+  },
+  "page": {
+    "title": "予算",
+    "subtitle": "月次プランは変更されるまで引き継がれます。四半期・年の表示では、有効な月次予算を集計します。",
+    "managePlan": "プランを管理"
+  },
+  "periodSelector": {
+    "previous": "前の期間",
+    "next": "次の期間",
+    "quarter": "四半期"
+  },
+  "statusPanel": {
+    "spentTooltip": "このカテゴリで {{amount}} 使用しました。",
+    "fundSpendTooltip": "うち {{amount}} はリンクされた積立から支払われたため除外されています。",
+    "fundContributionsTooltip": "{{amount}} は積立への拠出として確保されています。",
+    "noBudgetSet": "予算未設定",
+    "noBudgetHelp": "この月の予算プランを作成してください。プランは、より後の適用開始月のプランに置き換わるまで引き継がれます。",
+    "title": "予算の状況",
+    "monthsCovered_other": "{{count}} か月中 {{covered}} か月をカバー",
+    "over": "{{amount}} 超過",
+    "left": "残り {{amount}}",
+    "noThresholdsHelp": "支出の上限を設定するには予算プランを作成してください。収入源は引き続き下に表示されます。",
+    "notSet": "未設定",
+    "budgeted": "予算",
+    "carriedIn": "繰越額",
+    "effectiveBudget": "実効予算",
+    "actualExpenses": "実際の支出",
+    "fundContributions": "積立への拠出",
+    "expectedIncome": "見込み収入",
+    "linkedIncome": "リンクされた収入",
+    "categories": "カテゴリ",
+    "categoriesTable": "予算カテゴリ",
+    "columnBudget": "予算",
+    "columnEffective": "実効",
+    "columnSpent": "使用済み",
+    "columnRemaining": "残り",
+    "categoryFallback": "カテゴリ {{id}}",
+    "resetTooltip": "{{month}} から繰越残高をリセット",
+    "fundTooltip": "{{amount}} はリンクされたプロジェクトまたは旅行の積立として確保",
+    "fundBadge": "積立",
+    "unbudgetedSpend": "予算外の支出：{{amount}}"
+  },
+  "historyList": {
+    "title": "履歴",
+    "noPlan": "{{period}}：プランなし",
+    "over": "{{period}}：{{amount}} 超過",
+    "under": "{{period}}：{{amount}} 余剰"
+  },
+  "planEditor": {
+    "title": "予算プラン",
+    "effectiveMonth": "適用開始月",
+    "totalAmount": "合計金額",
+    "appliesHelp": "このプランは適用開始月から、別のプランに置き換わるまで適用されます。",
+    "carryOver": "繰越",
+    "resetTooltip": "このカテゴリについて、このプランの適用開始月に繰り越された残高を破棄し、プランの金額からやり直します。",
+    "resetAria": "この月から繰越残高をリセット",
+    "resetLabel": "この月からリセット",
+    "removeCategory": "カテゴリを除去",
+    "addCategory": "カテゴリを追加",
+    "carryHelp": "繰越では、このプランの適用開始月以降、毎月の残り（余剰、不足、またはその両方）を翌月に繰り越します。「この月からリセット」を選ぶと、そのカテゴリがこの月に持ち込む残高を切り捨てます。",
+    "deletePlan": "プランを削除"
+  },
+  "fundFields": {
+    "entity": {
+      "project": "プロジェクト",
+      "trip": "旅行"
+    },
+    "categoryFallback": "カテゴリ",
+    "theCategoryFallback": "そのカテゴリ",
+    "helpUnlinked": "任意：予算カテゴリを選ぶと、この{{entity}}のために毎月少しずつ積み立てられます。",
+    "helpNoContribution": "{{category}}の積立を始めるには、毎月の拠出額を入力してください。",
+    "helpNoStart": "拠出を積み上げるには、開始月（または開始日）を設定してください。",
+    "helpReserves": "{{month}} から毎月 {{category}}より {{amount}} を確保します。予算では計画支出として扱われ、{{entity}}の支出は積立から充当されます。",
+    "title": "積立",
+    "linkedCategory": "リンクする予算カテゴリ",
+    "notLinked": "未リンク",
+    "monthlyContribution": "毎月の拠出額",
+    "startMonth": "拠出開始月"
+  },
+  "fundSummary": {
+    "noEstimate": "見積もりなし",
+    "goalReached": "目標達成",
+    "toGoal": "目標まで {{amount}}",
+    "fund": "積立",
+    "perMonth": "{{amount}}/月",
+    "tooltip": "拠出 {{contributed}}、支出 {{spent}}、{{detail}}",
+    "saved": "積立済み {{amount}}",
+    "balance": "残高 {{amount}}"
+  },
+  "fundsCard": {
+    "noEstimatedCost": "見積費用が未設定",
+    "goalReached": "目標達成",
+    "monthsToGo_other": "あと {{count}} か月",
+    "toGoal": "目標まで {{amount}}",
+    "title": "積立",
+    "subtitle": "予算カテゴリを通じて積み立てているプロジェクトと旅行（{{month}} 時点）。",
+    "empty": "プロジェクトや旅行を予算カテゴリにリンクし、毎月の拠出額を設定すると積立を始められます。",
+    "contributionsFrom": "拠出期間：{{start}} から",
+    "contributionsFromTo": "拠出期間：{{start}} から {{end}} まで",
+    "setStartMonth": "拠出を積み上げるには開始月または開始日を設定してください",
+    "notContributing": "拠出なし",
+    "savedOfEstimated": "{{estimated}} のうち {{contributed}} を積立済み",
+    "setEstimatedCost": "進捗を追跡するには見積費用を設定してください",
+    "progressAria": "{{name}} の進捗",
+    "saved": "積立済み {{amount}}",
+    "perMonth": "{{amount}}/月",
+    "balance": "残高 {{amount}}",
+    "spent": "支出 {{amount}}"
+  },
+  "incomeSources": {
+    "notSet": "未設定",
+    "title": "収入源",
+    "user": "ユーザー：{{name}}",
+    "unassigned": "未割り当て",
+    "linkedAccount": "リンクされた口座：{{name}}",
+    "unknownAccount": "不明な口座",
+    "expectedSummary": "見込み {{amount}}（{{frequency}}） • 月額 {{monthly}}",
+    "summary": "{{amount}}（{{frequency}}） • 月額 {{monthly}}",
+    "frequency": {
+      "weekly": "毎週",
+      "biweekly": "隔週",
+      "semi_monthly": "月 2 回",
+      "monthly": "毎月"
+    },
+    "frequencyOption": {
+      "weekly": "毎週",
+      "biweekly": "隔週",
+      "semi_monthly": "月 2 回",
+      "monthly": "毎月"
+    },
+    "editTooltip": "収入源を編集",
+    "deleteTooltip": "収入源を削除",
+    "empty": "収入源が設定されていません。",
+    "editTitle": "収入源を編集",
+    "addTitle": "収入源を追加",
+    "kind": "種類",
+    "kindOption": {
+      "recurring_salary": "定期的な給与",
+      "linked_account": "リンクされた口座"
+    },
+    "expectedAmount": "見込み金額",
+    "expectedAmountHelp": "任意。空欄にすると実際の入金のみを使用します。",
+    "frequencyLabel": "頻度",
+    "startDate": "開始日",
+    "endDate": "終了日",
+    "saving": "保存中..."
+  }
+}

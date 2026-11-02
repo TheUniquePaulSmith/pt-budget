@@ -36,7 +36,9 @@ import {
   ExpandMore as ExpandMoreIcon,
   Home as HomeIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useBudgetFundsSlice, useProjectsSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { Project, Transaction, ProjectCosts } from '@/types/database';
 import type { BudgetFundStatus } from '@/types/budgetCarry';
 import { currentMonthKey } from '@/lib/budgetCarry';
@@ -52,23 +54,25 @@ import { ProjectBudgetFields } from './ProjectBudgetFields';
 
 const log = logger.child({ component: 'ManageProjects' });
 
-const PROJECT_CATEGORIES = [
-  { value: 'plumbing', label: 'Plumbing' },
-  { value: 'electrical', label: 'Electrical' },
-  { value: 'hvac', label: 'HVAC' },
-  { value: 'roofing', label: 'Roofing' },
-  { value: 'flooring', label: 'Flooring' },
-  { value: 'painting', label: 'Painting' },
-  { value: 'landscaping', label: 'Landscaping' },
-  { value: 'general_contractor', label: 'General Contractor' },
-  { value: 'other', label: 'Other' },
+// Values and ordering only; labels resolve through `projects:category.*` /
+// `projects:status.*` at render time.
+const PROJECT_CATEGORIES: ReadonlyArray<Project['project_category']> = [
+  'plumbing',
+  'electrical',
+  'hvac',
+  'roofing',
+  'flooring',
+  'painting',
+  'landscaping',
+  'general_contractor',
+  'other',
 ];
 
-const PROJECT_STATUSES = [
-  { value: 'planning', label: 'Planning', color: '#2196f3' },
-  { value: 'in_progress', label: 'In Progress', color: '#ff9800' },
-  { value: 'completed', label: 'Completed', color: '#4caf50' },
-  { value: 'on_hold', label: 'On Hold', color: '#9e9e9e' },
+const PROJECT_STATUSES: ReadonlyArray<{ value: Project['status']; color: string }> = [
+  { value: 'planning', color: '#2196f3' },
+  { value: 'in_progress', color: '#ff9800' },
+  { value: 'completed', color: '#4caf50' },
+  { value: 'on_hold', color: '#9e9e9e' },
 ];
 
 interface ProjectFormData {
@@ -109,6 +113,9 @@ interface ProjectTxState {
 }
 
 export default function ManageProjects() {
+  const { t } = useTranslation(['projects', 'common']);
+  // Project costs are totals in the default currency.
+  const { money, symbol } = useFormatters();
   const {
     projects,
     transactionVersion,
@@ -243,7 +250,7 @@ export default function ManageProjects() {
   };
 
   const handleDelete = async (project: Project) => {
-    if (confirm(`Are you sure you want to delete "${project.name}"? This will remove project references from linked transactions.`)) {
+    if (confirm(t('manage.deleteConfirm', { name: project.name }))) {
       try {
         await deleteProject(project.id);
       } catch (error) {
@@ -259,10 +266,10 @@ export default function ManageProjects() {
   const getStatusColor = (status: Project['status']) => {
     return PROJECT_STATUSES.find(s => s.value === status)?.color || '#9e9e9e';
   };
+  const categoryLabel = (category: Project['project_category']) => t(`category.${category}`);
+  const statusLabel = (status: Project['status']) => t(`status.${status}`);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  };
+  const formatCurrency = (amount: number) => money(amount);
 
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
@@ -277,17 +284,17 @@ export default function ManageProjects() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <HomeIcon color="primary" />
           <Typography variant="h4" component="h1" sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}>
-            House Projects
+            {t('manage.title')}
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpen()} size="small" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          Add Project
+          {t('manage.addProject')}
         </Button>
       </Box>
 
       {projects.length === 0 ? (
         <Alert severity="info" sx={{ mt: 2 }}>
-          No projects yet. Click &quot;Add Project&quot; to create your first house project.
+          {t('manage.empty')}
         </Alert>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -311,8 +318,8 @@ export default function ManageProjects() {
                       <Typography variant="h6" component="h2" gutterBottom>{project.name}</Typography>
                       <Typography variant="subtitle1" color="text.secondary" gutterBottom>{project.company_name}</Typography>
                       <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                        <Chip label={PROJECT_CATEGORIES.find(c => c.value === project.project_category)?.label || project.project_category} size="small" variant="outlined" />
-                        <Chip label={PROJECT_STATUSES.find(s => s.value === project.status)?.label || project.status} size="small" sx={{ backgroundColor: getStatusColor(project.status), color: 'white' }} />
+                        <Chip label={categoryLabel(project.project_category)} size="small" variant="outlined" />
+                        <Chip label={statusLabel(project.status)} size="small" sx={{ backgroundColor: getStatusColor(project.status), color: 'white' }} />
                       </Box>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 1, justifyContent: { xs: 'flex-end', sm: 'flex-start' } }}>
@@ -323,15 +330,15 @@ export default function ManageProjects() {
 
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
                     <Box>
-                      <Typography variant="body2" color="text.secondary">Estimated Cost</Typography>
-                      <Typography variant="h6">{costs.estimated > 0 ? formatCurrency(costs.estimated) : 'Not set'}</Typography>
+                      <Typography variant="body2" color="text.secondary">{t('manage.estimatedCost')}</Typography>
+                      <Typography variant="h6">{costs.estimated > 0 ? formatCurrency(costs.estimated) : t('manage.notSet')}</Typography>
                     </Box>
                     <Box>
-                      <Typography variant="body2" color="text.secondary">Actual Cost</Typography>
-                      <Typography variant="h6">{costs.actual > 0 ? formatCurrency(costs.actual) : 'Not set'}</Typography>
+                      <Typography variant="body2" color="text.secondary">{t('manage.actualCost')}</Typography>
+                      <Typography variant="h6">{costs.actual > 0 ? formatCurrency(costs.actual) : t('manage.notSet')}</Typography>
                     </Box>
                     <Box sx={{ minWidth: 150 }}>
-                      <Typography variant="body2" color="text.secondary">Transaction Total</Typography>
+                      <Typography variant="body2" color="text.secondary">{t('manage.transactionTotal')}</Typography>
                       <Typography variant="h6" color={costs.transactions_total > 0 ? 'error.main' : 'text.primary'}>
                         {formatCurrency(costs.transactions_total)}
                       </Typography>
@@ -343,30 +350,30 @@ export default function ManageProjects() {
                   <Accordion expanded={isExpanded} onChange={handleAccordionChange(project.id)}>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                       <Typography variant="subtitle2">
-                        Project Details & Transactions {txState ? `(${txState.total})` : ''}
+                        {txState ? t('manage.detailsTitleWithCount', { count: txState.total }) : t('manage.detailsTitle')}
                       </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
                       <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
                         <Box sx={{ flex: 1, minWidth: 250 }}>
-                          <Typography variant="subtitle2" gutterBottom>Contact Details</Typography>
+                          <Typography variant="subtitle2" gutterBottom>{t('manage.contactDetails')}</Typography>
                           <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{project.contact_details}</Typography>
                         </Box>
                         <Box sx={{ flex: 1, minWidth: 250 }}>
-                          <Typography variant="subtitle2" gutterBottom>Timeline</Typography>
-                          <Typography variant="body2">Start: {project.start_date || 'Not set'}</Typography>
-                          <Typography variant="body2">End: {project.end_date || 'Not set'}</Typography>
+                          <Typography variant="subtitle2" gutterBottom>{t('manage.timeline')}</Typography>
+                          <Typography variant="body2">{t('manage.start', { date: project.start_date || t('manage.notSet') })}</Typography>
+                          <Typography variant="body2">{t('manage.end', { date: project.end_date || t('manage.notSet') })}</Typography>
                         </Box>
                       </Box>
                       {project.notes && (
                         <Box sx={{ mb: 2 }}>
-                          <Typography variant="subtitle2" gutterBottom>Notes</Typography>
+                          <Typography variant="subtitle2" gutterBottom>{t('common:fields.notes')}</Typography>
                           <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{project.notes}</Typography>
                         </Box>
                       )}
 
                       <Divider sx={{ my: 2 }} />
-                      <Typography variant="subtitle2" gutterBottom>Linked Transactions</Typography>
+                      <Typography variant="subtitle2" gutterBottom>{t('manage.linkedTransactions')}</Typography>
 
                       {txState?.loading ? (
                         <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
@@ -379,7 +386,11 @@ export default function ManageProjects() {
                               <ListItem key={tx.id} divider>
                                 <ListItemText
                                   primary={tx.description}
-                                  secondary={`${tx.date} • ${formatCurrency(Math.abs(tx.amount))} • ${tx.category_name || 'Uncategorized'}`}
+                                  secondary={t('manage.transactionSecondary', {
+                                    date: tx.date,
+                                    amount: money(Math.abs(tx.amount), tx.account_currency),
+                                    category: tx.category_name || t('manage.uncategorized'),
+                                  })}
                                 />
                               </ListItem>
                             ))}
@@ -394,7 +405,7 @@ export default function ManageProjects() {
                           />
                         </>
                       ) : txState ? (
-                        <Typography variant="body2" color="text.secondary">No transactions linked to this project.</Typography>
+                        <Typography variant="body2" color="text.secondary">{t('manage.noTransactions')}</Typography>
                       ) : null}
                     </AccordionDetails>
                   </Accordion>
@@ -406,37 +417,37 @@ export default function ManageProjects() {
       )}
 
       <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-        <DialogTitle>{editingProject ? 'Edit Project' : 'Add New Project'}</DialogTitle>
+        <DialogTitle>{editingProject ? t('manage.editTitle') : t('manage.addTitle')}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField fullWidth label="Project Name" value={formData.name} onChange={handleInputChange('name')} required />
+            <TextField fullWidth label={t('manage.projectName')} value={formData.name} onChange={handleInputChange('name')} required />
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <TextField sx={{ flex: 1, minWidth: 250 }} label="Company Name" value={formData.company_name} onChange={handleInputChange('company_name')} required />
+              <TextField sx={{ flex: 1, minWidth: 250 }} label={t('manage.companyName')} value={formData.company_name} onChange={handleInputChange('company_name')} required />
               <FormControl sx={{ flex: 1, minWidth: 250 }} required>
-                <InputLabel>Project Category</InputLabel>
-                <Select value={formData.project_category} label="Project Category" onChange={(e) => setFormData(prev => ({ ...prev, project_category: e.target.value as Project['project_category'] }))}>
-                  {PROJECT_CATEGORIES.map((c) => <MenuItem key={c.value} value={c.value}>{c.label}</MenuItem>)}
+                <InputLabel>{t('manage.projectCategory')}</InputLabel>
+                <Select value={formData.project_category} label={t('manage.projectCategory')} onChange={(e) => setFormData(prev => ({ ...prev, project_category: e.target.value as Project['project_category'] }))}>
+                  {PROJECT_CATEGORIES.map((value) => <MenuItem key={value} value={value}>{t(`category.${value}`)}</MenuItem>)}
                 </Select>
               </FormControl>
             </Box>
-            <TextField fullWidth label="Contact Details" value={formData.contact_details} onChange={handleInputChange('contact_details')} multiline rows={3} placeholder="Phone, email, address, etc." required />
+            <TextField fullWidth label={t('manage.contactDetails')} value={formData.contact_details} onChange={handleInputChange('contact_details')} multiline rows={3} placeholder={t('manage.contactPlaceholder')} required />
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               <FormControl sx={{ flex: 1, minWidth: 250 }}>
-                <InputLabel>Status</InputLabel>
-                <Select value={formData.status} label="Status" onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as Project['status'] }))}>
-                  {PROJECT_STATUSES.map((s) => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
+                <InputLabel>{t('common:fields.status')}</InputLabel>
+                <Select value={formData.status} label={t('common:fields.status')} onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as Project['status'] }))}>
+                  {PROJECT_STATUSES.map((s) => <MenuItem key={s.value} value={s.value}>{t(`status.${s.value}`)}</MenuItem>)}
                 </Select>
               </FormControl>
-              <TextField sx={{ flex: 1, minWidth: 250 }} label="Start Date" type="date" value={formData.start_date} onChange={handleInputChange('start_date')} InputLabelProps={{ shrink: true }} />
+              <TextField sx={{ flex: 1, minWidth: 250 }} label={t('manage.startDate')} type="date" value={formData.start_date} onChange={handleInputChange('start_date')} InputLabelProps={{ shrink: true }} />
             </Box>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <TextField sx={{ flex: 1, minWidth: 250 }} label="End Date" type="date" value={formData.end_date} onChange={handleInputChange('end_date')} InputLabelProps={{ shrink: true }} />
-              <TextField sx={{ flex: 1, minWidth: 250 }} label="Estimated Cost" type="number" value={formData.estimated_cost} onChange={handleInputChange('estimated_cost')} InputProps={{ startAdornment: '$' }} />
+              <TextField sx={{ flex: 1, minWidth: 250 }} label={t('manage.endDate')} type="date" value={formData.end_date} onChange={handleInputChange('end_date')} InputLabelProps={{ shrink: true }} />
+              <TextField sx={{ flex: 1, minWidth: 250 }} label={t('manage.estimatedCost')} type="number" value={formData.estimated_cost} onChange={handleInputChange('estimated_cost')} InputProps={{ startAdornment: symbol() }} />
             </Box>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <TextField sx={{ flex: 1, minWidth: 250 }} label="Actual Cost" type="number" value={formData.actual_cost} onChange={handleInputChange('actual_cost')} InputProps={{ startAdornment: '$' }} />
+              <TextField sx={{ flex: 1, minWidth: 250 }} label={t('manage.actualCost')} type="number" value={formData.actual_cost} onChange={handleInputChange('actual_cost')} InputProps={{ startAdornment: symbol() }} />
             </Box>
-            <TextField fullWidth label="Notes" value={formData.notes} onChange={handleInputChange('notes')} multiline rows={3} placeholder="Additional notes about the project..." />
+            <TextField fullWidth label={t('common:fields.notes')} value={formData.notes} onChange={handleInputChange('notes')} multiline rows={3} placeholder={t('manage.notesPlaceholder')} />
             <ProjectBudgetFields
               categories={categories}
               value={formData.fund}
@@ -446,9 +457,9 @@ export default function ManageProjects() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Cancel</Button>
+          <Button onClick={handleClose}>{t('common:actions.cancel')}</Button>
           <Button onClick={handleSubmit} variant="contained" disabled={!formData.name || !formData.company_name || !formData.contact_details}>
-            {editingProject ? 'Update' : 'Add'} Project
+            {editingProject ? t('manage.updateProject') : t('manage.addProject')}
           </Button>
         </DialogActions>
       </Dialog>

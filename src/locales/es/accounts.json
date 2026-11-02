@@ -1,0 +1,154 @@
+{
+  "typeShort": {
+    "checking": "Corriente",
+    "savings": "Ahorros",
+    "credit": "Tarjeta de crédito",
+    "loan": "Préstamo",
+    "investment": "Inversión",
+    "retirement": "Jubilación"
+  },
+  "display": {
+    "accountOwner": "Titular de la cuenta",
+    "unknownUser": "Usuario desconocido"
+  },
+  "validation": {
+    "nameRequired": "El nombre de la cuenta es obligatorio",
+    "numbersInvalid": "El saldo inicial y el límite de crédito deben ser números",
+    "cardDigitsRequired": "Introduzca al menos los últimos 4 dígitos"
+  },
+  "formFields": {
+    "nameLabel": "Nombre de la cuenta",
+    "typeLabel": "Tipo de cuenta",
+    "currencyLabel": "Moneda",
+    "ownershipLabel": "Titularidad",
+    "ownershipJoint": "Conjunta (compartida por el hogar)",
+    "institutionLabel": "Entidad (opcional)",
+    "institutionPlaceholder": "Nombre del banco o bróker",
+    "openingBalanceLabel": "Saldo inicial",
+    "openingBalanceHelp": "Saldo anterior a la primera transacción registrada",
+    "asOfLabel": "A fecha de",
+    "creditLimitLabel": "Límite de crédito",
+    "creditLimitHelp": "Se usa para mostrar qué parte del límite está en uso",
+    "activeLabel": "Activa",
+    "closedLabel": "Cerrada (se conserva para el historial)",
+    "ownerLabel": "Titular",
+    "selectOwner": "Seleccionar titular",
+    "cardNumberLabel": "Número de tarjeta / cuenta",
+    "cardNumberHelp": "Introduzca el número completo o solo los últimos 4 dígitos; en el resto de la aplicación solo se muestran los últimos 4",
+    "cardNicknameLabel": "Alias (opcional)",
+    "cardholderLabel": "Titular de la tarjeta",
+    "cardholderOwner": "Titular de la cuenta"
+  },
+  "formDialog": {
+    "addTitle": "Añadir nueva cuenta",
+    "editTitle": "Editar cuenta",
+    "newPerson": "+ Nueva persona…",
+    "firstCard": "Primera tarjeta",
+    "displayNameRequired": "El nombre para mostrar es obligatorio",
+    "addPersonFailed": "No se pudo añadir la persona",
+    "ownerRequired": "El titular es obligatorio",
+    "saveFailed": "No se pudo guardar la cuenta",
+    "saving": "Guardando..."
+  },
+  "detailForm": {
+    "ownerChip": "Titular: {{name}}",
+    "saved": "Guardado.",
+    "saveFailed": "No se pudo guardar la cuenta",
+    "accountSectionTitle": "Cuenta",
+    "accountSectionDescription": "Los cambios se aplican al hacer clic en Guardar.",
+    "cardsSectionTitle": "Tarjetas",
+    "cardsSectionDescription": "Tarjetas y números de cuenta con los que se emparejan las importaciones CSV. Cada cuenta conserva al menos una.",
+    "dangerZoneTitle": "Zona de peligro",
+    "deleteAccount": "Eliminar cuenta",
+    "deleteHint": "Las transacciones ya registradas en esta cuenta se conservan."
+  },
+  "grid": {
+    "noCards": "Sin tarjetas",
+    "columnAccount": "Cuenta",
+    "columnType": "Tipo",
+    "columnInstitution": "Entidad",
+    "columnOwner": "Titular",
+    "columnCards": "Tarjetas",
+    "columnCurrency": "Moneda",
+    "columnOpening": "Saldo inicial",
+    "columnActive": "Activa",
+    "columnNetWorth": "Patrimonio neto",
+    "ownerJoint": "{{owner}} (conjunta)",
+    "activeTitle": "Activa",
+    "closedTitle": "Cerrada",
+    "countedInNetWorth": "Incluida en el patrimonio neto",
+    "excluded": "Excluida",
+    "empty": "Aún no hay cuentas. Añada su primera cuenta para empezar."
+  },
+  "page": {
+    "summary": "{{accounts}} • {{people}}",
+    "people_one": "{{count}} persona",
+    "people_other": "{{count}} personas",
+    "addAccount": "Añadir cuenta",
+    "displayNameRequired": "El nombre para mostrar es obligatorio",
+    "saveUserFailed": "No se pudo guardar el usuario",
+    "deleteFailed": {
+      "user": "No se pudo eliminar el usuario",
+      "account": "No se pudo eliminar la cuenta",
+      "card": "No se pudo eliminar la tarjeta"
+    },
+    "emptyNoAccounts": "Añada una cuenta para empezar.",
+    "emptySelect": "Seleccione una cuenta para editarla."
+  },
+  "cardsTable": {
+    "cardholderOwner": "Titular de la cuenta",
+    "saveFailed": "No se pudo guardar la tarjeta",
+    "numberLabel": "Número de tarjeta / cuenta",
+    "nicknameLabel": "Alias",
+    "cardholderLabel": "Titular de la tarjeta",
+    "tableLabel": "Tarjetas",
+    "columnNumber": "Número",
+    "columnNickname": "Alias",
+    "columnCardholder": "Titular de la tarjeta",
+    "empty": "No hay tarjetas en esta cuenta.",
+    "saveCard": "Guardar tarjeta",
+    "cancelCardEdit": "Cancelar edición de la tarjeta",
+    "editCard": "Editar tarjeta",
+    "editCardTitle": "Editar tarjeta",
+    "lastCardTooltip": "Una cuenta debe conservar al menos una tarjeta",
+    "deleteCard": "Eliminar tarjeta",
+    "saveNewCard": "Guardar nueva tarjeta",
+    "cancelNewCard": "Cancelar nueva tarjeta",
+    "addCard": "Añadir tarjeta"
+  },
+  "deleteDialog": {
+    "title": {
+      "user": "Eliminar usuario",
+      "account": "Eliminar cuenta",
+      "card": "Eliminar tarjeta"
+    },
+    "question": {
+      "user": "¿Seguro que desea eliminar este usuario?",
+      "account": "¿Seguro que desea eliminar esta cuenta?",
+      "card": "¿Seguro que desea eliminar esta tarjeta?"
+    },
+    "hint": {
+      "user": "Se quitará al usuario de todas las cuentas compartidas.",
+      "account": "Todas las transacciones asociadas a esta cuenta se conservarán.",
+      "card": "Las importaciones CSV que coincidan con este número de tarjeta dejarán de funcionar."
+    },
+    "deleting": "Eliminando..."
+  },
+  "peoplePanel": {
+    "title": "Personas",
+    "empty": "Aún no hay personas.",
+    "rename": "Cambiar el nombre de {{name}}",
+    "editUser": "Editar usuario",
+    "primaryCannotDelete": "El usuario principal no se puede eliminar",
+    "deleteUser": "Eliminar usuario",
+    "delete": "Eliminar a {{name}}",
+    "primaryUser": "Usuario principal",
+    "counts": "{{owned}} como titular • {{cardholder}} como titular de tarjeta"
+  },
+  "userDialog": {
+    "addTitle": "Añadir nuevo usuario",
+    "editTitle": "Editar usuario",
+    "displayNameLabel": "Nombre para mostrar",
+    "saving": "Guardando..."
+  }
+}

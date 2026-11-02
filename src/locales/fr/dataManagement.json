@@ -1,0 +1,17 @@
+{
+  "manage": {
+    "addCategoryFailed": "Échec de l'ajout de la catégorie",
+    "updateCategoryFailed": "Échec de la mise à jour de la catégorie",
+    "addCompanyFailed": "Échec de l'ajout du commerçant",
+    "updateCompanyFailed": "Échec de la mise à jour du commerçant",
+    "title": "Gérer les catégories et les commerçants",
+    "categoriesTab": "Catégories",
+    "companiesTab": "Commerçants",
+    "addCategoryTitle": "Ajouter une catégorie",
+    "categoryNameLabel": "Nom de la catégorie",
+    "existingCategories": "Catégories existantes",
+    "addCompanyTitle": "Ajouter un commerçant",
+    "companyNameLabel": "Nom du commerçant",
+    "existingCompanies": "Commerçants existants"
+  }
+}

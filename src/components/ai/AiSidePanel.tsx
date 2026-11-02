@@ -11,6 +11,7 @@
 
 import React, { useCallback, useEffect, useRef } from 'react';
 import { Box, Dialog, Drawer, useMediaQuery, useTheme } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import { AI_SIDEBAR_MIN_WIDTH, useAiPanel } from './AiPanelProvider';
 import AiPanelContent from './AiPanelContent';
@@ -23,6 +24,7 @@ interface AiSidePanelProps {
 }
 
 function ResizeHandle({ onResize, minContentWidth }: { onResize: (width: number) => void; minContentWidth: number }) {
+  const { t } = useTranslation('ai');
   const draggingRef = useRef(false);
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -62,7 +64,7 @@ function ResizeHandle({ onResize, minContentWidth }: { onResize: (width: number)
     <Box
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize AI panel"
+      aria-label={t('sidePanel.resize')}
       data-testid="ai-panel-resize-handle"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -82,6 +84,7 @@ function ResizeHandle({ onResize, minContentWidth }: { onResize: (width: number)
 }
 
 export default function AiSidePanel({ open, onClose }: AiSidePanelProps) {
+  const { t } = useTranslation('ai');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { mode, sidebarWidth, setSidebarWidth } = useAiPanel();
@@ -104,7 +107,7 @@ export default function AiSidePanel({ open, onClose }: AiSidePanelProps) {
 
   if (mode === 'maximized') {
     return (
-      <Dialog fullScreen open={open} onClose={onClose} aria-label="AI assistant" data-testid="ai-panel-maximized">
+      <Dialog fullScreen open={open} onClose={onClose} aria-label={t('sidePanel.assistant')} data-testid="ai-panel-maximized">
         {open && content}
       </Dialog>
     );

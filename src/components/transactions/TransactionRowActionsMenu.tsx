@@ -34,7 +34,9 @@ import {
   Visibility as IncludeIcon,
   VisibilityOff as ExcludeIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useTransactionQuickActionsSlice, useTransactionTypeActionsSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { normalizeDescription } from '@/lib/merchantMatchingService';
 import { Transaction, TransactionType } from '@/types/database';
 import AddTransaction from './AddTransaction';
@@ -43,7 +45,7 @@ import ClassificationRuleEditorDialog, { type ClassificationRulePrefill } from '
 import CompanyPickerDialog from './CompanyPickerDialog';
 import SeriesPickerDialog from './SeriesPickerDialog';
 import TransferLinkDialog from './TransferLinkDialog';
-import { TYPE_LABELS, needsTypeReview } from './typeSourcePresentation';
+import { needsTypeReview } from './typeSourcePresentation';
 
 export interface TransactionRowActionsMenuProps {
   /** Anchor of the row's "More Actions" button; used when no anchorPosition is given. */
@@ -58,20 +60,18 @@ type PickerKind = 'category' | 'company' | 'series' | 'transfer';
 
 // Re-typing never changes the amount, so only types compatible with the row's
 // sign are offered: money out can be an expense or a transfer, money in can be
-// income, a refund or a transfer.
+// income, a refund or a transfer. Labels resolve through `t` at render time
+// (`rowActions.markAs.<type>`).
 const TYPE_OPTIONS: Array<{
   type: TransactionType;
-  label: string;
   icon: React.ReactElement;
   allowed: (amount: number) => boolean;
 }> = [
-  { type: 'expense', label: 'Mark as Expense', icon: <ExpenseIcon fontSize="small" />, allowed: (amount) => amount <= 0 },
-  { type: 'income', label: 'Mark as Income', icon: <IncomeIcon fontSize="small" />, allowed: (amount) => amount >= 0 },
-  { type: 'refund', label: 'Mark as Refund', icon: <RefundIcon fontSize="small" />, allowed: (amount) => amount >= 0 },
-  { type: 'transfer', label: 'Mark as Transfer', icon: <TransferIcon fontSize="small" />, allowed: () => true },
+  { type: 'expense', icon: <ExpenseIcon fontSize="small" />, allowed: (amount) => amount <= 0 },
+  { type: 'income', icon: <IncomeIcon fontSize="small" />, allowed: (amount) => amount >= 0 },
+  { type: 'refund', icon: <RefundIcon fontSize="small" />, allowed: (amount) => amount >= 0 },
+  { type: 'transfer', icon: <TransferIcon fontSize="small" />, allowed: () => true },
 ];
-
-const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 /**
  * The one action menu for a transaction row. Opens from the row's kebab
@@ -85,6 +85,8 @@ export default function TransactionRowActionsMenu({
   transaction,
   onClose,
 }: TransactionRowActionsMenuProps) {
+  const { t } = useTranslation(['transactions', 'common']);
+  const { money, date } = useFormatters();
   const { deleteTransaction, setTransactionFlag, setTransactionExcluded, setTransactionType } =
     useTransactionQuickActionsSlice();
   const { accounts, confirmTransactionType, addClassificationRule, previewClassificationRuleMatches } =
@@ -124,7 +126,7 @@ export default function TransactionRowActionsMenu({
     try {
       await action();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The change could not be saved');
+      setError(err instanceof Error ? err.message : t('rowActions.changeFailed'));
     } finally {
       setBusy(false);
     }
@@ -137,7 +139,7 @@ export default function TransactionRowActionsMenu({
       await deleteTransaction(deleting.id);
       setDeleting(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The transaction could not be deleted');
+      setError(err instanceof Error ? err.message : t('rowActions.deleteFailed'));
     } finally {
       setBusy(false);
     }
@@ -166,21 +168,21 @@ export default function TransactionRowActionsMenu({
           }}
         >
           <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Edit…</ListItemText>
+          <ListItemText>{t('rowActions.edit')}</ListItemText>
         </MenuItem>
         <MenuItem
           disabled={busy}
           onClick={() => transaction && void runAction(() => setTransactionFlag(transaction.id, !isFlagged))}
         >
           <ListItemIcon>{isFlagged ? <FlagOutlinedIcon fontSize="small" /> : <FlagIcon fontSize="small" />}</ListItemIcon>
-          <ListItemText>{isFlagged ? 'Remove flag' : 'Flag for review'}</ListItemText>
+          <ListItemText>{isFlagged ? t('rowActions.removeFlag') : t('rowActions.flagForReview')}</ListItemText>
         </MenuItem>
         <MenuItem
           disabled={busy}
           onClick={() => transaction && void runAction(() => setTransactionExcluded(transaction.id, !isExcluded))}
         >
           <ListItemIcon>{isExcluded ? <IncludeIcon fontSize="small" /> : <ExcludeIcon fontSize="small" />}</ListItemIcon>
-          <ListItemText>{isExcluded ? 'Include in reports' : 'Exclude from reports'}</ListItemText>
+          <ListItemText>{isExcluded ? t('rowActions.includeInReports') : t('rowActions.excludeFromReports')}</ListItemText>
         </MenuItem>
 
         <Divider />
@@ -191,7 +193,7 @@ export default function TransactionRowActionsMenu({
             data-testid="row-action-confirm-type"
           >
             <ListItemIcon><ConfirmIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>Confirm as {TYPE_LABELS[transaction.type]}</ListItemText>
+            <ListItemText>{t('rowActions.confirmAs', { type: t(`common:transactionType.${transaction.type}`) })}</ListItemText>
           </MenuItem>
         )}
         {typeOptions.map((option) => (
@@ -201,30 +203,30 @@ export default function TransactionRowActionsMenu({
             onClick={() => transaction && void runAction(() => setTransactionType(transaction.id, option.type))}
           >
             <ListItemIcon>{option.icon}</ListItemIcon>
-            <ListItemText>{option.label}</ListItemText>
+            <ListItemText>{t(`rowActions.markAs.${option.type}`)}</ListItemText>
           </MenuItem>
         ))}
         <MenuItem onClick={() => openPicker('transfer')} data-testid="row-action-link-transfer">
           <ListItemIcon><LinkIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{transaction?.transfer_counterpart_id ? 'Transfer link…' : 'Link transfer…'}</ListItemText>
+          <ListItemText>{transaction?.transfer_counterpart_id ? t('rowActions.transferLink') : t('rowActions.linkTransfer')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={openRuleFromRow} data-testid="row-action-create-type-rule">
           <ListItemIcon><RuleIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Create type rule…</ListItemText>
+          <ListItemText>{t('rowActions.createTypeRule')}</ListItemText>
         </MenuItem>
 
         <Divider />
         <MenuItem onClick={() => openPicker('category')}>
           <ListItemIcon><CategoryIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Set Category…</ListItemText>
+          <ListItemText>{t('rowActions.setCategory')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => openPicker('company')}>
           <ListItemIcon><BusinessIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Set Company…</ListItemText>
+          <ListItemText>{t('rowActions.setCompany')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => openPicker('series')}>
           <ListItemIcon><AutorenewIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Subscription Link…</ListItemText>
+          <ListItemText>{t('rowActions.subscriptionLink')}</ListItemText>
         </MenuItem>
 
         <Divider />
@@ -236,7 +238,7 @@ export default function TransactionRowActionsMenu({
           sx={{ color: 'error.main' }}
         >
           <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
-          <ListItemText>Delete…</ListItemText>
+          <ListItemText>{t('rowActions.delete')}</ListItemText>
         </MenuItem>
       </Menu>
 
@@ -284,26 +286,25 @@ export default function TransactionRowActionsMenu({
       )}
 
       <Dialog open={deleting !== null} onClose={() => (busy ? undefined : setDeleting(null))} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete transaction?</DialogTitle>
+        <DialogTitle>{t('rowActions.deleteTitle')}</DialogTitle>
         <DialogContent>
           {deleting && (
             <>
               <Typography fontWeight={600}>{deleting.description}</Typography>
               <Typography variant="body2" color="text.secondary">
-                {CURRENCY.format(deleting.amount)} · {deleting.date}
+                {money(deleting.amount, deleting.account_currency)} · {date(deleting.date)}
                 {deleting.account_name ? ` · ${deleting.account_name}` : ''}
               </Typography>
               <Typography variant="body2" sx={{ mt: 2 }}>
-                This removes the row from every report and total. If the same row is in a later bank export,
-                the import will bring it back.
+                {t('rowActions.deleteWarning')}
               </Typography>
             </>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleting(null)} disabled={busy}>Cancel</Button>
+          <Button onClick={() => setDeleting(null)} disabled={busy}>{t('common:actions.cancel')}</Button>
           <Button color="error" variant="contained" onClick={() => void confirmDelete()} disabled={busy}>
-            {busy ? 'Deleting…' : 'Delete'}
+            {busy ? t('common:status.deleting') : t('common:actions.delete')}
           </Button>
         </DialogActions>
       </Dialog>

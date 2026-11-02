@@ -1,6 +1,9 @@
+/** Error codes the UI maps through `t('accounts:validation.<code>')`. */
+export type CardNumberErrorCode = 'cardDigitsRequired';
+
 export type ParsedCardNumber =
   | { ok: true; last_four: string; full_number: string | null }
-  | { ok: false; error: string };
+  | { ok: false; error: CardNumberErrorCode };
 
 // Accepts either a full account/card number or just the last 4 digits.
 // Only the last 4 digits are ever shown elsewhere in the app; the full
@@ -10,7 +13,7 @@ export function parseCardNumberInput(input: string): ParsedCardNumber {
   const digits = input.replace(/\D/g, '');
 
   if (digits.length < 4) {
-    return { ok: false, error: 'Enter at least the last 4 digits' };
+    return { ok: false, error: 'cardDigitsRequired' };
   }
 
   if (digits.length === 4) {

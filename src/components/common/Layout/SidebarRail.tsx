@@ -33,7 +33,9 @@ import type { SvgIconProps } from '@mui/material';
 
 import AppLogo from '@/components/common/AppLogo';
 
-import type { PageDefinition, PageId } from './pageRegistry';
+import { useTranslation } from 'react-i18next';
+
+import { getPageLabel, type PageDefinition, type PageId } from './pageRegistry';
 import { APP_BAR_HEIGHT, RAIL_WIDTH_COLLAPSED, RAIL_WIDTH_EXPANDED } from './sidebarPreference';
 
 export interface SidebarRailProps {
@@ -118,11 +120,12 @@ export default function SidebarRail({
   onImportCsv,
   developerConsolePage,
 }: SidebarRailProps) {
+  const { t } = useTranslation(['shell', 'common']);
   const width = expanded ? RAIL_WIDTH_EXPANDED : RAIL_WIDTH_COLLAPSED;
   const sections = SECTION_ORDER.map((section) => pages.filter((page) => page.section === section)).filter(
     (group) => group.length > 0
   );
-  const toggleLabel = expanded ? 'Collapse sidebar' : 'Expand sidebar';
+  const toggleLabel = expanded ? t('sidebar.collapse') : t('sidebar.expand');
 
   return (
     <Drawer
@@ -172,7 +175,7 @@ export default function SidebarRail({
           <>
             <AppLogo scale={2} />
             <Typography variant="subtitle2" component="div" noWrap sx={{ fontWeight: 700, flex: 1, minWidth: 0 }}>
-              Budget Tracker
+              {t('common:appName')}
             </Typography>
           </>
         )}
@@ -183,20 +186,20 @@ export default function SidebarRail({
         </Tooltip>
       </Box>
 
-      <List dense disablePadding aria-label="Quick actions" sx={{ py: 0.5, flexShrink: 0 }}>
+      <List dense disablePadding aria-label={t('nav.quickActions')} sx={{ py: 0.5, flexShrink: 0 }}>
         <RailItem
-          label="Add Transaction"
+          label={t('nav.addTransaction')}
           icon={AddTransactionIcon}
           expanded={expanded}
           emphasized
           onClick={onAddTransaction}
           testId="rail-add-transaction"
         />
-        <RailItem label="Import CSV" icon={ImportCsvIcon} expanded={expanded} onClick={onImportCsv} testId="rail-import-csv" />
+        <RailItem label={t('nav.importCsv')} icon={ImportCsvIcon} expanded={expanded} onClick={onImportCsv} testId="rail-import-csv" />
       </List>
       <Divider />
 
-      <Box component="nav" aria-label="Pages" sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 0.5 }}>
+      <Box component="nav" aria-label={t('nav.pages')} sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 0.5 }}>
         {sections.map((group, index) => (
           <Fragment key={group[0].section}>
             {index > 0 && <Divider sx={{ my: 0.5 }} />}
@@ -204,7 +207,7 @@ export default function SidebarRail({
               {group.map((page) => (
                 <RailItem
                   key={page.id}
-                  label={page.label}
+                  label={getPageLabel(page, t)}
                   icon={page.icon}
                   expanded={expanded}
                   selected={currentPage === page.id}
@@ -219,9 +222,9 @@ export default function SidebarRail({
 
       <Divider />
       <List dense disablePadding sx={{ py: 0.5 }}>
-        <RailItem label="Manage Data" icon={ManageDataIcon} expanded={expanded} onClick={onOpenManageData} testId="rail-manage-data" />
+        <RailItem label={t('nav.manageData')} icon={ManageDataIcon} expanded={expanded} onClick={onOpenManageData} testId="rail-manage-data" />
         <RailItem
-          label={developerConsolePage.label}
+          label={getPageLabel(developerConsolePage, t)}
           icon={developerConsolePage.icon}
           expanded={expanded}
           onClick={() => onNavigate(developerConsolePage.id)}

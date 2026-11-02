@@ -9,6 +9,7 @@ import {
   Category as CategoryIcon,
   Close as CloseIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 export type BulkActionKind = 'category' | 'company' | 'project' | 'series';
 
@@ -23,27 +24,28 @@ export default function TransactionBulkActionsBar({
   onOpenAction,
   onClearSelection,
 }: TransactionBulkActionsBarProps) {
+  const { t } = useTranslation(['transactions', 'common']);
   if (selectedCount === 0) return null;
 
   return (
     <Paper sx={{ p: 2, mb: 3, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-      <Chip label={`${selectedCount} selected`} color="primary" />
+      <Chip label={t('bulkBar.selected', { count: selectedCount })} color="primary" />
       <Box sx={{ flexGrow: 1 }} />
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         <Button size="small" startIcon={<CategoryIcon />} onClick={() => onOpenAction('category')}>
-          Set Category
+          {t('bulkBar.setCategory')}
         </Button>
         <Button size="small" startIcon={<BusinessIcon />} onClick={() => onOpenAction('company')}>
-          Set Company
+          {t('bulkBar.setCompany')}
         </Button>
         <Button size="small" startIcon={<ProjectIcon />} onClick={() => onOpenAction('project')}>
-          Set Project
+          {t('bulkBar.setProject')}
         </Button>
         <Button size="small" startIcon={<AutorenewIcon />} onClick={() => onOpenAction('series')}>
-          Subscription Link
+          {t('bulkBar.subscriptionLink')}
         </Button>
         <Button size="small" color="inherit" startIcon={<CloseIcon />} onClick={onClearSelection}>
-          Clear Selection
+          {t('bulkBar.clearSelection')}
         </Button>
       </Stack>
     </Paper>

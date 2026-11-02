@@ -1,0 +1,18 @@
+{
+  "page": {
+    "headline": "Questa pagina è stata spesa",
+    "body": "Abbiamo verificato ogni conto e questo indirizzo non risulta a bilancio. I suoi fondi hanno messo le ali e sono volati via.",
+    "home": "Torna al budget",
+    "back": "Torna indietro"
+  },
+  "recorder": {
+    "aria": "Da dove sei arrivato",
+    "title": "Scatola nera",
+    "loading": "Consultazione della scatola nera…",
+    "requested": "Hai richiesto",
+    "sender": "Inviato da",
+    "event": "Cosa è successo",
+    "campaign": "Contrassegnato con",
+    "privacy": "Calcolato nel tuo browser con quello che già sapeva. Non è stato inviato nulla da nessuna parte."
+  }
+}

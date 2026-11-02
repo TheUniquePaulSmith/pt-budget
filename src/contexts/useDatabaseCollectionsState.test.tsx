@@ -24,6 +24,12 @@ function createServiceMock() {
     loans: {
       list: vi.fn().mockResolvedValue([{ id: 12, name: 'Furnace financing' }]),
     },
+    preferences: {
+      getCurrencyPreferences: vi.fn().mockResolvedValue({
+        defaultCurrency: 'EUR',
+        exchangeRates: [{ currency: 'USD', rate: 0.9, updated_at: 'now' }],
+      }),
+    },
   };
 }
 
@@ -55,6 +61,10 @@ describe('useDatabaseCollectionsState', () => {
       notifications: [{ id: 10, title: 'Pay rent' }],
       classificationRules: [{ id: 11, pattern: 'PYMT BY FUNDS TRANSFER' }],
       loans: [{ id: 12, name: 'Furnace financing' }],
+      currencyPreferences: {
+        defaultCurrency: 'EUR',
+        exchangeRates: [{ currency: 'USD', rate: 0.9, updated_at: 'now' }],
+      },
     });
     expect(service.seedCommunityMerchantRules).toHaveBeenCalledTimes(1);
     // The one-time classification of pre-v4 rows runs on every open path (a no-op after the first).

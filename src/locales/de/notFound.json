@@ -1,0 +1,18 @@
+{
+  "page": {
+    "headline": "Diese Seite wurde ausgegeben",
+    "body": "Wir haben jedes Konto geprüft, und diese Adresse steht nicht in den Büchern. Ihr Guthaben hat Flügel bekommen und ist davongeflogen.",
+    "home": "Zurück zum Budget",
+    "back": "Zurück"
+  },
+  "recorder": {
+    "aria": "Woher Sie gekommen sind",
+    "title": "Flugschreiber",
+    "loading": "Flugschreiber wird ausgelesen…",
+    "requested": "Sie haben aufgerufen",
+    "sender": "Gesendet von",
+    "event": "Was passiert ist",
+    "campaign": "Markiert mit",
+    "privacy": "In Ihrem Browser aus dem ermittelt, was er bereits weiß. Es wurde nichts übertragen."
+  }
+}

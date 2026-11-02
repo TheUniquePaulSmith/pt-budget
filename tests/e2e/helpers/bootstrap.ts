@@ -98,7 +98,11 @@ export async function bootstrapDatabase(
       await fillDatabaseSetupForm(page, options);
       await page.getByRole('button', { name: 'Create Database' }).click();
 
-      // Password setup always lands on the initial-account screen next;
+      // Password setup lands on the preferences screen (language + default
+      // currency); default e2e runs keep English / USD by skipping it.
+      await page.getByTestId('skip-preferences').click();
+
+      // Then the initial-account screen;
       // default e2e runs skip it unless a test explicitly wants an account.
       await page.getByTestId('skip-initial-account').click();
 

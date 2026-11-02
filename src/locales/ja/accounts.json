@@ -1,0 +1,153 @@
+{
+  "typeShort": {
+    "checking": "普通預金",
+    "savings": "貯蓄預金",
+    "credit": "クレジットカード",
+    "loan": "ローン",
+    "investment": "投資",
+    "retirement": "年金・退職金"
+  },
+  "display": {
+    "accountOwner": "口座名義人",
+    "unknownUser": "不明なユーザー"
+  },
+  "validation": {
+    "nameRequired": "口座名は必須です",
+    "numbersInvalid": "期首残高と利用限度額は数値で入力してください",
+    "cardDigitsRequired": "少なくとも下 4 桁を入力してください"
+  },
+  "formFields": {
+    "nameLabel": "口座名",
+    "typeLabel": "口座の種類",
+    "currencyLabel": "通貨",
+    "ownershipLabel": "名義",
+    "ownershipJoint": "共同（世帯で共有）",
+    "institutionLabel": "金融機関（任意）",
+    "institutionPlaceholder": "銀行または証券会社名",
+    "openingBalanceLabel": "期首残高",
+    "openingBalanceHelp": "記録を始める前の残高",
+    "asOfLabel": "基準日",
+    "creditLimitLabel": "利用限度額",
+    "creditLimitHelp": "限度額のうちどれだけ使用中かを表示するために使います",
+    "activeLabel": "有効",
+    "closedLabel": "解約済み（履歴として保持）",
+    "ownerLabel": "名義人",
+    "selectOwner": "名義人を選択",
+    "cardNumberLabel": "カード / 口座番号",
+    "cardNumberHelp": "番号全体または下 4 桁だけを入力してください。他の画面には下 4 桁のみ表示されます",
+    "cardNicknameLabel": "ニックネーム（任意）",
+    "cardholderLabel": "カード名義人",
+    "cardholderOwner": "口座名義人"
+  },
+  "formDialog": {
+    "addTitle": "新しい口座を追加",
+    "editTitle": "口座を編集",
+    "newPerson": "+ 新しい人物…",
+    "firstCard": "最初のカード",
+    "displayNameRequired": "表示名は必須です",
+    "addPersonFailed": "人物の追加に失敗しました",
+    "ownerRequired": "名義人は必須です",
+    "saveFailed": "口座の保存に失敗しました",
+    "saving": "保存中..."
+  },
+  "detailForm": {
+    "ownerChip": "名義人：{{name}}",
+    "saved": "保存しました。",
+    "saveFailed": "口座の保存に失敗しました",
+    "accountSectionTitle": "口座",
+    "accountSectionDescription": "変更は「保存」を押すと適用されます。",
+    "cardsSectionTitle": "カード",
+    "cardsSectionDescription": "CSV インポート時の照合に使うカードと口座番号です。各口座には少なくとも 1 枚が必要です。",
+    "dangerZoneTitle": "危険な操作",
+    "deleteAccount": "口座を削除",
+    "deleteHint": "この口座に記録済みの取引は保持されます。"
+  },
+  "grid": {
+    "noCards": "カードなし",
+    "columnAccount": "口座",
+    "columnType": "種類",
+    "columnInstitution": "金融機関",
+    "columnOwner": "名義人",
+    "columnCards": "カード",
+    "columnCurrency": "通貨",
+    "columnOpening": "期首残高",
+    "columnActive": "有効",
+    "columnNetWorth": "純資産",
+    "ownerJoint": "{{owner}}（共同）",
+    "activeTitle": "有効",
+    "closedTitle": "解約済み",
+    "countedInNetWorth": "純資産に含める",
+    "excluded": "除外",
+    "empty": "口座がまだありません。最初の口座を追加して始めましょう。"
+  },
+  "page": {
+    "summary": "{{accounts}} • {{people}}",
+    "people_other": "{{count}} 人",
+    "addAccount": "口座を追加",
+    "displayNameRequired": "表示名は必須です",
+    "saveUserFailed": "ユーザーの保存に失敗しました",
+    "deleteFailed": {
+      "user": "ユーザーの削除に失敗しました",
+      "account": "口座の削除に失敗しました",
+      "card": "カードの削除に失敗しました"
+    },
+    "emptyNoAccounts": "口座を追加して始めましょう。",
+    "emptySelect": "編集する口座を選択してください。"
+  },
+  "cardsTable": {
+    "cardholderOwner": "口座名義人",
+    "saveFailed": "カードの保存に失敗しました",
+    "numberLabel": "カード / 口座番号",
+    "nicknameLabel": "ニックネーム",
+    "cardholderLabel": "カード名義人",
+    "tableLabel": "カード",
+    "columnNumber": "番号",
+    "columnNickname": "ニックネーム",
+    "columnCardholder": "カード名義人",
+    "empty": "この口座にカードはありません。",
+    "saveCard": "カードを保存",
+    "cancelCardEdit": "カードの編集をキャンセル",
+    "editCard": "カードを編集",
+    "editCardTitle": "カードを編集",
+    "lastCardTooltip": "口座には少なくとも 1 枚のカードが必要です",
+    "deleteCard": "カードを削除",
+    "saveNewCard": "新しいカードを保存",
+    "cancelNewCard": "新しいカードをキャンセル",
+    "addCard": "カードを追加"
+  },
+  "deleteDialog": {
+    "title": {
+      "user": "ユーザーを削除",
+      "account": "口座を削除",
+      "card": "カードを削除"
+    },
+    "question": {
+      "user": "このユーザーを削除してもよろしいですか？",
+      "account": "この口座を削除してもよろしいですか？",
+      "card": "このカードを削除してもよろしいですか？"
+    },
+    "hint": {
+      "user": "このユーザーはすべての共有口座から除去されます。",
+      "account": "この口座に関連する取引はすべて保持されます。",
+      "card": "このカード番号に照合する CSV インポートは使えなくなります。"
+    },
+    "deleting": "削除中..."
+  },
+  "peoplePanel": {
+    "title": "ユーザー",
+    "empty": "ユーザーがまだいません。",
+    "rename": "{{name}} の名前を変更",
+    "editUser": "ユーザーを編集",
+    "primaryCannotDelete": "メインユーザーは削除できません",
+    "deleteUser": "ユーザーを削除",
+    "delete": "{{name}} を削除",
+    "primaryUser": "メインユーザー",
+    "counts": "名義 {{owned}} 件 • カード名義 {{cardholder}} 件"
+  },
+  "userDialog": {
+    "addTitle": "新しいユーザーを追加",
+    "editTitle": "ユーザーを編集",
+    "displayNameLabel": "表示名",
+    "saving": "保存中..."
+  }
+}

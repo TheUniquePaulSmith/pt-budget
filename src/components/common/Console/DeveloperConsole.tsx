@@ -31,6 +31,7 @@ import {
   Typography,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
 import {
   Close,
   ContentCopy,
@@ -151,6 +152,7 @@ interface LogRowProps {
 }
 
 const LogRow = React.memo(function LogRow({ record, expanded, onToggle, onSelectCorrelation, onCopy }: LogRowProps) {
+  const { t } = useTranslation('developer');
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const source = recordSource(record);
@@ -245,7 +247,7 @@ const LogRow = React.memo(function LogRow({ record, expanded, onToggle, onSelect
               <Chip label={record.context.page} size="small" sx={{ height: 18, fontSize: '0.65rem' }} />
             )}
             {record.context.element && (
-              <Tooltip title={`Last interaction: ${record.context.element}`}>
+              <Tooltip title={t('console.lastInteraction', { element: record.context.element })}>
                 <Chip
                   label={record.context.element}
                   size="small"
@@ -255,7 +257,7 @@ const LogRow = React.memo(function LogRow({ record, expanded, onToggle, onSelect
               </Tooltip>
             )}
             {correlationId && (
-              <Tooltip title="Show every app and worker row for this request">
+              <Tooltip title={t('console.correlationTooltip')}>
                 <Chip
                   icon={<LinkIcon sx={{ fontSize: 12 }} />}
                   label={correlationId}
@@ -278,7 +280,7 @@ const LogRow = React.memo(function LogRow({ record, expanded, onToggle, onSelect
         <IconButton
           size="small"
           onClick={onToggle}
-          aria-label={expanded ? 'Hide details' : 'Show details'}
+          aria-label={expanded ? t('console.hideDetails') : t('console.showDetails')}
           sx={{ p: 0.25, opacity: 0.6, '&:hover': { opacity: 1 } }}
         >
           {expanded ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
@@ -286,7 +288,7 @@ const LogRow = React.memo(function LogRow({ record, expanded, onToggle, onSelect
         <IconButton
           size="small"
           onClick={onCopy}
-          aria-label="Copy log entry"
+          aria-label={t('console.copyEntry')}
           sx={{ p: 0.25, opacity: 0.4, '&:hover': { opacity: 1 } }}
         >
           <ContentCopy sx={{ fontSize: 14 }} />
@@ -319,6 +321,7 @@ const LogRow = React.memo(function LogRow({ record, expanded, onToggle, onSelect
 });
 
 const DeveloperConsole: React.FC = () => {
+  const { t } = useTranslation('developer');
   const [filters, setFilters] = useState<LogViewFilters>(DEFAULT_LOG_VIEW_FILTERS);
   const [follow, setFollow] = useState(true);
   const [expandedSeq, setExpandedSeq] = useState<number | null>(null);
@@ -431,7 +434,7 @@ const DeveloperConsole: React.FC = () => {
           <TextField
             size="small"
             fullWidth
-            placeholder="Search logs"
+            placeholder={t('console.searchPlaceholder')}
             value={filters.text}
             onChange={(e) => setFilters((current) => ({ ...current, text: e.target.value }))}
             inputProps={{ 'data-testid': 'log-search-input' }}
@@ -446,7 +449,7 @@ const DeveloperConsole: React.FC = () => {
                   <IconButton
                     size="small"
                     onClick={() => setFilters((current) => ({ ...current, text: '' }))}
-                    aria-label="Clear search"
+                    aria-label={t('console.clearSearch')}
                   >
                     <Close fontSize="small" />
                   </IconButton>
@@ -454,7 +457,7 @@ const DeveloperConsole: React.FC = () => {
               ),
             }}
           />
-          <Tooltip title={follow ? 'Following new entries' : 'Paused — new entries are counted'}>
+          <Tooltip title={follow ? t('console.following') : t('console.paused')}>
             <FormControlLabel
               sx={{ mr: 0, ml: 0, whiteSpace: 'nowrap' }}
               control={
@@ -462,40 +465,40 @@ const DeveloperConsole: React.FC = () => {
                   size="small"
                   checked={follow}
                   onChange={(e) => setFollow(e.target.checked)}
-                  inputProps={{ 'aria-label': 'Follow new entries', 'data-testid': 'log-follow-toggle' } as React.InputHTMLAttributes<HTMLInputElement>}
+                  inputProps={{ 'aria-label': t('console.followAria'), 'data-testid': 'log-follow-toggle' } as React.InputHTMLAttributes<HTMLInputElement>}
                 />
               }
-              label={<Typography variant="caption">Follow</Typography>}
+              label={<Typography variant="caption">{t('console.follow')}</Typography>}
             />
           </Tooltip>
-          <Tooltip title="Refresh">
-            <IconButton onClick={refresh} aria-label="Refresh logs" data-testid="log-refresh">
+          <Tooltip title={t('console.refresh')}>
+            <IconButton onClick={refresh} aria-label={t('console.refreshAria')} data-testid="log-refresh">
               <Refresh fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Generate test logs (app + worker pair)">
-            <IconButton onClick={() => void generateTestLogs()} aria-label="Generate test logs" data-testid="log-generate-test">
+          <Tooltip title={t('console.generateTitle')}>
+            <IconButton onClick={() => void generateTestLogs()} aria-label={t('console.generateAria')} data-testid="log-generate-test">
               <Science fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Export logs (.ndjson + .txt timeline)">
+          <Tooltip title={t('console.exportTitle')}>
             <span>
               <IconButton
                 onClick={() => void handleExport()}
                 disabled={isExporting || total === 0}
-                aria-label="Export logs"
+                aria-label={t('console.exportAria')}
                 data-testid="log-export"
               >
                 {isExporting ? <CircularProgress size={18} /> : <Download fontSize="small" />}
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title="Clear all stored logs">
+          <Tooltip title={t('console.clearTitle')}>
             <span>
               <IconButton
                 onClick={() => void handleClear()}
                 disabled={isClearing || total === 0}
-                aria-label="Clear logs"
+                aria-label={t('console.clearAria')}
                 data-testid="log-clear"
               >
                 <DeleteSweep fontSize="small" />
@@ -530,17 +533,17 @@ const DeveloperConsole: React.FC = () => {
             />
           ))}
           <FormControl size="small" sx={{ minWidth: 140 }}>
-            <InputLabel id="log-page-filter-label">Page</InputLabel>
+            <InputLabel id="log-page-filter-label">{t('console.pageFilter')}</InputLabel>
             <Select
               labelId="log-page-filter-label"
-              label="Page"
+              label={t('console.pageFilter')}
               value={filters.page}
               onChange={(e) => setFilters((current) => ({ ...current, page: String(e.target.value) }))}
               data-testid="log-page-filter"
               sx={{ fontSize: '0.8rem' }}
             >
               <MenuItem value="">
-                <em>All pages</em>
+                <em>{t('console.allPages')}</em>
               </MenuItem>
               {knownPages.map((page) => (
                 <MenuItem key={page} value={page}>
@@ -551,7 +554,7 @@ const DeveloperConsole: React.FC = () => {
           </FormControl>
           <TextField
             size="small"
-            label="Correlation id"
+            label={t('console.correlationId')}
             value={filters.correlationId}
             onChange={(e) => setFilters((current) => ({ ...current, correlationId: e.target.value }))}
             inputProps={{ 'data-testid': 'log-correlation-filter', style: { fontFamily: MONO_FONT, fontSize: '0.8rem' } }}
@@ -562,7 +565,7 @@ const DeveloperConsole: React.FC = () => {
                   <IconButton
                     size="small"
                     onClick={() => setFilters((current) => ({ ...current, correlationId: '' }))}
-                    aria-label="Clear correlation filter"
+                    aria-label={t('console.clearCorrelation')}
                   >
                     <Close fontSize="small" />
                   </IconButton>
@@ -572,13 +575,13 @@ const DeveloperConsole: React.FC = () => {
           />
           {activeFilterCount > 0 && (
             <Button size="small" onClick={() => setFilters(DEFAULT_LOG_VIEW_FILTERS)} data-testid="log-reset-filters">
-              Reset filters
+              {t('console.resetFilters')}
             </Button>
           )}
           <Box sx={{ flex: 1 }} />
           {!follow && pendingCount > 0 && (
             <Chip
-              label={`${pendingCount} new`}
+              label={t('console.pendingNew', { count: pendingCount })}
               size="small"
               color="primary"
               onClick={refresh}
@@ -586,7 +589,7 @@ const DeveloperConsole: React.FC = () => {
             />
           )}
           <Typography variant="caption" color="text.secondary" noWrap data-testid="log-counts">
-            {entries.length} shown / {total} stored
+            {t('console.counts', { shown: entries.length, total })}
           </Typography>
         </Stack>
       </Box>
@@ -600,9 +603,7 @@ const DeveloperConsole: React.FC = () => {
                 <CircularProgress size={20} />
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  {total === 0
-                    ? 'No logs stored yet. Interact with the application or generate test logs from the toolbar.'
-                    : 'No logs match the current filters.'}
+                  {total === 0 ? t('console.emptyStore') : t('console.emptyFiltered')}
                 </Typography>
               )}
             </Box>
@@ -621,7 +622,7 @@ const DeveloperConsole: React.FC = () => {
               {hasMore && (
                 <Box sx={{ p: 1, textAlign: 'center' }}>
                   <Button size="small" onClick={loadOlder} disabled={isLoading} data-testid="log-load-older">
-                    {isLoading ? 'Loading…' : 'Load older entries'}
+                    {isLoading ? t('console.loading') : t('console.loadOlder')}
                   </Button>
                 </Box>
               )}

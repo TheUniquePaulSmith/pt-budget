@@ -17,8 +17,10 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useNotificationsRuntimeSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { databaseWorkerService } from '@/lib/databaseWorkerService';
 import { todayLocalISO } from '@/lib/dateOnly';
 import { logger } from '@/lib/logging';
@@ -29,7 +31,7 @@ import {
   selectDue,
   selectOsNotifiable,
 } from '@/lib/notificationService';
-import { typeLabel } from './notificationPresentation';
+import { describeNotification, typeLabel } from './notificationPresentation';
 import {
   getNotificationsView,
   onNotificationRescanRequested,
@@ -51,6 +53,8 @@ const DAY_TICK_MS = 60 * 1000;
 const REMOUNT_RELOAD_AFTER_MS = 60 * 1000;
 
 export default function NotificationsRuntime(): null {
+  const { t } = useTranslation('notifications');
+  const { money, date, month } = useFormatters();
   const {
     isDatabaseLoaded,
     notifications,
@@ -65,8 +69,8 @@ export default function NotificationsRuntime(): null {
 
   // Long-lived callbacks see the latest props through a ref so the rescan
   // controller (created once per database session) is never recreated.
-  const latest = useRef({ recurringSeries, loans, runNotificationScan, getNotificationSettings, getNotificationPreferences });
-  latest.current = { recurringSeries, loans, runNotificationScan, getNotificationSettings, getNotificationPreferences };
+  const latest = useRef({ recurringSeries, loans, runNotificationScan, getNotificationSettings, getNotificationPreferences, t });
+  latest.current = { recurringSeries, loans, runNotificationScan, getNotificationSettings, getNotificationPreferences, t };
 
   const firedThisSession = useRef(new Set<number>());
 
@@ -104,7 +108,7 @@ export default function NotificationsRuntime(): null {
           });
           return summary.writes;
         } catch (error) {
-          setNotificationsView({ scanning: false, lastError: error instanceof Error ? error.message : 'Notification scan failed' });
+          setNotificationsView({ scanning: false, lastError: error instanceof Error ? error.message : latest.current.t('runtime.scanFailed') });
           throw error;
         }
       },
@@ -129,7 +133,7 @@ export default function NotificationsRuntime(): null {
       } catch (error) {
         if (cancelled) return;
         log.error('Failed to load notification settings', { operation: 'loadSettings', error });
-        setNotificationsView({ ready: true, lastError: error instanceof Error ? error.message : 'Failed to load notification settings' });
+        setNotificationsView({ ready: true, lastError: error instanceof Error ? error.message : latest.current.t('runtime.loadFailed') });
       }
     };
 
@@ -179,8 +183,9 @@ export default function NotificationsRuntime(): null {
     for (const entry of toFire) {
       firedThisSession.current.add(entry.notification.id);
       try {
-        const osNotification = new Notification(entry.notification.title, {
-          body: entry.notification.body ?? typeLabel(entry.notification.type),
+        const text = describeNotification(entry.notification, t, (amount) => money(amount), { date, month, today: view.today });
+        const osNotification = new Notification(text.title, {
+          body: text.body ?? typeLabel(entry.notification.type, t),
           tag: `ptbudget-notification-${entry.notification.id}`,
         });
         osNotification.onclick = () => {
@@ -194,7 +199,7 @@ export default function NotificationsRuntime(): null {
         log.warn('Could not record OS notification', { operation: 'markNotified', error, notificationId: entry.notification.id });
       });
     }
-  }, [markNotificationNotified, notifications, view.preferences.enabled, view.preferences.osEnabled, view.ready, view.settings, view.today]);
+  }, [date, markNotificationNotified, money, month, notifications, t, view.preferences.enabled, view.preferences.osEnabled, view.ready, view.settings, view.today]);
 
   return null;
 }

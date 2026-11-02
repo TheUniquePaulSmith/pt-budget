@@ -1,0 +1,131 @@
+{
+  "preferences": {
+    "title": "환경 설정",
+    "description": "이 기기에서 사용할 언어와 합계를 표시할 통화를 선택하세요. 둘 다 나중에 설정에서 변경할 수 있어요.",
+    "languageLabel": "언어",
+    "languageHelp": "이 브라우저에만 적용되며 즉시 반영돼요.",
+    "currencyLabel": "기본 통화",
+    "currencyHelp": "계좌마다 다른 통화를 쓸 수 있고, 대시보드 합계는 이 통화로 환산돼요.",
+    "continue": "계속",
+    "saving": "저장 중…",
+    "skip": "나중에 하기"
+  },
+  "initialAccount": {
+    "currencyLabel": "통화",
+    "title": "첫 계좌 추가",
+    "description": "거래를 기록할 계좌나 카드를 먼저 설정하세요. 계좌는 나중에 설정에서 더 추가할 수 있어요.",
+    "nameRequired": "계좌 이름은 필수 항목이에요.",
+    "lastFourInvalid": "마지막 네 자리는 숫자 4자리여야 해요.",
+    "nameLabel": "계좌 이름",
+    "typeLabel": "계좌 유형",
+    "lastFourLabel": "마지막 네 자리",
+    "saving": "계좌 저장 중…"
+  },
+  "provider": {
+    "gdrive": "Google Drive",
+    "onedrive": "OneDrive"
+  },
+  "gate": {
+    "initializing": "데이터베이스 초기화 중...",
+    "importPasswordDescription": "이 데이터베이스 파일은 암호화되어 있어요. 잠금을 해제하고 가져오려면 비밀번호를 입력하세요.",
+    "unlockDescription": "이 데이터베이스는 암호화되어 있어요. 잠금을 해제하려면 비밀번호를 입력하세요.",
+    "welcomeTitle": "Budget Tracker에 오신 것을 환영해요",
+    "welcomeDescription": "시작하려면 새 데이터베이스를 만들거나 파일에서 기존 데이터베이스를 불러오세요.",
+    "createNewDatabase": "새 데이터베이스 만들기",
+    "loadFromFile": "파일에서 불러오기",
+    "orOpenCloudBackup": "또는 기존 클라우드 백업 열기",
+    "providerNotConfigured": "이 배포에는 {{provider}}이(가) 설정되어 있지 않아요.",
+    "openFromProvider": "{{provider}}에서 열기",
+    "importingSampleData": "샘플 데이터 가져오는 중",
+    "filesCompleted": "완료된 파일: {{completed}} / {{total}}",
+    "currentFile": "현재 파일: {{file}}",
+    "tableRows": "{{table}}: {{imported}}행",
+    "tableRowsOfExpected": "{{table}}: {{imported}} / {{expected}}행",
+    "cancelSampleDataImport": "샘플 데이터 가져오기 취소",
+    "connectProvider": "{{provider}} 연결",
+    "cloudAuthDescription": "이 브라우저는 {{provider}}을(를) 데이터베이스 소스로 사용하도록 설정되어 있어요. 인증한 뒤 백업 아카이브를 선택해 계속하세요.",
+    "useLocalInstead": "대신 로컬 데이터베이스 사용",
+    "databaseError": "데이터베이스 오류",
+    "unknownInitError": "데이터베이스를 초기화하는 중 알 수 없는 오류가 발생했어요.",
+    "reloadPage": "페이지 새로고침"
+  },
+  "passwordSetup": {
+    "primaryUserNameRequired": "기본 사용자 이름은 필수 항목이에요.",
+    "passwordTooShort": "비밀번호는 {{count}}자 이상이어야 해요.",
+    "passwordsMismatch": "비밀번호가 일치하지 않아요.",
+    "title": "데이터베이스 설정",
+    "description": "데이터베이스는 이 기기에서 암호화되며, 다시 열 때마다 이 비밀번호가 필요해요. 비밀번호 복구 기능이 없으니 강력한 비밀번호를 정하고 안전한 곳에 보관하세요.",
+    "primaryUserSection": "기본 사용자",
+    "primaryUserNameLabel": "기본 사용자 이름",
+    "passwordSection": "비밀번호",
+    "passwordLabel": "비밀번호",
+    "confirmPasswordLabel": "비밀번호 확인",
+    "hidePassword": "비밀번호 숨기기",
+    "showPassword": "비밀번호 표시",
+    "creating": "데이터베이스 만드는 중…",
+    "create": "데이터베이스 만들기"
+  },
+  "passwordEntry": {
+    "title": "비밀번호 입력",
+    "defaultDescription": "이 데이터베이스는 암호화되어 있어요. 열려면 비밀번호를 입력하세요.",
+    "passwordLabel": "비밀번호",
+    "hidePassword": "비밀번호 숨기기",
+    "showPassword": "비밀번호 표시",
+    "decrypting": "복호화 중…",
+    "unlock": "잠금 해제"
+  },
+  "storageChoice": {
+    "title": "데이터베이스를 어디에 보관할까요?",
+    "description": "나중에 설정에서 변경할 수 있어요.",
+    "localLabel": "로컬에 보관",
+    "localDescription": "이 기기에만 저장돼요.",
+    "gdriveLabel": "Google Drive",
+    "gdriveDescription": "Google Drive에 자동으로 동기화돼요.",
+    "onedriveLabel": "OneDrive",
+    "onedriveDescription": "OneDrive에 자동으로 동기화돼요.",
+    "notConfigured": "이 배포에는 {{provider}}이(가) 설정되어 있지 않아요."
+  },
+  "testBrowser": {
+    "workerCommunicationFailed": "테스트 워커와 통신하지 못했어요",
+    "unknownError": "호환성 테스트 중 알 수 없는 오류",
+    "statusTesting": "테스트 중...",
+    "statusNotTested": "테스트 안 함",
+    "statusPassed": "통과",
+    "statusFailed": "실패",
+    "wasmLabel": "WebAssembly 지원",
+    "wasmDescription": "브라우저가 WebAssembly를 지원해요",
+    "sharedWorkerLabel": "SharedWorker 지원",
+    "sharedWorkerDescription": "브라우저가 SharedWorker API를 지원해요",
+    "sqliteLabel": "SQLite WASM 모듈",
+    "sqliteDescription": "WA-SQLite 모듈이 로드되고 초기화돼요",
+    "vfsLabel": "가상 파일 시스템",
+    "vfsDescription": "IndexedDB VFS 백엔드가 정상 동작해요",
+    "databaseOperationsLabel": "데이터베이스 작업",
+    "databaseOperationsDescription": "테스트 데이터베이스를 열고 쿼리를 실행해요",
+    "title": "브라우저 호환성 테스트",
+    "overallResult": "종합 결과:",
+    "compatible": "호환됨",
+    "incompatible": "호환되지 않음",
+    "incompatibleWarning": "이 브라우저는 예산 앱에 필요한 기능을 모두 지원하지 않을 수 있어요. 일부 기능이 제한되거나 사용할 수 없을 수 있어요.",
+    "errorDetails": "오류 상세",
+    "hideErrorDetails": "오류 상세 숨기기",
+    "showErrorDetails": "오류 상세 표시"
+  },
+  "encryptionProgress": {
+    "title": "데이터베이스 보호 중",
+    "stage": {
+      "flushing": "대기 중인 작업이 끝나기를 기다리는 중…",
+      "exporting": "데이터베이스 스냅샷 내보내는 중…",
+      "encrypting": "데이터베이스 암호화 중…",
+      "uploading": "클라우드 저장소에 업로드 중…",
+      "done": "완료"
+    }
+  },
+  "cloudFilePicker": {
+    "cloudStorage": "클라우드 저장소",
+    "fileSize": "{{size}} KB",
+    "title": "{{provider}}에서 열기",
+    "empty": "{{provider}}에서 백업 아카이브를 찾지 못했어요.",
+    "opening": "여는 중…"
+  }
+}

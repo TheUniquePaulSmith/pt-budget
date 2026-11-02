@@ -4,12 +4,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Chip, CircularProgress, Stack, Tooltip, Typography } from '@mui/material';
 import { Radar as ScanIcon, Rule as RuleIcon } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { useSubscriptionsLoansSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import type { Loan, LoanMatchRule } from '@/types/database';
 import LoanRuleEditorDialog, { type LoanRulePrefill } from './LoanRuleEditorDialog';
-import { formatCurrency, loanStatusOption } from './loanPresentation';
+import { loanStatusOption } from './loanPresentation';
 
 export interface LoansSubscriptionsSectionHandle {
   /** Opens the rule editor with the loan picker, prefilled from an unmatched cluster. */
@@ -31,6 +33,8 @@ interface LoansSubscriptionsSectionProps {
  * are recognized.
  */
 export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, refreshToken = 0 }: LoansSubscriptionsSectionProps) {
+  const { t } = useTranslation('loans');
+  const { money } = useFormatters();
   const { loans, accounts, getLoanRules, addLoanRule, updateLoanRule, previewLoanRuleMatches, applyLoanRules } = useSubscriptionsLoansSlice();
 
   const [rules, setRules] = useState<LoanMatchRule[]>([]);
@@ -46,9 +50,9 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
     try {
       setRules(await getLoanRules());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load loan rules');
+      setError(err instanceof Error ? err.message : t('subscriptionsSection.loadRulesFailed'));
     }
-  }, [getLoanRules]);
+  }, [getLoanRules, t]);
 
   useEffect(() => {
     void loadRules();
@@ -80,9 +84,9 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
     setError(null);
     try {
       const result = await applyLoanRules();
-      setNotice(result.linked > 0 ? `Linked ${result.linked} payment${result.linked === 1 ? '' : 's'} to loans.` : 'No new loan payments matched.');
+      setNotice(result.linked > 0 ? t('subscriptionsSection.scanLinked', { count: result.linked }) : t('subscriptionsSection.scanNone'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to apply loan rules');
+      setError(err instanceof Error ? err.message : t('subscriptionsSection.applyFailed'));
     } finally {
       setScanning(false);
     }
@@ -92,7 +96,7 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
     () => [
       {
         field: 'name',
-        headerName: 'Loan',
+        headerName: t('subscriptionsSection.columnLoan'),
         flex: 1.2,
         minWidth: 180,
         renderCell: (params) => (
@@ -108,7 +112,7 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
       },
       {
         field: 'rules',
-        headerName: 'Payment rules',
+        headerName: t('subscriptionsSection.columnPaymentRules'),
         flex: 1.4,
         minWidth: 220,
         sortable: false,
@@ -117,14 +121,23 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
           if (loanRules.length === 0) {
             return (
               <Typography variant="body2" color="text.secondary">
-                No rule yet
+                {t('subscriptionsSection.noRuleYet')}
               </Typography>
             );
           }
           return (
             <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ py: 0.5 }}>
               {loanRules.map((rule) => (
-                <Tooltip key={rule.id} title={`${rule.match_type} · ${rule.account_name ? `from ${rule.account_name}` : 'any account'}${rule.enabled ? '' : ' · disabled'}`}>
+                <Tooltip
+                  key={rule.id}
+                  title={[
+                    t(`matchType.${rule.match_type}`),
+                    rule.account_name ? t('subscriptionsSection.ruleFrom', { name: rule.account_name }) : t('subscriptionsSection.ruleAnyAccount'),
+                    rule.enabled ? null : t('subscriptionsSection.ruleDisabled'),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                >
                   <Chip
                     size="small"
                     variant="outlined"
@@ -145,15 +158,15 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
       },
       {
         field: 'expected_payment',
-        headerName: 'Expected',
+        headerName: t('subscriptionsSection.columnExpected'),
         width: 110,
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (value: number | null) => (value == null ? '—' : formatCurrency(value)),
+        valueFormatter: (value: number | null, row) => (value == null ? '—' : money(value, row.account_currency)),
       },
       {
         field: 'payment_count',
-        headerName: 'Matched',
+        headerName: t('subscriptionsSection.columnMatched'),
         width: 100,
         align: 'right',
         headerAlign: 'right',
@@ -161,16 +174,16 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
       },
       {
         field: 'last_payment_date',
-        headerName: 'Last payment',
+        headerName: t('subscriptionsSection.columnLastPayment'),
         width: 120,
         valueGetter: (_, row) => row.last_payment_date ?? '—',
       },
       {
         field: 'status',
-        headerName: 'Status',
+        headerName: t('subscriptionsSection.columnStatus'),
         width: 100,
         renderCell: (params) => {
-          const option = loanStatusOption(params.row.status);
+          const option = loanStatusOption(t, params.row.status);
           return <Chip size="small" label={option.label} color={option.color} />;
         },
       },
@@ -192,26 +205,26 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
               setEditorOpen(true);
             }}
           >
-            Add Rule
+            {t('subscriptionsSection.addRule')}
           </Button>
         ),
       },
     ],
-    [rulesByLoan]
+    [money, rulesByLoan, t]
   );
 
   return (
     <Box mb={4} data-testid="subscriptions-loans-section">
       <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1} mb={1}>
         <Box>
-          <Typography variant="h6">Loans ({loans.length})</Typography>
+          <Typography variant="h6">{t('subscriptionsSection.title', { count: loans.length })}</Typography>
           <Typography variant="body2" color="text.secondary">
-            Loan payment rules take precedence: a matched transaction is a loan payment, never a subscription or bill.
+            {t('subscriptionsSection.intro')}
             {onNavigateToLoans && (
               <>
                 {' '}
                 <Button size="small" onClick={onNavigateToLoans} sx={{ p: 0, minWidth: 0, verticalAlign: 'baseline' }}>
-                  Manage loans
+                  {t('subscriptionsSection.manageLoans')}
                 </Button>
               </>
             )}
@@ -223,7 +236,7 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
           onClick={handleScan}
           disabled={scanning || rules.length === 0}
         >
-          Apply Loan Rules
+          {t('subscriptionsSection.applyLoanRules')}
         </Button>
       </Box>
       {error && (
@@ -238,7 +251,7 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
       )}
       {loans.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
-          No loans yet. Create one on the Loans page, then add a rule here or use &quot;Track as loan payment&quot; on an unmatched charge.
+          {t('subscriptionsSection.empty')}
         </Typography>
       ) : (
         <AppDataGrid
@@ -262,9 +275,13 @@ export default function LoansSubscriptionsSection({ onReady, onNavigateToLoans, 
         onCreate={async (input) => {
           await addLoanRule(input);
           const result = await applyLoanRules();
-          const loanName = loans.find((loan) => loan.id === input.loan_id)?.name ?? 'the loan';
+          const loanName = loans.find((loan) => loan.id === input.loan_id)?.name ?? t('subscriptionsSection.theLoan');
           const linked = result.byLoan[input.loan_id] ?? 0;
-          setNotice(linked > 0 ? `Rule created: ${linked} payment${linked === 1 ? '' : 's'} linked to ${loanName}.` : `Rule created for ${loanName}; it applies to future transactions.`);
+          setNotice(
+            linked > 0
+              ? t('subscriptionsSection.ruleCreatedLinked', { count: linked, name: loanName })
+              : t('subscriptionsSection.ruleCreatedFuture', { name: loanName })
+          );
           await loadRules();
         }}
         onUpdate={async (id, input) => {

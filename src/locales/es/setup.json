@@ -1,0 +1,131 @@
+{
+  "preferences": {
+    "title": "Sus preferencias",
+    "description": "Elija el idioma de este dispositivo y la moneda en la que se mostrarán sus totales. Puede cambiar ambos más adelante en Configuración.",
+    "languageLabel": "Idioma",
+    "languageHelp": "Se aplica solo a este navegador y tiene efecto inmediato.",
+    "currencyLabel": "Moneda predeterminada",
+    "currencyHelp": "Cada cuenta puede usar su propia moneda; los totales del panel se convierten a esta.",
+    "continue": "Continuar",
+    "saving": "Guardando…",
+    "skip": "Omitir por ahora"
+  },
+  "initialAccount": {
+    "currencyLabel": "Moneda",
+    "title": "Añada su primera cuenta",
+    "description": "Configure una cuenta o tarjeta para que sus transacciones tengan un destino. Puede añadir más cuentas más adelante en Configuración.",
+    "nameRequired": "El nombre de la cuenta es obligatorio.",
+    "lastFourInvalid": "Los últimos cuatro dígitos deben ser exactamente 4 números.",
+    "nameLabel": "Nombre de la cuenta",
+    "typeLabel": "Tipo de cuenta",
+    "lastFourLabel": "Últimos cuatro dígitos",
+    "saving": "Guardando cuenta…"
+  },
+  "provider": {
+    "gdrive": "Google Drive",
+    "onedrive": "OneDrive"
+  },
+  "gate": {
+    "initializing": "Inicializando la base de datos...",
+    "importPasswordDescription": "Este archivo de base de datos está cifrado. Introduzca su contraseña para desbloquearlo e importarlo.",
+    "unlockDescription": "Esta base de datos está cifrada. Introduzca su contraseña para desbloquearla.",
+    "welcomeTitle": "Bienvenido a Budget Tracker",
+    "welcomeDescription": "Para empezar, puede crear una base de datos nueva o cargar una existente desde un archivo.",
+    "createNewDatabase": "Crear base de datos nueva",
+    "loadFromFile": "Cargar desde archivo",
+    "orOpenCloudBackup": "o abra una copia de seguridad existente en la nube",
+    "providerNotConfigured": "{{provider}} no está configurado para esta instalación.",
+    "openFromProvider": "Abrir desde {{provider}}",
+    "importingSampleData": "Importando datos de ejemplo",
+    "filesCompleted": "Archivos completados: {{completed}} / {{total}}",
+    "currentFile": "Archivo actual: {{file}}",
+    "tableRows": "{{table}}: {{imported}} filas",
+    "tableRowsOfExpected": "{{table}}: {{imported}} / {{expected}} filas",
+    "cancelSampleDataImport": "Cancelar importación de datos de ejemplo",
+    "connectProvider": "Conectar {{provider}}",
+    "cloudAuthDescription": "Este navegador está configurado para usar {{provider}} como origen de la base de datos. Inicie sesión y elija un archivo de copia de seguridad para continuar.",
+    "useLocalInstead": "Usar una base de datos local",
+    "databaseError": "Error de base de datos",
+    "unknownInitError": "Se ha producido un error desconocido al inicializar la base de datos.",
+    "reloadPage": "Recargar página"
+  },
+  "passwordSetup": {
+    "primaryUserNameRequired": "El nombre del usuario principal es obligatorio.",
+    "passwordTooShort": "La contraseña debe tener al menos {{count}} caracteres.",
+    "passwordsMismatch": "Las contraseñas no coinciden.",
+    "title": "Configure su base de datos",
+    "description": "Su base de datos se cifra en este dispositivo y esta contraseña será necesaria para abrirla cada vez que vuelva. Elija una contraseña segura: no hay recuperación de contraseña, así que guárdela en un lugar seguro.",
+    "primaryUserSection": "Usuario principal",
+    "primaryUserNameLabel": "Nombre del usuario principal",
+    "passwordSection": "Contraseña",
+    "passwordLabel": "Contraseña",
+    "confirmPasswordLabel": "Confirmar contraseña",
+    "hidePassword": "Ocultar contraseña",
+    "showPassword": "Mostrar contraseña",
+    "creating": "Creando base de datos…",
+    "create": "Crear base de datos"
+  },
+  "passwordEntry": {
+    "title": "Introducir contraseña",
+    "defaultDescription": "Esta base de datos está cifrada. Introduzca la contraseña para abrirla.",
+    "passwordLabel": "Contraseña",
+    "hidePassword": "Ocultar contraseña",
+    "showPassword": "Mostrar contraseña",
+    "decrypting": "Descifrando…",
+    "unlock": "Desbloquear"
+  },
+  "storageChoice": {
+    "title": "¿Dónde debe guardarse esta base de datos?",
+    "description": "Puede cambiarlo más adelante en Configuración.",
+    "localLabel": "Mantener local",
+    "localDescription": "Se guarda solo en este dispositivo.",
+    "gdriveLabel": "Google Drive",
+    "gdriveDescription": "Se sincroniza automáticamente con su Google Drive.",
+    "onedriveLabel": "OneDrive",
+    "onedriveDescription": "Se sincroniza automáticamente con su OneDrive.",
+    "notConfigured": "{{provider}} no está configurado para esta instalación."
+  },
+  "testBrowser": {
+    "workerCommunicationFailed": "No se pudo comunicar con el worker de prueba",
+    "unknownError": "Error desconocido durante la prueba de compatibilidad",
+    "statusTesting": "Probando...",
+    "statusNotTested": "Sin probar",
+    "statusPassed": "Superada",
+    "statusFailed": "Fallida",
+    "wasmLabel": "Compatibilidad con WebAssembly",
+    "wasmDescription": "El navegador es compatible con WebAssembly",
+    "sharedWorkerLabel": "Compatibilidad con SharedWorker",
+    "sharedWorkerDescription": "El navegador es compatible con la API SharedWorker",
+    "sqliteLabel": "Módulo SQLite WASM",
+    "sqliteDescription": "El módulo WA-SQLite se carga e inicializa",
+    "vfsLabel": "Sistema de archivos virtual",
+    "vfsDescription": "El backend VFS de IndexedDB funciona correctamente",
+    "databaseOperationsLabel": "Operaciones de base de datos",
+    "databaseOperationsDescription": "Abre una base de datos de prueba y ejecuta una consulta",
+    "title": "Prueba de compatibilidad del navegador",
+    "overallResult": "Resultado general:",
+    "compatible": "Compatible",
+    "incompatible": "Incompatible",
+    "incompatibleWarning": "Es posible que su navegador no admita por completo todas las funciones necesarias para la aplicación de presupuesto. Algunas funciones pueden estar limitadas o no disponibles.",
+    "errorDetails": "Detalles del error",
+    "hideErrorDetails": "Ocultar detalles del error",
+    "showErrorDetails": "Mostrar detalles del error"
+  },
+  "encryptionProgress": {
+    "title": "Protegiendo su base de datos",
+    "stage": {
+      "flushing": "Esperando a que terminen las operaciones pendientes…",
+      "exporting": "Exportando instantánea de la base de datos…",
+      "encrypting": "Cifrando la base de datos…",
+      "uploading": "Subiendo al almacenamiento en la nube…",
+      "done": "Completado"
+    }
+  },
+  "cloudFilePicker": {
+    "cloudStorage": "almacenamiento en la nube",
+    "fileSize": "{{size}} KB",
+    "title": "Abrir desde {{provider}}",
+    "empty": "No se encontraron archivos de copia de seguridad en {{provider}}.",
+    "opening": "Abriendo…"
+  }
+}

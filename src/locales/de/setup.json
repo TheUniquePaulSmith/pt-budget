@@ -1,0 +1,131 @@
+{
+  "preferences": {
+    "title": "Ihre Einstellungen",
+    "description": "Wählen Sie die Sprache für dieses Gerät und die Währung, in der Ihre Summen angezeigt werden. Beides können Sie später in den Einstellungen ändern.",
+    "languageLabel": "Sprache",
+    "languageHelp": "Gilt nur für diesen Browser und wird sofort wirksam.",
+    "currencyLabel": "Standardwährung",
+    "currencyHelp": "Jedes Konto kann eine eigene Währung haben; die Summen in der Übersicht werden in diese Währung umgerechnet.",
+    "continue": "Weiter",
+    "saving": "Wird gespeichert…",
+    "skip": "Vorerst überspringen"
+  },
+  "initialAccount": {
+    "currencyLabel": "Währung",
+    "title": "Erstes Konto hinzufügen",
+    "description": "Richten Sie ein Konto oder eine Karte ein, damit Ihre Transaktionen zugeordnet werden können. Weitere Konten können Sie später in den Einstellungen hinzufügen.",
+    "nameRequired": "Der Kontoname ist erforderlich.",
+    "lastFourInvalid": "Die letzten vier Stellen müssen genau 4 Ziffern sein.",
+    "nameLabel": "Kontoname",
+    "typeLabel": "Kontotyp",
+    "lastFourLabel": "Letzte vier Ziffern",
+    "saving": "Konto wird gespeichert…"
+  },
+  "provider": {
+    "gdrive": "Google Drive",
+    "onedrive": "OneDrive"
+  },
+  "gate": {
+    "initializing": "Datenbank wird initialisiert...",
+    "importPasswordDescription": "Diese Datenbankdatei ist verschlüsselt. Geben Sie Ihr Passwort ein, um sie zu entsperren und zu importieren.",
+    "unlockDescription": "Diese Datenbank ist verschlüsselt. Geben Sie Ihr Passwort ein, um sie zu entsperren.",
+    "welcomeTitle": "Willkommen bei Budget Tracker",
+    "welcomeDescription": "Zum Einstieg können Sie eine neue Datenbank erstellen oder eine vorhandene aus einer Datei laden.",
+    "createNewDatabase": "Neue Datenbank erstellen",
+    "loadFromFile": "Aus Datei laden",
+    "orOpenCloudBackup": "oder ein vorhandenes Cloud-Backup öffnen",
+    "providerNotConfigured": "{{provider}} ist für diese Installation nicht konfiguriert.",
+    "openFromProvider": "Aus {{provider}} öffnen",
+    "importingSampleData": "Beispieldaten werden importiert",
+    "filesCompleted": "Abgeschlossene Dateien: {{completed}} / {{total}}",
+    "currentFile": "Aktuelle Datei: {{file}}",
+    "tableRows": "{{table}}: {{imported}} Zeilen",
+    "tableRowsOfExpected": "{{table}}: {{imported}} / {{expected}} Zeilen",
+    "cancelSampleDataImport": "Import der Beispieldaten abbrechen",
+    "connectProvider": "Mit {{provider}} verbinden",
+    "cloudAuthDescription": "Dieser Browser ist so konfiguriert, dass {{provider}} als Datenbankquelle verwendet wird. Melden Sie sich an und wählen Sie ein Backup-Archiv, um fortzufahren.",
+    "useLocalInstead": "Stattdessen lokale Datenbank verwenden",
+    "databaseError": "Datenbankfehler",
+    "unknownInitError": "Beim Initialisieren der Datenbank ist ein unbekannter Fehler aufgetreten.",
+    "reloadPage": "Seite neu laden"
+  },
+  "passwordSetup": {
+    "primaryUserNameRequired": "Der Name des Hauptbenutzers ist erforderlich.",
+    "passwordTooShort": "Das Passwort muss mindestens {{count}} Zeichen lang sein.",
+    "passwordsMismatch": "Die Passwörter stimmen nicht überein.",
+    "title": "Datenbank einrichten",
+    "description": "Ihre Datenbank wird auf diesem Gerät verschlüsselt, und dieses Passwort wird bei jedem Öffnen benötigt. Wählen Sie ein starkes Passwort – es gibt keine Passwort-Wiederherstellung, bewahren Sie es daher sicher auf.",
+    "primaryUserSection": "Hauptbenutzer",
+    "primaryUserNameLabel": "Name des Hauptbenutzers",
+    "passwordSection": "Passwort",
+    "passwordLabel": "Passwort",
+    "confirmPasswordLabel": "Passwort bestätigen",
+    "hidePassword": "Passwort ausblenden",
+    "showPassword": "Passwort anzeigen",
+    "creating": "Datenbank wird erstellt…",
+    "create": "Datenbank erstellen"
+  },
+  "passwordEntry": {
+    "title": "Passwort eingeben",
+    "defaultDescription": "Diese Datenbank ist verschlüsselt. Geben Sie das Passwort ein, um sie zu öffnen.",
+    "passwordLabel": "Passwort",
+    "hidePassword": "Passwort ausblenden",
+    "showPassword": "Passwort anzeigen",
+    "decrypting": "Wird entschlüsselt…",
+    "unlock": "Entsperren"
+  },
+  "storageChoice": {
+    "title": "Wo soll diese Datenbank gespeichert werden?",
+    "description": "Sie können dies später in den Einstellungen ändern.",
+    "localLabel": "Lokal behalten",
+    "localDescription": "Nur auf diesem Gerät gespeichert.",
+    "gdriveLabel": "Google Drive",
+    "gdriveDescription": "Automatisch mit Ihrem Google Drive synchronisiert.",
+    "onedriveLabel": "OneDrive",
+    "onedriveDescription": "Automatisch mit Ihrem OneDrive synchronisiert.",
+    "notConfigured": "{{provider}} ist für diese Installation nicht konfiguriert."
+  },
+  "testBrowser": {
+    "workerCommunicationFailed": "Kommunikation mit dem Test-Worker fehlgeschlagen",
+    "unknownError": "Unbekannter Fehler beim Kompatibilitätstest",
+    "statusTesting": "Wird getestet...",
+    "statusNotTested": "Nicht getestet",
+    "statusPassed": "Bestanden",
+    "statusFailed": "Fehlgeschlagen",
+    "wasmLabel": "WebAssembly-Unterstützung",
+    "wasmDescription": "Der Browser unterstützt WebAssembly",
+    "sharedWorkerLabel": "SharedWorker-Unterstützung",
+    "sharedWorkerDescription": "Der Browser unterstützt die SharedWorker-API",
+    "sqliteLabel": "SQLite-WASM-Modul",
+    "sqliteDescription": "Das WA-SQLite-Modul wird geladen und initialisiert",
+    "vfsLabel": "Virtuelles Dateisystem",
+    "vfsDescription": "Das IndexedDB-VFS-Backend funktioniert korrekt",
+    "databaseOperationsLabel": "Datenbankoperationen",
+    "databaseOperationsDescription": "Öffnet eine Testdatenbank und führt eine Abfrage aus",
+    "title": "Browser-Kompatibilitätstest",
+    "overallResult": "Gesamtergebnis:",
+    "compatible": "Kompatibel",
+    "incompatible": "Nicht kompatibel",
+    "incompatibleWarning": "Ihr Browser unterstützt möglicherweise nicht alle für die Budget-App erforderlichen Funktionen. Einige Funktionen könnten eingeschränkt oder nicht verfügbar sein.",
+    "errorDetails": "Fehlerdetails",
+    "hideErrorDetails": "Fehlerdetails ausblenden",
+    "showErrorDetails": "Fehlerdetails anzeigen"
+  },
+  "encryptionProgress": {
+    "title": "Datenbank wird gesichert",
+    "stage": {
+      "flushing": "Warten auf den Abschluss ausstehender Vorgänge…",
+      "exporting": "Datenbank-Snapshot wird exportiert…",
+      "encrypting": "Datenbank wird verschlüsselt…",
+      "uploading": "Wird in den Cloud-Speicher hochgeladen…",
+      "done": "Abgeschlossen"
+    }
+  },
+  "cloudFilePicker": {
+    "cloudStorage": "Cloud-Speicher",
+    "fileSize": "{{size}} KB",
+    "title": "Aus {{provider}} öffnen",
+    "empty": "In {{provider}} wurden keine Backup-Archive gefunden.",
+    "opening": "Wird geöffnet…"
+  }
+}

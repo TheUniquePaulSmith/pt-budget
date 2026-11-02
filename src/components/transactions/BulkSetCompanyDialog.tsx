@@ -17,6 +17,7 @@ import {
   Business as BusinessIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
 
 interface BulkSetCompanyDialogProps {
@@ -38,6 +39,7 @@ export default function BulkSetCompanyDialog({
   transactionIds,
   onClose,
 }: BulkSetCompanyDialogProps) {
+  const { t } = useTranslation(['transactions', 'common']);
   const { companies, applyTransactionClassifications } = useTransactionReportSlice();
 
   const [selected, setSelected] = useState<CompanyOption | null>(null);
@@ -70,7 +72,7 @@ export default function BulkSetCompanyDialog({
       );
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to set company');
+      setError(err instanceof Error ? err.message : t('bulkCompany.setFailed'));
     } finally {
       setLoading(false);
     }
@@ -81,14 +83,14 @@ export default function BulkSetCompanyDialog({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <BusinessIcon />
-          Set Company
+          {t('bulkCompany.title')}
         </Box>
       </DialogTitle>
 
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary">
-            Apply to {transactionIds.length} selected transaction{transactionIds.length === 1 ? '' : 's'}
+            {t('bulkCompany.applyTo', { count: transactionIds.length })}
           </Typography>
         </Box>
 
@@ -135,10 +137,10 @@ export default function BulkSetCompanyDialog({
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Company"
-              placeholder="Search or create a company..."
+              label={t('common:fields.company')}
+              placeholder={t('bulkCompany.searchPlaceholder')}
               autoFocus
-              helperText="Type a new name to create it"
+              helperText={t('bulkCompany.createHelp')}
               fullWidth
             />
           )}
@@ -147,7 +149,7 @@ export default function BulkSetCompanyDialog({
             return (
               <Box component="li" key={key} {...otherProps}>
                 <Typography variant="body1">
-                  {option.isNew ? `Create "${option.name}"` : option.name}
+                  {option.isNew ? t('bulkCompany.createOption', { name: option.name }) : option.name}
                 </Typography>
               </Box>
             );
@@ -156,21 +158,21 @@ export default function BulkSetCompanyDialog({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           color="inherit"
           startIcon={<ClearIcon />}
           onClick={() => void apply(null)}
           disabled={loading}
         >
-          Clear
+          {t('common:actions.clear')}
         </Button>
         <Button
           variant="contained"
           onClick={() => void apply(selected)}
           disabled={loading || !selected}
         >
-          {loading ? 'Saving…' : selected?.isNew ? 'Create & Apply' : 'Apply'}
+          {loading ? t('common:status.saving') : selected?.isNew ? t('bulkCompany.createAndApply') : t('common:actions.apply')}
         </Button>
       </DialogActions>
     </Dialog>

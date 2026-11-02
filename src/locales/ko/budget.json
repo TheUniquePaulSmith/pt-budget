@@ -1,0 +1,166 @@
+{
+  "carryMode": {
+    "none": "이월 없음",
+    "surplus": "잉여 이월",
+    "deficit": "초과 이월",
+    "both": "둘 다 이월"
+  },
+  "carryModeDescription": {
+    "none": "매달 계획 금액에서 새로 시작해요.",
+    "surplus": "남은 예산은 다음 달로 이월되고, 초과분은 없는 것으로 쳐요.",
+    "deficit": "초과분은 다음 달에서 차감되고, 남은 예산은 사라져요.",
+    "both": "순잔액이 양수든 음수든 다음 달로 이월돼요."
+  },
+  "carryBadge": {
+    "none": "이월 없음",
+    "surplus": "잉여 이월",
+    "deficit": "초과 이월",
+    "both": "둘 다 이월"
+  },
+  "page": {
+    "title": "예산",
+    "subtitle": "월간 계획은 변경하기 전까지 계속 적용돼요. 분기와 연간 보기는 적용 중인 월 예산을 합산해요.",
+    "managePlan": "계획 관리"
+  },
+  "periodSelector": {
+    "previous": "이전 기간",
+    "next": "다음 기간",
+    "quarter": "분기"
+  },
+  "statusPanel": {
+    "spentTooltip": "이 카테고리에서 {{amount}} 지출했어요.",
+    "fundSpendTooltip": "그중 {{amount}}은(는) 연결된 적립금에서 지불되어 제외됐어요.",
+    "fundContributionsTooltip": "{{amount}}은(는) 적립금 납입분으로 예약되어 있어요.",
+    "noBudgetSet": "설정된 예산 없음",
+    "noBudgetHelp": "이번 달의 예산 계획을 만드세요. 계획은 이후 시작월의 다른 계획이 대체할 때까지 계속 적용돼요.",
+    "title": "예산 현황",
+    "monthsCovered_other": "{{count}}개월 중 {{covered}}개월 적용됨",
+    "over": "{{amount}} 초과",
+    "left": "{{amount}} 남음",
+    "noThresholdsHelp": "지출 한도를 정하려면 예산 계획을 만드세요. 수입원은 아래에 계속 포함돼요.",
+    "notSet": "설정 안 됨",
+    "budgeted": "예산",
+    "carriedIn": "이월 유입",
+    "effectiveBudget": "실효 예산",
+    "actualExpenses": "실제 지출",
+    "fundContributions": "적립금 납입",
+    "expectedIncome": "예상 수입",
+    "linkedIncome": "연결된 수입",
+    "categories": "카테고리",
+    "categoriesTable": "예산 카테고리",
+    "columnBudget": "예산",
+    "columnEffective": "실효",
+    "columnSpent": "지출",
+    "columnRemaining": "남음",
+    "categoryFallback": "카테고리 {{id}}",
+    "resetTooltip": "{{month}}부터 이월 잔액이 초기화됐어요",
+    "fundTooltip": "연결된 프로젝트·여행 적립금으로 {{amount}} 예약됨",
+    "fundBadge": "적립금",
+    "unbudgetedSpend": "예산 외 지출: {{amount}}"
+  },
+  "historyList": {
+    "title": "이력",
+    "noPlan": "{{period}}: 계획 없음",
+    "over": "{{period}}: {{amount}} 초과",
+    "under": "{{period}}: {{amount}} 절약"
+  },
+  "planEditor": {
+    "title": "예산 계획",
+    "effectiveMonth": "적용 시작월",
+    "totalAmount": "총액",
+    "appliesHelp": "이 계획은 적용 시작월부터 다른 계획이 대체할 때까지 적용돼요.",
+    "carryOver": "이월",
+    "resetTooltip": "이 카테고리에 대해 이 계획의 적용 시작월로 이월된 잔액을 버리고 계획 금액에서 다시 시작해요.",
+    "resetAria": "이번 달부터 이월 잔액 초기화",
+    "resetLabel": "이번 달부터 초기화",
+    "removeCategory": "카테고리 제거",
+    "addCategory": "카테고리 추가",
+    "carryHelp": "이월은 이 계획의 적용 시작월부터 매달 남은 금액(잉여, 초과, 또는 둘 다)을 다음 달로 넘겨요. \"이번 달부터 초기화\"는 카테고리가 이번 달로 가져온 잔액을 모두 버려요.",
+    "deletePlan": "계획 삭제"
+  },
+  "fundFields": {
+    "entity": {
+      "project": "프로젝트",
+      "trip": "여행"
+    },
+    "categoryFallback": "카테고리",
+    "theCategoryFallback": "해당 카테고리",
+    "helpUnlinked": "선택 사항: 이 {{entity}}을(를) 위해 매달 조금씩 모을 예산 카테고리를 선택하세요.",
+    "helpNoContribution": "월 납입액을 입력하면 {{category}} 적립금이 시작돼요.",
+    "helpNoStart": "납입이 쌓이도록 시작월(또는 시작일)을 설정하세요.",
+    "helpReserves": "{{month}}부터 {{category}}에서 매달 {{amount}}을(를) 예약해요. 예산은 이를 계획된 지출로 계산하고, {{entity}} 지출은 적립금에서 차감돼요.",
+    "title": "적립금",
+    "linkedCategory": "연결된 예산 카테고리",
+    "notLinked": "연결 안 됨",
+    "monthlyContribution": "월 납입액",
+    "startMonth": "납입 시작월"
+  },
+  "fundSummary": {
+    "noEstimate": "예상 비용 없음",
+    "goalReached": "목표 달성",
+    "toGoal": "목표까지 {{amount}}",
+    "fund": "적립금",
+    "perMonth": "월 {{amount}}",
+    "tooltip": "납입 {{contributed}}, 지출 {{spent}}, {{detail}}",
+    "saved": "{{amount}} 모음",
+    "balance": "잔액 {{amount}}"
+  },
+  "fundsCard": {
+    "noEstimatedCost": "예상 비용이 설정되지 않음",
+    "goalReached": "목표 달성",
+    "monthsToGo_other": "{{count}}개월 남음",
+    "toGoal": "목표까지 {{amount}}",
+    "title": "적립금",
+    "subtitle": "{{month}} 기준, 예산 카테고리를 통해 모으는 프로젝트와 여행이에요.",
+    "empty": "프로젝트나 여행을 월 납입액과 함께 예산 카테고리에 연결하면 적립금이 시작돼요.",
+    "contributionsFrom": "{{start}}부터 납입",
+    "contributionsFromTo": "{{start}}부터 {{end}}까지 납입",
+    "setStartMonth": "납입이 쌓이도록 시작월이나 시작일을 설정하세요",
+    "notContributing": "납입 안 함",
+    "savedOfEstimated": "{{estimated}} 중 {{contributed}} 모음",
+    "setEstimatedCost": "진행률을 추적하려면 예상 비용을 설정하세요",
+    "progressAria": "{{name}} 진행률",
+    "saved": "{{amount}} 모음",
+    "perMonth": "월 {{amount}}",
+    "balance": "잔액 {{amount}}",
+    "spent": "지출 {{amount}}"
+  },
+  "incomeSources": {
+    "notSet": "설정 안 됨",
+    "title": "수입원",
+    "user": "사용자: {{name}}",
+    "unassigned": "미지정",
+    "linkedAccount": "연결된 계좌: {{name}}",
+    "unknownAccount": "알 수 없는 계좌",
+    "expectedSummary": "예상 {{amount}} {{frequency}} • 월 {{monthly}}",
+    "summary": "{{amount}} {{frequency}} • 월 {{monthly}}",
+    "frequency": {
+      "weekly": "매주",
+      "biweekly": "격주",
+      "semi_monthly": "월 2회",
+      "monthly": "매월"
+    },
+    "frequencyOption": {
+      "weekly": "매주",
+      "biweekly": "격주",
+      "semi_monthly": "월 2회",
+      "monthly": "매월"
+    },
+    "editTooltip": "수입원 편집",
+    "deleteTooltip": "수입원 삭제",
+    "empty": "설정된 수입원이 없어요.",
+    "editTitle": "수입원 편집",
+    "addTitle": "수입원 추가",
+    "kind": "종류",
+    "kindOption": {
+      "recurring_salary": "정기 급여",
+      "linked_account": "연결된 계좌"
+    },
+    "expectedAmount": "예상 금액",
+    "expectedAmountHelp": "선택 사항이에요. 비워 두면 실제 입금만 사용해요.",
+    "frequencyLabel": "주기",
+    "startDate": "시작일",
+    "endDate": "종료일",
+    "saving": "저장 중..."
+  }
+}

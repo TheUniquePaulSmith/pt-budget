@@ -1,0 +1,131 @@
+{
+  "preferences": {
+    "title": "您的偏好设置",
+    "description": "选择此设备使用的语言，以及合计金额所显示的货币。两者以后都可以在“设置”中更改。",
+    "languageLabel": "语言",
+    "languageHelp": "仅对此浏览器生效，并立即生效。",
+    "currencyLabel": "默认货币",
+    "currencyHelp": "每个账户可以使用自己的货币；仪表盘合计会换算为此货币。",
+    "continue": "继续",
+    "saving": "正在保存…",
+    "skip": "暂时跳过"
+  },
+  "initialAccount": {
+    "currencyLabel": "货币",
+    "title": "添加您的第一个账户",
+    "description": "先设置一个账户或卡，这样您的交易才有归属。以后可以在“设置”中添加更多账户。",
+    "nameRequired": "账户名称为必填项。",
+    "lastFourInvalid": "末四位必须正好是 4 位数字。",
+    "nameLabel": "账户名称",
+    "typeLabel": "账户类型",
+    "lastFourLabel": "末四位数字",
+    "saving": "正在保存账户…"
+  },
+  "provider": {
+    "gdrive": "Google Drive",
+    "onedrive": "OneDrive"
+  },
+  "gate": {
+    "initializing": "正在初始化数据库...",
+    "importPasswordDescription": "此数据库文件已加密。请输入密码以解锁并导入。",
+    "unlockDescription": "此数据库已加密。请输入密码以解锁。",
+    "welcomeTitle": "欢迎使用 Budget Tracker",
+    "welcomeDescription": "开始使用前，您可以创建一个新数据库，或从文件加载现有数据库。",
+    "createNewDatabase": "创建新数据库",
+    "loadFromFile": "从文件加载",
+    "orOpenCloudBackup": "或打开现有的云端备份",
+    "providerNotConfigured": "此部署未配置{{provider}}。",
+    "openFromProvider": "从{{provider}}打开",
+    "importingSampleData": "正在导入示例数据",
+    "filesCompleted": "已完成文件：{{completed}} / {{total}}",
+    "currentFile": "当前文件：{{file}}",
+    "tableRows": "{{table}}：{{imported}}行",
+    "tableRowsOfExpected": "{{table}}：{{imported}} / {{expected}}行",
+    "cancelSampleDataImport": "取消导入示例数据",
+    "connectProvider": "连接{{provider}}",
+    "cloudAuthDescription": "此浏览器已配置为使用{{provider}}作为数据库来源。请完成身份验证并选择一个备份归档以继续。",
+    "useLocalInstead": "改用本地数据库",
+    "databaseError": "数据库错误",
+    "unknownInitError": "初始化数据库时发生未知错误。",
+    "reloadPage": "重新加载页面"
+  },
+  "passwordSetup": {
+    "primaryUserNameRequired": "主用户名称为必填项。",
+    "passwordTooShort": "密码至少需要{{count}}个字符。",
+    "passwordsMismatch": "两次输入的密码不一致。",
+    "title": "设置您的数据库",
+    "description": "您的数据库在此设备上加密存储，每次回到应用都需要此密码才能打开。请选择一个强密码——密码无法找回，请妥善保管。",
+    "primaryUserSection": "主用户",
+    "primaryUserNameLabel": "主用户名称",
+    "passwordSection": "密码",
+    "passwordLabel": "密码",
+    "confirmPasswordLabel": "确认密码",
+    "hidePassword": "隐藏密码",
+    "showPassword": "显示密码",
+    "creating": "正在创建数据库…",
+    "create": "创建数据库"
+  },
+  "passwordEntry": {
+    "title": "输入密码",
+    "defaultDescription": "此数据库已加密。请输入密码以打开。",
+    "passwordLabel": "密码",
+    "hidePassword": "隐藏密码",
+    "showPassword": "显示密码",
+    "decrypting": "正在解密…",
+    "unlock": "解锁"
+  },
+  "storageChoice": {
+    "title": "此数据库应存放在哪里？",
+    "description": "以后可以在“设置”中更改。",
+    "localLabel": "保留在本地",
+    "localDescription": "仅存储在此设备上。",
+    "gdriveLabel": "Google Drive",
+    "gdriveDescription": "自动同步到您的 Google Drive。",
+    "onedriveLabel": "OneDrive",
+    "onedriveDescription": "自动同步到您的 OneDrive。",
+    "notConfigured": "此部署未配置{{provider}}。"
+  },
+  "testBrowser": {
+    "workerCommunicationFailed": "无法与测试工作线程通信",
+    "unknownError": "兼容性测试期间发生未知错误",
+    "statusTesting": "正在测试...",
+    "statusNotTested": "未测试",
+    "statusPassed": "通过",
+    "statusFailed": "失败",
+    "wasmLabel": "WebAssembly 支持",
+    "wasmDescription": "浏览器支持 WebAssembly",
+    "sharedWorkerLabel": "SharedWorker 支持",
+    "sharedWorkerDescription": "浏览器支持 SharedWorker API",
+    "sqliteLabel": "SQLite WASM 模块",
+    "sqliteDescription": "WA-SQLite 模块可加载并初始化",
+    "vfsLabel": "虚拟文件系统",
+    "vfsDescription": "IndexedDB VFS 后端工作正常",
+    "databaseOperationsLabel": "数据库操作",
+    "databaseOperationsDescription": "打开测试数据库并运行一条查询",
+    "title": "浏览器兼容性测试",
+    "overallResult": "总体结果：",
+    "compatible": "兼容",
+    "incompatible": "不兼容",
+    "incompatibleWarning": "您的浏览器可能无法完全支持预算应用所需的全部功能。部分功能可能受限或不可用。",
+    "errorDetails": "错误详情",
+    "hideErrorDetails": "隐藏错误详情",
+    "showErrorDetails": "显示错误详情"
+  },
+  "encryptionProgress": {
+    "title": "正在保护您的数据库",
+    "stage": {
+      "flushing": "正在等待待处理操作完成…",
+      "exporting": "正在导出数据库快照…",
+      "encrypting": "正在加密数据库…",
+      "uploading": "正在上传到云存储…",
+      "done": "完成"
+    }
+  },
+  "cloudFilePicker": {
+    "cloudStorage": "云存储",
+    "fileSize": "{{size}} KB",
+    "title": "从{{provider}}打开",
+    "empty": "在{{provider}}中未找到备份归档。",
+    "opening": "正在打开…"
+  }
+}

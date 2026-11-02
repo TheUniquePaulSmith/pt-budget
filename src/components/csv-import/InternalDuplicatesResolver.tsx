@@ -18,9 +18,10 @@ import {
 import { alpha } from '@mui/material/styles';
 import { CheckCircle, Cancel } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
+import { Trans, useTranslation } from 'react-i18next';
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
-import { Transaction } from '@/types/database';
-import { format, parseISO } from 'date-fns';
+import { useFormatters } from '@/contexts/useFormatters';
+import { Account, Transaction } from '@/types/database';
 
 interface DuplicateGroup {
   hash: string;
@@ -36,6 +37,8 @@ interface InternalDuplicatesResolverProps {
   open: boolean;
   onClose: () => void;
   duplicateGroups: DuplicateGroup[];
+  /** The user's accounts, so each amount is shown in its account's currency. */
+  accounts?: Account[];
   onResolve: (selectedIndices: Set<number>) => void;
 }
 
@@ -48,22 +51,20 @@ interface DuplicateRow {
   description: string;
   csvAccountValue: string;
   amount: number;
+  currency: string | undefined;
   type: Transaction['type'];
 }
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
-};
 
 export default function InternalDuplicatesResolver({
   open,
   onClose,
   duplicateGroups,
+  accounts,
   onResolve,
 }: InternalDuplicatesResolverProps) {
+  const { t } = useTranslation(['csvImport', 'common']);
+  const { money, date } = useFormatters();
+
   // Track which transaction indices should be included (by default, keep first of each group)
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(() => {
     const initial = new Set<number>();
@@ -116,7 +117,7 @@ export default function InternalDuplicatesResolver({
   const columns = useMemo<GridColDef<DuplicateRow>[]>(() => [
     {
       field: 'isSelected',
-      headerName: 'Include',
+      headerName: t('duplicatesResolver.include'),
       width: 90,
       align: 'center',
       headerAlign: 'center',
@@ -128,7 +129,7 @@ export default function InternalDuplicatesResolver({
           onClick={() => toggleSelection(params.row.index)}
           disabled={includeAll}
           color={params.row.isSelected ? 'success' : 'error'}
-          title={params.row.isSelected ? 'Exclude from import' : 'Include in import'}
+          title={params.row.isSelected ? t('duplicatesResolver.excludeFromImport') : t('duplicatesResolver.includeInImport')}
         >
           {params.row.isSelected ? <CheckCircle /> : <Cancel />}
         </IconButton>
@@ -136,7 +137,7 @@ export default function InternalDuplicatesResolver({
     },
     {
       field: 'variationSeed',
-      headerName: 'Variation',
+      headerName: t('duplicatesResolver.variation'),
       width: 110,
       align: 'center',
       headerAlign: 'center',
@@ -145,7 +146,11 @@ export default function InternalDuplicatesResolver({
       renderCell: (params) =>
         params.row.isSelected && params.row.variationSeed !== null ? (
           <Chip
-            label={params.row.variationSeed === 0 ? 'Original' : `Seed ${params.row.variationSeed}`}
+            label={
+              params.row.variationSeed === 0
+                ? t('duplicatesResolver.original')
+                : t('duplicatesResolver.seed', { seed: params.row.variationSeed })
+            }
             size="small"
             color={params.row.variationSeed === 0 ? 'default' : 'primary'}
             variant="outlined"
@@ -158,14 +163,14 @@ export default function InternalDuplicatesResolver({
     },
     {
       field: 'date',
-      headerName: 'Date',
+      headerName: t('common:fields.date'),
       width: 125,
-      valueFormatter: (value) => (value ? format(parseISO(String(value)), 'MMM dd, yyyy') : ''),
+      valueFormatter: (value) => (value ? date(String(value)) : ''),
     },
-    { field: 'description', headerName: 'Description', flex: 1.4, minWidth: 200 },
+    { field: 'description', headerName: t('common:fields.description'), flex: 1.4, minWidth: 200 },
     {
       field: 'csvAccountValue',
-      headerName: 'Account',
+      headerName: t('common:fields.account'),
       flex: 0.8,
       minWidth: 140,
       renderCell: (params) => (
@@ -176,7 +181,7 @@ export default function InternalDuplicatesResolver({
     },
     {
       field: 'amount',
-      headerName: 'Amount',
+      headerName: t('common:fields.amount'),
       width: 120,
       align: 'right',
       headerAlign: 'right',
@@ -186,44 +191,43 @@ export default function InternalDuplicatesResolver({
           color={params.row.type === 'income' ? 'success.main' : 'error.main'}
           fontWeight="medium"
         >
-          {formatCurrency(params.row.amount)}
+          {money(params.row.amount, params.row.currency)}
         </Typography>
       ),
     },
     {
       field: 'type',
-      headerName: 'Type',
+      headerName: t('common:fields.type'),
       width: 110,
       renderCell: (params) => (
         <Chip
-          label={params.row.type}
+          label={t(`common:transactionType.${params.row.type}`)}
           size="small"
           color={params.row.type === 'income' ? 'success' : 'error'}
           variant="outlined"
         />
       ),
     },
-  ], [toggleSelection, includeAll]);
+  ], [toggleSelection, includeAll, t, money, date]);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle>
         <Box>
           <Typography variant="h6" component="div">
-            Resolve Internal Duplicates
+            {t('duplicatesResolver.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Found {duplicateGroups.length} sets of duplicate transactions within your CSV.
-            Select which records to include in the import.
+            {t('duplicatesResolver.found', { count: duplicateGroups.length })}
           </Typography>
           <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
             <Chip
-              label={`${selectedCount} Selected`}
+              label={t('duplicatesResolver.selected', { count: selectedCount })}
               color="success"
               size="small"
             />
             <Chip
-              label={`${excludedCount} Excluded`}
+              label={t('duplicatesResolver.excluded', { count: excludedCount })}
               color="error"
               size="small"
             />
@@ -234,10 +238,7 @@ export default function InternalDuplicatesResolver({
         <Box>
           <Alert severity="info" sx={{ mb: 3 }}>
             <Typography variant="body2">
-              <strong>How duplicate resolution works:</strong> When you select multiple transactions from the same set,
-              each will receive a unique variation seed. The first selected transaction keeps the original hash (seed 0),
-              while subsequent selections get incrementing seeds (1, 2, etc.). This allows you to import legitimate duplicates
-              while preventing re-imports of the same CSV file.
+              <Trans i18nKey="duplicatesResolver.howItWorks" ns="csvImport" components={{ strong: <strong /> }} />
             </Typography>
           </Alert>
 
@@ -249,12 +250,10 @@ export default function InternalDuplicatesResolver({
                   onChange={(event) => setIncludeAll(event.target.checked)}
                 />
               }
-              label="Include all duplicates"
+              label={t('duplicatesResolver.includeAll')}
             />
             <Typography variant="body2" color="text.secondary">
-              Import every record in every set as its own transaction, for repeat purchases that are
-              genuinely separate (e.g. two museum tickets bought on one day). Turn off to choose
-              records individually.
+              {t('duplicatesResolver.includeAllHelp')}
             </Typography>
           </Box>
 
@@ -275,6 +274,7 @@ export default function InternalDuplicatesResolver({
                 description: item.transaction.description,
                 csvAccountValue: item.csvAccountValue,
                 amount: item.transaction.amount,
+                currency: accounts?.find((account) => account.id === item.transaction.account_id)?.currency,
                 type: item.transaction.type,
               };
             });
@@ -282,7 +282,7 @@ export default function InternalDuplicatesResolver({
             return (
               <Box key={group.hash} sx={{ mb: 4 }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  Duplicate Set {groupIndex + 1} ({group.transactions.length} records)
+                  {t('duplicatesResolver.setTitle', { number: groupIndex + 1, count: group.transactions.length })}
                 </Typography>
                 <AppDataGrid
                   rows={rows}
@@ -310,10 +310,10 @@ export default function InternalDuplicatesResolver({
       </DialogContent>
       <DialogActions>
         <Button onClick={handleCancel}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button onClick={handleOk} variant="contained" color="primary">
-          Continue with {selectedCount} Transaction{selectedCount !== 1 ? 's' : ''}
+          {t('duplicatesResolver.continueWith', { count: selectedCount })}
         </Button>
       </DialogActions>
     </Dialog>

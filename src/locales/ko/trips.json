@@ -1,0 +1,50 @@
+{
+  "category": {
+    "business": "출장",
+    "vacation": "휴가",
+    "family": "가족",
+    "medical": "의료",
+    "education": "교육",
+    "other": "기타"
+  },
+  "status": {
+    "planning": "계획 중",
+    "in_progress": "진행 중",
+    "completed": "완료",
+    "cancelled": "취소됨"
+  },
+  "statusOption": {
+    "planning": "계획 중",
+    "in_progress": "진행 중",
+    "completed": "완료",
+    "cancelled": "취소됨"
+  },
+  "manage": {
+    "title": "여행 관리",
+    "addTrip": "여행 추가",
+    "editTrip": "여행 편집",
+    "deleteTrip": "여행 삭제",
+    "destination": "목적지:",
+    "purpose": "목적:",
+    "dates": "날짜:",
+    "dateRange": "{{start}} - {{end}}",
+    "tbd": "미정",
+    "estimatedCost": "예상 비용:",
+    "emptyTitle": "여행이 없어요",
+    "emptyHelp": "첫 여행을 만들어 여행 경비 추적을 시작하세요",
+    "addFirstTrip": "첫 여행 추가",
+    "addTitle": "새 여행 추가",
+    "tripName": "여행 이름",
+    "destinationField": "목적지",
+    "purposeField": "목적",
+    "startDate": "시작일",
+    "endDate": "종료일",
+    "estimatedCostField": "예상 비용",
+    "saving": "저장 중...",
+    "deleteConfirm": "\"{{name}}\"을(를) 삭제할까요? 이 작업은 되돌릴 수 없어요.",
+    "deleting": "삭제 중...",
+    "nameRequired": "여행 이름은 필수 항목이에요",
+    "saveFailed": "여행을 저장하지 못했어요",
+    "deleteFailed": "여행을 삭제하지 못했어요"
+  }
+}

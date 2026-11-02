@@ -1,0 +1,18 @@
+{
+  "page": {
+    "headline": "This page has been spent",
+    "body": "We audited every account and this address isn't on the books. Its funds sprouted wings and left the building.",
+    "home": "Back to the budget",
+    "back": "Go back"
+  },
+  "recorder": {
+    "aria": "Where you came from",
+    "title": "Flight recorder",
+    "loading": "Consulting the flight recorder…",
+    "requested": "You asked for",
+    "sender": "Sent by",
+    "event": "What happened",
+    "campaign": "Tagged with",
+    "privacy": "Worked out in your browser from what it already knows. Nothing was sent anywhere."
+  }
+}

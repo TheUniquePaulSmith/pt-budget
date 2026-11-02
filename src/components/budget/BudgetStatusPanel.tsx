@@ -15,24 +15,32 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
+import { useFormatters } from '@/contexts/useFormatters';
 import type { BudgetCategoryCarryStatus, BudgetStatusWithCarry } from '@/types/budgetCarry';
 
-import { CARRY_MODE_CHIP_COLORS, CARRY_MODE_LABELS, formatBudgetCurrency, formatMonthKey, formatSignedCurrency } from './budgetFormat';
+import { CARRY_MODE_CHIP_COLORS } from './budgetFormat';
 
 interface BudgetStatusPanelProps {
   status: BudgetStatusWithCarry | null;
   loading?: boolean;
 }
 
-function spentTooltip(category: BudgetCategoryCarryStatus): string {
-  const parts: string[] = [`Spent ${formatBudgetCurrency(category.actualExpenses)} in this category.`];
-  if (category.fundSpend) parts.push(`${formatBudgetCurrency(category.fundSpend)} of it was paid by a linked fund and is left out.`);
-  if (category.fundContributions) parts.push(`${formatBudgetCurrency(category.fundContributions)} is reserved as fund contributions.`);
-  return parts.join(' ');
-}
-
 export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
+  const { t } = useTranslation(['budget', 'common']);
+  // Budget figures are in the default currency.
+  const { money, month } = useFormatters();
+  const formatCurrency = (value: number | null | undefined) => (value == null ? t('statusPanel.notSet') : money(value));
+  const formatSignedCurrency = (value: number) => money(value, undefined, { signed: true });
+
+  const spentTooltip = (category: BudgetCategoryCarryStatus): string => {
+    const parts: string[] = [t('statusPanel.spentTooltip', { amount: money(category.actualExpenses) })];
+    if (category.fundSpend) parts.push(t('statusPanel.fundSpendTooltip', { amount: money(category.fundSpend) }));
+    if (category.fundContributions) parts.push(t('statusPanel.fundContributionsTooltip', { amount: money(category.fundContributions) }));
+    return parts.join(' ');
+  };
+
   if (loading) {
     return <LinearProgress />;
   }
@@ -40,9 +48,9 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
   if (!status) {
     return (
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>No budget set</Typography>
+        <Typography variant="h6" gutterBottom>{t('statusPanel.noBudgetSet')}</Typography>
         <Typography variant="body2" color="text.secondary">
-          Create a budget plan for this month. Plans carry forward until a later effective month supersedes them.
+          {t('statusPanel.noBudgetHelp')}
         </Typography>
       </Paper>
     );
@@ -62,9 +70,9 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
     <Paper sx={{ p: 3 }} data-testid="budget-status-panel">
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" sx={{ mb: 2 }}>
         <Box>
-          <Typography variant="h6">Budget Status</Typography>
+          <Typography variant="h6">{t('statusPanel.title')}</Typography>
           <Typography variant="body2" color="text.secondary">
-            {status.monthsWithPlan.length} of {status.months.length} month{status.months.length === 1 ? '' : 's'} covered
+            {t('statusPanel.monthsCovered', { covered: status.monthsWithPlan.length, count: status.months.length })}
           </Typography>
         </Box>
         {hasBudget ? (
@@ -72,11 +80,11 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
             data-testid="budget-remaining-chip"
             color={status.isOverBudget ? 'error' : 'success'}
             label={status.isOverBudget
-              ? `${formatBudgetCurrency(Math.abs(status.effectiveRemaining ?? 0))} over`
-              : `${formatBudgetCurrency(status.effectiveRemaining)} left`}
+              ? t('statusPanel.over', { amount: formatCurrency(Math.abs(status.effectiveRemaining ?? 0)) })
+              : t('statusPanel.left', { amount: formatCurrency(status.effectiveRemaining) })}
           />
         ) : (
-          <Chip label="No budget set" />
+          <Chip label={t('statusPanel.noBudgetSet')} />
         )}
       </Stack>
 
@@ -89,15 +97,15 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
         />
       ) : (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Create a budget plan for spending thresholds. Income sources are still included below.
+          {t('statusPanel.noThresholdsHelp')}
         </Typography>
       )}
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} useFlexGap flexWrap="wrap" sx={{ mb: 3 }}>
-        <Box flex={1} minWidth={120}><Typography variant="caption">Budgeted</Typography><Typography fontWeight={700}>{formatBudgetCurrency(status.budgetedTotal)}</Typography></Box>
+        <Box flex={1} minWidth={120}><Typography variant="caption">{t('statusPanel.budgeted')}</Typography><Typography fontWeight={700}>{formatCurrency(status.budgetedTotal)}</Typography></Box>
         {showCarry && (
           <Box flex={1} minWidth={120} data-testid="budget-carried-in-total">
-            <Typography variant="caption">Carried in</Typography>
+            <Typography variant="caption">{t('statusPanel.carriedIn')}</Typography>
             <Typography fontWeight={700} color={status.carriedInTotal < 0 ? 'error.main' : status.carriedInTotal > 0 ? 'success.main' : 'text.primary'}>
               {formatSignedCurrency(status.carriedInTotal)}
             </Typography>
@@ -105,34 +113,34 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
         )}
         {(showCarry || showFunds) && (
           <Box flex={1} minWidth={120} data-testid="budget-effective-total">
-            <Typography variant="caption">Effective budget</Typography>
-            <Typography fontWeight={700}>{formatBudgetCurrency(status.effectiveBudgetTotal)}</Typography>
+            <Typography variant="caption">{t('statusPanel.effectiveBudget')}</Typography>
+            <Typography fontWeight={700}>{formatCurrency(status.effectiveBudgetTotal)}</Typography>
           </Box>
         )}
-        <Box flex={1} minWidth={120}><Typography variant="caption">Actual expenses</Typography><Typography fontWeight={700}>{formatBudgetCurrency(status.actualExpenses)}</Typography></Box>
+        <Box flex={1} minWidth={120}><Typography variant="caption">{t('statusPanel.actualExpenses')}</Typography><Typography fontWeight={700}>{formatCurrency(status.actualExpenses)}</Typography></Box>
         {showFunds && (
           <Box flex={1} minWidth={120} data-testid="budget-fund-contributions-total">
-            <Typography variant="caption">Fund contributions</Typography>
-            <Typography fontWeight={700}>{formatBudgetCurrency(status.fundContributionsTotal)}</Typography>
+            <Typography variant="caption">{t('statusPanel.fundContributions')}</Typography>
+            <Typography fontWeight={700}>{formatCurrency(status.fundContributionsTotal)}</Typography>
           </Box>
         )}
-        <Box flex={1} minWidth={120}><Typography variant="caption">Expected income</Typography><Typography fontWeight={700}>{formatBudgetCurrency(status.expectedIncome)}</Typography></Box>
-        <Box flex={1} minWidth={120}><Typography variant="caption">Linked income</Typography><Typography fontWeight={700}>{formatBudgetCurrency(status.actualLinkedIncome)}</Typography></Box>
+        <Box flex={1} minWidth={120}><Typography variant="caption">{t('statusPanel.expectedIncome')}</Typography><Typography fontWeight={700}>{formatCurrency(status.expectedIncome)}</Typography></Box>
+        <Box flex={1} minWidth={120}><Typography variant="caption">{t('statusPanel.linkedIncome')}</Typography><Typography fontWeight={700}>{formatCurrency(status.actualLinkedIncome)}</Typography></Box>
       </Stack>
 
       {hasBudget && status.categories.length > 0 && (
         <>
-          <Typography variant="subtitle2" gutterBottom>Categories</Typography>
+          <Typography variant="subtitle2" gutterBottom>{t('statusPanel.categories')}</Typography>
           <TableContainer>
-            <Table size="small" aria-label="Budget categories" data-testid="budget-category-table">
+            <Table size="small" aria-label={t('statusPanel.categoriesTable')} data-testid="budget-category-table">
               <TableHead>
                 <TableRow>
-                  <TableCell>Category</TableCell>
-                  <TableCell align="right">Budget</TableCell>
-                  <TableCell align="right">Carried in</TableCell>
-                  <TableCell align="right">Effective</TableCell>
-                  <TableCell align="right">Spent</TableCell>
-                  <TableCell align="right">Remaining</TableCell>
+                  <TableCell>{t('common:fields.category')}</TableCell>
+                  <TableCell align="right">{t('statusPanel.columnBudget')}</TableCell>
+                  <TableCell align="right">{t('statusPanel.carriedIn')}</TableCell>
+                  <TableCell align="right">{t('statusPanel.columnEffective')}</TableCell>
+                  <TableCell align="right">{t('statusPanel.columnSpent')}</TableCell>
+                  <TableCell align="right">{t('statusPanel.columnRemaining')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -140,7 +148,7 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
                   const percent = category.effectiveBudget > 0
                     ? Math.min((category.committedSpend / category.effectiveBudget) * 100, 100)
                     : category.committedSpend > 0 ? 100 : 0;
-                  const name = category.category_name || `Category ${category.category_id}`;
+                  const name = category.category_name || t('statusPanel.categoryFallback', { id: category.category_id });
                   return (
                     <TableRow key={category.category_id} data-testid={`budget-category-row-${category.category_id}`} data-category-name={name}>
                       <TableCell sx={{ minWidth: 200 }}>
@@ -151,18 +159,18 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
                               size="small"
                               variant="outlined"
                               color={CARRY_MODE_CHIP_COLORS[category.carryMode]}
-                              label={CARRY_MODE_LABELS[category.carryMode]}
+                              label={t(`carryBadge.${category.carryMode}`)}
                               data-testid="budget-category-carry-badge"
                             />
                           )}
                           {category.carryResetMonth && (
-                            <Tooltip title={`Carried balance reset from ${formatMonthKey(category.carryResetMonth)}`}>
-                              <Chip size="small" variant="outlined" label="Reset" data-testid="budget-category-reset-badge" />
+                            <Tooltip title={t('statusPanel.resetTooltip', { month: month(category.carryResetMonth) })}>
+                              <Chip size="small" variant="outlined" label={t('common:actions.reset')} data-testid="budget-category-reset-badge" />
                             </Tooltip>
                           )}
                           {category.fundContributions > 0 && (
-                            <Tooltip title={`${formatBudgetCurrency(category.fundContributions)} reserved for linked project or trip funds`}>
-                              <Chip size="small" variant="outlined" color="secondary" label="Fund" data-testid="budget-category-fund-badge" />
+                            <Tooltip title={t('statusPanel.fundTooltip', { amount: money(category.fundContributions) })}>
+                              <Chip size="small" variant="outlined" color="secondary" label={t('statusPanel.fundBadge')} data-testid="budget-category-fund-badge" />
                             </Tooltip>
                           )}
                         </Stack>
@@ -173,7 +181,7 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
                           sx={{ height: 6, borderRadius: 1 }}
                         />
                       </TableCell>
-                      <TableCell align="right" data-testid="budget-category-budgeted">{formatBudgetCurrency(category.budgetedAmount)}</TableCell>
+                      <TableCell align="right" data-testid="budget-category-budgeted">{formatCurrency(category.budgetedAmount)}</TableCell>
                       <TableCell
                         align="right"
                         data-testid="budget-category-carried-in"
@@ -182,11 +190,11 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
                         {category.carryMode === 'none' && category.carriedIn === 0 ? '—' : formatSignedCurrency(category.carriedIn)}
                       </TableCell>
                       <TableCell align="right" data-testid="budget-category-effective" sx={{ fontWeight: 600 }}>
-                        {formatBudgetCurrency(category.effectiveBudget)}
+                        {formatCurrency(category.effectiveBudget)}
                       </TableCell>
                       <TableCell align="right" data-testid="budget-category-spent">
                         <Tooltip title={spentTooltip(category)}>
-                          <span>{formatBudgetCurrency(category.committedSpend)}</span>
+                          <span>{formatCurrency(category.committedSpend)}</span>
                         </Tooltip>
                       </TableCell>
                       <TableCell
@@ -195,8 +203,8 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
                         sx={{ color: category.isOverBudget ? 'error.main' : 'text.primary', fontWeight: 600 }}
                       >
                         {category.isOverBudget
-                          ? `${formatBudgetCurrency(Math.abs(category.effectiveRemaining))} over`
-                          : formatBudgetCurrency(category.effectiveRemaining)}
+                          ? t('statusPanel.over', { amount: formatCurrency(Math.abs(category.effectiveRemaining)) })
+                          : formatCurrency(category.effectiveRemaining)}
                       </TableCell>
                     </TableRow>
                   );
@@ -209,7 +217,7 @@ export function BudgetStatusPanel({ status, loading }: BudgetStatusPanelProps) {
 
       {status.unbudgetedSpend > 0 && (
         <Typography variant="body2" color="warning.main" sx={{ mt: 2 }}>
-          Unbudgeted spend: {formatBudgetCurrency(status.unbudgetedSpend)}
+          {t('statusPanel.unbudgetedSpend', { amount: formatCurrency(status.unbudgetedSpend) })}
         </Typography>
       )}
     </Paper>

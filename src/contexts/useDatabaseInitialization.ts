@@ -30,6 +30,7 @@ import { resetApp } from '@/lib/resetApp';
 import { SampleDataService } from '@/lib/sampleDataService';
 import type { SampleDataImportProgress } from '@/lib/sampleDataService';
 import type { Account } from '@/types/database';
+import { DEFAULT_CURRENCY, normalizeCurrencyCode } from '@/lib/currencies';
 import { logger } from '@/lib/logging';
 
 const log = logger.child({ component: 'DatabaseInitialization' });
@@ -40,7 +41,9 @@ export type InitializationState =
   | 'needs-setup'
   /** New database: user must choose a password before creation proceeds. */
   | 'needs-password-setup'
-  /** New database, password just set: user is prompted to add their first account/card. */
+  /** New database, password just set: language and default currency (skippable). */
+  | 'needs-preferences'
+  /** New database, preferences done: user is prompted to add their first account/card. */
   | 'needs-initial-account'
   /** Loading an encrypted archive: user must enter the password to decrypt. */
   | 'needs-password-entry'
@@ -107,13 +110,23 @@ interface UseDatabaseInitializationResult {
    */
   handlePasswordSetupConfirmed: (password: string, primaryUserName: string) => Promise<void>;
   /**
+   * Called by the preferences screen (right after password setup) with the
+   * chosen default currency; the language is already applied by LocaleProvider.
+   */
+  handlePreferencesConfirmed: (defaultCurrency: string) => Promise<void>;
+  /** Keeps the defaults (USD) and continues to the initial-account step. */
+  skipPreferences: () => Promise<void>;
+  /** The default currency chosen during setup (USD when skipped); the initial account starts with it. */
+  setupDefaultCurrency: string;
+  /**
    * Called by the initial-account screen once the user confirms their first
-   * account and card, right after password setup on a brand-new database.
+   * account and card, right after the preferences step on a brand-new database.
    */
   handleInitialAccountConfirmed: (
     name: string,
     type: Account['type'],
-    lastFour: string
+    lastFour: string,
+    currency?: string
   ) => Promise<void>;
   /** Skips adding an initial account and continues to the next setup step. */
   skipInitialAccount: () => Promise<void>;
@@ -193,6 +206,9 @@ export function useDatabaseInitialization({
   // initial-account step (a separate screen/handler) knows who owns the
   // account it creates.
   const primaryUserIdRef = useRef<number | null>(null);
+  // Default currency chosen on the preferences step (USD when skipped), so the
+  // initial-account step can start its currency select from it.
+  const [setupDefaultCurrency, setSetupDefaultCurrency] = useState<string>(DEFAULT_CURRENCY);
   const [error, setError] = useState<string | null>(null);
   const [workerStatus, setWorkerStatus] = useState<WorkerStatus | null>(null);
   const [sampleDataImportProgress, setSampleDataImportProgress] =
@@ -654,10 +670,12 @@ export function useDatabaseInitialization({
         const primaryUserId = await databaseService.ensurePrimaryUser(primaryUserName.trim());
         primaryUserIdRef.current = primaryUserId;
 
-        // The next step is adding a first account/card, not diving straight
-        // into the app. loadAllData runs once that step completes (or is
-        // skipped) so the freshly-created account is picked up too.
-        setInitializationState('needs-initial-account');
+        // The next steps are the preferences (language, default currency) and
+        // a first account/card, not diving straight into the app. loadAllData
+        // runs once the account step completes (or is skipped) so the
+        // freshly-created account is picked up too.
+        setSetupDefaultCurrency(DEFAULT_CURRENCY);
+        setInitializationState('needs-preferences');
       } catch (err) {
         log.error('Failed to create database with password', { operation: 'createDatabase', error: err });
         setError(err instanceof Error ? err.message : 'Failed to create database');
@@ -671,11 +689,45 @@ export function useDatabaseInitialization({
   );
 
   // ---------------------------------------------------------------------------
-  // Initial account (right after password setup on a brand-new database)
+  // Preferences (right after password setup on a brand-new database)
+  // ---------------------------------------------------------------------------
+
+  const handlePreferencesConfirmed = useCallback(
+    async (defaultCurrency: string) => {
+      if (!databaseService) {
+        throw new Error('Database service not initialized');
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const code = normalizeCurrencyCode(defaultCurrency);
+        await databaseService.preferences.setDefaultCurrency(code);
+        setSetupDefaultCurrency(code);
+        setInitializationState('needs-initial-account');
+      } catch (err) {
+        log.error('Failed to save setup preferences', { operation: 'setupPreferences', error: err });
+        setError(err instanceof Error ? err.message : 'Failed to save preferences');
+        // Stay on the preferences screen so the user can retry or skip.
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [databaseService]
+  );
+
+  const skipPreferences = useCallback(async () => {
+    setError(null);
+    setInitializationState('needs-initial-account');
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Initial account (right after the preferences step on a brand-new database)
   // ---------------------------------------------------------------------------
 
   const handleInitialAccountConfirmed = useCallback(
-    async (name: string, type: Account['type'], lastFour: string) => {
+    async (name: string, type: Account['type'], lastFour: string, currency?: string) => {
       if (!databaseService) {
         throw new Error('Database service not initialized');
       }
@@ -687,7 +739,7 @@ export function useDatabaseInitialization({
         const ownerUserId = primaryUserIdRef.current;
         if (ownerUserId != null) {
           await databaseService.addAccountWithCard(
-            { name, type },
+            { name, type, currency: normalizeCurrencyCode(currency, setupDefaultCurrency) },
             ownerUserId,
             { last_four: lastFour, nickname: null, user_id: ownerUserId }
           );
@@ -703,7 +755,7 @@ export function useDatabaseInitialization({
         setIsLoading(false);
       }
     },
-    [databaseService, loadAllData]
+    [databaseService, loadAllData, setupDefaultCurrency]
   );
 
   const skipInitialAccount = useCallback(async () => {
@@ -940,6 +992,9 @@ export function useDatabaseInitialization({
     setError,
     handleBrowserTestComplete,
     handlePasswordSetupConfirmed,
+    handlePreferencesConfirmed,
+    skipPreferences,
+    setupDefaultCurrency,
     handleInitialAccountConfirmed,
     skipInitialAccount,
     handlePasswordEntrySubmitted,

@@ -1,0 +1,17 @@
+{
+  "manage": {
+    "addCategoryFailed": "Impossibile aggiungere la categoria",
+    "updateCategoryFailed": "Impossibile aggiornare la categoria",
+    "addCompanyFailed": "Impossibile aggiungere l'esercente",
+    "updateCompanyFailed": "Impossibile aggiornare l'esercente",
+    "title": "Gestisci categorie ed esercenti",
+    "categoriesTab": "Categorie",
+    "companiesTab": "Esercenti",
+    "addCategoryTitle": "Aggiungi nuova categoria",
+    "categoryNameLabel": "Nome della categoria",
+    "existingCategories": "Categorie esistenti",
+    "addCompanyTitle": "Aggiungi nuovo esercente",
+    "companyNameLabel": "Nome dell'esercente",
+    "existingCompanies": "Esercenti esistenti"
+  }
+}

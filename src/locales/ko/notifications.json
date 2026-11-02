@@ -1,0 +1,181 @@
+{
+  "type": {
+    "birthday": "생일",
+    "anniversary": "기념일",
+    "seasonal": "계절 일정",
+    "custom": "사용자 지정 리마인더",
+    "overdue_payment": "납부 예정",
+    "budget_overspend": "예산 초과",
+    "loan_promo_ending": "대출 상환 기한"
+  },
+  "typeDescription": {
+    "birthday": "매년 반복해서 기억하고 싶은 생일이에요.",
+    "anniversary": "기념일과 그 밖의 연례 날짜예요.",
+    "seasonal": "계절별 할 일과 갱신(세금, 보험, 월동 준비)이에요.",
+    "custom": "그 밖의 모든 것, 일회성 또는 반복이에요.",
+    "overdue_payment": "직접 납부하는 구독과 청구 중 납부 예정이거나 연체된 것(자동 결제로 표시되지 않은 시리즈)이에요.",
+    "budget_overspend": "월 예산 금액을 초과한 예산 카테고리예요.",
+    "loan_promo_ending": "상환 기한이 가깝거나 잔액을 남긴 채 지나 이자가 소급 청구될 수 있는 이자 유예 대출이에요."
+  },
+  "recurrence": {
+    "once": "한 번",
+    "monthly": "매월",
+    "yearly": "매년"
+  },
+  "status": {
+    "active": "활성",
+    "snoozed": "다시 알림",
+    "dismissed": "무시됨",
+    "done": "완료"
+  },
+  "timing": {
+    "dueToday": "오늘 예정",
+    "dueTomorrow": "내일 예정",
+    "dueInDays_other": "{{count}}일 후 예정",
+    "overdue_other": "{{count}}일 연체",
+    "noDate": "날짜 없음",
+    "snoozedUntil": "{{date}}까지 다시 알림"
+  },
+  "dueLabel": {
+    "today": "오늘 예정",
+    "tomorrow": "내일 예정",
+    "inDays_other": "{{count}}일 후 예정",
+    "overdue_other": "{{count}}일 연체"
+  },
+  "alerts": {
+    "overduePayment": {
+      "title": "{{name}} {{due}}",
+      "body": "{{date}}에 결제가 예상돼요. 이 경고를 멈추려면 시리즈를 자동 결제로 표시하세요.",
+      "bodyWithAmount": "{{date}}에 결제({{amount}})가 예상돼요. 이 경고를 멈추려면 시리즈를 자동 결제로 표시하세요."
+    },
+    "loanPromo": {
+      "chargedTitle": "{{name}}: 유예 이자 청구됨",
+      "chargedBody": "상환 기한 {{date}}이(가) 잔액을 남긴 채 지나 유예 이자 {{amount}}이(가) 추가됐어요.",
+      "onTrackTitle": "{{name}}: {{date}}까지 상환",
+      "onTrackBody": "{{balance}} 남음, {{due}}. 예상 상환액이면 순조로워요. {{interest}} 이상의 유예 이자를 피하려면 계속 납부하세요.",
+      "offTrackTitle": "{{name}}: {{date}} 기한을 맞추기 어려워요",
+      "offTrackBody": "{{balance}} 남음, {{due}}. 약 {{interest}}의 유예 이자가 청구될 수 있어요.",
+      "offTrackBodyWithRequired": "{{balance}} 남음, {{due}}. 약 {{interest}}의 유예 이자가 청구될 수 있어요. 기한 안에 갚으려면 매달 {{amount}}을(를) 납부하세요."
+    },
+    "budgetOverspend": {
+      "categoryFallback": "카테고리 {{id}}",
+      "title": "{{name}} 예산 초과",
+      "body": "{{month}}에 예산 {{budgeted}} 중 {{spent}} 지출({{over}} 초과).",
+      "bodyCarriedIn": "{{month}}에 이월 유입 {{carried}} 포함 예산 {{budgeted}} 중 {{spent}} 지출({{over}} 초과).",
+      "bodyCarriedOver": "{{month}}에 이월분 {{carried}} 포함 예산 {{budgeted}} 중 {{spent}} 지출({{over}} 초과)."
+    }
+  },
+  "page": {
+    "title": "알림",
+    "subtitle": "직접 만든 리마인더와 결제·예산 경고예요. 마지막 스캔: {{lastScan}}.",
+    "lastScanNever": "없음",
+    "scanning": "스캔 중…",
+    "rescan": "다시 스캔",
+    "newReminder": "새 리마인더",
+    "disabledInfo": "설정에서 알림이 꺼져 있어요. 기존 항목은 여기에 표시되지만 새로 스캔하거나 집계하지 않아요.",
+    "empty": "아직 알림이 없어요.",
+    "tabLabel": "{{label}} ({{n}})",
+    "tabDue": "예정",
+    "tabUpcoming": "다가오는 일정",
+    "tabHistory": "이력",
+    "emptyDue": "지금 예정된 항목이 없어요.",
+    "emptyUpcoming": "다가오는 리마인더가 없어요.",
+    "emptyHistory": "아직 완료되거나 무시된 알림이 없어요.",
+    "columnType": "유형",
+    "columnTitle": "제목",
+    "columnWhen": "시기",
+    "columnRepeats": "반복",
+    "columnStatus": "상태",
+    "columnActions": "작업",
+    "edit": "편집",
+    "editAria": "{{title}} 편집",
+    "delete": "삭제",
+    "deleteAria": "{{title}} 삭제",
+    "reminderCreated": "리마인더를 만들었어요",
+    "reminderUpdated": "리마인더를 업데이트했어요",
+    "reminderDeleted": "리마인더를 삭제했어요",
+    "deleteFailed": "리마인더를 삭제하지 못했어요"
+  },
+  "rowActions": {
+    "done": "완료",
+    "doneAdvance": "완료 (다음으로 넘기기)",
+    "doneAria": "{{title}} 완료로 표시",
+    "snooze": "다시 알림",
+    "snoozeAria": "{{title}} 다시 알림",
+    "dismiss": "무시",
+    "dismissAria": "{{title}} 무시",
+    "snoozeDay": "1일 후 다시 알림",
+    "snoozeWeek": "1주 후 다시 알림",
+    "pickDate": "날짜 선택…",
+    "snoozeUntilTitle": "다시 알릴 날짜",
+    "dateLabel": "날짜",
+    "snoozeConfirm": "다시 알림",
+    "completeFailed": "알림을 완료 처리하지 못했어요",
+    "dismissFailed": "알림을 무시하지 못했어요",
+    "snoozeFailed": "알림을 다시 알림으로 설정하지 못했어요"
+  },
+  "dashboardCard": {
+    "title": "리마인더 및 경고",
+    "summary": "{{due}}건 예정 · 앞으로 {{days}}일 내 {{upcoming}}건",
+    "comingUp": "다가오는 일정",
+    "more_other": "알림 페이지에 {{count}}건 더 있어요."
+  },
+  "settingsTab": {
+    "title": "알림",
+    "description": "리마인더와 경고는 대시보드, 상단의 종 아이콘, 알림 페이지에 표시돼요. 변경 사항은 즉시 저장돼요.",
+    "general": "일반",
+    "enable": "알림 사용",
+    "enableHelp": "끄면 경고 스캔이 멈추고 배지가 숨겨져요. 리마인더는 유지돼요.",
+    "osEnable": "브라우저(OS) 알림도 표시",
+    "osHelp": "{{permission}}. 브라우저 알림은 Budget Tracker가 탭에 열려 있는 동안에만, 항목당 하루 한 번, 아래에서 선택한 유형에 대해서만 표시돼요.",
+    "permissionUnsupported": "이 브라우저에서 지원하지 않음",
+    "permissionGranted": "브라우저에서 허용됨",
+    "permissionDenied": "브라우저에서 차단됨",
+    "permissionDefault": "켜면 권한을 요청해요",
+    "typesTitle": "유형 및 사전 알림",
+    "typesHelp": "사전 알림은 날짜 며칠 전부터 항목을 예정으로 표시할지예요. 리마인더별로 재정의할 수 있어요.",
+    "columnType": "유형",
+    "columnEnabled": "사용",
+    "columnLeadDays": "사전 알림 일수",
+    "columnBrowser": "브라우저",
+    "enableType": "{{type}} 사용",
+    "leadDaysFor": "{{type}} 사전 알림 일수",
+    "browserFor": "{{type}} 브라우저 알림",
+    "loadFailed": "알림 설정을 불러오지 못했어요",
+    "saveSettingFailed": "알림 설정을 저장하지 못했어요",
+    "saveFailed": "설정을 저장하지 못했어요",
+    "leadInvalid": "사전 알림은 0에서 365 사이의 정수(일)여야 해요",
+    "osUnsupported": "이 브라우저는 OS 알림을 지원하지 않아요.",
+    "osBlocked": "브라우저가 이 사이트의 알림을 차단했어요. 브라우저 사이트 설정에서 허용한 뒤 다시 시도하세요.",
+    "osNotGranted": "알림 권한이 허용되지 않았어요."
+  },
+  "editor": {
+    "editTitle": "리마인더 편집",
+    "newTitle": "새 리마인더",
+    "type": "유형",
+    "title": "제목",
+    "date": "날짜",
+    "repeats": "반복",
+    "notes": "메모",
+    "customLead": "사용자 지정 사전 알림",
+    "leadDaysLabel": "미리 알림 (며칠 전)",
+    "leadDefault_other": "{{type}} 기본값 사용: {{count}}일 전.",
+    "linkTo": "연결 대상",
+    "linkNothing": "없음",
+    "linkSeries": "구독 또는 청구",
+    "linkCategory": "예산 카테고리",
+    "category": "카테고리",
+    "series": "시리즈",
+    "titleRequired": "제목은 필수 항목이에요",
+    "dateInvalid": "올바른 날짜를 입력하세요",
+    "leadInvalid": "사전 알림은 0에서 365 사이의 정수(일)여야 해요",
+    "saveFailed": "리마인더를 저장하지 못했어요",
+    "saving": "저장 중…",
+    "save": "저장",
+    "create": "리마인더 만들기"
+  },
+  "runtime": {
+    "scanFailed": "알림 스캔에 실패했어요",
+    "loadFailed": "알림 설정을 불러오지 못했어요"
+  }
+}

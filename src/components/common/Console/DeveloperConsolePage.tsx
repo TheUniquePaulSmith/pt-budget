@@ -22,6 +22,7 @@ import {
   ExpandMore,
   TableChart,
 } from '@mui/icons-material';
+import { Trans, useTranslation } from 'react-i18next';
 import DeveloperConsole from './DeveloperConsole';
 import { SampleDataService } from '@/lib/sampleDataService';
 import { logger } from '@/lib/logging';
@@ -33,6 +34,7 @@ interface DeveloperConsolePageProps {
 }
 
 const DeveloperConsolePage: React.FC<DeveloperConsolePageProps> = ({ onClose }) => {
+  const { t } = useTranslation('developer');
   const [exportingTable, setExportingTable] = useState<string | null>(null);
 
   // Check for dev mode flag
@@ -82,13 +84,13 @@ const DeveloperConsolePage: React.FC<DeveloperConsolePageProps> = ({ onClose }) 
             edge="start"
             onClick={onClose}
             sx={{ mr: 1 }}
-            aria-label="Back to application"
+            aria-label={t('page.back')}
           >
             <ArrowBack />
           </IconButton>
           <BugReport color="primary" sx={{ mr: 1 }} />
           <Typography variant="h6" component="div" noWrap>
-            Developer Console
+            {t('page.title')}
           </Typography>
         </Toolbar>
       </AppBar>
@@ -104,20 +106,18 @@ const DeveloperConsolePage: React.FC<DeveloperConsolePageProps> = ({ onClose }) 
           <AccordionSummary expandIcon={<ExpandMore />}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TableChart fontSize="small" />
-              <Typography variant="body2">Sample Data Export</Typography>
-              <Chip label="Developer Tool" size="small" color="primary" />
+              <Typography variant="body2">{t('page.sampleDataExport')}</Typography>
+              <Chip label={t('page.developerTool')} size="small" color="primary" />
             </Box>
           </AccordionSummary>
           <AccordionDetails>
             <Stack spacing={2}>
               <Alert severity="info">
-                Export database tables to JSON format for creating sample data files.
-                Save exported files to <code>/public/sample-data/</code> directory.
-                To load sample data, navigate to <code>?loadSampleData</code> when creating a new database.
+                <Trans i18nKey="page.exportIntro" ns="developer" components={{ code: <code /> }} />
               </Alert>
 
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                Export tables in dependency order:
+                {t('page.exportOrder')}
               </Typography>
 
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -132,7 +132,7 @@ const DeveloperConsolePage: React.FC<DeveloperConsolePageProps> = ({ onClose }) 
                     disabled={exportingTable === table}
                     sx={{ mb: 1 }}
                   >
-                    {exportingTable === table ? 'Exporting...' : `Export ${table}`}
+                    {exportingTable === table ? t('page.exporting') : t('page.exportTable', { table })}
                   </Button>
                 ))}
               </Stack>

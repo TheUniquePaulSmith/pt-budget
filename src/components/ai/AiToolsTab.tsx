@@ -30,27 +30,17 @@ import {
   Typography,
 } from '@mui/material';
 import { Delete, UploadFile } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { AiToolPackError } from '@/lib/aiTools/jsonToolPack';
 import { MAX_TOOL_CALL_LIMIT, MIN_TOOL_CALL_LIMIT, normalizeToolCallLimit } from '@/lib/aiTools/toolCallLimit';
 import type { AiToolConsent } from '@/types/database';
 import { AI_TOOL_CRUDS, type AiResolvedTool, type AiToolCrud } from '@/types/aiTools';
-import { CRUD_COLORS, CRUD_LABELS } from './AiConsentCard';
+import { CRUD_COLORS } from './AiConsentCard';
 import { useAiToolsContext } from './AiToolsContext';
 
-const CONSENT_LABELS: Record<AiToolConsent, string> = {
-  ask: 'Ask',
-  always: 'Always allow',
-  deny: 'Deny',
-};
-
-const GROUP_DESCRIPTIONS: Record<AiToolCrud, string> = {
-  read: 'Read-only lookups. Allowed by default.',
-  create: 'Add new rows. Ask by default.',
-  update: 'Change existing rows. Ask by default.',
-  delete: 'Remove rows. Ask by default and disabled until you enable them.',
-  mixed: 'Statements that both read and write. Ask by default.',
-};
+/** Consent policies in menu order; labels live under `ai:toolsTab.consent.*`. */
+const CONSENT_OPTIONS: AiToolConsent[] = ['ask', 'always', 'deny'];
 
 function ToolRow({
   tool,
@@ -61,6 +51,7 @@ function ToolRow({
   onEnabledChange: (enabled: boolean) => void;
   onConsentChange: (consent: AiToolConsent) => void;
 }) {
+  const { t } = useTranslation('ai');
   return (
     <Stack
       direction="row"
@@ -73,7 +64,7 @@ function ToolRow({
         size="small"
         checked={tool.enabled}
         onChange={(event) => onEnabledChange(event.target.checked)}
-        inputProps={{ 'aria-label': `Enable ${tool.name}`, 'data-testid': `ai-tool-enabled-${tool.name}` } as React.InputHTMLAttributes<HTMLInputElement>}
+        inputProps={{ 'aria-label': t('toolsTab.enableTool', { name: tool.name }), 'data-testid': `ai-tool-enabled-${tool.name}` } as React.InputHTMLAttributes<HTMLInputElement>}
       />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Stack direction="row" spacing={0.5} alignItems="center">
@@ -91,12 +82,12 @@ function ToolRow({
         value={tool.consent}
         onChange={(event) => onConsentChange(event.target.value as AiToolConsent)}
         disabled={!tool.enabled}
-        inputProps={{ 'aria-label': `Consent for ${tool.name}`, 'data-testid': `ai-tool-consent-${tool.name}` }}
+        inputProps={{ 'aria-label': t('toolsTab.consentFor', { name: tool.name }), 'data-testid': `ai-tool-consent-${tool.name}` }}
         sx={{ minWidth: 118, fontSize: '0.78rem' }}
       >
-        {(Object.keys(CONSENT_LABELS) as AiToolConsent[]).map((consent) => (
+        {CONSENT_OPTIONS.map((consent) => (
           <MenuItem key={consent} value={consent} dense>
-            {CONSENT_LABELS[consent]}
+            {t(`toolsTab.consent.${consent}`)}
           </MenuItem>
         ))}
       </Select>
@@ -105,6 +96,7 @@ function ToolRow({
 }
 
 export default function AiToolsTab() {
+  const { t } = useTranslation(['ai', 'common']);
   const tools = useAiToolsContext();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [packJson, setPackJson] = useState('');
@@ -142,7 +134,7 @@ export default function AiToolsTab() {
       if (err instanceof AiToolPackError) {
         setImportErrors(err.errors.map((error) => error.message));
       } else {
-        setImportErrors([err instanceof Error ? err.message : 'The action failed']);
+        setImportErrors([err instanceof Error ? err.message : t('toolsTab.actionFailed')]);
       }
     } finally {
       setBusy(false);
@@ -160,13 +152,13 @@ export default function AiToolsTab() {
   const importFromText = () => {
     const text = packJson.trim();
     if (!text) {
-      setImportErrors(['Paste a pack JSON document or choose a file.']);
+      setImportErrors([t('toolsTab.pastePackPrompt')]);
       return;
     }
     void run(async () => {
       await tools.importPack(text);
       setPackJson('');
-    }, 'Pack imported.');
+    }, t('toolsTab.packImported'));
   };
 
   const importFromFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,7 +168,7 @@ export default function AiToolsTab() {
       return;
     }
     const text = await file.text();
-    void run(() => tools.importPack(text), `Imported ${file.name}.`);
+    void run(() => tools.importPack(text), t('toolsTab.importedFile', { file: file.name }));
   };
 
   const userPacks = tools.registry.packs.filter((pack) => pack.row.source === 'user');
@@ -187,10 +179,10 @@ export default function AiToolsTab() {
       <Stack spacing={2}>
         <Box>
           <Typography variant="subtitle1" fontWeight={600}>
-            Tools
+            {t('toolsTab.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Choose which tools the assistant may call and when it has to ask first.
+            {t('toolsTab.subtitle')}
           </Typography>
         </Box>
 
@@ -212,12 +204,10 @@ export default function AiToolsTab() {
                 inputProps={{ 'data-testid': 'ai-consent-bypass' } as React.InputHTMLAttributes<HTMLInputElement>}
               />
             )}
-            label="Bypass all consent prompts"
+            label={t('toolsTab.bypassAll')}
           />
           <Typography variant="caption" sx={{ display: 'block' }}>
-            {tools.bypassAllConsent
-              ? 'Every enabled tool runs without asking for this session. Tools set to Deny still never run.'
-              : 'Tools set to Ask pause the chat until you allow them.'}
+            {tools.bypassAllConsent ? t('toolsTab.bypassOnHelp') : t('toolsTab.bypassOffHelp')}
           </Typography>
         </Alert>
 
@@ -225,7 +215,7 @@ export default function AiToolsTab() {
           <TextField
             size="small"
             type="number"
-            label="Tool-call limit"
+            label={t('toolsTab.toolCallLimit')}
             value={limitDraft}
             onChange={(event) => setLimitDraft(event.target.value)}
             onBlur={commitLimit}
@@ -239,14 +229,14 @@ export default function AiToolsTab() {
             sx={{ width: 160 }}
           />
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-            Rounds of tool calls the assistant may run for one question ({MIN_TOOL_CALL_LIMIT}–{MAX_TOOL_CALL_LIMIT}). A round can call several tools at once. After the last round it answers from what it found.
+            {t('toolsTab.toolCallLimitHelp', { min: MIN_TOOL_CALL_LIMIT, max: MAX_TOOL_CALL_LIMIT })}
           </Typography>
         </Box>
 
         {tools.sessionGrants.length > 0 && (
           <Box>
             <Typography variant="caption" color="text.secondary">
-              Allowed for this session
+              {t('toolsTab.allowedThisSession')}
             </Typography>
             <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
               {tools.sessionGrants.map((name) => (
@@ -264,9 +254,9 @@ export default function AiToolsTab() {
           return (
             <Box key={crud} data-testid={`ai-tool-group-${crud}`}>
               <Stack direction="row" spacing={1} alignItems="center">
-                <Chip size="small" color={CRUD_COLORS[crud]} label={CRUD_LABELS[crud]} />
+                <Chip size="small" color={CRUD_COLORS[crud]} label={t(`consentCard.crud.${crud}`)} />
                 <Typography variant="caption" color="text.secondary">
-                  {GROUP_DESCRIPTIONS[crud]}
+                  {t(`toolsTab.groupDescription.${crud}`)}
                 </Typography>
               </Stack>
               <Divider sx={{ my: 0.5 }} />
@@ -286,10 +276,10 @@ export default function AiToolsTab() {
 
         <Box>
           <Typography variant="subtitle2" fontWeight={600}>
-            Tool packs
+            {t('toolsTab.toolPacks')}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Declarative JSON packs add SQL-backed tools. Each tool&apos;s SQL is checked against its declared read/write class before it can be used.
+            {t('toolsTab.toolPacksHelp')}
           </Typography>
           <Stack spacing={0.5} sx={{ mt: 1 }}>
             {shippedPacks.map((pack) => (
@@ -298,10 +288,16 @@ export default function AiToolsTab() {
                   size="small"
                   checked={Number(pack.row.enabled) === 1}
                   onChange={(event) => void run(() => tools.setPackEnabled(pack.packKey, event.target.checked))}
-                  inputProps={{ 'aria-label': `Enable pack ${pack.document.name}` }}
+                  inputProps={{ 'aria-label': t('toolsTab.enablePack', { name: pack.document.name }) }}
                 />
                 <Typography variant="body2" sx={{ flex: 1 }}>
-                  {pack.document.name} <Typography component="span" variant="caption" color="text.secondary">v{pack.document.version} · built in · {pack.document.tools.length} tools</Typography>
+                  {pack.document.name}{' '}
+                  <Typography component="span" variant="caption" color="text.secondary">
+                    {t('toolsTab.packMetaBuiltIn', {
+                      version: pack.document.version,
+                      tools: t('toolsTab.toolCount', { count: pack.document.tools.length }),
+                    })}
+                  </Typography>
                 </Typography>
               </Stack>
             ))}
@@ -311,13 +307,25 @@ export default function AiToolsTab() {
                   size="small"
                   checked={Number(pack.row.enabled) === 1}
                   onChange={(event) => void run(() => tools.setPackEnabled(pack.packKey, event.target.checked))}
-                  inputProps={{ 'aria-label': `Enable pack ${pack.document.name}` }}
+                  inputProps={{ 'aria-label': t('toolsTab.enablePack', { name: pack.document.name }) }}
                 />
                 <Typography variant="body2" sx={{ flex: 1 }}>
-                  {pack.document.name} <Typography component="span" variant="caption" color="text.secondary">v{pack.document.version}{pack.document.author ? ` · ${pack.document.author}` : ''} · {pack.document.tools.length} tools</Typography>
+                  {pack.document.name}{' '}
+                  <Typography component="span" variant="caption" color="text.secondary">
+                    {pack.document.author
+                      ? t('toolsTab.packMetaUserWithAuthor', {
+                          version: pack.document.version,
+                          author: pack.document.author,
+                          tools: t('toolsTab.toolCount', { count: pack.document.tools.length }),
+                        })
+                      : t('toolsTab.packMetaUser', {
+                          version: pack.document.version,
+                          tools: t('toolsTab.toolCount', { count: pack.document.tools.length }),
+                        })}
+                  </Typography>
                 </Typography>
-                <Tooltip title="Remove pack">
-                  <IconButton size="small" onClick={() => void run(() => tools.removePack(pack.packKey), 'Pack removed.')} aria-label={`Remove pack ${pack.document.name}`}>
+                <Tooltip title={t('toolsTab.removePack')}>
+                  <IconButton size="small" onClick={() => void run(() => tools.removePack(pack.packKey), t('toolsTab.packRemoved'))} aria-label={t('toolsTab.removePackNamed', { name: pack.document.name })}>
                     <Delete fontSize="small" />
                   </IconButton>
                 </Tooltip>
@@ -325,7 +333,7 @@ export default function AiToolsTab() {
             ))}
             {[...tools.registry.failedPacks, ...tools.shippedPackErrors].map((failed) => (
               <Alert key={failed.packKey} severity="warning" data-testid={`ai-pack-error-${failed.packKey}`}>
-                <Typography variant="body2" fontWeight={600}>{failed.packName ?? failed.packKey} could not be loaded</Typography>
+                <Typography variant="body2" fontWeight={600}>{t('toolsTab.packLoadFailed', { name: failed.packName ?? failed.packKey })}</Typography>
                 {failed.errors.map((error, index) => (
                   <Typography key={index} variant="caption" sx={{ display: 'block' }}>{error.message}</Typography>
                 ))}
@@ -336,7 +344,7 @@ export default function AiToolsTab() {
           <Stack spacing={1} sx={{ mt: 1.5 }}>
             <TextField
               size="small"
-              label="Paste pack JSON"
+              label={t('toolsTab.pasteJson')}
               multiline
               minRows={3}
               maxRows={8}
@@ -347,10 +355,10 @@ export default function AiToolsTab() {
             />
             <Stack direction="row" spacing={1}>
               <Button size="small" variant="outlined" onClick={importFromText} disabled={busy} data-testid="ai-pack-import">
-                Import pack
+                {t('toolsTab.importPack')}
               </Button>
               <Button size="small" startIcon={<UploadFile />} onClick={() => fileInputRef.current?.click()} disabled={busy}>
-                Choose file
+                {t('toolsTab.chooseFile')}
               </Button>
               <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => void importFromFile(event)} data-testid="ai-pack-file" />
             </Stack>
@@ -367,36 +375,36 @@ export default function AiToolsTab() {
         <Divider />
 
         <Button size="small" color="warning" variant="outlined" onClick={() => setConfirmReset(true)} disabled={busy} data-testid="ai-tools-reset" sx={{ alignSelf: 'flex-start' }}>
-          Reset to safe defaults
+          {t('toolsTab.resetDefaults')}
         </Button>
       </Stack>
 
       <Dialog open={confirmBypass} onClose={() => setConfirmBypass(false)}>
-        <DialogTitle>Bypass all consent prompts?</DialogTitle>
+        <DialogTitle>{t('toolsTab.bypassTitle')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            The assistant will run every enabled create, update and delete tool without asking first, for this browser session. Tools set to Deny are still blocked. You can turn this off at any time.
+            {t('toolsTab.bypassBody')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmBypass(false)}>Cancel</Button>
+          <Button onClick={() => setConfirmBypass(false)}>{t('common:actions.cancel')}</Button>
           <Button color="warning" variant="contained" onClick={() => { tools.setBypassAllConsent(true); setConfirmBypass(false); }} data-testid="ai-consent-bypass-confirm">
-            Bypass consent
+            {t('toolsTab.bypassConfirm')}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={confirmReset} onClose={() => setConfirmReset(false)}>
-        <DialogTitle>Reset tool settings?</DialogTitle>
+        <DialogTitle>{t('toolsTab.resetTitle')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Every tool returns to its default: reads allowed, creates and updates ask, deletes ask and are disabled. Session grants and the bypass switch are cleared. Imported packs are kept.
+            {t('toolsTab.resetBody')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmReset(false)}>Cancel</Button>
-          <Button color="warning" variant="contained" onClick={() => { setConfirmReset(false); void run(() => tools.resetToSafeDefaults(), 'Tool settings reset.'); }} data-testid="ai-tools-reset-confirm">
-            Reset
+          <Button onClick={() => setConfirmReset(false)}>{t('common:actions.cancel')}</Button>
+          <Button color="warning" variant="contained" onClick={() => { setConfirmReset(false); void run(() => tools.resetToSafeDefaults(), t('toolsTab.toolSettingsReset')); }} data-testid="ai-tools-reset-confirm">
+            {t('common:actions.reset')}
           </Button>
         </DialogActions>
       </Dialog>

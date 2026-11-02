@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "projects": "Progetti",
+    "trips": "Viaggi",
+    "budget": "Budget",
+    "accounts": "Conti",
+    "loans": "Prestiti",
+    "transactions": "Transazioni",
+    "subscriptions": "Abbonamenti",
+    "notifications": "Notifiche",
+    "sql-query": "Query SQL",
+    "settings": "Impostazioni",
+    "developer-console": "Console sviluppatore",
+    "pages": "Pagine",
+    "more": "Altro",
+    "quickActions": "Azioni rapide",
+    "addTransaction": "Aggiungi transazione",
+    "importCsv": "Importa CSV",
+    "manageData": "Gestisci dati"
+  },
+  "dataGrid": {
+    "noRows": "Nessuna riga da mostrare"
+  },
+  "sidebar": {
+    "collapse": "Comprimi la barra laterale",
+    "expand": "Espandi la barra laterale"
+  },
+  "pageFallback": {
+    "loading": "Caricamento della pagina"
+  },
+  "notificationBell": {
+    "label": "Notifiche",
+    "due": "{{count}} in scadenza",
+    "titleWithDue": "{{label}}: {{count}} in scadenza",
+    "more": "{{count}} altre… fai clic sulla campanella per vederle tutte."
+  },
+  "aiLauncher": {
+    "label": "IA locale",
+    "title": "{{label}} (clic destro per le opzioni della finestra)",
+    "openSidebar": "Apri come barra laterale",
+    "openMaximized": "Apri a schermo intero",
+    "openWindow": "Apri in una nuova finestra"
+  },
+  "statusBar": {
+    "synced": "Sincronizzato",
+    "pendingChanges": "Modifiche in sospeso",
+    "syncing": "Sincronizzazione…",
+    "reconnect": "Riconnetti",
+    "resolveConflict": "Risolvi conflitto",
+    "offline": "Offline",
+    "syncError": "Errore di sincronizzazione",
+    "lastSynced": "Ultima sincronizzazione: {{time}}",
+    "unsyncedSince": "Modifiche non sincronizzate da: {{time}}",
+    "lastError": "Ultimo errore: {{error}}",
+    "cloudSyncStatus": "Stato della sincronizzazione cloud",
+    "connected": "Connesso",
+    "disconnected": "Disconnesso",
+    "heartbeat": "Heartbeat: {{seconds}}s fa",
+    "noHeartbeat": "Nessun heartbeat ricevuto",
+    "workerAlive": "Attivo",
+    "workerDead": "Inattivo",
+    "tooltip": "Versione app: {{version}}\nStato worker: {{worker}}\nStato database: {{status}}\n{{heartbeat}}"
+  },
+  "storageQuota": {
+    "unavailableChip": "Spazio: N/D",
+    "unavailable": "Quota di spazio non disponibile",
+    "loadingChip": "Caricamento...",
+    "loading": "Caricamento delle informazioni sullo spazio...",
+    "used": "Utilizzato: {{size}}",
+    "available": "Disponibile: {{size}}",
+    "information": "Informazioni sullo spazio",
+    "usageChip": "Spazio: {{percent}}",
+    "title": "Utilizzo dello spazio",
+    "refresh": "Aggiorna le informazioni sullo spazio",
+    "percentUsed": "{{percent}} utilizzato",
+    "usageOfQuota": "{{usage}} / {{quota}}",
+    "indexedDb": "IndexedDB: {{size}}",
+    "runningLow": "⚠️ Lo spazio sta per esaurirsi. Valuta di esportare i dati e fare un backup.",
+    "notAvailable": "Informazioni sullo spazio non disponibili",
+    "bytes": "{{value}} B",
+    "kilobytes": "{{value}} KB",
+    "megabytes": "{{value}} MB",
+    "gigabytes": "{{value}} GB"
+  },
+  "masterDetail": {
+    "backToList": "Torna all'elenco",
+    "resizeList": "Ridimensiona l'elenco",
+    "emptyDetail": "Seleziona un elemento per vederne i dettagli."
+  },
+  "resetApp": {
+    "button": "Ripristina app",
+    "title": "Ripristinare l'app allo stato iniziale?",
+    "body": "Questa operazione elimina definitivamente database, impostazioni e cookie, poi ricarica l'app come appena installata. Non può essere annullata.",
+    "passwordLabel": "Password del database",
+    "passwordHelp": "Inserisci la password per confermare il ripristino.",
+    "failed": "Ripristino non riuscito",
+    "resetting": "Ripristino…"
+  }
+}

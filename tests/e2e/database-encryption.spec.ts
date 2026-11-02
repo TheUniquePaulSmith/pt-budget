@@ -110,7 +110,8 @@ test.describe('Password setup screen', () => {
     await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
     await page.getByRole('button', { name: 'Create Database' }).click();
 
-    // Password setup always lands on the initial-account screen next.
+    // Password setup lands on the preferences screen, then the initial-account screen.
+    await page.getByTestId('skip-preferences').click();
     await page.getByTestId('skip-initial-account').click();
 
     // Then the storage-choice screen next.
@@ -136,6 +137,7 @@ test.describe('Initial account screen', () => {
     await openPasswordSetupScreen(page);
     await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
     await page.getByRole('button', { name: 'Create Database' }).click();
+    await page.getByTestId('skip-preferences').click();
 
     await expect(page.getByText('Add Your First Account')).toBeVisible({
       timeout: 10_000,
@@ -153,6 +155,7 @@ test.describe('Initial account screen', () => {
     await openPasswordSetupScreen(page);
     await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
     await page.getByRole('button', { name: 'Create Database' }).click();
+    await page.getByTestId('skip-preferences').click();
 
     await expect(page.getByText('Add Your First Account')).toBeVisible({
       timeout: 10_000,
@@ -209,7 +212,8 @@ test.describe('Loading an encrypted archive', () => {
     await fillDatabaseSetupForm(page, { password: TEST_PASSWORD });
     await page.getByRole('button', { name: 'Create Database' }).click();
 
-    // Password setup always lands on the initial-account screen next.
+    // Password setup lands on the preferences screen, then the initial-account screen.
+    await page.getByTestId('skip-preferences').click();
     await page.getByTestId('skip-initial-account').click();
 
     // Then the storage-choice screen next.

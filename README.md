@@ -17,6 +17,7 @@ Budget Tracker is designed to manage day-to-day finances and longer-running spen
 - **Next.js 15 App Router** with static export output and a client-only application shell
 - **React 19 + TypeScript 5** for the UI and application logic
 - **Material UI 7** with MUI X charts, data grid, and date pickers
+- **Nine UI languages** (English, Spanish, French, German, Chinese, Japanese, Korean, Portuguese, Italian) via i18next, with locale-aware number, currency and date formatting
 - **wa-sqlite / WebAssembly SQLite** assets served from `public/`
 - **SharedWorker-backed database execution** in `public/database-worker.js`
 - **Local browser persistence** using browser-managed storage plus file import/export flows
@@ -30,7 +31,7 @@ Budget Tracker is designed to manage day-to-day finances and longer-running spen
 
 - **Transaction Tracking**: add, filter, sort, and review income and expense transactions
 - **Category and Company Management**: create and manage transaction metadata directly in the app
-- **Account Management**: manage accounts, account ownership, and account cards
+- **Account Management**: manage accounts, account ownership, account cards, and a currency per account; totals are converted into your default currency with manual exchange rates
 - **Project and Trip Labels**: attach transactions to projects and trips for grouped reporting
 - **CSV Import Pipeline**: import transaction files with column auto-detection, account matching, duplicate analysis, and temp-table staging
 

@@ -126,7 +126,7 @@ export const CLASSIFICATION_QUERIES = {
    */
   GET_TRANSFER_CANDIDATES: `
     SELECT
-      t.id, t.account_id, a.name AS account_name, t.date, t.amount, t.description,
+      t.id, t.account_id, a.name AS account_name, a.currency AS account_currency, t.date, t.amount, t.description,
       t.type, t.type_locked, t.transfer_group_id
     FROM transactions t
     JOIN accounts a ON a.id = t.account_id

@@ -1,0 +1,17 @@
+{
+  "manage": {
+    "addCategoryFailed": "Failed to add category",
+    "updateCategoryFailed": "Failed to update category",
+    "addCompanyFailed": "Failed to add company",
+    "updateCompanyFailed": "Failed to update company",
+    "title": "Manage Categories & Companies",
+    "categoriesTab": "Categories",
+    "companiesTab": "Companies",
+    "addCategoryTitle": "Add New Category",
+    "categoryNameLabel": "Category Name",
+    "existingCategories": "Existing Categories",
+    "addCompanyTitle": "Add New Company",
+    "companyNameLabel": "Company Name",
+    "existingCompanies": "Existing Companies"
+  }
+}

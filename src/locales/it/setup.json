@@ -1,0 +1,131 @@
+{
+  "preferences": {
+    "title": "Le tue preferenze",
+    "description": "Scegli la lingua per questo dispositivo e la valuta in cui mostrare i totali. Potrai cambiare entrambe in seguito nelle Impostazioni.",
+    "languageLabel": "Lingua",
+    "languageHelp": "Vale solo per questo browser e ha effetto immediato.",
+    "currencyLabel": "Valuta predefinita",
+    "currencyHelp": "Ogni conto può usare la propria valuta; i totali della dashboard vengono convertiti in questa.",
+    "continue": "Continua",
+    "saving": "Salvataggio…",
+    "skip": "Salta per ora"
+  },
+  "initialAccount": {
+    "currencyLabel": "Valuta",
+    "title": "Aggiungi il tuo primo conto",
+    "description": "Configura un conto o una carta in modo che le transazioni abbiano una destinazione. Potrai aggiungere altri conti in seguito nelle Impostazioni.",
+    "nameRequired": "Il nome del conto è obbligatorio.",
+    "lastFourInvalid": "Le ultime quattro cifre devono essere esattamente 4 numeri.",
+    "nameLabel": "Nome del conto",
+    "typeLabel": "Tipo di conto",
+    "lastFourLabel": "Ultime quattro cifre",
+    "saving": "Salvataggio del conto…"
+  },
+  "provider": {
+    "gdrive": "Google Drive",
+    "onedrive": "OneDrive"
+  },
+  "gate": {
+    "initializing": "Inizializzazione del database...",
+    "importPasswordDescription": "Questo file di database è crittografato. Inserisci la password per sbloccarlo e importarlo.",
+    "unlockDescription": "Questo database è crittografato. Inserisci la password per sbloccarlo.",
+    "welcomeTitle": "Benvenuto in Budget Tracker",
+    "welcomeDescription": "Per iniziare, puoi creare un nuovo database o caricarne uno esistente da un file.",
+    "createNewDatabase": "Crea nuovo database",
+    "loadFromFile": "Carica da file",
+    "orOpenCloudBackup": "oppure apri un backup cloud esistente",
+    "providerNotConfigured": "{{provider}} non è configurato per questa installazione.",
+    "openFromProvider": "Apri da {{provider}}",
+    "importingSampleData": "Importazione dei dati di esempio",
+    "filesCompleted": "File completati: {{completed}} / {{total}}",
+    "currentFile": "File corrente: {{file}}",
+    "tableRows": "{{table}}: {{imported}} righe",
+    "tableRowsOfExpected": "{{table}}: {{imported}} / {{expected}} righe",
+    "cancelSampleDataImport": "Annulla importazione dati di esempio",
+    "connectProvider": "Connetti {{provider}}",
+    "cloudAuthDescription": "Questo browser è configurato per usare {{provider}} come origine del database. Esegui l'accesso e scegli un archivio di backup per continuare.",
+    "useLocalInstead": "Usa invece un database locale",
+    "databaseError": "Errore del database",
+    "unknownInitError": "Si è verificato un errore sconosciuto durante l'inizializzazione del database.",
+    "reloadPage": "Ricarica pagina"
+  },
+  "passwordSetup": {
+    "primaryUserNameRequired": "Il nome dell'utente principale è obbligatorio.",
+    "passwordTooShort": "La password deve contenere almeno {{count}} caratteri.",
+    "passwordsMismatch": "Le password non coincidono.",
+    "title": "Configura il tuo database",
+    "description": "Il database è crittografato su questo dispositivo e questa password è richiesta ogni volta che lo apri. Scegli una password robusta: non esiste alcun recupero della password, quindi conservala in un luogo sicuro.",
+    "primaryUserSection": "Utente principale",
+    "primaryUserNameLabel": "Nome utente principale",
+    "passwordSection": "Password",
+    "passwordLabel": "Password",
+    "confirmPasswordLabel": "Conferma password",
+    "hidePassword": "Nascondi password",
+    "showPassword": "Mostra password",
+    "creating": "Creazione del database…",
+    "create": "Crea database"
+  },
+  "passwordEntry": {
+    "title": "Inserisci la password",
+    "defaultDescription": "Questo database è crittografato. Inserisci la password per aprirlo.",
+    "passwordLabel": "Password",
+    "hidePassword": "Nascondi password",
+    "showPassword": "Mostra password",
+    "decrypting": "Decrittazione…",
+    "unlock": "Sblocca"
+  },
+  "storageChoice": {
+    "title": "Dove deve risiedere questo database?",
+    "description": "Potrai cambiarlo in seguito nelle Impostazioni.",
+    "localLabel": "Mantieni in locale",
+    "localDescription": "Salvato solo su questo dispositivo.",
+    "gdriveLabel": "Google Drive",
+    "gdriveDescription": "Sincronizzato automaticamente con il tuo Google Drive.",
+    "onedriveLabel": "OneDrive",
+    "onedriveDescription": "Sincronizzato automaticamente con il tuo OneDrive.",
+    "notConfigured": "{{provider}} non è configurato per questa installazione."
+  },
+  "testBrowser": {
+    "workerCommunicationFailed": "Comunicazione con il worker di test non riuscita",
+    "unknownError": "Errore sconosciuto durante il test di compatibilità",
+    "statusTesting": "Test in corso...",
+    "statusNotTested": "Non testato",
+    "statusPassed": "Superato",
+    "statusFailed": "Non superato",
+    "wasmLabel": "Supporto WebAssembly",
+    "wasmDescription": "Il browser supporta WebAssembly",
+    "sharedWorkerLabel": "Supporto SharedWorker",
+    "sharedWorkerDescription": "Il browser supporta l'API SharedWorker",
+    "sqliteLabel": "Modulo SQLite WASM",
+    "sqliteDescription": "Il modulo WA-SQLite si carica e si inizializza",
+    "vfsLabel": "File system virtuale",
+    "vfsDescription": "Il backend VFS su IndexedDB funziona correttamente",
+    "databaseOperationsLabel": "Operazioni sul database",
+    "databaseOperationsDescription": "Apre un database di test ed esegue una query",
+    "title": "Test di compatibilità del browser",
+    "overallResult": "Risultato complessivo:",
+    "compatible": "Compatibile",
+    "incompatible": "Non compatibile",
+    "incompatibleWarning": "Il tuo browser potrebbe non supportare completamente tutte le funzionalità richieste dall'app. Alcune funzioni potrebbero essere limitate o non disponibili.",
+    "errorDetails": "Dettagli dell'errore",
+    "hideErrorDetails": "Nascondi i dettagli dell'errore",
+    "showErrorDetails": "Mostra i dettagli dell'errore"
+  },
+  "encryptionProgress": {
+    "title": "Protezione del database in corso",
+    "stage": {
+      "flushing": "In attesa del completamento delle operazioni in sospeso…",
+      "exporting": "Esportazione dello snapshot del database…",
+      "encrypting": "Crittografia del database…",
+      "uploading": "Caricamento sullo spazio cloud…",
+      "done": "Completato"
+    }
+  },
+  "cloudFilePicker": {
+    "cloudStorage": "spazio cloud",
+    "fileSize": "{{size}} KB",
+    "title": "Apri da {{provider}}",
+    "empty": "Nessun archivio di backup trovato in {{provider}}.",
+    "opening": "Apertura…"
+  }
+}

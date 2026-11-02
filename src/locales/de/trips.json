@@ -1,0 +1,50 @@
+{
+  "category": {
+    "business": "Geschäftlich",
+    "vacation": "Urlaub",
+    "family": "Familie",
+    "medical": "Medizinisch",
+    "education": "Bildung",
+    "other": "Sonstiges"
+  },
+  "status": {
+    "planning": "In Planung",
+    "in_progress": "Läuft",
+    "completed": "Abgeschlossen",
+    "cancelled": "Storniert"
+  },
+  "statusOption": {
+    "planning": "In Planung",
+    "in_progress": "Läuft",
+    "completed": "Abgeschlossen",
+    "cancelled": "Storniert"
+  },
+  "manage": {
+    "title": "Reisen verwalten",
+    "addTrip": "Reise hinzufügen",
+    "editTrip": "Reise bearbeiten",
+    "deleteTrip": "Reise löschen",
+    "destination": "Reiseziel:",
+    "purpose": "Zweck:",
+    "dates": "Zeitraum:",
+    "dateRange": "{{start}} - {{end}}",
+    "tbd": "Offen",
+    "estimatedCost": "Geschätzte Kosten:",
+    "emptyTitle": "Keine Reisen gefunden",
+    "emptyHelp": "Legen Sie Ihre erste Reise an, um Reisekosten zu erfassen",
+    "addFirstTrip": "Erste Reise hinzufügen",
+    "addTitle": "Neue Reise hinzufügen",
+    "tripName": "Reisename",
+    "destinationField": "Reiseziel",
+    "purposeField": "Zweck",
+    "startDate": "Startdatum",
+    "endDate": "Enddatum",
+    "estimatedCostField": "Geschätzte Kosten",
+    "saving": "Wird gespeichert...",
+    "deleteConfirm": "Möchten Sie „{{name}}“ wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
+    "deleting": "Wird gelöscht...",
+    "nameRequired": "Der Reisename ist erforderlich",
+    "saveFailed": "Reise konnte nicht gespeichert werden",
+    "deleteFailed": "Reise konnte nicht gelöscht werden"
+  }
+}

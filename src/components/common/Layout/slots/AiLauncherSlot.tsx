@@ -25,6 +25,7 @@ import {
   OpenInNew,
   ViewSidebar,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { useAiPanel } from '@/components/ai/AiPanelProvider';
 
@@ -36,11 +37,14 @@ export interface AiLauncherSlotProps {
   onActivate?: () => void;
 }
 
+/** English default of the launcher's accessible name (`shell:aiLauncher.label` at render time). */
 export const AI_LAUNCHER_LABEL = 'Local AI';
 
 export default function AiLauncherSlot({ variant, onActivate }: AiLauncherSlotProps) {
+  const { t } = useTranslation('shell');
   const { openPanel, setMode, openPopout } = useAiPanel();
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const label = t('aiLauncher.label');
 
   // openPanel focuses a live pop-out window itself, or reopens in-app.
   const activate = () => {
@@ -70,19 +74,19 @@ export default function AiLauncherSlot({ variant, onActivate }: AiLauncherSlotPr
         <ListItemIcon>
           <ViewSidebar fontSize="small" />
         </ListItemIcon>
-        <ListItemText primary="Open as sidebar" />
+        <ListItemText primary={t('aiLauncher.openSidebar')} />
       </MenuItem>
       <MenuItem onClick={() => choose(() => setMode('maximized'))} data-testid="ai-launcher-mode-maximized">
         <ListItemIcon>
           <Fullscreen fontSize="small" />
         </ListItemIcon>
-        <ListItemText primary="Open maximized" />
+        <ListItemText primary={t('aiLauncher.openMaximized')} />
       </MenuItem>
       <MenuItem onClick={() => choose(openPopout)} data-testid="ai-launcher-mode-popout">
         <ListItemIcon>
           <OpenInNew fontSize="small" />
         </ListItemIcon>
-        <ListItemText primary="Open in a new window" />
+        <ListItemText primary={t('aiLauncher.openWindow')} />
       </MenuItem>
     </Menu>
   );
@@ -95,7 +99,7 @@ export default function AiLauncherSlot({ variant, onActivate }: AiLauncherSlotPr
             <ListItemIcon>
               <AiIcon />
             </ListItemIcon>
-            <ListItemText primary={AI_LAUNCHER_LABEL} />
+            <ListItemText primary={label} />
           </ListItemButton>
         </ListItem>
         {menu}
@@ -110,8 +114,8 @@ export default function AiLauncherSlot({ variant, onActivate }: AiLauncherSlotPr
         onClick={activate}
         onContextMenu={openMenu}
         sx={{ ml: 2 }}
-        title={`${AI_LAUNCHER_LABEL} (right-click for window options)`}
-        aria-label={AI_LAUNCHER_LABEL}
+        title={t('aiLauncher.title', { label })}
+        aria-label={label}
         data-testid="ai-launcher-button"
       >
         <AiIcon />

@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "dashboard": "Painel",
+    "projects": "Projetos",
+    "trips": "Viagens",
+    "budget": "Orçamento",
+    "accounts": "Contas",
+    "loans": "Empréstimos",
+    "transactions": "Transações",
+    "subscriptions": "Assinaturas",
+    "notifications": "Notificações",
+    "sql-query": "Consulta SQL",
+    "settings": "Configurações",
+    "developer-console": "Console do desenvolvedor",
+    "pages": "Páginas",
+    "more": "Mais",
+    "quickActions": "Ações rápidas",
+    "addTransaction": "Adicionar transação",
+    "importCsv": "Importar CSV",
+    "manageData": "Gerenciar dados"
+  },
+  "dataGrid": {
+    "noRows": "Nenhuma linha para exibir"
+  },
+  "sidebar": {
+    "collapse": "Recolher barra lateral",
+    "expand": "Expandir barra lateral"
+  },
+  "pageFallback": {
+    "loading": "Carregando página"
+  },
+  "notificationBell": {
+    "label": "Notificações",
+    "due": "{{count}} pendentes",
+    "titleWithDue": "{{label}}: {{count}} pendentes",
+    "more": "Mais {{count}}… clique no sino para ver todas."
+  },
+  "aiLauncher": {
+    "label": "IA local",
+    "title": "{{label}} (clique com o botão direito para opções de janela)",
+    "openSidebar": "Abrir como barra lateral",
+    "openMaximized": "Abrir maximizado",
+    "openWindow": "Abrir em uma nova janela"
+  },
+  "statusBar": {
+    "synced": "Sincronizado",
+    "pendingChanges": "Alterações pendentes",
+    "syncing": "Sincronizando…",
+    "reconnect": "Reconectar",
+    "resolveConflict": "Resolver conflito",
+    "offline": "Off-line",
+    "syncError": "Erro de sincronização",
+    "lastSynced": "Última sincronização: {{time}}",
+    "unsyncedSince": "Alterações não sincronizadas desde: {{time}}",
+    "lastError": "Último erro: {{error}}",
+    "cloudSyncStatus": "Status da sincronização na nuvem",
+    "connected": "Conectado",
+    "disconnected": "Desconectado",
+    "heartbeat": "Sinal de vida: há {{seconds}}s",
+    "noHeartbeat": "Nenhum sinal de vida recebido",
+    "workerAlive": "Ativo",
+    "workerDead": "Inativo",
+    "tooltip": "Versão do app: {{version}}\nStatus do worker: {{worker}}\nStatus do banco de dados: {{status}}\n{{heartbeat}}"
+  },
+  "storageQuota": {
+    "unavailableChip": "Armazenamento: N/D",
+    "unavailable": "Cota de armazenamento indisponível",
+    "loadingChip": "Carregando...",
+    "loading": "Carregando informações de armazenamento...",
+    "used": "Usado: {{size}}",
+    "available": "Disponível: {{size}}",
+    "information": "Informações de armazenamento",
+    "usageChip": "Armazenamento: {{percent}}",
+    "title": "Uso do armazenamento",
+    "refresh": "Atualizar informações de armazenamento",
+    "percentUsed": "{{percent}} usado",
+    "usageOfQuota": "{{usage}} / {{quota}}",
+    "indexedDb": "IndexedDB: {{size}}",
+    "runningLow": "⚠️ O armazenamento está acabando. Considere exportar e fazer backup dos seus dados.",
+    "notAvailable": "Informações de armazenamento não disponíveis",
+    "bytes": "{{value}} B",
+    "kilobytes": "{{value}} KB",
+    "megabytes": "{{value}} MB",
+    "gigabytes": "{{value}} GB"
+  },
+  "masterDetail": {
+    "backToList": "Voltar à lista",
+    "resizeList": "Redimensionar lista",
+    "emptyDetail": "Selecione um registro para ver os detalhes."
+  },
+  "resetApp": {
+    "button": "Redefinir app",
+    "title": "Redefinir o app para o estado original?",
+    "body": "Isso exclui permanentemente seu banco de dados, configurações e cookies e, em seguida, recarrega o app como se tivesse acabado de ser instalado. Esta ação não pode ser desfeita.",
+    "passwordLabel": "Senha do banco de dados",
+    "passwordHelp": "Digite sua senha para confirmar a redefinição.",
+    "failed": "Falha ao redefinir",
+    "resetting": "Redefinindo…"
+  }
+}

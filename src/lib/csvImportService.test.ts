@@ -395,7 +395,7 @@ describe('csvImportService row parsing', () => {
     expect(mapped).toHaveLength(1);
     expect(mapped[0].transaction.date).toBe('2026-04-26');
     expect(rejected).toEqual([
-      { rowNumber: 1, reason: 'Unrecognized date "Pending" in column "date"' },
+      { rowNumber: 1, reason: { code: 'unrecognizedDate', value: 'Pending', column: 'date' } },
     ]);
   });
 
@@ -409,7 +409,7 @@ describe('csvImportService row parsing', () => {
 
     expect(mapped).toEqual([]);
     expect(rejected).toEqual([
-      { rowNumber: 1, reason: 'Unrecognized amount "n/a" in column "amount"' },
+      { rowNumber: 1, reason: { code: 'unrecognizedAmount', value: 'n/a', column: 'amount' } },
     ]);
   });
 
@@ -450,6 +450,25 @@ describe('csvImportService row parsing', () => {
 
   it.each(['', 'n/a', 'abc', '12.34.56', null, undefined])('returns null for unparseable amount %s', (input) => {
     expect(parseCsvAmount(input)).toBeNull();
+  });
+
+  it.each([
+    ['1.234,56', 1234.56],
+    ['1,234.56', 1234.56],
+    ['12,34', 12.34],
+    ['1,234', 1234],
+    ['€ 1.234.567,89', 1234567.89],
+    ['(1.234,56)', -1234.56],
+  ])('auto-detects the decimal separator for %s', (input, expected) => {
+    expect(parseCsvAmount(input)).toBe(expected);
+  });
+
+  it('honours an explicit decimal-comma convention', () => {
+    expect(parseCsvAmount('1.234', { decimal: ',' })).toBe(1234);
+    expect(parseCsvAmount('1,5', { decimal: ',' })).toBe(1.5);
+    expect(parseCsvAmount('1.5', { decimal: ',' })).toBe(1.5);
+    expect(parseCsvAmount('1,234', { decimal: '.' })).toBe(1234);
+    expect(parseCsvAmount('12,34', { decimal: '.' })).toBe(1234);
   });
 
   it('picks a bank reference column as the unique identifier and ignores headers that merely contain "id"', () => {

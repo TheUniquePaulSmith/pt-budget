@@ -23,7 +23,6 @@ import {
   Typography,
 } from '@mui/material';
 import {
-  AccountBalanceWallet as AppIcon,
   Add as AddTransactionIcon,
   ChevronLeft as CollapseIcon,
   ChevronRight as ExpandIcon,
@@ -31,6 +30,8 @@ import {
   Upload as ImportCsvIcon,
 } from '@mui/icons-material';
 import type { SvgIconProps } from '@mui/material';
+
+import AppLogo from '@/components/common/AppLogo';
 
 import type { PageDefinition, PageId } from './pageRegistry';
 import { APP_BAR_HEIGHT, RAIL_WIDTH_COLLAPSED, RAIL_WIDTH_EXPANDED } from './sidebarPreference';
@@ -169,7 +170,7 @@ export default function SidebarRail({
       >
         {expanded && (
           <>
-            <AppIcon color="primary" fontSize="small" />
+            <AppLogo scale={2} />
             <Typography variant="subtitle2" component="div" noWrap sx={{ fontWeight: 700, flex: 1, minWidth: 0 }}>
               Budget Tracker
             </Typography>

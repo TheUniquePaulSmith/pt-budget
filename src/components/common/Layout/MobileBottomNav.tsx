@@ -22,7 +22,12 @@ import {
   SwipeableDrawer,
   Typography,
 } from '@mui/material';
-import { MoreHoriz as MoreIcon, Storage as ManageDataIcon } from '@mui/icons-material';
+import {
+  Add as AddTransactionIcon,
+  MoreHoriz as MoreIcon,
+  Storage as ManageDataIcon,
+  Upload as ImportCsvIcon,
+} from '@mui/icons-material';
 
 import AiLauncherSlot from './slots/AiLauncherSlot';
 import NotificationBellSlot from './slots/NotificationBellSlot';
@@ -41,6 +46,8 @@ export interface MobileBottomNavProps {
   onMoreOpenChange: (open: boolean) => void;
   onNavigate: (page: PageId) => void;
   onOpenManageData: () => void;
+  onAddTransaction: () => void;
+  onImportCsv: () => void;
   settingsPage: PageDefinition;
   developerConsolePage: PageDefinition;
 }
@@ -53,6 +60,8 @@ export default function MobileBottomNav({
   onMoreOpenChange,
   onNavigate,
   onOpenManageData,
+  onAddTransaction,
+  onImportCsv,
   settingsPage,
   developerConsolePage,
 }: MobileBottomNavProps) {
@@ -123,6 +132,37 @@ export default function MobileBottomNav({
           <Typography variant="overline" color="text.secondary" sx={{ px: 2 }}>
             More
           </Typography>
+          <List dense>
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={() => {
+                  closeSheet();
+                  onAddTransaction();
+                }}
+                data-testid="mobile-add-transaction"
+              >
+                <ListItemIcon>
+                  <AddTransactionIcon />
+                </ListItemIcon>
+                <ListItemText primary="Add Transaction" />
+              </ListItemButton>
+            </ListItem>
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={() => {
+                  closeSheet();
+                  onImportCsv();
+                }}
+                data-testid="mobile-import-csv"
+              >
+                <ListItemIcon>
+                  <ImportCsvIcon />
+                </ListItemIcon>
+                <ListItemText primary="Import CSV" />
+              </ListItemButton>
+            </ListItem>
+          </List>
+          <Divider />
           <List dense>
             {morePages.map((page) => {
               const Icon = page.icon;

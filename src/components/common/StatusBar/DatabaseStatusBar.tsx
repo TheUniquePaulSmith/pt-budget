@@ -183,9 +183,10 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({
         left: 0,
         right: 0,
         zIndex: 1000,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: 'background.default',
         borderRadius: 0,
-        borderTop: '1px solid #e0e0e0',
+        borderTop: '1px solid',
+        borderColor: 'divider',
         py: 0.5,
         px: 2
       }}

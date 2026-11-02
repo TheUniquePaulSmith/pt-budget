@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Box,
+  CircularProgress,
   Typography,
   Paper,
   Tabs,
@@ -163,6 +164,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const [migratingProvider, setMigratingProvider] = useState<CloudProvider | null>(null);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [isLocking, setIsLocking] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const exportInFlightRef = useRef(false);
   const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
   const [lockSyncError, setLockSyncError] = useState<string | null>(null);
 
@@ -232,17 +235,29 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   } = useThemePreferences();
 
   const handleExportData = async () => {
-    const dbData = await exportDatabase();
-    if (dbData) {
-      const blob = new Blob([dbData], { type: 'application/zip' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `budget-tracker-${new Date().toISOString().split('T')[0]}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    // The ref closes the window between a click and the disabled re-render, so a
+    // fast double click cannot start two exports (and download two archives).
+    if (exportInFlightRef.current) {
+      return;
+    }
+    exportInFlightRef.current = true;
+    setIsExporting(true);
+    try {
+      const dbData = await exportDatabase();
+      if (dbData) {
+        const blob = new Blob([dbData], { type: 'application/zip' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `budget-tracker-${new Date().toISOString().split('T')[0]}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } finally {
+      exportInFlightRef.current = false;
+      setIsExporting(false);
     }
   };
 
@@ -800,11 +815,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                 <Stack spacing={2}>
                   <Button
                     variant="contained"
-                    startIcon={<Backup />}
+                    startIcon={isExporting ? <CircularProgress size={18} color="inherit" /> : <Backup />}
                     onClick={handleExportData}
-                    disabled={!isDatabaseLoaded}
+                    disabled={!isDatabaseLoaded || isExporting}
+                    aria-busy={isExporting}
                   >
-                    Export Database
+                    {isExporting ? 'Exporting…' : 'Export Database'}
                   </Button>
                   <Typography variant="body2" color="text.secondary">
                     Downloads a complete backup archive containing the VFS snapshot and dbstatus.json

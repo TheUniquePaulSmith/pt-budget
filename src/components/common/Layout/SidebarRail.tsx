@@ -24,9 +24,11 @@ import {
 } from '@mui/material';
 import {
   AccountBalanceWallet as AppIcon,
+  Add as AddTransactionIcon,
   ChevronLeft as CollapseIcon,
   ChevronRight as ExpandIcon,
   Storage as ManageDataIcon,
+  Upload as ImportCsvIcon,
 } from '@mui/icons-material';
 import type { SvgIconProps } from '@mui/material';
 
@@ -40,6 +42,9 @@ export interface SidebarRailProps {
   onToggleExpanded: () => void;
   onNavigate: (page: PageId) => void;
   onOpenManageData: () => void;
+  /** Quick actions (dialogs, not pages) shown above the page list. */
+  onAddTransaction: () => void;
+  onImportCsv: () => void;
   /** Developer console entry (hidden from the page list, reached from the rail footer). */
   developerConsolePage: PageDefinition;
 }
@@ -49,11 +54,13 @@ interface RailItemProps {
   icon: React.ComponentType<SvgIconProps>;
   expanded: boolean;
   selected?: boolean;
+  /** Filled primary-colour emphasis for the main call to action. */
+  emphasized?: boolean;
   onClick: () => void;
   testId?: string;
 }
 
-function RailItem({ label, icon: Icon, expanded, selected = false, onClick, testId }: RailItemProps) {
+function RailItem({ label, icon: Icon, expanded, selected = false, emphasized = false, onClick, testId }: RailItemProps) {
   const button = (
     <ListItemButton
       onClick={onClick}
@@ -69,9 +76,21 @@ function RailItem({ label, icon: Icon, expanded, selected = false, onClick, test
         mx: 0.75,
         my: 0.25,
         '&.Mui-selected': { bgcolor: 'action.selected' },
+        ...(emphasized && {
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          '&:hover': { bgcolor: 'primary.dark' },
+        }),
       }}
     >
-      <ListItemIcon sx={{ minWidth: 0, mr: expanded ? 1.5 : 0, justifyContent: 'center', color: selected ? 'primary.main' : undefined }}>
+      <ListItemIcon
+        sx={{
+          minWidth: 0,
+          mr: expanded ? 1.5 : 0,
+          justifyContent: 'center',
+          color: emphasized ? 'inherit' : selected ? 'primary.main' : undefined,
+        }}
+      >
         <Icon fontSize="small" />
       </ListItemIcon>
       {expanded && <ListItemText primary={label} slotProps={{ primary: { variant: 'body2', noWrap: true, fontWeight: selected ? 600 : 500 } }} />}
@@ -94,6 +113,8 @@ export default function SidebarRail({
   onToggleExpanded,
   onNavigate,
   onOpenManageData,
+  onAddTransaction,
+  onImportCsv,
   developerConsolePage,
 }: SidebarRailProps) {
   const width = expanded ? RAIL_WIDTH_EXPANDED : RAIL_WIDTH_COLLAPSED;
@@ -160,6 +181,19 @@ export default function SidebarRail({
           </IconButton>
         </Tooltip>
       </Box>
+
+      <List dense disablePadding aria-label="Quick actions" sx={{ py: 0.5, flexShrink: 0 }}>
+        <RailItem
+          label="Add Transaction"
+          icon={AddTransactionIcon}
+          expanded={expanded}
+          emphasized
+          onClick={onAddTransaction}
+          testId="rail-add-transaction"
+        />
+        <RailItem label="Import CSV" icon={ImportCsvIcon} expanded={expanded} onClick={onImportCsv} testId="rail-import-csv" />
+      </List>
+      <Divider />
 
       <Box component="nav" aria-label="Pages" sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 0.5 }}>
         {sections.map((group, index) => (

@@ -183,4 +183,31 @@ describe('SettingsPage theme presets', () => {
 
     expect(localStorage.getItem(THEME_PREFERENCE_STORAGE_KEY)).toBe('compact');
   });
+
+  it('puts Export Database into a processing state so it cannot be started twice', async () => {
+    let finishExport: (value: Uint8Array | null) => void = () => {};
+    const exportDatabase = vi.fn().mockReturnValue(
+      new Promise<Uint8Array | null>((resolve) => {
+        finishExport = resolve;
+      })
+    );
+    mockedUseSettingsSlice.mockReturnValue({ ...mockedUseSettingsSlice(), exportDatabase });
+    renderSettingsPage();
+
+    fireEvent.click(screen.getByRole('tab', { name: /data & backup/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Export Database' }));
+
+    const busyButton = await screen.findByRole('button', { name: /exporting/i });
+    expect(busyButton).toBeDisabled();
+    expect(busyButton).toHaveAttribute('aria-busy', 'true');
+    // Pointer events are blocked on a disabled button, so drive the handler directly.
+    fireEvent.click(busyButton);
+    expect(exportDatabase).toHaveBeenCalledTimes(1);
+
+    finishExport(null);
+
+    const idleButton = await screen.findByRole('button', { name: 'Export Database' });
+    expect(idleButton).toBeEnabled();
+    expect(exportDatabase).toHaveBeenCalledTimes(1);
+  });
 });

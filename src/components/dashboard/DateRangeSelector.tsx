@@ -17,12 +17,7 @@ import {
   Select,
   MenuItem,
 } from '@mui/material';
-import {
-  DateRange,
-  Add,
-  Upload,
-  Download,
-} from '@mui/icons-material';
+import { DateRange } from '@mui/icons-material';
 import { format } from 'date-fns';
 import type { Account, TransactionScopeFilters, User } from '@/types/database';
 
@@ -32,9 +27,6 @@ interface DateRangeSelectorProps {
   customStartDate?: string;
   customEndDate?: string;
   onCustomDateChange?: (start: string, end: string) => void;
-  onExport?: () => void;
-  onAddTransaction?: () => void;
-  onCsvImport?: () => void;
   accounts?: Account[];
   users?: User[];
   scopeFilters?: TransactionScopeFilters;
@@ -47,9 +39,6 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
   customStartDate = '',
   customEndDate = '',
   onCustomDateChange,
-  onExport,
-  onAddTransaction,
-  onCsvImport,
   accounts = [],
   users = [],
   scopeFilters = {},
@@ -93,66 +82,15 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
 
   return (
     <>
-      {/* Header with Actions */}
-      <Box 
-        sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
-          justifyContent: 'space-between',
-          alignItems: { xs: 'stretch', sm: 'center' },
-          mb: 3,
-          gap: { xs: 2, sm: 0 }
-        }}
-      >
-        <Box>
-          <Typography 
-            variant="h4" 
-            component="h1" 
-            fontWeight="bold"
-            sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}
-          >
-            Budget Insights
-          </Typography>
-        </Box>
-        <Stack 
-          direction={{ xs: 'column', sm: 'row' }} 
-          spacing={{ xs: 1, sm: 2 }}
-          sx={{ width: { xs: '100%', sm: 'auto' } }}
+      <Box sx={{ mb: 3 }}>
+        <Typography
+          variant="h4"
+          component="h1"
+          fontWeight="bold"
+          sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}
         >
-          {onExport && (
-            <Button
-              variant="outlined"
-              startIcon={<Download />}
-              onClick={onExport}
-              size="small"
-              sx={{ width: { xs: '100%', sm: 'auto' } }}
-            >
-              Export Data
-            </Button>
-          )}
-          {onCsvImport && (
-            <Button
-              variant="outlined"
-              startIcon={<Upload />}
-              onClick={onCsvImport}
-              size="small"
-              sx={{ width: { xs: '100%', sm: 'auto' } }}
-            >
-              Import CSV
-            </Button>
-          )}
-          {onAddTransaction && (
-            <Button 
-              variant="contained" 
-              startIcon={<Add />}
-              onClick={onAddTransaction}
-              size="small"
-              sx={{ width: { xs: '100%', sm: 'auto' } }}
-            >
-              Add Transaction
-            </Button>
-          )}
-        </Stack>
+          Budget Insights
+        </Typography>
       </Box>
 
       {/* Time Range Selector */}

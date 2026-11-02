@@ -5,8 +5,6 @@ import { Box } from '@mui/material';
 import { useDashboardSlice } from '@/contexts/useDatabaseSlices';
 import { format, parseISO, subDays, subMonths, startOfMonth, endOfMonth, differenceInCalendarDays } from 'date-fns';
 import { todayLocalISO } from '@/lib/dateOnly';
-import AddTransaction from '@/components/transactions/AddTransaction';
-import CSVImport from '@/components/csv-import/CSVImport';
 import NotificationsDashboardCard from '@/components/notifications/NotificationsDashboardCard';
 import DateRangeSelector from './DateRangeSelector';
 import SummaryStats from './SummaryStats';
@@ -25,7 +23,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
     budgetVersion,
     accounts,
     users,
-    exportDatabase,
     getRecentTransactions,
     getDashboardSummary,
     getChartData,
@@ -34,8 +31,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
   } = useDashboardSlice();
 
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year' | 'custom'>('month');
-  const [addTransactionOpen, setAddTransactionOpen] = useState(false);
-  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
@@ -119,21 +114,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
     return () => { cancelled = true; };
   }, [budgetVersion, transactionVersion, getBudgetStatus]);
 
-  const handleExportDatabase = async () => {
-    const dbData = await exportDatabase();
-    if (dbData) {
-      const blob = new Blob([dbData as any], { type: 'application/zip' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `budget-tracker-${format(new Date(), 'yyyy-MM-dd')}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-  };
-
   const getTimeRangeLabel = () => {
     switch (timeRange) {
       case 'week': return 'This Week';
@@ -164,9 +144,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
         customStartDate={customStartDate}
         customEndDate={customEndDate}
         onCustomDateChange={handleCustomDateChange}
-        onExport={handleExportDatabase}
-        onAddTransaction={() => setAddTransactionOpen(true)}
-        onCsvImport={() => setCsvImportOpen(true)}
         accounts={accounts}
         users={users}
         scopeFilters={scopeFilters}
@@ -205,18 +182,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget }) => {
         onLimitChange={setRecentTransactionsLimit}
         onSetComment={setTransactionComment}
         budgetedCategoryIds={budgetedCategoryIds}
-      />
-
-      <AddTransaction
-        open={addTransactionOpen}
-        onClose={() => setAddTransactionOpen(false)}
-        onSuccess={() => setAddTransactionOpen(false)}
-      />
-
-      <CSVImport
-        open={csvImportOpen}
-        onClose={() => setCsvImportOpen(false)}
-        onSuccess={() => setCsvImportOpen(false)}
       />
     </Box>
   );

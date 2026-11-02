@@ -51,6 +51,14 @@ vi.mock('@/components/ai/AiSidePanel', () => ({
 }));
 vi.mock('@/components/common/StatusBar/DatabaseStatusBar', () => stub('database-status-bar'));
 vi.mock('@/components/data-management/ManageData', () => stub('manage-data'));
+vi.mock('@/components/transactions/AddTransaction', () => ({
+  default: ({ open }: { open: boolean }) => (
+    <div data-testid="add-transaction-dialog" data-open={String(open)} />
+  ),
+}));
+vi.mock('@/components/csv-import/CSVImport', () => ({
+  default: ({ open }: { open: boolean }) => <div data-testid="csv-import-dialog" data-open={String(open)} />,
+}));
 const runtimeMounts = vi.hoisted(() => ({ count: 0 }));
 vi.mock('@/components/notifications/NotificationsRuntime', () => {
   function NotificationsRuntimeStub() {
@@ -161,6 +169,31 @@ describe('AppContent shell', () => {
     expect(screen.getByTestId('ai-side-panel')).toHaveAttribute('data-open', 'true');
   });
 
+  it('opens Add Transaction and Import CSV from the rail on any page', async () => {
+    render(<AppContent />);
+
+    const rail = screen.getByTestId('sidebar-rail');
+    expect(screen.getByTestId('add-transaction-dialog')).toHaveAttribute('data-open', 'false');
+    expect(screen.getByTestId('csv-import-dialog')).toHaveAttribute('data-open', 'false');
+
+    fireEvent.click(within(rail).getByRole('button', { name: 'Add Transaction' }));
+    expect(screen.getByTestId('add-transaction-dialog')).toHaveAttribute('data-open', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trips' }));
+    await screen.findByTestId('page-trips');
+    fireEvent.click(within(rail).getByRole('button', { name: 'Import CSV' }));
+    expect(screen.getByTestId('csv-import-dialog')).toHaveAttribute('data-open', 'true');
+  });
+
+  it('keeps the quick actions reachable, name intact, when the rail is collapsed', () => {
+    window.localStorage.setItem(SIDEBAR_EXPANDED_STORAGE_KEY, 'false');
+    render(<AppContent />);
+
+    const rail = screen.getByTestId('sidebar-rail');
+    expect(within(rail).getByTestId('rail-add-transaction')).toHaveAccessibleName('Add Transaction');
+    expect(within(rail).getByTestId('rail-import-csv')).toHaveAccessibleName('Import CSV');
+  });
+
   it('opens settings full-screen and returns to the previous page on close', async () => {
     render(<AppContent />);
 
@@ -254,6 +287,21 @@ describe('AppContent shell', () => {
     expect(within(sheet).getByTestId('ai-launcher-menu-item')).toBeInTheDocument();
     fireEvent.click(within(sheet).getByTestId('nav-sql-query'));
     expect(await screen.findByTestId('page-sql-query')).toBeInTheDocument();
+  });
+
+  it('offers Add Transaction and Import CSV in the More sheet on phones', async () => {
+    installMatchMedia(true);
+    render(<AppContent />);
+
+    fireEvent.click(screen.getByTestId('nav-more'));
+    const sheet = await screen.findByTestId('mobile-more-sheet');
+    fireEvent.click(within(sheet).getByTestId('mobile-add-transaction'));
+    expect(screen.getByTestId('add-transaction-dialog')).toHaveAttribute('data-open', 'true');
+
+    fireEvent.click(screen.getByTestId('nav-more'));
+    const reopened = await screen.findByTestId('mobile-more-sheet');
+    fireEvent.click(within(reopened).getByTestId('mobile-import-csv'));
+    expect(screen.getByTestId('csv-import-dialog')).toHaveAttribute('data-open', 'true');
   });
 
   it('collapses the rail to icons that keep their accessible names and remembers the choice', async () => {

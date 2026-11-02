@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 
-import { DatasetOutlined, CloudSync, CreateNewFolder, Upload } from '@mui/icons-material';
+import { CloudSync, CreateNewFolder, Upload } from '@mui/icons-material';
 import {
   Alert,
   Box,
@@ -15,6 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 
+import AppLogo from '@/components/common/AppLogo';
 import { PasswordSetup } from './PasswordSetup';
 import { InitialAccount } from './InitialAccount';
 import { PasswordEntry } from './PasswordEntry';
@@ -256,7 +257,9 @@ export function DatabaseInitializationGate({
     return (
       <Box sx={centeredBoxSx}>
         <Paper sx={{ p: 4, maxWidth: 560, textAlign: 'center' }}>
-          <DatasetOutlined sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+            <AppLogo scale={6} />
+          </Box>
           <Typography variant="h4" gutterBottom>
             Welcome to Budget Tracker
           </Typography>

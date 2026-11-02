@@ -12,6 +12,7 @@ import { AppBar, Box, IconButton, Toolbar, Tooltip, Typography, useMediaQuery, u
 import { Settings as SettingsIcon } from '@mui/icons-material';
 
 import { useAiPanel } from '@/components/ai/AiPanelProvider';
+import AppLogo from '@/components/common/AppLogo';
 import CSVImport from '@/components/csv-import/CSVImport';
 import ManageData from '@/components/data-management/ManageData';
 import DatabaseStatusBar from '@/components/common/StatusBar/DatabaseStatusBar';
@@ -149,6 +150,8 @@ export default function AppShell() {
               sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}
             >
               <Toolbar variant="dense" sx={{ minHeight: APP_BAR_HEIGHT, px: { xs: 1.5, md: 2 } }}>
+                {/* Phones have no rail, so the logo lives in the app bar instead. */}
+                {isMobile && <AppLogo scale={2} style={{ marginRight: 12 }} />}
                 {/* Not a heading: pages own their own h1/h4 and the e2e suite asserts on those. */}
                 <Typography
                   variant="subtitle1"

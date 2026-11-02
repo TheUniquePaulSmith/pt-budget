@@ -1,0 +1,57 @@
+{
+  "page": {
+    "title": "SQL 쿼리 콘솔",
+    "sampleQueries": "샘플 쿼리",
+    "queryHeading": "SQL 쿼리",
+    "enterQuery": "SQL 쿼리를 입력하세요",
+    "databaseNotLoaded": "데이터베이스가 로드되지 않았어요",
+    "unknownError": "알 수 없는 오류가 발생했어요",
+    "formatFailed": "쿼리 서식 지정 실패: {{message}}",
+    "formatFailedPlain": "쿼리 서식을 지정하지 못했어요",
+    "schemaUnavailable": "자동 완성과 스키마 검사를 사용할 수 없어요: {{error}}",
+    "schemaLoadFailed": "데이터베이스 스키마를 불러오지 못했어요",
+    "moreIssues_other": "+문제 {{count}}건 더",
+    "timeLimit": "시간 제한",
+    "timeoutSeconds_other": "{{count}}초",
+    "timeoutMinutes_other": "{{count}}분",
+    "noLimit": "제한 없음",
+    "executing": "실행 중...",
+    "execute": "쿼리 실행",
+    "format": "서식 지정",
+    "hint": "Ctrl+Enter(Mac에서는 Cmd+Enter)로 쿼리를 실행해요. 구문, 스키마, SELECT 전용 검사는 데이터베이스로 보내기 전에 로컬에서 실행돼요.",
+    "historyTitle": "쿼리 이력 ({{count}})",
+    "historyRows_other": "({{count}}행)",
+    "historyError": "오류: {{message}}",
+    "use": "사용",
+    "results": "쿼리 결과",
+    "resultRows_other": "{{count}}행",
+    "executionTime": "{{ms}}ms",
+    "noRows": "쿼리는 성공했지만 반환된 행이 없어요."
+  },
+  "editor": {
+    "placeholder": "여기에 SQL 쿼리를 입력하세요..."
+  },
+  "samplesDrawer": {
+    "title": "샘플 쿼리",
+    "close": "샘플 쿼리 닫기",
+    "copy": "클립보드에 복사",
+    "useQuery": "쿼리 사용"
+  },
+  "samples": {
+    "allTransactions": "모든 거래",
+    "summaryByCategory": "카테고리별 거래 요약",
+    "monthlySpending": "월별 지출 합계",
+    "topExpenseCategories": "상위 10개 지출 카테고리",
+    "schemaTables": "데이터베이스 스키마 - 테이블",
+    "schemaColumns": "데이터베이스 스키마 - 열"
+  },
+  "analysis": {
+    "unableToParse": "쿼리를 분석할 수 없어요.",
+    "syntaxError": "구문 오류: {{message}}",
+    "multipleStatements": "여러 문이 감지됐어요. 첫 번째 문만 실행돼요.",
+    "onlySelectBlocking": "이 페이지는 SELECT 쿼리만 실행해요. {{statement}} 문을 제거하세요.",
+    "onlySelectIssue": "여기서는 SELECT 쿼리만 허용돼요({{statement}} 발견).",
+    "unknownTable": "알 수 없는 테이블 \"{{table}}\".",
+    "unknownColumn": "테이블 \"{{table}}\"에 열 \"{{column}}\"이(가) 없어요."
+  }
+}

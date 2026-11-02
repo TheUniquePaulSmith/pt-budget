@@ -1,0 +1,18 @@
+{
+  "page": {
+    "headline": "Cette page a été dépensée",
+    "body": "Nous avons audité tous les comptes et cette adresse ne figure pas dans les livres. Ses fonds se sont fait pousser des ailes et ont quitté le bâtiment.",
+    "home": "Retour au budget",
+    "back": "Page précédente"
+  },
+  "recorder": {
+    "aria": "D'où vous venez",
+    "title": "Boîte noire",
+    "loading": "Consultation de la boîte noire…",
+    "requested": "Vous avez demandé",
+    "sender": "Envoyé par",
+    "event": "Ce qui s'est passé",
+    "campaign": "Étiqueté avec",
+    "privacy": "Calculé dans votre navigateur à partir de ce qu'il sait déjà. Rien n'a été envoyé nulle part."
+  }
+}

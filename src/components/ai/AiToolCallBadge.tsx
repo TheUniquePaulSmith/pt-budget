@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Box, Chip, Collapse, Typography } from '@mui/material';
 import { ExpandLess, ExpandMore } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import type { AiToolCallRecord } from '@/types/ai';
 
@@ -34,25 +35,26 @@ interface AiToolCallBadgeProps {
   toolCall: AiToolCallRecord;
 }
 
-function badgeLabel(toolCall: AiToolCallRecord): string {
-  switch (toolCall.status) {
-    case 'awaiting-consent':
-      return `Waiting for consent: ${toolCall.name}`;
-    case 'running':
-      return `Running ${toolCall.name}`;
-    case 'denied':
-      return `Denied ${toolCall.name}`;
-    case 'failed':
-      return `Failed ${toolCall.name}`;
-    default:
-      return `Used ${toolCall.name}`;
-  }
-}
-
 export default function AiToolCallBadge({ toolCall }: AiToolCallBadgeProps) {
+  const { t } = useTranslation(['ai', 'common']);
   const [expanded, setExpanded] = useState(false);
   const failed = toolCall.status === 'failed';
   const denied = toolCall.status === 'denied';
+
+  const badgeLabel = (): string => {
+    switch (toolCall.status) {
+      case 'awaiting-consent':
+        return t('toolCallBadge.awaitingConsent', { name: toolCall.name });
+      case 'running':
+        return t('toolCallBadge.running', { name: toolCall.name });
+      case 'denied':
+        return t('toolCallBadge.denied', { name: toolCall.name });
+      case 'failed':
+        return t('toolCallBadge.failed', { name: toolCall.name });
+      default:
+        return t('toolCallBadge.used', { name: toolCall.name });
+    }
+  };
 
   return (
     <Box>
@@ -63,7 +65,7 @@ export default function AiToolCallBadge({ toolCall }: AiToolCallBadgeProps) {
         color={failed ? 'error' : denied ? 'warning' : 'default'}
         onClick={() => setExpanded((current) => !current)}
         icon={expanded ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
-        label={badgeLabel(toolCall)}
+        label={badgeLabel()}
         sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}
         aria-expanded={expanded}
         data-testid={`ai-tool-call-${toolCall.name}`}
@@ -81,7 +83,7 @@ export default function AiToolCallBadge({ toolCall }: AiToolCallBadgeProps) {
           }}
         >
           <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, mb: 0.25 }}>
-            Input
+            {t('toolCallBadge.input')}
           </Typography>
           <Box
             component="pre"
@@ -93,7 +95,7 @@ export default function AiToolCallBadge({ toolCall }: AiToolCallBadgeProps) {
             variant="caption"
             sx={{ display: 'block', fontWeight: 600, mb: 0.25, color: failed || denied ? 'error.main' : 'text.primary' }}
           >
-            {failed || denied ? 'Error' : 'Output'}
+            {failed || denied ? t('common:status.error') : t('toolCallBadge.output')}
           </Typography>
           <Box
             component="pre"
@@ -106,7 +108,7 @@ export default function AiToolCallBadge({ toolCall }: AiToolCallBadgeProps) {
               color: failed || denied ? 'error.main' : 'text.primary',
             }}
           >
-            {failed || denied ? toolCall.error ?? 'Unknown error' : formatResult(toolCall.result)}
+            {failed || denied ? toolCall.error ?? t('toolCallBadge.unknownError') : formatResult(toolCall.result)}
           </Box>
         </Box>
       </Collapse>

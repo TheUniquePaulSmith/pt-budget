@@ -1,0 +1,62 @@
+{
+  "page": {
+    "title": "SQL-Abfragekonsole",
+    "sampleQueries": "Beispielabfragen",
+    "queryHeading": "SQL-Abfrage",
+    "enterQuery": "Bitte geben Sie eine SQL-Abfrage ein",
+    "databaseNotLoaded": "Datenbank nicht geladen",
+    "unknownError": "Unbekannter Fehler aufgetreten",
+    "formatFailed": "Abfrage konnte nicht formatiert werden: {{message}}",
+    "formatFailedPlain": "Abfrage konnte nicht formatiert werden",
+    "schemaUnavailable": "Autovervollständigung und Schemaprüfungen sind nicht verfügbar: {{error}}",
+    "schemaLoadFailed": "Datenbankschema konnte nicht geladen werden",
+    "moreIssues_one": "+{{count}} weiteres Problem",
+    "moreIssues_other": "+{{count}} weitere Probleme",
+    "timeLimit": "Zeitlimit",
+    "timeoutSeconds_one": "{{count}} Sekunde",
+    "timeoutSeconds_other": "{{count}} Sekunden",
+    "timeoutMinutes_one": "{{count}} Minute",
+    "timeoutMinutes_other": "{{count}} Minuten",
+    "noLimit": "Kein Limit",
+    "executing": "Wird ausgeführt...",
+    "execute": "Abfrage ausführen",
+    "format": "Formatieren",
+    "hint": "Strg+Enter (Cmd+Enter auf dem Mac) führt die Abfrage aus. Syntax-, Schema- und SELECT-only-Prüfungen laufen lokal, bevor etwas an die Datenbank gesendet wird.",
+    "historyTitle": "Abfrageverlauf ({{count}})",
+    "historyRows_one": "({{count}} Zeile)",
+    "historyRows_other": "({{count}} Zeilen)",
+    "historyError": "Fehler: {{message}}",
+    "use": "Verwenden",
+    "results": "Abfrageergebnisse",
+    "resultRows_one": "{{count}} Zeile",
+    "resultRows_other": "{{count}} Zeilen",
+    "executionTime": "{{ms}} ms",
+    "noRows": "Die Abfrage wurde erfolgreich ausgeführt, hat aber keine Zeilen zurückgegeben."
+  },
+  "editor": {
+    "placeholder": "Geben Sie hier Ihre SQL-Abfrage ein..."
+  },
+  "samplesDrawer": {
+    "title": "Beispielabfragen",
+    "close": "Beispielabfragen schließen",
+    "copy": "In die Zwischenablage kopieren",
+    "useQuery": "Abfrage verwenden"
+  },
+  "samples": {
+    "allTransactions": "Alle Transaktionen",
+    "summaryByCategory": "Transaktionsübersicht nach Kategorie",
+    "monthlySpending": "Monatliche Ausgabensummen",
+    "topExpenseCategories": "Top 10 Ausgabenkategorien",
+    "schemaTables": "Datenbankschema – Tabellen",
+    "schemaColumns": "Datenbankschema – Spalten"
+  },
+  "analysis": {
+    "unableToParse": "Die Abfrage konnte nicht geparst werden.",
+    "syntaxError": "Syntaxfehler: {{message}}",
+    "multipleStatements": "Mehrere Anweisungen erkannt – nur die erste Anweisung wird ausgeführt.",
+    "onlySelectBlocking": "Diese Seite führt nur SELECT-Abfragen aus – entfernen Sie die {{statement}}-Anweisung.",
+    "onlySelectIssue": "Hier sind nur SELECT-Abfragen erlaubt ({{statement}} gefunden).",
+    "unknownTable": "Unbekannte Tabelle „{{table}}“.",
+    "unknownColumn": "Die Spalte „{{column}}“ wurde in der Tabelle „{{table}}“ nicht gefunden."
+  }
+}

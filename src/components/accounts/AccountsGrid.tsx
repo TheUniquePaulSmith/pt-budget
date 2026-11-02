@@ -4,15 +4,17 @@ import React, { useMemo } from 'react';
 import { Box, Chip, List, ListItemButton, ListItemText, Stack, Typography } from '@mui/material';
 import { CheckCircleOutline, CreditCard as CardIcon, RemoveCircleOutline, Star as StarIcon } from '@mui/icons-material';
 import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
+import { useFormatters } from '@/contexts/useFormatters';
 import type { Account, AccountCard, User } from '@/types/database';
 import {
   accountInstitutionDisplay,
   accountTypeLabel,
   compareInstitutions,
-  formatCurrency,
   ownerDisplayName,
+  type AccountsT,
 } from './accountDisplay';
 
 export interface AccountsGridRow {
@@ -25,6 +27,7 @@ export interface AccountsGridRow {
   ownership: Account['ownership'];
   cards: AccountCard[];
   openingBalance: number;
+  currency: string;
   isActive: boolean;
   includeInNetWorth: boolean;
   account: Account;
@@ -44,18 +47,20 @@ export interface AccountsGridProps {
 export function buildAccountsGridRows(
   accounts: Account[],
   users: User[],
-  cardsByAccountId: Record<number, AccountCard[]>
+  cardsByAccountId: Record<number, AccountCard[]>,
+  t: AccountsT
 ): AccountsGridRow[] {
   return accounts.map((account) => ({
     id: account.id,
     name: account.name,
     type: account.type,
-    typeLabel: accountTypeLabel(account.type),
+    typeLabel: accountTypeLabel(account.type, t),
     institution: accountInstitutionDisplay(account),
-    owner: ownerDisplayName(account, users),
+    owner: ownerDisplayName(account, users, t),
     ownership: account.ownership,
     cards: cardsByAccountId[account.id] ?? [],
     openingBalance: Number(account.opening_balance ?? 0),
+    currency: account.currency ?? 'USD',
     isActive: (account.is_active ?? 1) === 1,
     includeInNetWorth: (account.include_in_net_worth ?? 1) === 1,
     account,
@@ -63,10 +68,11 @@ export function buildAccountsGridRows(
 }
 
 function CardChips({ cards }: { cards: AccountCard[] }) {
+  const { t } = useTranslation(['accounts', 'common']);
   if (cards.length === 0) {
     return (
       <Typography variant="caption" color="text.secondary">
-        No cards
+        {t('grid.noCards')}
       </Typography>
     );
   }
@@ -86,11 +92,12 @@ function CardChips({ cards }: { cards: AccountCard[] }) {
   );
 }
 
-const COLUMNS: GridColDef<AccountsGridRow>[] = [
-  { field: 'name', headerName: 'Account', flex: 1.2, minWidth: 160 },
+function buildColumns(money: (amount: number, currency?: string | null) => string, t: AccountsT): GridColDef<AccountsGridRow>[] {
+  return [
+  { field: 'name', headerName: t('grid.columnAccount'), flex: 1.2, minWidth: 160 },
   {
     field: 'typeLabel',
-    headerName: 'Type',
+    headerName: t('grid.columnType'),
     minWidth: 120,
     renderCell: (params) => (
       <Chip size="small" label={params.row.typeLabel} color={params.row.type === 'credit' ? 'secondary' : 'default'} variant="outlined" />
@@ -98,26 +105,25 @@ const COLUMNS: GridColDef<AccountsGridRow>[] = [
   },
   {
     field: 'institution',
-    headerName: 'Institution',
+    headerName: t('grid.columnInstitution'),
     flex: 0.9,
     minWidth: 130,
     sortComparator: (a, b) => compareInstitutions(String(a), String(b)),
   },
   {
     field: 'owner',
-    headerName: 'Owner',
+    headerName: t('grid.columnOwner'),
     flex: 0.8,
     minWidth: 120,
     renderCell: (params) => (
       <Typography variant="body2" noWrap>
-        {params.row.owner}
-        {params.row.ownership === 'joint' ? ' (joint)' : ''}
+        {params.row.ownership === 'joint' ? t('grid.ownerJoint', { owner: params.row.owner }) : params.row.owner}
       </Typography>
     ),
   },
   {
     field: 'cards',
-    headerName: 'Cards',
+    headerName: t('grid.columnCards'),
     sortable: false,
     filterable: false,
     flex: 1,
@@ -125,41 +131,48 @@ const COLUMNS: GridColDef<AccountsGridRow>[] = [
     renderCell: (params) => <CardChips cards={params.row.cards} />,
   },
   {
+    field: 'currency',
+    headerName: t('grid.columnCurrency'),
+    width: 100,
+    renderCell: (params) => <Chip size="small" variant="outlined" label={params.row.currency} />,
+  },
+  {
     field: 'openingBalance',
-    headerName: 'Opening',
+    headerName: t('grid.columnOpening'),
     type: 'number',
     align: 'right',
     headerAlign: 'right',
     minWidth: 110,
-    valueFormatter: (value) => formatCurrency(Number(value)),
+    valueFormatter: (value, row) => money(Number(value), row.currency),
   },
   {
     field: 'isActive',
-    headerName: 'Active',
+    headerName: t('grid.columnActive'),
     type: 'boolean',
     width: 90,
     renderCell: (params) =>
       params.row.isActive ? (
-        <CheckCircleOutline fontSize="small" color="success" titleAccess="Active" />
+        <CheckCircleOutline fontSize="small" color="success" titleAccess={t('grid.activeTitle')} />
       ) : (
-        <RemoveCircleOutline fontSize="small" color="disabled" titleAccess="Closed" />
+        <RemoveCircleOutline fontSize="small" color="disabled" titleAccess={t('grid.closedTitle')} />
       ),
   },
   {
     field: 'includeInNetWorth',
-    headerName: 'Net worth',
+    headerName: t('grid.columnNetWorth'),
     type: 'boolean',
     width: 100,
     renderCell: (params) =>
       params.row.includeInNetWorth ? (
-        <StarIcon fontSize="small" color="warning" titleAccess="Counted in net worth" />
+        <StarIcon fontSize="small" color="warning" titleAccess={t('grid.countedInNetWorth')} />
       ) : (
         <Typography variant="caption" color="text.secondary">
-          Excluded
+          {t('grid.excluded')}
         </Typography>
       ),
   },
-];
+  ];
+}
 
 export default function AccountsGrid({
   accounts,
@@ -170,14 +183,17 @@ export default function AccountsGrid({
   variant = 'grid',
   height = '100%',
 }: AccountsGridProps) {
-  const rows = useMemo(() => buildAccountsGridRows(accounts, users, cardsByAccountId), [accounts, users, cardsByAccountId]);
+  const { t } = useTranslation(['accounts', 'common']);
+  const { money } = useFormatters();
+  const columns = useMemo(() => buildColumns(money, t), [money, t]);
+  const rows = useMemo(() => buildAccountsGridRows(accounts, users, cardsByAccountId, t), [accounts, users, cardsByAccountId, t]);
 
   if (variant === 'list') {
     return (
       <List dense disablePadding data-testid="accounts-list">
         {rows.length === 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
-            No accounts yet. Add your first account to get started.
+            {t('grid.empty')}
           </Typography>
         )}
         {rows.map((row) => (
@@ -195,7 +211,7 @@ export default function AccountsGrid({
                   <Typography variant="subtitle2" noWrap sx={{ minWidth: 0 }}>
                     {row.name}
                   </Typography>
-                  {!row.isActive && <Chip size="small" label="Closed" />}
+                  {!row.isActive && <Chip size="small" label={t('common:status.closed')} />}
                 </Box>
               }
               secondary={
@@ -219,9 +235,9 @@ export default function AccountsGrid({
   return (
     <AppDataGrid<AccountsGridRow>
       rows={rows}
-      columns={COLUMNS}
+      columns={columns}
       height={height}
-      emptyMessage="No accounts yet. Add your first account to get started."
+      emptyMessage={t('grid.empty')}
       hideFooter={rows.length <= 25}
       disableRowSelectionOnClick={false}
       rowSelectionModel={selectedAccountId == null ? { type: 'include', ids: new Set() } : { type: 'include', ids: new Set([selectedAccountId]) }}

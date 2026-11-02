@@ -8,15 +8,16 @@ import {
 } from '@mui/material';
 import {
   Circle,
-  Storage,
-  Computer,
   Warning,
   CloudDone,
   CloudQueue,
   CloudSync,
   CloudOff,
 } from '@mui/icons-material';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { databaseWorkerService, WorkerStatus } from '@/lib/databaseWorkerService';
+import { useFormatters } from '@/contexts/useFormatters';
 import type { AutoSyncSnapshot } from '@/lib/cloudAutoSyncScheduler';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || 'dev';
@@ -38,34 +39,35 @@ interface SyncChipConfig {
 
 function getSyncChipConfig(
   syncStatus: AutoSyncSnapshot,
-  handlers: { onSyncNow?: () => void; onReconnect?: () => void; onResolveConflict?: () => void }
+  handlers: { onSyncNow?: () => void; onReconnect?: () => void; onResolveConflict?: () => void },
+  t: TFunction<'shell'>
 ): SyncChipConfig | null {
   switch (syncStatus.state) {
     case 'idle':
-      return { label: 'Synced', icon: <CloudDone fontSize="small" />, color: '#4caf50' };
+      return { label: t('statusBar.synced'), icon: <CloudDone fontSize="small" />, color: '#4caf50' };
     case 'pending':
-      return { label: 'Pending changes', icon: <CloudQueue fontSize="small" />, color: '#ff9800' };
+      return { label: t('statusBar.pendingChanges'), icon: <CloudQueue fontSize="small" />, color: '#ff9800' };
     case 'syncing':
-      return { label: 'Syncing…', icon: <CloudSync fontSize="small" />, color: '#2196f3' };
+      return { label: t('statusBar.syncing'), icon: <CloudSync fontSize="small" />, color: '#2196f3' };
     case 'paused-auth':
       return {
-        label: 'Reconnect',
+        label: t('statusBar.reconnect'),
         icon: <CloudOff fontSize="small" />,
         color: '#f44336',
         onClick: handlers.onReconnect,
       };
     case 'paused-conflict':
       return {
-        label: 'Resolve conflict',
+        label: t('statusBar.resolveConflict'),
         icon: <Warning fontSize="small" />,
         color: '#f44336',
         onClick: handlers.onResolveConflict,
       };
     case 'offline':
-      return { label: 'Offline', icon: <CloudOff fontSize="small" />, color: '#9e9e9e' };
+      return { label: t('statusBar.offline'), icon: <CloudOff fontSize="small" />, color: '#9e9e9e' };
     case 'error':
       return {
-        label: 'Sync error',
+        label: t('statusBar.syncError'),
         icon: <Warning fontSize="small" />,
         color: '#f44336',
         onClick: handlers.onSyncNow,
@@ -76,18 +78,22 @@ function getSyncChipConfig(
   }
 }
 
-function getSyncTooltipText(syncStatus: AutoSyncSnapshot): string {
+function getSyncTooltipText(
+  syncStatus: AutoSyncSnapshot,
+  t: TFunction<'shell'>,
+  dateTime: (value: string | number | Date) => string
+): string {
   const lines: string[] = [];
   if (syncStatus.lastSyncAt) {
-    lines.push(`Last synced: ${new Date(syncStatus.lastSyncAt).toLocaleString()}`);
+    lines.push(t('statusBar.lastSynced', { time: dateTime(syncStatus.lastSyncAt) }));
   }
   if (syncStatus.pendingSince) {
-    lines.push(`Unsynced changes since: ${new Date(syncStatus.pendingSince).toLocaleString()}`);
+    lines.push(t('statusBar.unsyncedSince', { time: dateTime(syncStatus.pendingSince) }));
   }
   if (syncStatus.lastError) {
-    lines.push(`Last error: ${syncStatus.lastError}`);
+    lines.push(t('statusBar.lastError', { error: syncStatus.lastError }));
   }
-  return lines.join('\n') || 'Cloud sync status';
+  return lines.join('\n') || t('statusBar.cloudSyncStatus');
 }
 
 const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({
@@ -97,6 +103,8 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({
   onReconnectCloudSource,
   onResolveCloudConflict,
 }) => {
+  const { t } = useTranslation('shell');
+  const { dateTime } = useFormatters();
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -109,43 +117,32 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({
     return '#9e9e9e'; // Gray for unknown
   };
 
-  const getStatusText = () => {
-    if (!status.isWorkerAlive) return 'Worker Disconnected';
-    if (status.dbStatus === 'connected') return 'Database Connected';
-    if (status.dbStatus === 'initialized') return 'Database Initialized';
-    if (status.dbStatus === 'error') return 'Database Error';
-    return 'Database Disconnected';
-  };
-
-  const getStatusIcon = () => {
-    if (!status.isWorkerAlive) return <Warning fontSize="small" />;
-    if (status.dbStatus === 'connected') return <Storage fontSize="small" />;
-    if (status.dbStatus === 'initialized') return <Computer fontSize="small" />;
-    if (status.dbStatus === 'error') return <Warning fontSize="small" />;
-    return <Circle fontSize="small" />;
-  };
-
   const getTooltipText = () => {
     const timeSinceHeartbeat = status.lastHeartbeat
       ? Math.max(0, currentTime - status.lastHeartbeat)
       : 0;
     const heartbeatText = status.lastHeartbeat
-      ? `Heartbeat: ${Math.floor(timeSinceHeartbeat / 1000)}s ago`
-      : 'No heartbeat received';
+      ? t('statusBar.heartbeat', { seconds: Math.floor(timeSinceHeartbeat / 1000) })
+      : t('statusBar.noHeartbeat');
 
-    return `App Version: ${APP_VERSION}
-      Worker Status: ${status.isWorkerAlive ? 'Alive' : 'Dead'}
-      Database Status: ${status.dbStatus}
-      ${heartbeatText}
-    `;
+    return t('statusBar.tooltip', {
+      version: APP_VERSION,
+      worker: status.isWorkerAlive ? t('statusBar.workerAlive') : t('statusBar.workerDead'),
+      status: status.dbStatus,
+      heartbeat: heartbeatText,
+    });
   };
 
   const syncChipConfig = syncStatus
-    ? getSyncChipConfig(syncStatus, {
-        onSyncNow,
-        onReconnect: onReconnectCloudSource,
-        onResolveConflict: onResolveCloudConflict,
-      })
+    ? getSyncChipConfig(
+        syncStatus,
+        {
+          onSyncNow,
+          onReconnect: onReconnectCloudSource,
+          onResolveConflict: onResolveCloudConflict,
+        },
+        t
+      )
     : null;
 
   // Keep currentTime in sync with the freshest heartbeat immediately, rather than
@@ -200,29 +197,11 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {/* Empty box to align status bar to right */}
         </Box>
-        {/* <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Tooltip title={getTooltipText()} arrow>
-            <Chip
-              icon={getStatusIcon()}
-              label={getStatusText()}
-              size="small"
-              sx={{
-                backgroundColor: getStatusColor(),
-                color: 'white',
-                '& .MuiChip-icon': {
-                  color: 'white',
-                },
-                fontSize: '0.75rem',
-                height: 24,
-              }}
-            />
-          </Tooltip>
-        </Box> */}
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {syncChipConfig && (
             <Tooltip
-              title={syncStatus ? getSyncTooltipText(syncStatus) : ''}
+              title={syncStatus ? getSyncTooltipText(syncStatus, t, dateTime) : ''}
               arrow
               componentsProps={{
                 tooltip: {
@@ -287,7 +266,7 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({
                   style={{cursor: 'pointer'}}
                   data-testid="database-status-text"
                 >
-                  {status.isConnected ? 'Connected' : 'Disconnected'}
+                  {status.isConnected ? t('statusBar.connected') : t('statusBar.disconnected')}
                 </Typography>
               </Tooltip>
             </Box>

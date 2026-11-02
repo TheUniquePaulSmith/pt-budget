@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Button, Typography, useMediaQuery } from '@mui/material';
 import { AccountBalanceWalletOutlined as HomeIcon, ArrowBack as BackIcon } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import {
   describeNotFoundOrigin,
@@ -40,6 +41,7 @@ const VISUALLY_HIDDEN = {
  * `404.html`) through NotFoundLoader, so it only ever runs in the browser.
  */
 export default function NotFoundExperience() {
+  const { t } = useTranslation('notFound');
   const [seed] = useState(() => Math.floor(Math.random() * 0xffffffff));
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [report, setReport] = useState<NotFoundOriginReport | null>(null);
@@ -91,14 +93,13 @@ export default function NotFoundExperience() {
             <Box component="span" sx={VISUALLY_HIDDEN}>
               404:{' '}
             </Box>
-            This page has been spent
+            {t('page.headline')}
           </Typography>
           <Typography
             variant="body1"
             sx={{ mt: 1.5, color: 'rgba(255, 255, 255, 0.82)', textShadow: '0 1px 0 rgba(0, 0, 0, 0.5)' }}
           >
-            We audited every account and this address isn&apos;t on the books. Its funds sprouted wings and left the
-            building.
+            {t('page.body')}
           </Typography>
         </Box>
 
@@ -106,7 +107,7 @@ export default function NotFoundExperience() {
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, justifyContent: 'center' }}>
           <Button variant="contained" href="/" startIcon={<HomeIcon />} data-testid="not-found-home">
-            Back to the budget
+            {t('page.home')}
           </Button>
           {canGoBack && (
             <Button
@@ -117,7 +118,7 @@ export default function NotFoundExperience() {
               data-testid="not-found-back"
               sx={{ borderColor: 'rgba(255, 255, 255, 0.4)' }}
             >
-              Go back
+              {t('page.back')}
             </Button>
           )}
         </Box>

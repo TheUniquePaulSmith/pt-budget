@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Button, Stack, Typography } from '@mui/material';
 import { Edit } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { useBudgetFundsSlice, useBudgetPageSlice } from '@/contexts/useDatabaseSlices';
 import { asCarryStatus, currentMonthKey, periodMonthBounds } from '@/lib/budgetCarry';
@@ -28,6 +29,7 @@ function previousMonths(count: number): BudgetPeriod[] {
 }
 
 export default function BudgetPage() {
+  const { t } = useTranslation('budget');
   const {
     categories,
     accounts,
@@ -86,10 +88,10 @@ export default function BudgetPage() {
     <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
         <Box>
-          <Typography variant="h4" fontWeight={700}>Budget</Typography>
-          <Typography variant="body2" color="text.secondary">Monthly plans carry forward until changed. Quarter and year views roll up effective monthly budgets.</Typography>
+          <Typography variant="h4" fontWeight={700}>{t('page.title')}</Typography>
+          <Typography variant="body2" color="text.secondary">{t('page.subtitle')}</Typography>
         </Box>
-        <Button variant="contained" startIcon={<Edit />} onClick={() => setEditorOpen(true)}>Manage Plan</Button>
+        <Button variant="contained" startIcon={<Edit />} onClick={() => setEditorOpen(true)}>{t('page.managePlan')}</Button>
       </Stack>
 
       <Stack spacing={3}>

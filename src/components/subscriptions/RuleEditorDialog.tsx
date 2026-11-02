@@ -16,6 +16,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import { normalizeDescription } from '@/lib/merchantMatchingService';
 import type {
@@ -50,6 +51,9 @@ interface RuleEditorDialogProps {
   }) => Promise<number>;
 }
 
+const MATCH_TYPE_VALUES: ReadonlyArray<MerchantRuleMatchType> = ['prefix', 'contains', 'exact'];
+const KIND_VALUES: ReadonlyArray<MerchantRuleKind> = ['subscription', 'bill', 'purchase', 'unknown'];
+
 const RuleEditorDialog: React.FC<RuleEditorDialogProps> = ({
   open,
   editingRule,
@@ -60,6 +64,7 @@ const RuleEditorDialog: React.FC<RuleEditorDialogProps> = ({
   onUpdate,
   previewMatches,
 }) => {
+  const { t } = useTranslation('subscriptions');
   const [pattern, setPattern] = useState('');
   const [matchType, setMatchType] = useState<MerchantRuleMatchType>('prefix');
   const [merchantName, setMerchantName] = useState('');
@@ -123,16 +128,16 @@ const RuleEditorDialog: React.FC<RuleEditorDialogProps> = ({
 
   const handleSave = async () => {
     if (!normalizedPattern) {
-      setError('Pattern is required');
+      setError(t('ruleEditorDialog.patternRequired'));
       return;
     }
     if (!merchantName.trim()) {
-      setError('Merchant is required');
+      setError(t('ruleEditorDialog.merchantRequired'));
       return;
     }
     const parsedPriority = Number(priority);
     if (!Number.isInteger(parsedPriority)) {
-      setError('Priority must be a whole number');
+      setError(t('ruleEditorDialog.priorityWholeNumber'));
       return;
     }
 
@@ -162,7 +167,7 @@ const RuleEditorDialog: React.FC<RuleEditorDialogProps> = ({
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save rule');
+      setError(err instanceof Error ? err.message : t('ruleEditorDialog.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -170,7 +175,7 @@ const RuleEditorDialog: React.FC<RuleEditorDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{editingRule ? 'Edit Merchant Rule' : 'Create Merchant Rule'}</DialogTitle>
+      <DialogTitle>{editingRule ? t('ruleEditorDialog.editTitle') : t('ruleEditorDialog.createTitle')}</DialogTitle>
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -179,34 +184,34 @@ const RuleEditorDialog: React.FC<RuleEditorDialogProps> = ({
         )}
         {editingRule?.source === 'community' && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            This is a community rule. Your edits are kept and will not be overwritten by future
-            community list updates. Note: renaming the merchant later in Manage Data does not
-            update this rule.
+            {t('ruleEditorDialog.communityNotice')}
           </Alert>
         )}
 
         <Box display="flex" flexDirection="column" gap={2} mt={1}>
           <TextField
-            label="Pattern"
+            label={t('ruleEditorDialog.pattern')}
             value={pattern}
             onChange={(event) => setPattern(event.target.value)}
             size="small"
             helperText={
               normalizedPattern && normalizedPattern !== pattern
-                ? `Will be saved as: ${normalizedPattern}`
-                : 'Matched against cleaned-up descriptions (uppercase, reference codes removed)'
+                ? t('ruleEditorDialog.willBeSavedAs', { pattern: normalizedPattern })
+                : t('ruleEditorDialog.patternHelp')
             }
           />
           <TextField
             select
-            label="Match type"
+            label={t('ruleEditorDialog.matchType')}
             value={matchType}
             onChange={(event) => setMatchType(event.target.value as MerchantRuleMatchType)}
             size="small"
           >
-            <MenuItem value="prefix">Starts with</MenuItem>
-            <MenuItem value="contains">Contains</MenuItem>
-            <MenuItem value="exact">Exact match</MenuItem>
+            {MATCH_TYPE_VALUES.map((value) => (
+              <MenuItem key={value} value={value}>
+                {t(`matchType.${value}`)}
+              </MenuItem>
+            ))}
           </TextField>
           <Autocomplete
             freeSolo
@@ -216,39 +221,40 @@ const RuleEditorDialog: React.FC<RuleEditorDialogProps> = ({
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Merchant"
+                label={t('ruleEditorDialog.merchant')}
                 size="small"
-                helperText="The brand this charge belongs to (e.g. Amazon)"
+                helperText={t('ruleEditorDialog.merchantHelp')}
               />
             )}
           />
           <TextField
-            label="Service (optional)"
+            label={t('ruleEditorDialog.service')}
             value={serviceName}
             onChange={(event) => setServiceName(event.target.value)}
             size="small"
-            helperText="A specific product under the merchant (e.g. Amazon Prime)"
+            helperText={t('ruleEditorDialog.serviceHelp')}
           />
           <TextField
             select
-            label="Charge type"
+            label={t('ruleEditorDialog.chargeType')}
             value={kind}
             onChange={(event) => setKind(event.target.value as MerchantRuleKind)}
             size="small"
           >
-            <MenuItem value="subscription">Subscription (fixed recurring)</MenuItem>
-            <MenuItem value="bill">Recurring bill (variable recurring)</MenuItem>
-            <MenuItem value="purchase">Purchase (not recurring)</MenuItem>
-            <MenuItem value="unknown">Unknown</MenuItem>
+            {KIND_VALUES.map((value) => (
+              <MenuItem key={value} value={value}>
+                {t(`ruleEditorDialog.kind.${value}`)}
+              </MenuItem>
+            ))}
           </TextField>
           <Box display="flex" gap={2} alignItems="center">
             <TextField
-              label="Priority"
+              label={t('ruleEditorDialog.priority')}
               value={priority}
               onChange={(event) => setPriority(event.target.value)}
               size="small"
               sx={{ width: 140 }}
-              helperText="Lower wins"
+              helperText={t('ruleEditorDialog.priorityHelp')}
               slotProps={{ htmlInput: { inputMode: 'numeric' } }}
             />
             {editingRule && (
@@ -256,23 +262,23 @@ const RuleEditorDialog: React.FC<RuleEditorDialogProps> = ({
                 control={
                   <Switch checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
                 }
-                label="Enabled"
+                label={t('ruleEditorDialog.enabled')}
               />
             )}
           </Box>
           <Typography variant="body2" color="text.secondary">
             {previewCount === null
-              ? 'Enter a pattern to preview matches.'
-              : `This pattern would match ${previewCount} existing transaction${previewCount === 1 ? '' : 's'}.`}
+              ? t('ruleEditorDialog.enterPattern')
+              : t('ruleEditorDialog.wouldMatch', { count: previewCount })}
           </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t('ruleEditorDialog.cancel')}
         </Button>
         <Button variant="contained" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : editingRule ? 'Save Rule' : 'Create Rule'}
+          {saving ? t('ruleEditorDialog.saving') : editingRule ? t('ruleEditorDialog.saveRule') : t('ruleEditorDialog.createRule')}
         </Button>
       </DialogActions>
     </Dialog>

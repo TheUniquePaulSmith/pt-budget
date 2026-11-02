@@ -28,7 +28,9 @@ import {
   Stop,
   WarningAmber,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
+import { useFormatters } from '@/contexts/useFormatters';
 import { useAiModelSlice } from '@/contexts/useWllamaSlices';
 import type { AiModelLoadParams, AiSettingPreset } from '@/types/ai';
 import {
@@ -42,37 +44,29 @@ interface AiModelSelectorProps {
   showLoadedDetailsInline?: boolean;
 }
 
-function formatBytes(bytes?: number): string | null {
+/** Binary size units; the symbols are international and stay as they are. */
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB'];
+
+function splitBytes(bytes?: number): { value: number; unit: string } | null {
   if (!bytes || bytes <= 0) {
     return null;
   }
 
-  const units = ['B', 'KB', 'MB', 'GB'];
   let value = bytes;
   let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
+  while (value >= 1024 && unitIndex < BYTE_UNITS.length - 1) {
     value /= 1024;
     unitIndex += 1;
   }
 
-  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
-function formatMaybeBytes(bytes?: number): string {
-  return formatBytes(bytes) ?? 'Not reported';
-}
-
-function formatMaybeNumber(value?: number, suffix = ''): string {
-  if (value === undefined || value === null) {
-    return 'Not reported';
-  }
-
-  return `${new Intl.NumberFormat('en-US').format(value)}${suffix}`;
+  return { value, unit: BYTE_UNITS[unitIndex] };
 }
 
 export default function AiModelSelector({
   showLoadedDetailsInline = false,
 }: AiModelSelectorProps) {
+  const { t } = useTranslation('ai');
+  const { number } = useFormatters();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [capacityExpanded, setCapacityExpanded] = useState(false);
   const {
@@ -98,6 +92,27 @@ export default function AiModelSelector({
     loadSelectedModel,
     unloadModel,
   } = useAiModelSlice();
+
+  const formatBytes = (bytes?: number): string | null => {
+    const parts = splitBytes(bytes);
+    if (!parts) {
+      return null;
+    }
+    const digits = parts.unit === 'B' ? 0 : 1;
+    return t('modelSelector.fileSize', {
+      value: number(parts.value, { minimumFractionDigits: digits, maximumFractionDigits: digits }),
+      unit: parts.unit,
+    });
+  };
+
+  const formatMaybeBytes = (bytes?: number): string => formatBytes(bytes) ?? t('modelSelector.notReported');
+
+  const formatMaybeNumber = (value?: number): string => {
+    if (value === undefined || value === null) {
+      return t('modelSelector.notReported');
+    }
+    return number(value);
+  };
 
   const isLoadingModel = loadState === 'loading-model';
   const hasSelectedModel = selectedModelFiles.length > 0;
@@ -128,15 +143,13 @@ export default function AiModelSelector({
     event.target.value = '';
   };
 
-  const formatTokens = (tokens: number) => new Intl.NumberFormat('en-US').format(tokens);
-
   const renderPresetOptions = (presets: typeof AI_CONTEXT_SIZE_PRESETS) => (
     AI_SETTING_PRESET_IDS.map((presetId) => {
       const preset = presets[presetId];
 
       return (
         <MenuItem key={preset.id} value={preset.id}>
-          {preset.label} ({formatTokens(preset.tokens)})
+          {t('modelSelector.presetOption', { label: t(`modelSelector.preset.${preset.id}`), tokens: number(preset.tokens) })}
         </MenuItem>
       );
     })
@@ -164,13 +177,13 @@ export default function AiModelSelector({
   const getValidationChip = () => {
     switch (modelInspection.status) {
       case 'validating':
-        return <Chip size="small" label="Validating GGUF" variant="outlined" />;
+        return <Chip size="small" label={t('modelSelector.validating')} variant="outlined" />;
       case 'valid':
-        return <Chip size="small" icon={<CheckCircle />} label="Valid GGUF" color="success" variant="outlined" />;
+        return <Chip size="small" icon={<CheckCircle />} label={t('modelSelector.valid')} color="success" variant="outlined" />;
       case 'warning':
-        return <Chip size="small" icon={<WarningAmber />} label="Review GGUF" color="warning" variant="outlined" />;
+        return <Chip size="small" icon={<WarningAmber />} label={t('modelSelector.review')} color="warning" variant="outlined" />;
       case 'invalid':
-        return <Chip size="small" icon={<ErrorOutline />} label="Invalid GGUF" color="error" variant="outlined" />;
+        return <Chip size="small" icon={<ErrorOutline />} label={t('modelSelector.invalid')} color="error" variant="outlined" />;
       default:
         return null;
     }
@@ -188,7 +201,7 @@ export default function AiModelSelector({
       <Box sx={{ mb: 2, p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}>
         <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
           <Typography variant="subtitle2" fontWeight={600}>
-            Model validation
+            {t('modelSelector.validationTitle')}
           </Typography>
           {validationChip}
         </Stack>
@@ -197,16 +210,16 @@ export default function AiModelSelector({
           <LinearProgress />
         ) : (
           <Stack spacing={0.75}>
-            {renderValidationRow('Model', modelInspection.stats.modelName)}
-            {renderValidationRow('Architecture', modelInspection.stats.architecture)}
-            {renderValidationRow('Quantization', modelInspection.stats.quantization)}
-            {renderValidationRow('Context length', modelInspection.stats.contextLength)}
-            {renderValidationRow('Embedding length', modelInspection.stats.embeddingLength)}
-            {renderValidationRow('Layers', modelInspection.stats.layerCount)}
-            {renderValidationRow('Vocabulary', modelInspection.stats.vocabularySize)}
-            {renderValidationRow('Tensors', modelInspection.stats.tensorCount)}
-            {renderValidationRow('Metadata entries', modelInspection.stats.metadataCount)}
-            {renderValidationRow('GGUF version', modelInspection.stats.formatVersion)}
+            {renderValidationRow(t('modelSelector.model'), modelInspection.stats.modelName)}
+            {renderValidationRow(t('modelSelector.architecture'), modelInspection.stats.architecture)}
+            {renderValidationRow(t('modelSelector.quantization'), modelInspection.stats.quantization)}
+            {renderValidationRow(t('modelSelector.contextLength'), modelInspection.stats.contextLength)}
+            {renderValidationRow(t('modelSelector.embeddingLength'), modelInspection.stats.embeddingLength)}
+            {renderValidationRow(t('modelSelector.layers'), modelInspection.stats.layerCount)}
+            {renderValidationRow(t('modelSelector.vocabulary'), modelInspection.stats.vocabularySize)}
+            {renderValidationRow(t('modelSelector.tensors'), modelInspection.stats.tensorCount)}
+            {renderValidationRow(t('modelSelector.metadataEntries'), modelInspection.stats.metadataCount)}
+            {renderValidationRow(t('modelSelector.ggufVersion'), modelInspection.stats.formatVersion)}
           </Stack>
         )}
 
@@ -243,10 +256,10 @@ export default function AiModelSelector({
           onClick={() => fileInputRef.current?.click()}
           disabled={isLoadingModel}
         >
-          Choose GGUF
+          {t('modelSelector.chooseGguf')}
         </Button>
         {hasSelectedModel && (
-          <Chip size="small" label={`${selectedModelFiles.length} file${selectedModelFiles.length === 1 ? '' : 's'}`} />
+          <Chip size="small" label={t('modelSelector.files', { count: selectedModelFiles.length })} />
         )}
       </Stack>
 
@@ -256,7 +269,7 @@ export default function AiModelSelector({
             {selectedModelName}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {selectedSize ?? 'Size unavailable'}
+            {selectedSize ?? t('modelSelector.sizeUnavailable')}
           </Typography>
         </Box>
       )}
@@ -267,13 +280,13 @@ export default function AiModelSelector({
         <Chip
           icon={<Memory />}
           size="small"
-          label={capabilities.webGpuSupported ? 'WebGPU available' : 'CPU fallback'}
+          label={capabilities.webGpuSupported ? t('modelSelector.webGpuAvailable') : t('modelSelector.cpuFallback')}
           color={capabilities.webGpuSupported ? 'success' : 'default'}
           variant="outlined"
         />
         <Chip
           size="small"
-          label={capabilities.crossOriginIsolated ? 'Isolated' : 'Single-thread likely'}
+          label={capabilities.crossOriginIsolated ? t('modelSelector.isolated') : t('modelSelector.singleThread')}
           color={capabilities.crossOriginIsolated ? 'success' : 'warning'}
           variant="outlined"
         />
@@ -297,28 +310,39 @@ export default function AiModelSelector({
         >
           <Box sx={{ textAlign: 'left' }}>
             <Typography variant="subtitle2" fontWeight={600}>
-              Browser Capacity
+              {t('modelSelector.capacityTitle')}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Memory signals and WebGPU limits
+              {t('modelSelector.capacitySubtitle')}
             </Typography>
           </Box>
         </Button>
         <Collapse in={capacityExpanded} timeout="auto" unmountOnExit>
           <Box sx={{ pt: 1 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              Browsers do not expose exact GPU VRAM. These are memory signals and WebGPU adapter limits reported by the browser.
+              {t('modelSelector.capacityHelp')}
             </Typography>
             <Stack spacing={0.75}>
-              {renderCapacityRow('CPU threads', formatMaybeNumber(capabilities.hardwareConcurrency))}
-              {renderCapacityRow('Device memory', capabilities.deviceMemoryGb ? `~${capabilities.deviceMemoryGb} GB` : 'Not reported')}
-              {renderCapacityRow('JS heap limit', formatMaybeBytes(capabilities.jsHeapSizeLimitBytes))}
-              {renderCapacityRow('JS heap used', formatMaybeBytes(capabilities.jsHeapUsedBytes))}
-              {renderCapacityRow('WebGPU adapter', capabilities.webGpuAdapterName || capabilities.webGpuAdapterDescription || capabilities.webGpuAdapterVendor || (capabilities.webGpuSupported ? 'Available' : 'Not available'))}
-              {renderCapacityRow('Max GPU buffer', formatMaybeBytes(capabilities.webGpuLimits?.maxBufferSize))}
-              {renderCapacityRow('Max storage binding', formatMaybeBytes(capabilities.webGpuLimits?.maxStorageBufferBindingSize))}
-              {renderCapacityRow('Max uniform binding', formatMaybeBytes(capabilities.webGpuLimits?.maxUniformBufferBindingSize))}
-              {renderCapacityRow('Max workgroup storage', formatMaybeBytes(capabilities.webGpuLimits?.maxComputeWorkgroupStorageSize))}
+              {renderCapacityRow(t('modelSelector.cpuThreads'), formatMaybeNumber(capabilities.hardwareConcurrency))}
+              {renderCapacityRow(
+                t('modelSelector.deviceMemory'),
+                capabilities.deviceMemoryGb
+                  ? t('modelSelector.deviceMemoryGb', { gb: number(capabilities.deviceMemoryGb) })
+                  : t('modelSelector.notReported')
+              )}
+              {renderCapacityRow(t('modelSelector.jsHeapLimit'), formatMaybeBytes(capabilities.jsHeapSizeLimitBytes))}
+              {renderCapacityRow(t('modelSelector.jsHeapUsed'), formatMaybeBytes(capabilities.jsHeapUsedBytes))}
+              {renderCapacityRow(
+                t('modelSelector.webGpuAdapter'),
+                capabilities.webGpuAdapterName
+                  || capabilities.webGpuAdapterDescription
+                  || capabilities.webGpuAdapterVendor
+                  || (capabilities.webGpuSupported ? t('modelSelector.available') : t('modelSelector.notAvailable'))
+              )}
+              {renderCapacityRow(t('modelSelector.maxGpuBuffer'), formatMaybeBytes(capabilities.webGpuLimits?.maxBufferSize))}
+              {renderCapacityRow(t('modelSelector.maxStorageBinding'), formatMaybeBytes(capabilities.webGpuLimits?.maxStorageBufferBindingSize))}
+              {renderCapacityRow(t('modelSelector.maxUniformBinding'), formatMaybeBytes(capabilities.webGpuLimits?.maxUniformBufferBindingSize))}
+              {renderCapacityRow(t('modelSelector.maxWorkgroupStorage'), formatMaybeBytes(capabilities.webGpuLimits?.maxComputeWorkgroupStorageSize))}
             </Stack>
             {capabilities.webGpuProbeError && (
               <Alert severity="warning" sx={{ mt: 1 }}>
@@ -327,7 +351,7 @@ export default function AiModelSelector({
             )}
             {selectedModelExceedsSingleBuffer && (
               <Alert severity="info" sx={{ mt: 1 }}>
-                The selected model is larger than the reported maximum single WebGPU buffer. wllama may split model data internally, but older or lower-memory GPUs can fail to load or fall back.
+                {t('modelSelector.modelExceedsBuffer')}
               </Alert>
             )}
           </Box>
@@ -336,46 +360,46 @@ export default function AiModelSelector({
 
       <Box>
           <Typography variant="subtitle1" fontWeight={600}>
-            Settings
+            {t('modelSelector.settingsTitle')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Advanced settings for model loading and inference. Adjust these only if you understand the implications.
+            {t('modelSelector.settingsHelp')}
           </Typography>
           <Box sx={{ mt: 1, mb: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            -1 for GPU Layers (use all available GPU layers)
+            {t('modelSelector.gpuLayersHint')}
           </Typography>
           </Box>
     </Box>
-     
+
 
       <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
         <FormControl fullWidth size="small" disabled={isLoadingModel}>
-          <InputLabel>Context</InputLabel>
+          <InputLabel>{t('modelSelector.context')}</InputLabel>
           <Select
             value={contextSizePreset}
-            label="Context"
+            label={t('modelSelector.context')}
             onChange={(event) => setContextSizePreset(event.target.value as AiSettingPreset)}
           >
             {renderPresetOptions(AI_CONTEXT_SIZE_PRESETS)}
           </Select>
         </FormControl>
         <FormControl fullWidth size="small" disabled={isLoadingModel}>
-          <InputLabel>Output limit</InputLabel>
+          <InputLabel>{t('modelSelector.outputLimit')}</InputLabel>
           <Select
             value={outputLimitPreset}
-            label="Output limit"
+            label={t('modelSelector.outputLimit')}
             onChange={(event) => setOutputLimitPreset(event.target.value as AiSettingPreset)}
           >
             {renderPresetOptions(AI_OUTPUT_LIMIT_PRESETS)}
           </Select>
         </FormControl>
       </Stack>
-      
+
 
       <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
         <TextField
-          label="Threads"
+          label={t('modelSelector.threads')}
           type="number"
           size="small"
           value={loadParams.n_threads ?? ''}
@@ -384,7 +408,7 @@ export default function AiModelSelector({
           fullWidth
         />
         <TextField
-          label="GPU layers"
+          label={t('modelSelector.gpuLayers')}
           type="number"
           size="small"
           value={loadParams.n_gpu_layers ?? ''}
@@ -396,7 +420,7 @@ export default function AiModelSelector({
 
       {shouldWarnForHighSettings && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Large and Extra Large settings may significantly slow down your browser and consume substantial memory. Use them only if your device has sufficient resources.
+          {t('modelSelector.highSettingsWarning')}
         </Alert>
       )}
          <FormControlLabel
@@ -407,7 +431,7 @@ export default function AiModelSelector({
             onChange={(event) => setShowTokenUsage(event.target.checked)}
           />
         }
-        label="Show chat token usage"
+        label={t('modelSelector.showTokenUsage')}
       />
       {isLoadingModel && (
         <Box sx={{ mb: 2 }}>
@@ -416,7 +440,9 @@ export default function AiModelSelector({
             value={loadProgress?.percent ?? 0}
           />
           <Typography variant="caption" color="text.secondary">
-            {loadProgress ? `Loading model: ${loadProgress.percent}%` : 'Loading local model...'}
+            {loadProgress
+              ? t('modelSelector.loadingPercent', { percent: number(loadProgress.percent) })
+              : t('modelSelector.loadingModel')}
           </Typography>
         </Box>
       )}
@@ -428,7 +454,7 @@ export default function AiModelSelector({
           onClick={() => void loadSelectedModel()}
           disabled={!hasSelectedModel || isLoadingModel || isValidatingModel || hasInvalidModelSelection}
         >
-          {isModelLoaded ? 'Reload Model' : 'Load Model'}
+          {isModelLoaded ? t('modelSelector.reloadModel') : t('modelSelector.loadModel')}
         </Button>
         <Button
           variant="outlined"
@@ -436,13 +462,15 @@ export default function AiModelSelector({
           onClick={() => void unloadModel()}
           disabled={!isModelLoaded && !isLoadingModel}
         >
-          Unload
+          {t('modelSelector.unload')}
         </Button>
       </Stack>
 
       {loadedModel && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-          Loaded: {loadedModel.name}{loadedModel.contextLength ? ` (${loadedModel.contextLength} ctx)` : ''}
+          {loadedModel.contextLength
+            ? t('modelSelector.loadedWithContext', { name: loadedModel.name, ctx: number(loadedModel.contextLength) })
+            : t('modelSelector.loaded', { name: loadedModel.name })}
         </Typography>
       )}
     </>
@@ -454,10 +482,10 @@ export default function AiModelSelector({
         <Box sx={{ p: 2 }}>
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle1" fontWeight={600}>
-              Model
+              {t('modelSelector.modelTitle')}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Local GGUF file and runtime details.
+              {t('modelSelector.modelSubtitle')}
             </Typography>
           </Box>
 
@@ -488,10 +516,12 @@ export default function AiModelSelector({
         <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" fontWeight={600} noWrap>
-              AI model loaded
+              {t('modelSelector.modelLoaded')}
             </Typography>
             <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-              {loadedModel.name}{loadedModel.contextLength ? ` | ${loadedModel.contextLength} ctx` : ''}
+              {loadedModel.contextLength
+                ? t('modelSelector.loadedCaptionWithContext', { name: loadedModel.name, ctx: number(loadedModel.contextLength) })
+                : t('modelSelector.loadedCaption', { name: loadedModel.name })}
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
@@ -501,7 +531,7 @@ export default function AiModelSelector({
               startIcon={<Stop />}
               onClick={() => void unloadModel()}
             >
-              Unload
+              {t('modelSelector.unload')}
             </Button>
           </Stack>
         </Stack>
@@ -514,17 +544,17 @@ export default function AiModelSelector({
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
         <Box>
           <Typography variant="subtitle1" fontWeight={600}>
-            Enable AI
+            {t('modelSelector.enableAi')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Choose a local GGUF model file to load with wllama.
+            {t('modelSelector.chooseHelp')}
           </Typography>
         </Box>
       </Stack>
 
       {!hasSelectedModel && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Select one `.gguf` file, or multiple `.gguf` shard files for a split model.
+          {t('modelSelector.selectFilesHint')}
         </Alert>
       )}
 

@@ -3,10 +3,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
+import { useFormatters } from '@/contexts/useFormatters';
 import type { LoanLinkCandidate } from '@/types/loans';
-import { formatCurrency } from './loanPresentation';
 
 interface LinkTransactionDialogProps {
   open: boolean;
@@ -17,6 +18,8 @@ interface LinkTransactionDialogProps {
 }
 
 export default function LinkTransactionDialog({ open, loanName, search, onClose, onLink }: LinkTransactionDialogProps) {
+  const { t } = useTranslation('loans');
+  const { money } = useFormatters();
   const [text, setText] = useState('');
   const [rows, setRows] = useState<LoanLinkCandidate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,7 +42,7 @@ export default function LinkTransactionDialog({ open, loanName, search, onClose,
           if (!cancelled) setRows(data);
         })
         .catch((err) => {
-          if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to search transactions');
+          if (!cancelled) setError(err instanceof Error ? err.message : t('linkTransactionDialog.searchFailed'));
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -49,7 +52,7 @@ export default function LinkTransactionDialog({ open, loanName, search, onClose,
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [open, search, text]);
+  }, [open, search, t, text]);
 
   const handleLink = async (id: number) => {
     setLinkingId(id);
@@ -58,7 +61,7 @@ export default function LinkTransactionDialog({ open, loanName, search, onClose,
       await onLink(id);
       setRows((previous) => previous.filter((row) => row.id !== id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to link transaction');
+      setError(err instanceof Error ? err.message : t('linkTransactionDialog.linkFailed'));
     } finally {
       setLinkingId(null);
     }
@@ -66,16 +69,16 @@ export default function LinkTransactionDialog({ open, loanName, search, onClose,
 
   const columns = useMemo<GridColDef<LoanLinkCandidate>[]>(
     () => [
-      { field: 'date', headerName: 'Date', width: 110 },
-      { field: 'description', headerName: 'Description', flex: 1.4, minWidth: 200 },
-      { field: 'account_name', headerName: 'Account', flex: 0.8, minWidth: 140, valueGetter: (_, row) => row.account_name ?? '—' },
+      { field: 'date', headerName: t('linkTransactionDialog.columnDate'), width: 110 },
+      { field: 'description', headerName: t('linkTransactionDialog.columnDescription'), flex: 1.4, minWidth: 200 },
+      { field: 'account_name', headerName: t('linkTransactionDialog.columnAccount'), flex: 0.8, minWidth: 140, valueGetter: (_, row) => row.account_name ?? '—' },
       {
         field: 'amount',
-        headerName: 'Amount',
+        headerName: t('linkTransactionDialog.columnAmount'),
         width: 120,
         align: 'right',
         headerAlign: 'right',
-        renderCell: (params) => formatCurrency(Math.abs(params.row.amount)),
+        renderCell: (params) => money(Math.abs(params.row.amount)),
       },
       {
         field: 'actions',
@@ -85,18 +88,18 @@ export default function LinkTransactionDialog({ open, loanName, search, onClose,
         filterable: false,
         renderCell: (params) => (
           <Button size="small" variant="outlined" onClick={() => handleLink(params.row.id)} disabled={linkingId != null}>
-            {linkingId === params.row.id ? 'Linking…' : 'Link'}
+            {linkingId === params.row.id ? t('linkTransactionDialog.linking') : t('linkTransactionDialog.link')}
           </Button>
         ),
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [linkingId]
+    [linkingId, money, t]
   );
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Link a payment to {loanName}</DialogTitle>
+      <DialogTitle>{t('linkTransactionDialog.title', { name: loanName })}</DialogTitle>
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -104,10 +107,10 @@ export default function LinkTransactionDialog({ open, loanName, search, onClose,
           </Alert>
         )}
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: 1 }}>
-          Outgoing transactions that are not yet a payment on any loan, newest first.
+          {t('linkTransactionDialog.intro')}
         </Typography>
         <TextField
-          label="Search description"
+          label={t('linkTransactionDialog.searchLabel')}
           value={text}
           onChange={(event) => setText(event.target.value)}
           size="small"
@@ -122,12 +125,12 @@ export default function LinkTransactionDialog({ open, loanName, search, onClose,
           loading={loading}
           height={380}
           hideFooter
-          emptyMessage="No unlinked outgoing transactions match."
+          emptyMessage={t('linkTransactionDialog.empty')}
           disableVirtualization={process.env.NODE_ENV === 'test'}
         />
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Done</Button>
+        <Button onClick={onClose}>{t('linkTransactionDialog.done')}</Button>
       </DialogActions>
     </Dialog>
   );

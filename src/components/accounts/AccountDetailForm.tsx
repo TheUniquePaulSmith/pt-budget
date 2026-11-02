@@ -10,6 +10,7 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Box, Button, Chip, Stack, Typography } from '@mui/material';
 import { Delete as DeleteIcon, RestartAlt as ResetIcon, Save as SaveIcon } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { FormGrid, FormSection } from '@/components/common/Form';
 import type { Account, AccountCard, User } from '@/types/database';
@@ -48,6 +49,7 @@ export default function AccountDetailForm({
   onUpdateCard,
   onRequestDeleteCard,
 }: AccountDetailFormProps) {
+  const { t } = useTranslation(['accounts', 'common']);
   const initial = useMemo(() => createAccountFormState(account), [account]);
   const [form, setForm] = useState<AccountFormState>(initial);
   const [saving, setSaving] = useState(false);
@@ -59,7 +61,7 @@ export default function AccountDetailForm({
   const handleSave = async () => {
     const built = buildAccountFormValues(form);
     if (!built.ok) {
-      setError(built.error);
+      setError(t(`validation.${built.error}`));
       return;
     }
     setSaving(true);
@@ -68,7 +70,7 @@ export default function AccountDetailForm({
       await onSave(account.id, built.value);
       setSavedAt(Date.now());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save account');
+      setError(err instanceof Error ? err.message : t('detailForm.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -95,15 +97,15 @@ export default function AccountDetailForm({
             {account.name}
           </Typography>
           <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-            <Chip size="small" variant="outlined" label={accountTypeLabel(account.type)} />
-            <Chip size="small" variant="outlined" label={`Owner: ${ownerDisplayName(account, users)}`} />
-            {account.ownership === 'joint' && <Chip size="small" label="Joint" />}
-            {(account.is_active ?? 1) === 0 && <Chip size="small" label="Closed" />}
+            <Chip size="small" variant="outlined" label={accountTypeLabel(account.type, t)} />
+            <Chip size="small" variant="outlined" label={t('detailForm.ownerChip', { name: ownerDisplayName(account, users, t) })} />
+            {account.ownership === 'joint' && <Chip size="small" label={t('common:accountOwnership.joint')} />}
+            {(account.is_active ?? 1) === 0 && <Chip size="small" label={t('common:status.closed')} />}
           </Stack>
         </Box>
         <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
           <Button size="small" startIcon={<ResetIcon />} onClick={handleReset} disabled={!dirty || saving}>
-            Reset
+            {t('common:actions.reset')}
           </Button>
           <Button
             size="small"
@@ -113,7 +115,7 @@ export default function AccountDetailForm({
             disabled={!dirty || saving}
             data-testid="account-save-button"
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('common:status.saving') : t('common:actions.save')}
           </Button>
         </Stack>
       </Box>
@@ -125,11 +127,11 @@ export default function AccountDetailForm({
       )}
       {savedAt && !dirty && !error && (
         <Alert severity="success" variant="outlined" sx={{ py: 0 }} data-testid="account-saved-alert">
-          Saved.
+          {t('detailForm.saved')}
         </Alert>
       )}
 
-      <FormSection title="Account" description="Changes apply when you press Save.">
+      <FormSection title={t('detailForm.accountSectionTitle')} description={t('detailForm.accountSectionDescription')}>
         <FormGrid
           columns={2}
           // The shared field set returns a flat fragment: let its balance
@@ -141,8 +143,8 @@ export default function AccountDetailForm({
       </FormSection>
 
       <FormSection
-        title="Cards"
-        description="Cards and account numbers that CSV imports match on. Each account keeps at least one."
+        title={t('detailForm.cardsSectionTitle')}
+        description={t('detailForm.cardsSectionDescription')}
         divider
       >
         <AccountCardsTable
@@ -155,7 +157,7 @@ export default function AccountDetailForm({
         />
       </FormSection>
 
-      <FormSection title="Danger zone" divider>
+      <FormSection title={t('detailForm.dangerZoneTitle')} divider>
         <Button
           size="small"
           color="error"
@@ -164,10 +166,10 @@ export default function AccountDetailForm({
           onClick={() => onRequestDelete(account)}
           data-testid="account-delete-button"
         >
-          Delete account
+          {t('detailForm.deleteAccount')}
         </Button>
         <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
-          Transactions already recorded against this account are kept.
+          {t('detailForm.deleteHint')}
         </Typography>
       </FormSection>
     </Box>

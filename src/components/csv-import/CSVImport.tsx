@@ -27,6 +27,7 @@ import {
 } from '@mui/material';
 import { CloudUpload, CheckCircle, Error as ErrorIcon, ExpandMore, InsertDriveFile } from '@mui/icons-material';
 import Papa from 'papaparse';
+import { Trans, useTranslation } from 'react-i18next';
 import { Account, AccountCard } from '@/types/database';
 import type { ImportClassificationPreview, TypeDecision } from '@/types/classification';
 import {
@@ -45,6 +46,8 @@ import {
 } from '@/lib/csvImportService';
 import { useCsvImportSlice, useImportClassificationSlice } from '@/contexts/useDatabaseSlices';
 import { logger } from '@/lib/logging';
+import { useOptionalLocale } from '@/contexts/LocaleContext';
+import { DEFAULT_LANGUAGE, csvDateOrderFor, decimalSeparatorFor } from '@/lib/i18n';
 import { AccountFormDialog, type AccountFormValues } from '@/components/accounts/AccountFormDialog';
 import type { AccountCardInput, AccountFormPrefill } from '@/components/accounts/accountFormModel';
 import ImportTransferReview from './ImportTransferReview';
@@ -78,9 +81,12 @@ const EMPTY_MAPPING: ColumnMapping = {
 };
 
 export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) {
+  const language = useOptionalLocale()?.language ?? DEFAULT_LANGUAGE;
+  const { t } = useTranslation(['csvImport', 'common']);
   const {
     accounts,
     users,
+    defaultCurrency,
     addAccountWithCard,
     addUser,
     generateTransactionHash,
@@ -286,10 +292,10 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
       if (hasInvalidMappings) {
         setMapping(updatedMapping);
-        setError('Some column mappings were cleared because they don&apos;t exist in the CSV. Please reselect them.');
+        setError(t('import.errorColumnsCleared'));
       }
     }
-  }, [csvData, mapping]);
+  }, [csvData, mapping, t]);
 
   // Analyze account column when it's selected and CSV data is available
   useEffect(() => {
@@ -349,7 +355,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         // Don't automatically analyze account column - let user select it first
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to parse CSV file');
+      setError(err instanceof Error ? err.message : t('import.errorParseFailed'));
     } finally {
       setLoading(false);
     }
@@ -433,8 +439,8 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   }, [createTarget, updateAccountMapping]);
 
   const handleUpdateAccountUnsupported = useCallback(async () => {
-    throw new Error('Editing accounts is not available during import');
-  }, []);
+    throw new Error(t('import.errorEditingUnavailable'));
+  }, [t]);
 
   const toggleSection = (section: 'columnMapping' | 'accountMapping' | 'preview') => {
     setExpandedSections(prev => ({
@@ -486,13 +492,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       // The staged set changed, so detected transfers are recomputed.
       await refreshClassification();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update analysis after duplicate resolution');
+      setError(err instanceof Error ? err.message : t('import.errorDuplicateUpdateFailed'));
     }
   };
 
   const handleAnalyze = async () => {
     if (!csvData.length) {
-      setError('No CSV data available');
+      setError(t('import.errorNoData'));
       return;
     }
 
@@ -500,15 +506,15 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
     // Validate that all required columns are mapped and exist in the CSV
     const requiredMappings = [
-      { field: 'accountColumn', name: 'Account Number', value: mapping.accountColumn },
-      { field: 'dateColumn', name: 'Date', value: mapping.dateColumn },
-      { field: 'amountColumn', name: 'Amount', value: mapping.amountColumn },
-      { field: 'descriptionColumn', name: 'Description', value: mapping.descriptionColumn },
+      { field: 'accountColumn', name: t('import.fieldAccountNumber'), value: mapping.accountColumn },
+      { field: 'dateColumn', name: t('common:fields.date'), value: mapping.dateColumn },
+      { field: 'amountColumn', name: t('common:fields.amount'), value: mapping.amountColumn },
+      { field: 'descriptionColumn', name: t('common:fields.description'), value: mapping.descriptionColumn },
     ];
 
     for (const { name, value, field } of requiredMappings) {
       if (!value) {
-        setError(`Please select a column for ${name}`);
+        setError(t('import.errorSelectColumnFor', { field: name }));
         return;
       }
       // Skip validation for direct account selection
@@ -516,7 +522,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         continue;
       }
       if (!columnHeaders.includes(value)) {
-        setError(`Selected ${name} column "${value}" does not exist in the CSV`);
+        setError(t('import.errorColumnMissing', { field: name, column: value }));
         return;
       }
     }
@@ -524,7 +530,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
     // Check if at least one account is mapped
     const mappedAccounts = accountMatches.filter(match => match.selectedAccountId);
     if (mappedAccounts.length === 0) {
-      setError('Please map at least one account to analyze transactions');
+      setError(t('import.errorMapOneAccount'));
       return;
     }
 
@@ -546,7 +552,8 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         csvData,
         mapping,
         accountMatches,
-        generateTransactionHash
+        generateTransactionHash,
+        { dateOrder: csvDateOrderFor(language), decimal: decimalSeparatorFor(language) }
       );
 
       const totalRows = csvData.length;
@@ -582,7 +589,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       // against rows already imported), refunds and the user's type rules.
       await refreshClassification();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to analyze transactions');
+      setError(err instanceof Error ? err.message : t('import.errorAnalyzeFailed'));
       // Clean up import table on error
       await truncateImportTable();
     } finally {
@@ -592,13 +599,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
   const handleImport = async () => {
     if (!csvData.length) {
-      setError('No CSV data available');
+      setError(t('import.errorNoData'));
       return;
     }
 
     // If analysis was not done, require it first
     if (!analysisResult) {
-      setError('Please analyze the file first before importing');
+      setError(t('import.errorAnalyzeFirst'));
       return;
     }
 
@@ -684,7 +691,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
         duplicates: analysisResult.duplicateCount,
         skipped: analysisResult.skippedRows,
         rejected: analysisResult.rejectedRows.length,
-        errors: analysisResult.rejectedRows.map((row) => `Row ${row.rowNumber}: ${row.reason}`),
+        rejectedRows: analysisResult.rejectedRows,
         ...(classification
           ? {
               transfers: importedTransfers,
@@ -696,7 +703,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       });
     } catch (err) {
       opLog.error('CSV import failed', { error: err });
-      setError(err instanceof Error ? err.message : 'Failed to import transactions');
+      setError(err instanceof Error ? err.message : t('import.errorImportFailed'));
       // Clean up import table on error
       await truncateImportTable();
     } finally {
@@ -736,9 +743,12 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
   const accountDisplayName = (account: Account) =>
     account.owner_display_name ? `${account.owner_display_name} - ${account.name}` : account.name;
 
+  const rejectedReasonText = (row: AnalysisResult['rejectedRows'][number]) =>
+    t(`rejectedReason.${row.reason.code}`, { value: row.reason.value, column: row.reason.column });
+
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>Import Transactions from CSV</DialogTitle>
+      <DialogTitle>{t('import.title')}</DialogTitle>
       <DialogContent>
         <Box display="flex" flexDirection="column" gap={3}>
           {/* File Upload. Once the import has run the file is fixed: show it read-only. */}
@@ -759,7 +769,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             >
               <InsertDriveFile fontSize="small" />
               <Typography variant="body1" noWrap>
-                {file?.name ?? 'CSV file'}
+                {file?.name ?? t('import.csvFile')}
               </Typography>
             </Box>
           ) : (
@@ -779,7 +789,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                   fullWidth
                   size="large"
                 >
-                  {file ? file.name : 'Choose CSV File'}
+                  {file ? file.name : t('import.chooseFile')}
                 </Button>
               </label>
             </Box>
@@ -794,7 +804,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           {loading && (
             <Box>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                Parsing CSV file...
+                {t('import.parsing')}
               </Typography>
               <LinearProgress />
             </Box>
@@ -808,13 +818,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             >
               <AccordionSummary expandIcon={<ExpandMore />}>
                 <Typography variant="h6">
-                  Map CSV Columns
+                  {t('import.mapColumnsTitle')}
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
                 <Box display="flex" flexDirection="column" gap={2}>
                   <Typography variant="body2" color="text.secondary">
-                    Map your CSV columns to transaction fields. All fields are required for proper import.
+                    {t('import.mapColumnsHelp')}
                   </Typography>
 
               {/* Show validation warning if invalid columns are selected */}
@@ -823,17 +833,17 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                (mapping.amountColumn && !columnOptions.includes(mapping.amountColumn)) ||
                (mapping.descriptionColumn && !columnOptions.includes(mapping.descriptionColumn)) ? (
                 <Alert severity="warning" sx={{ mb: 2 }}>
-                  Some selected columns don&apos;t exist in your CSV. Please reselect the correct columns from the dropdown.
+                  {t('import.invalidColumnsWarning')}
                 </Alert>
               ) : null}
 
               <Box display="grid" gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={2} mt={2}>
                 <FormControl fullWidth required>
-                  <InputLabel id="csv-account-column-label">Account Number Column</InputLabel>
+                  <InputLabel id="csv-account-column-label">{t('import.accountColumn')}</InputLabel>
                   <Select
                     labelId="csv-account-column-label"
                     value={mapping.accountColumn}
-                    label="Account Number Column"
+                    label={t('import.accountColumn')}
                     onChange={(e) => handleStaticAccountColumnChange(e.target.value)}
                     SelectDisplayProps={{ 'data-testid': 'csv-account-column-select' } as React.HTMLAttributes<HTMLDivElement>}
                   >
@@ -842,7 +852,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                     ))}
                     {columnOptions.length > 0 && (
                       <MenuItem disabled sx={{ opacity: 0.6, fontWeight: 'bold' }}>
-                        ─────── Or Select Account ───────
+                        {t('import.orSelectAccount')}
                       </MenuItem>
                     )}
                     {accounts.map(account => {
@@ -856,17 +866,17 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                     })}
                     {columnOptions.length > 0 && (
                       <MenuItem value={NEW_ACCOUNT_OPTION} sx={{ fontStyle: 'italic' }}>
-                        New account…
+                        {t('import.newAccount')}
                       </MenuItem>
                     )}
                   </Select>
                 </FormControl>
 
                 <FormControl fullWidth required>
-                  <InputLabel>Date Column</InputLabel>
+                  <InputLabel>{t('import.dateColumn')}</InputLabel>
                   <Select
                     value={mapping.dateColumn}
-                    label="Date Column"
+                    label={t('import.dateColumn')}
                     onChange={(e) => setMapping({ ...mapping, dateColumn: e.target.value })}
                   >
                     {columnOptions.map(col => (
@@ -876,10 +886,10 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                 </FormControl>
 
                 <FormControl fullWidth required>
-                  <InputLabel>Amount Column</InputLabel>
+                  <InputLabel>{t('import.amountColumn')}</InputLabel>
                   <Select
                     value={mapping.amountColumn}
-                    label="Amount Column"
+                    label={t('import.amountColumn')}
                     onChange={(e) => setMapping({ ...mapping, amountColumn: e.target.value })}
                   >
                     {columnOptions.map(col => (
@@ -889,10 +899,10 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                 </FormControl>
 
                 <FormControl fullWidth required>
-                  <InputLabel>Description Column</InputLabel>
+                  <InputLabel>{t('import.descriptionColumn')}</InputLabel>
                   <Select
                     value={mapping.descriptionColumn}
-                    label="Description Column"
+                    label={t('import.descriptionColumn')}
                     onChange={(e) => setMapping({ ...mapping, descriptionColumn: e.target.value })}
                   >
                     {columnOptions.map(col => (
@@ -902,13 +912,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                 </FormControl>
 
                 <FormControl fullWidth>
-                  <InputLabel>Unique Identifier Column (Optional)</InputLabel>
+                  <InputLabel>{t('import.uniqueIdColumn')}</InputLabel>
                   <Select
                     value={mapping.uniqueIdentifierColumn}
-                    label="Unique Identifier Column (Optional)"
+                    label={t('import.uniqueIdColumn')}
                     onChange={(e) => setMapping({ ...mapping, uniqueIdentifierColumn: e.target.value })}
                   >
-                    <MenuItem value="">None</MenuItem>
+                    <MenuItem value="">{t('common:fields.none')}</MenuItem>
                     {columnOptions.map(col => (
                       <MenuItem key={col} value={col}>{col}</MenuItem>
                     ))}
@@ -916,7 +926,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                 </FormControl>
               </Box>
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    Optional: Additional field to include in duplicate detection hash (e.g., transaction reference number)
+                    {t('import.uniqueIdHelp')}
                   </Typography>
                   <FormControlLabel
                     control={
@@ -932,7 +942,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                         inputProps={{ 'data-testid': 'csv-detect-types' } as React.InputHTMLAttributes<HTMLInputElement>}
                       />
                     }
-                    label="Detect transfers between your accounts, refunds and type-rule matches"
+                    label={t('import.detectTypes')}
                   />
                 </Box>
               </AccordionDetails>
@@ -944,7 +954,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             <Box>
               <Alert severity="info">
                 <Typography variant="body2">
-                  Select an &quot;Account Number Column&quot; from your CSV, or choose an account directly if all transactions belong to one account.
+                  {t('import.selectAccountColumnHint')}
                 </Typography>
               </Alert>
             </Box>
@@ -955,13 +965,18 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             <Box>
               <Alert severity="success">
                 <Typography variant="body2">
-                  All transactions will be imported to: <strong>
-                    {(() => {
-                      const accountId = parseInt(mapping.accountColumn.replace('DIRECT_ACCOUNT:', ''));
-                      const account = accounts.find(acc => acc.id === accountId);
-                      return account ? accountDisplayName(account) : 'Unknown Account';
-                    })()}
-                  </strong>
+                  <Trans
+                    i18nKey="import.directAccountNotice"
+                    ns="csvImport"
+                    values={{
+                      account: (() => {
+                        const accountId = parseInt(mapping.accountColumn.replace('DIRECT_ACCOUNT:', ''));
+                        const account = accounts.find(acc => acc.id === accountId);
+                        return account ? accountDisplayName(account) : t('import.unknownAccount');
+                      })(),
+                    }}
+                    components={{ strong: <strong /> }}
+                  />
                 </Typography>
               </Alert>
             </Box>
@@ -975,14 +990,13 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             >
               <AccordionSummary expandIcon={<ExpandMore />}>
                 <Typography variant="h6">
-                  Map CSV Account Numbers to Your Accounts
+                  {t('import.mapAccountsTitle')}
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
                 <Box display="flex" flexDirection="column" gap={2}>
                   <Typography variant="body2" color="text.secondary">
-                    Select which of your accounts corresponds to each account number found in the CSV,
-                    create the account if it is not in the app yet, or skip it.
+                    {t('import.mapAccountsHelp')}
                   </Typography>
 
                   <Box sx={{ mt: 1 }}>
@@ -1007,22 +1021,31 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                     data-testid="csv-account-resolution-summary"
                   >
                     <Typography variant="body2">
-                      {resolution.importableRows} of {resolution.totalRows} rows will be imported
-                      {resolution.skippedRows > 0 && (
-                        <>
-                          {' '}· {resolution.skippedRows} row{resolution.skippedRows === 1 ? '' : 's'} will be skipped
-                          {' '}({resolution.skippedValues.join(', ')})
-                        </>
-                      )}
-                      .
+                      {resolution.skippedRows > 0
+                        ? t('import.resolutionSummaryWithSkipped', {
+                            importable: resolution.importableRows,
+                            total: resolution.totalRows,
+                            count: resolution.skippedRows,
+                            values: resolution.skippedValues.join(', '),
+                          })
+                        : t('import.resolutionSummary', {
+                            importable: resolution.importableRows,
+                            total: resolution.totalRows,
+                          })}
                     </Typography>
                     {resolution.unresolvedRows > 0 && (
                       <Typography variant="body2" sx={{ mt: 0.5 }}>
                         {resolution.unresolvedValues.length === 1
-                          ? `Account "${resolution.unresolvedValues[0]}" is not linked yet`
-                          : `${resolution.unresolvedValues.length} CSV accounts are not linked yet`}
-                        {' '}({resolution.unresolvedRows} row{resolution.unresolvedRows === 1 ? '' : 's'}).
-                        Create or choose an account for each, or pick &quot;Skip this account&quot;, before analyzing.
+                          ? t('import.unresolvedSingle', {
+                              value: resolution.unresolvedValues[0],
+                              count: resolution.unresolvedRows,
+                            })
+                          : t('import.unresolvedMultiple', {
+                              accounts: resolution.unresolvedValues.length,
+                              count: resolution.unresolvedRows,
+                            })}
+                        {' '}
+                        {t('import.unresolvedHint')}
                       </Typography>
                     )}
                   </Alert>
@@ -1039,7 +1062,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             >
               <AccordionSummary expandIcon={<ExpandMore />}>
                 <Typography variant="h6">
-                  Preview (First 5 rows)
+                  {t('import.previewTitle')}
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
@@ -1048,7 +1071,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                   {preview.map((row, index) => (
                     <ListItem key={index} divider={index < preview.length - 1}>
                       <ListItemText
-                        primary={`Row ${index + 1}`}
+                        primary={t('import.previewRow', { row: index + 1 })}
                         secondary={
                           <Box component="span">
                             {Object.entries(row).map(([key, value]) => (
@@ -1071,7 +1094,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           {importing && (
             <Box>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                Importing transactions...
+                {t('import.importing')}
               </Typography>
               <LinearProgress />
             </Box>
@@ -1081,7 +1104,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           {analyzing && (
             <Box>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                Analyzing file for duplicates...
+                {t('import.analyzing')}
               </Typography>
               <LinearProgress />
             </Box>
@@ -1092,31 +1115,31 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
             <Box>
               <Alert severity="info" icon={<CheckCircle />}>
                 <Typography variant="body2" gutterBottom>
-                  <strong>Analysis Complete:</strong>
+                  <strong>{t('import.analysisComplete')}</strong>
                 </Typography>
                 <Typography variant="body2">
-                  • Total rows in CSV: {analysisResult.totalRows}
+                  {t('import.totalRows', { count: analysisResult.totalRows })}
                 </Typography>
                 <Typography variant="body2">
-                  • Rows with mapped accounts: {analysisResult.mappableRows}
+                  {t('import.mappedRows', { count: analysisResult.mappableRows })}
                 </Typography>
                 <Typography variant="body2">
-                  • Skipped (unmapped accounts): {analysisResult.skippedRows}
+                  {t('import.skippedRows', { count: analysisResult.skippedRows })}
                 </Typography>
                 {analysisResult.rejectedRows.length > 0 && (
                   <Box>
                     <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', color: 'error.main' }}>
-                      • Rows that could not be read: {analysisResult.rejectedRows.length}
+                      {t('import.rejectedRows', { count: analysisResult.rejectedRows.length })}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ ml: 2, display: 'block' }}>
-                      These rows will not be imported. Fix the date or amount in the CSV and import again.
+                      {t('import.rejectedHelp')}
                     </Typography>
                     <List dense disablePadding sx={{ ml: 2, maxHeight: 160, overflow: 'auto' }}>
                       {analysisResult.rejectedRows.slice(0, 20).map((row) => (
                         <ListItem key={row.rowNumber} disableGutters sx={{ py: 0 }}>
                           <ListItemText
                             primaryTypographyProps={{ variant: 'caption' }}
-                            primary={`Row ${row.rowNumber}: ${row.reason}`}
+                            primary={t('import.rejectedLine', { row: row.rowNumber, reason: rejectedReasonText(row) })}
                           />
                         </ListItem>
                       ))}
@@ -1124,7 +1147,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                         <ListItem disableGutters sx={{ py: 0 }}>
                           <ListItemText
                             primaryTypographyProps={{ variant: 'caption' }}
-                            primary={`…and ${analysisResult.rejectedRows.length - 20} more`}
+                            primary={t('import.rejectedMore', { count: analysisResult.rejectedRows.length - 20 })}
                           />
                         </ListItem>
                       )}
@@ -1134,7 +1157,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                 {analysisResult.internalDuplicates > 0 && (
                   <Box>
                     <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', color: 'warning.main' }}>
-                      • Internal duplicates in CSV: {analysisResult.internalDuplicates}
+                      {t('import.internalDuplicates', { count: analysisResult.internalDuplicates })}
                     </Typography>
                     <Typography
                       variant="body2"
@@ -1147,24 +1170,24 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                       }}
                       onClick={() => setDuplicateResolverOpen(true)}
                     >
-                      → Resolve internal duplicates
+                      {t('import.resolveDuplicates')}
                     </Typography>
                   </Box>
                 )}
                 <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', color: analysisResult.duplicateCount > 0 ? 'warning.main' : 'success.main' }}>
-                  • Already in database: {analysisResult.duplicateCount}
+                  {t('import.alreadyInDatabase', { count: analysisResult.duplicateCount })}
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                  • Unique transactions to import: {analysisResult.uniqueCount}
+                  {t('import.uniqueToImport', { count: analysisResult.uniqueCount })}
                 </Typography>
                 {classification && (
                   <Box sx={{ mt: 1 }} data-testid="csv-classification-summary">
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      • Transfers between your accounts: {selectedPairIds.size}
+                      {t('import.transfers', { count: selectedPairIds.size })}
                       {classification.summary.transfersWithExisting > 0 &&
-                        ` (${classification.summary.transfersWithExisting} matched to rows already in the database)`}
+                        t('import.transfersWithExisting', { count: classification.summary.transfersWithExisting })}
                       {classification.summary.possibleTransfers > 0 &&
-                        ` · ${classification.summary.possibleTransfers} possible`}
+                        t('import.transfersPossible', { count: classification.summary.possibleTransfers })}
                     </Typography>
                     {classification.pairs.length > 0 && (
                       <Typography
@@ -1179,14 +1202,14 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                         onClick={() => setTransferReviewOpen(true)}
                         data-testid="csv-review-transfers"
                       >
-                        → Review detected transfers
+                        {t('import.reviewTransfers')}
                       </Typography>
                     )}
                     {classification.summary.refundsInferred > 0 && (
-                      <Typography variant="body2">• Refunds detected: {classification.summary.refundsInferred}</Typography>
+                      <Typography variant="body2">{t('import.refundsDetected', { count: classification.summary.refundsInferred })}</Typography>
                     )}
                     {classification.summary.ruleMatches > 0 && (
-                      <Typography variant="body2">• Typed by your rules: {classification.summary.ruleMatches}</Typography>
+                      <Typography variant="body2">{t('import.typedByRules', { count: classification.summary.ruleMatches })}</Typography>
                     )}
                   </Box>
                 )}
@@ -1200,7 +1223,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose} data-testid="csv-import-close">
-          {importResult ? 'Close' : 'Cancel'}
+          {importResult ? t('common:actions.close') : t('common:actions.cancel')}
         </Button>
         {!importResult && (
           <>
@@ -1210,17 +1233,17 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
               disabled={!canImport || analyzing || importing}
               sx={{ mr: 1 }}
             >
-              {analyzing ? 'Analyzing...' : 'Analyze File'}
+              {analyzing ? t('import.analyzingButton') : t('import.analyzeFile')}
             </Button>
             <Button
               onClick={handleImport}
               variant="contained"
               disabled={!analysisResult || importing || analyzing}
             >
-              {importing ? 'Importing...' :
+              {importing ? t('import.importingButton') :
                analysisResult
-                 ? `Import ${analysisResult.uniqueCount} Transaction${analysisResult.uniqueCount === 1 ? '' : 's'}`
-                 : 'Analyze File First'}
+                 ? t('import.importCount', { count: analysisResult.uniqueCount })
+                 : t('import.analyzeFirst')}
             </Button>
           </>
         )}
@@ -1232,6 +1255,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           open={duplicateResolverOpen}
           onClose={() => setDuplicateResolverOpen(false)}
           duplicateGroups={analysisResult.duplicateGroups}
+          accounts={accounts}
           onResolve={handleResolveDuplicates}
         />
       )}
@@ -1242,6 +1266,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
           open={transferReviewOpen}
           pairs={classification.pairs}
           selectedPairIds={selectedPairIds}
+          accounts={accounts}
           onToggle={(pairId, selected) =>
             setSelectedPairIds((previous) => {
               const next = new Set(previous);
@@ -1256,6 +1281,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
 
       {/* Inline account creation (per CSV value, or for the whole file) */}
       <AccountFormDialog
+        defaultCurrency={defaultCurrency}
         open={createTarget !== null}
         editingAccount={null}
         users={users}

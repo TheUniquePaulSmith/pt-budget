@@ -17,6 +17,8 @@ import React, {
   useState,
 } from 'react';
 
+import { useOptionalLocale } from '@/contexts/LocaleContext';
+
 export type ThemeDensity = 'comfortable' | 'compact';
 
 /** `auto` = compact on desktop widths (md and up), comfortable below. */
@@ -175,7 +177,9 @@ function readSystemPaletteMode(): PaletteMode {
 export function createAppTheme(
   themeId: ThemePresetId,
   systemPaletteMode?: PaletteMode,
-  density?: ThemeDensity
+  density?: ThemeDensity,
+  /** MUI locale packs (core, DataGrid, date pickers) for the active language. */
+  localePacks: readonly object[] = []
 ) {
   const preset = getThemePreset(themeId);
   const resolvedPaletteMode: PaletteMode =
@@ -212,7 +216,8 @@ export function createAppTheme(
     ? '0 8px 24px rgba(2,6,23,0.45)'
     : '0 8px 20px rgba(0,0,0,0.12)';
 
-  return createTheme({
+  return createTheme(
+    {
     spacing: isCompact ? 7 : 8,
     palette: {
       mode: resolvedPaletteMode,
@@ -456,7 +461,9 @@ export function createAppTheme(
         },
       },
     },
-  });
+    },
+    ...localePacks
+  );
 }
 
 interface CustomThemeProviderProps {
@@ -605,9 +612,11 @@ export const CustomThemeProvider: React.FC<CustomThemeProviderProps> = ({
 
   const density = resolveThemeDensity(densityPreference, selectedThemeId, isDesktopWidth);
 
+  const localePacks = useOptionalLocale()?.muiLocales;
+
   const theme = useMemo(
-    () => createAppTheme(selectedThemeId, systemPaletteMode, density),
-    [selectedThemeId, systemPaletteMode, density]
+    () => createAppTheme(selectedThemeId, systemPaletteMode, density, localePacks ?? []),
+    [selectedThemeId, systemPaletteMode, density, localePacks]
   );
 
   useEffect(() => {

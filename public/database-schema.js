@@ -72,6 +72,7 @@ export const CREATE_TABLES = {
       is_active INTEGER NOT NULL DEFAULT 1,
       include_in_net_worth INTEGER NOT NULL DEFAULT 1,
       import_sign_inverted INTEGER NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'USD',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (owner_user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -358,6 +359,19 @@ export const CREATE_TABLES = {
     )
   `,
 
+  // Version 6: manual exchange rates. rate = units of the default currency
+  // (app_metadata 'preferences.defaultCurrency', USD when unset) per 1 unit of
+  // `currency`; NULL = unknown, and rows in that currency drop out of every
+  // cross-account total until a rate is entered (sqlMoneyExpressions.ts). The
+  // default currency itself never needs a row: its rate is 1 by definition.
+  EXCHANGE_RATES: `
+    CREATE TABLE IF NOT EXISTS exchange_rates (
+      currency TEXT PRIMARY KEY,
+      rate REAL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `,
+
   // Reminders (user-created: birthdays, anniversaries, seasonal chores) and
   // alerts (system-generated: overdue non-autopay payments, budget overspend).
   // A reminder's due_date is its next occurrence; `recurrence` advances it.
@@ -622,7 +636,7 @@ export const CREATE_INDEXES = [
 //       -> RENAME. Skipped when the table already has `guardColumn`.
 //   - { op: 'rehashTransactions' }                     recomputes legacy hashes
 //   - an UPDATE ... WHERE string is allowed too when it is a no-op on rerun
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 export const MIGRATIONS = [
   {
     version: 1,
@@ -751,6 +765,14 @@ export const MIGRATIONS = [
       CREATE_TABLES.LOANS,
       CREATE_TABLES.LOAN_MATCH_RULES,
       CREATE_TABLES.LOAN_PAYMENTS,
+    ],
+  },
+  {
+    version: 6,
+    statements: [
+      // Per-account currency (ISO 4217) and the manual exchange-rate table.
+      { op: 'addColumn', table: 'accounts', column: 'currency', ddl: "currency TEXT NOT NULL DEFAULT 'USD'" },
+      CREATE_TABLES.EXCHANGE_RATES,
     ],
   },
 ];

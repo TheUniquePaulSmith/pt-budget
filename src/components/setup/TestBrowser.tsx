@@ -33,6 +33,7 @@ import {
   SkipNext,
   ExpandMore,
 } from "@mui/icons-material";
+import { useTranslation } from "react-i18next";
 
 export interface TestResults {
   sharedWorkerSupport: boolean | null;
@@ -67,6 +68,7 @@ function hasSuccessfulTestResults(
 }
 
 export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
+  const { t } = useTranslation("setup");
   const [isTestingInProgress, setIsTestingInProgress] = useState(true);
   const [testResults, setTestResults] = useState<TestResults | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -207,7 +209,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
 
         worker.onerror = (error: ErrorEvent) => {
           console.error("[TestBrowser] Worker error:", error);
-          setError("Failed to communicate with test worker");
+          setError(t("testBrowser.workerCommunicationFailed"));
           setIsTestingInProgress(false);
 
           const failedResults: TestResults = {
@@ -222,7 +224,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
         };
       } catch (err: unknown) {
         console.error("[TestBrowser] Failed to start compatibility test:", err);
-        let errorMessage = "Unknown error during compatibility test";
+        let errorMessage = t("testBrowser.unknownError");
         if (err && typeof err === "object" && "message" in err) {
           errorMessage = String(err.message);
         }
@@ -247,7 +249,8 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
     //     workerRef.current.port.close();
     //   }
     // };
-  }, [onTestComplete]);
+    // `t` changes with the language; the hasStartedTest guard keeps the test from re-running.
+  }, [onTestComplete, t]);
 
   const getTestIcon = (passed: boolean, inProgress: boolean, hasResults: boolean) => {
     if (inProgress) {
@@ -264,40 +267,40 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
     inProgress: boolean,
     hasResults: boolean
   ): string => {
-    if (inProgress) return "Testing...";
-    if (!hasResults) return "Not tested";
-    return passed ? "Passed" : "Failed";
+    if (inProgress) return t("testBrowser.statusTesting");
+    if (!hasResults) return t("testBrowser.statusNotTested");
+    return passed ? t("testBrowser.statusPassed") : t("testBrowser.statusFailed");
   };
 
   const testItems = [
     {
       key: "wasmSupport",
-      label: "WebAssembly Support",
-      description: "Browser supports WebAssembly",
+      label: t("testBrowser.wasmLabel"),
+      description: t("testBrowser.wasmDescription"),
       icon: <Memory />,
     },
     {
       key: "sharedWorkerSupport",
-      label: "SharedWorker Support",
-      description: "Browser supports SharedWorker API",
+      label: t("testBrowser.sharedWorkerLabel"),
+      description: t("testBrowser.sharedWorkerDescription"),
       icon: <Code />,
     },
     {
       key: "sqliteSupport",
-      label: "SQLite WASM Module",
-      description: "WA-SQLite module loads and initializes",
+      label: t("testBrowser.sqliteLabel"),
+      description: t("testBrowser.sqliteDescription"),
       icon: <Storage />,
     },
     {
       key: "vfsSupport",
-      label: "Virtual File System",
-      description: "IndexedDB VFS backend works correctly",
+      label: t("testBrowser.vfsLabel"),
+      description: t("testBrowser.vfsDescription"),
       icon: <Storage />,
     },
     {
       key: "databaseOperationsSupport",
-      label: "Database Operations",
-      description: "Opens a test database and runs a query",
+      label: t("testBrowser.databaseOperationsLabel"),
+      description: t("testBrowser.databaseOperationsDescription"),
       icon: <BugReport />,
     },
   ];
@@ -309,7 +312,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
       <Paper sx={{ p: 3 }}>
         <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
           {isTestingInProgress && <CircularProgress size={24} sx={{ mr: 2 }} />}
-          <Typography variant="h6">Browser Compatibility Test</Typography>
+          <Typography variant="h6">{t("testBrowser.title")}</Typography>
         </Box>
 
         {error && (
@@ -357,11 +360,11 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
           <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: "divider" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Typography variant="subtitle1" fontWeight="bold">
-                Overall Result:
+                {t("testBrowser.overallResult")}
               </Typography>
               <Chip
                 label={
-                  testResults.overallCompatible ? "Compatible" : "Incompatible"
+                  testResults.overallCompatible ? t("testBrowser.compatible") : t("testBrowser.incompatible")
                 }
                 color={testResults.overallCompatible ? "success" : "error"}
                 icon={
@@ -372,9 +375,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
 
             {!testResults.overallCompatible && (
               <Alert severity="warning" sx={{ mt: 2 }}>
-                Your browser may not fully support all required features for the
-                budget application. Some functionality may be limited or
-                unavailable.
+                {t("testBrowser.incompatibleWarning")}
               </Alert>
             )}
           </Box>
@@ -392,11 +393,11 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
               }}
             >
               <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
-                Error details
+                {t("testBrowser.errorDetails")}
               </Typography>
               <IconButton
                 size="small"
-                aria-label={detailsExpanded ? "Hide error details" : "Show error details"}
+                aria-label={detailsExpanded ? t("testBrowser.hideErrorDetails") : t("testBrowser.showErrorDetails")}
                 sx={{
                   transform: detailsExpanded ? "rotate(180deg)" : "none",
                   transition: "transform 0.2s",

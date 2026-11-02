@@ -7,6 +7,7 @@ const LOAN_LIST_COLUMNS = `
   p.name AS project_name,
   p.company_name AS project_company_name,
   a.name AS account_name,
+  a.currency AS account_currency,
   (SELECT COUNT(*) FROM loan_payments lp WHERE lp.loan_id = l.id) AS payment_count,
   (SELECT COALESCE(SUM(COALESCE(ABS(t.amount), lp.amount)), 0)
      FROM loan_payments lp LEFT JOIN transactions t ON t.id = lp.transaction_id

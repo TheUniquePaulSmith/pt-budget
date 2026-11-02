@@ -1,0 +1,17 @@
+{
+  "manage": {
+    "addCategoryFailed": "No se pudo añadir la categoría",
+    "updateCategoryFailed": "No se pudo actualizar la categoría",
+    "addCompanyFailed": "No se pudo añadir el comercio",
+    "updateCompanyFailed": "No se pudo actualizar el comercio",
+    "title": "Gestionar categorías y comercios",
+    "categoriesTab": "Categorías",
+    "companiesTab": "Comercios",
+    "addCategoryTitle": "Añadir nueva categoría",
+    "categoryNameLabel": "Nombre de la categoría",
+    "existingCategories": "Categorías existentes",
+    "addCompanyTitle": "Añadir nuevo comercio",
+    "companyNameLabel": "Nombre del comercio",
+    "existingCompanies": "Comercios existentes"
+  }
+}

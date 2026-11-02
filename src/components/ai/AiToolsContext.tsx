@@ -8,12 +8,14 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useAiToolsSlice } from '@/contexts/useAiToolsSlices';
 import { AiToolPackError, parseToolPack } from '@/lib/aiTools/jsonToolPack';
 import { ConsentManager } from '@/lib/aiTools/consentManager';
 import { DEFAULT_TOOL_CALL_LIMIT, normalizeToolCallLimit } from '@/lib/aiTools/toolCallLimit';
 import { composeToolRegistry, type AiToolRegistry } from '@/lib/aiTools/toolRegistry';
+import { i18n } from '@/lib/i18n';
 import { logger } from '@/lib/logging';
 import type { AiToolConsent, AiToolPack, AiToolSetting } from '@/types/database';
 import type { AiConsentVerdict, AiResolvedTool, AiToolPackLoadError } from '@/types/aiTools';
@@ -89,7 +91,7 @@ async function fetchShippedPacks(): Promise<{ rows: AiToolPack[]; errors: AiTool
     try {
       const response = await fetch(`/ai-tool-packs/${file}`, { cache: 'no-cache' });
       if (!response.ok) {
-        errors.push({ packKey, errors: [{ message: `Could not load ${file} (HTTP ${response.status})` }] });
+        errors.push({ packKey, errors: [{ message: i18n.t('ai:toolsContext.packFetchFailed', { file, status: response.status }) }] });
         continue;
       }
       const text = await response.text();
@@ -98,7 +100,7 @@ async function fetchShippedPacks(): Promise<{ rows: AiToolPack[]; errors: AiTool
     } catch (err) {
       errors.push({
         packKey,
-        errors: err instanceof AiToolPackError ? err.errors : [{ message: err instanceof Error ? err.message : 'Invalid pack' }],
+        errors: err instanceof AiToolPackError ? err.errors : [{ message: err instanceof Error ? err.message : i18n.t('ai:toolsContext.invalidPack') }],
       });
     }
   }
@@ -107,6 +109,7 @@ async function fetchShippedPacks(): Promise<{ rows: AiToolPack[]; errors: AiTool
 }
 
 export function AiToolsContextProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation('ai');
   const slice = useAiToolsSlice();
   const { isDatabaseLoaded } = slice;
   const consentManager = useMemo(() => new ConsentManager(), []);
@@ -156,14 +159,14 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
     } catch (err) {
       log.error('Failed to load tool registry', { operation: 'reload', error: err });
       if (loadRunRef.current === runId) {
-        setError(err instanceof Error ? err.message : 'Failed to load the tool registry');
+        setError(err instanceof Error ? err.message : t('toolsContext.loadFailed'));
       }
     } finally {
       if (loadRunRef.current === runId) {
         setIsLoading(false);
       }
     }
-  }, [isDatabaseLoaded, slice]);
+  }, [isDatabaseLoaded, slice, t]);
 
   useEffect(() => {
     void reload();
@@ -180,7 +183,7 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
     async (toolName: string, patch: Partial<Pick<AiToolSetting, 'enabled' | 'consent'>>) => {
       const tool = registry.getTool(toolName);
       if (!tool) {
-        throw new Error(`Unknown tool: ${toolName}`);
+        throw new Error(t('toolsContext.unknownTool', { name: toolName }));
       }
       const next: AiToolSetting = {
         tool_name: toolName,
@@ -191,7 +194,7 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
       await slice.upsertToolSetting(next);
       setSettings((current) => [...current.filter((setting) => setting.tool_name !== toolName), next]);
     },
-    [registry, slice]
+    [registry, slice, t]
   );
 
   const setToolEnabled = useCallback(
@@ -230,7 +233,7 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
       });
       if (collisions.length > 0) {
         throw new AiToolPackError(
-          collisions.map((tool) => ({ packId: document.id, toolName: tool.name, message: `${tool.name}: a tool with this name already exists` }))
+          collisions.map((tool) => ({ packId: document.id, toolName: tool.name, message: t('toolsContext.toolNameExists', { name: tool.name }) }))
         );
       }
       await slice.upsertToolPack({
@@ -244,7 +247,7 @@ export function AiToolsContextProvider({ children }: { children: React.ReactNode
       log.info('Imported tool pack', { operation: 'importPack', packKey, tools: document.tools.length });
       setPackRows(await slice.listToolPacks());
     },
-    [registry, slice]
+    [registry, slice, t]
   );
 
   const removePack = useCallback(

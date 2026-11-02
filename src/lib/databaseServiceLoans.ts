@@ -61,6 +61,7 @@ export function mapToLoan(row: any): Loan {
     project_name: row.project_name ?? undefined,
     project_company_name: row.project_company_name ?? null,
     account_name: row.account_name ?? undefined,
+    account_currency: row.account_currency ?? null,
     payment_count: row.payment_count != null ? Number(row.payment_count) : undefined,
     total_paid: row.total_paid != null ? Number(row.total_paid) : undefined,
     last_payment_date: row.last_payment_date ?? null,

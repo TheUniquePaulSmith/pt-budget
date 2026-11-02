@@ -21,14 +21,15 @@ import {
 import { EditNote, MoreVert, Receipt } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { gridExpandedSortedRowIdsSelector, useGridApiContext, useGridSelector } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useLongPress } from '@/components/common/DataGrid/useLongPress';
+import { useFormatters } from '@/contexts/useFormatters';
 import TransactionLabelDialog from '@/components/transactions/TransactionLabelDialog';
 import TransactionRowActionsMenu from '@/components/transactions/TransactionRowActionsMenu';
 import { Transaction } from '@/types/database';
-import { format, parseISO } from 'date-fns';
 
 interface RecentTransactionsProps {
   transactions: Transaction[];
@@ -58,12 +59,9 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     transaction: Transaction;
   } | null>(null);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
+  const { t } = useTranslation(['dashboard', 'common']);
+  const { money, date } = useFormatters();
+  const formatCurrency = useCallback((amount: number, currency?: string | null) => money(amount, currency), [money]);
 
   const rows = useMemo(() => transactions.slice(0, limit), [transactions, limit]);
 
@@ -107,19 +105,19 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   const columns = useMemo<GridColDef<Transaction>[]>(() => [
     {
       ...dateColumn<Transaction>('date'),
-      valueFormatter: (value) => value ? format(parseISO(String(value)), 'MMM dd, yyyy') : '',
+      valueFormatter: (value) => value ? date(String(value)) : '',
     },
-    { field: 'description', headerName: 'Description', flex: 1.4, minWidth: 220 },
+    { field: 'description', headerName: t('common:fields.description'), flex: 1.4, minWidth: 220 },
     categoryChipColumn<Transaction>(),
-    { field: 'company_name', headerName: 'Company', minWidth: 160, flex: 0.8, valueGetter: (_, row) => row.company_name || '' },
+    { field: 'company_name', headerName: t('common:fields.company'), minWidth: 160, flex: 0.8, valueGetter: (_, row) => row.company_name || '' },
     userColumn<Transaction>(),
     accountColumn<Transaction>(),
     cardColumn<Transaction>(),
     indicatorsColumn(budgetedCategoryIds),
-    currencyColumn<Transaction>('amount'),
+    currencyColumn<Transaction>('amount', money, { currencyOf: (row) => row.account_currency }),
     {
       field: 'actions',
-      headerName: 'Actions',
+      headerName: t('common:fields.actions'),
       width: 130,
       sortable: false,
       filterable: false,
@@ -130,7 +128,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
           <IconButton
             size="small"
             onClick={() => handleOpenCommentDialog(params.row)}
-            title="Edit Comment"
+            title={t('recentTransactions.editComment')}
             disabled={!onSetComment}
           >
             <EditNote fontSize="small" />
@@ -138,7 +136,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
           <IconButton
             size="small"
             onClick={() => handleOpenLabelDialog(params.row)}
-            title="Label Transaction"
+            title={t('recentTransactions.labelTransaction')}
           >
             <Receipt fontSize="small" />
           </IconButton>
@@ -147,14 +145,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
             onClick={(event) =>
               setQuickActions({ anchorEl: event.currentTarget, transaction: params.row })
             }
-            title="More Actions"
+            title={t('recentTransactions.moreActions')}
           >
             <MoreVert fontSize="small" />
           </IconButton>
         </Stack>
       ),
     },
-  ], [budgetedCategoryIds, onSetComment]);
+  ], [budgetedCategoryIds, onSetComment, money, date, t]);
 
   function FooterSummary() {
     const apiRef = useGridApiContext();
@@ -165,7 +163,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     const net = filteredRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
     return (
       <Typography variant="body2" color="text.secondary">
-        {filteredRows.length} shown • Net {formatCurrency(net)}
+        {t('recentTransactions.footer', { count: filteredRows.length, net: formatCurrency(net) })}
       </Typography>
     );
   }
@@ -174,20 +172,19 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     <Paper sx={{ p: 3 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6">
-          Recent Transactions
+          {t('recentTransactions.title')}
         </Typography>
         {onLimitChange && (
           <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Show</InputLabel>
+            <InputLabel>{t('recentTransactions.show')}</InputLabel>
             <Select
               value={limit}
-              label="Show"
+              label={t('recentTransactions.show')}
               onChange={(e) => onLimitChange(Number(e.target.value))}
             >
-              <MenuItem value={10}>Last 10</MenuItem>
-              <MenuItem value={25}>Last 25</MenuItem>
-              <MenuItem value={50}>Last 50</MenuItem>
-              <MenuItem value={100}>Last 100</MenuItem>
+              {[10, 25, 50, 100].map((option) => (
+                <MenuItem key={option} value={option}>{t('recentTransactions.last', { count: option })}</MenuItem>
+              ))}
             </Select>
           </FormControl>
         )}
@@ -202,14 +199,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         getRowClassName={(params) => (params.row.is_excluded ? 'transaction-row--excluded' : '')}
         sx={{ '& .transaction-row--excluded': { opacity: 0.55 } }}
         footerSummary={<FooterSummary />}
-        emptyMessage="No transactions found. Add your first transaction to get started."
+        emptyMessage={t('recentTransactions.empty')}
         disableVirtualization={process.env.NODE_ENV === 'test'}
       />
       <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Comment</DialogTitle>
+        <DialogTitle>{t('recentTransactions.editComment')}</DialogTitle>
         <DialogContent>
           <TextField
-            label="Comment"
+            label={t('common:fields.comment')}
             value={commentDraft}
             onChange={(event) => setCommentDraft(event.target.value)}
             fullWidth
@@ -219,8 +216,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCommentDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => { void handleSaveComment(); }} disabled={!onSetComment}>Save</Button>
+          <Button onClick={() => setCommentDialogOpen(false)}>{t('common:actions.cancel')}</Button>
+          <Button variant="contained" onClick={() => { void handleSaveComment(); }} disabled={!onSetComment}>{t('common:actions.save')}</Button>
         </DialogActions>
       </Dialog>
       <TransactionLabelDialog

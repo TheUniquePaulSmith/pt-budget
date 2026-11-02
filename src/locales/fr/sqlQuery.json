@@ -1,0 +1,62 @@
+{
+  "page": {
+    "title": "Console de requêtes SQL",
+    "sampleQueries": "Exemples de requêtes",
+    "queryHeading": "Requête SQL",
+    "enterQuery": "Veuillez saisir une requête SQL",
+    "databaseNotLoaded": "Base de données non chargée",
+    "unknownError": "Une erreur inconnue s'est produite",
+    "formatFailed": "Échec du formatage de la requête : {{message}}",
+    "formatFailedPlain": "Échec du formatage de la requête",
+    "schemaUnavailable": "L'autocomplétion et les vérifications de schéma sont indisponibles : {{error}}",
+    "schemaLoadFailed": "Échec du chargement du schéma de la base de données",
+    "moreIssues_one": "+{{count}} autre problème",
+    "moreIssues_other": "+{{count}} autres problèmes",
+    "timeLimit": "Limite de temps",
+    "timeoutSeconds_one": "{{count}} seconde",
+    "timeoutSeconds_other": "{{count}} secondes",
+    "timeoutMinutes_one": "{{count}} minute",
+    "timeoutMinutes_other": "{{count}} minutes",
+    "noLimit": "Sans limite",
+    "executing": "Exécution...",
+    "execute": "Exécuter la requête",
+    "format": "Formater",
+    "hint": "Ctrl+Entrée (Cmd+Entrée sur Mac) exécute la requête. Les vérifications de syntaxe, de schéma et de SELECT uniquement s'effectuent localement, avant tout envoi à la base de données.",
+    "historyTitle": "Historique des requêtes ({{count}})",
+    "historyRows_one": "({{count}} ligne)",
+    "historyRows_other": "({{count}} lignes)",
+    "historyError": "Erreur : {{message}}",
+    "use": "Utiliser",
+    "results": "Résultats de la requête",
+    "resultRows_one": "{{count}} ligne",
+    "resultRows_other": "{{count}} lignes",
+    "executionTime": "{{ms}} ms",
+    "noRows": "La requête s'est exécutée correctement mais n'a renvoyé aucune ligne."
+  },
+  "editor": {
+    "placeholder": "Saisissez votre requête SQL ici..."
+  },
+  "samplesDrawer": {
+    "title": "Exemples de requêtes",
+    "close": "Fermer les exemples de requêtes",
+    "copy": "Copier dans le presse-papiers",
+    "useQuery": "Utiliser la requête"
+  },
+  "samples": {
+    "allTransactions": "Toutes les transactions",
+    "summaryByCategory": "Synthèse des transactions par catégorie",
+    "monthlySpending": "Totaux des dépenses mensuelles",
+    "topExpenseCategories": "Top 10 des catégories de dépenses",
+    "schemaTables": "Schéma de la base de données - Tables",
+    "schemaColumns": "Schéma de la base de données - Colonnes"
+  },
+  "analysis": {
+    "unableToParse": "Impossible d'analyser la requête.",
+    "syntaxError": "Erreur de syntaxe : {{message}}",
+    "multipleStatements": "Plusieurs instructions détectées — seule la première sera exécutée.",
+    "onlySelectBlocking": "Cette page n'exécute que des requêtes SELECT — retirez l'instruction {{statement}}.",
+    "onlySelectIssue": "Seules les requêtes SELECT sont autorisées ici ({{statement}} trouvé).",
+    "unknownTable": "Table « {{table}} » inconnue.",
+    "unknownColumn": "La colonne « {{column}} » est introuvable dans la table « {{table}} »."
+  }
+}

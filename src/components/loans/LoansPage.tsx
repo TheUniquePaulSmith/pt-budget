@@ -23,20 +23,24 @@ import {
   Visibility as ViewIcon,
 } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { useLoansPageSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { logger } from '@/lib/logging';
 import type { Loan, LoanInput } from '@/types/database';
 import type { LoanSummary } from '@/types/loans';
 import LoanDetailDialog from './LoanDetailDialog';
 import LoanFormDialog from './LoanFormDialog';
 import LoansSummaryTiles from './LoansSummaryTiles';
-import { daysLabel, formatCurrency, loanStatusOption, loanTypeLabel } from './loanPresentation';
+import { daysLabel, loanStatusOption, loanTypeLabel } from './loanPresentation';
 
 const log = logger.child({ component: 'LoansPage' });
 
 export default function LoansPage() {
+  const { t } = useTranslation('loans');
+  const { money } = useFormatters();
   const {
     loans,
     users,
@@ -90,7 +94,7 @@ export default function LoansPage() {
       })
       .catch((err) => {
         log.error('Failed to load loan summaries', { operation: 'loadSummaries', error: err });
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load loan balances');
+        if (!cancelled) setError(err instanceof Error ? err.message : t('page.loadBalancesFailed'));
       })
       .finally(() => {
         if (!cancelled) setLoadingSummaries(false);
@@ -98,7 +102,7 @@ export default function LoansPage() {
     return () => {
       cancelled = true;
     };
-  }, [getLoanSummary, loans, transactionVersion]);
+  }, [getLoanSummary, loans, t, transactionVersion]);
 
   // New transactions (imports, manual entry) are matched against loan rules
   // as soon as the page sees them. Idempotent, so repeated runs are cheap.
@@ -125,21 +129,21 @@ export default function LoansPage() {
   const handleSubmit = async (input: LoanInput) => {
     if (editingLoan) {
       await updateLoan(editingLoan.id, input);
-      setSnack('Loan updated');
+      setSnack(t('page.loanUpdated'));
     } else {
       await addLoan(input);
-      setSnack('Loan added');
+      setSnack(t('page.loanAdded'));
     }
   };
 
   const handleDelete = async (loan: Loan) => {
-    if (!window.confirm(`Delete "${loan.name}"? Its payment links and rules are removed; the transactions themselves stay.`)) return;
+    if (!window.confirm(t('page.confirmDelete', { name: loan.name }))) return;
     try {
       await deleteLoan(loan.id);
       if (detailLoanId === loan.id) setDetailLoanId(null);
-      setSnack('Loan deleted');
+      setSnack(t('page.loanDeleted'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete loan');
+      setError(err instanceof Error ? err.message : t('page.deleteFailed'));
     }
   };
 
@@ -150,21 +154,24 @@ export default function LoansPage() {
       const result = await applyLoanRules();
       setSnack(
         result.linked > 0
-          ? `Linked ${result.linked} payment${result.linked === 1 ? '' : 's'} across ${Object.keys(result.byLoan).length} loan${Object.keys(result.byLoan).length === 1 ? '' : 's'}.`
-          : `No new payments matched (${result.scanned} transactions checked).`
+          ? t('page.scanLinked', {
+              count: Object.keys(result.byLoan).length,
+              payments: t('page.paymentsLinked', { count: result.linked }),
+            })
+          : t('page.scanNone', { scanned: result.scanned })
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to scan for loan payments');
+      setError(err instanceof Error ? err.message : t('page.scanFailed'));
     } finally {
       setScanning(false);
     }
-  }, [applyLoanRules]);
+  }, [applyLoanRules, t]);
 
   const columns = useMemo<GridColDef<Loan>[]>(
     () => [
       {
         field: 'name',
-        headerName: 'Loan',
+        headerName: t('page.columnLoan'),
         flex: 1.4,
         minWidth: 200,
         renderCell: (params) => (
@@ -173,15 +180,15 @@ export default function LoansPage() {
               {params.row.name}
             </Typography>
             <Typography variant="caption" color="text.secondary" noWrap display="block">
-              {[params.row.lender, loanTypeLabel(params.row.loan_type)].filter(Boolean).join(' · ')}
+              {[params.row.lender, loanTypeLabel(t, params.row.loan_type)].filter(Boolean).join(' · ')}
             </Typography>
           </Box>
         ),
       },
-      { field: 'owner_display_name', headerName: 'Owner', minWidth: 120, flex: 0.6 },
+      { field: 'owner_display_name', headerName: t('page.columnOwner'), minWidth: 120, flex: 0.6 },
       {
         field: 'project_name',
-        headerName: 'Project',
+        headerName: t('page.columnProject'),
         minWidth: 150,
         flex: 0.9,
         renderCell: (params) =>
@@ -204,7 +211,7 @@ export default function LoansPage() {
       },
       {
         field: 'balance',
-        headerName: 'Balance',
+        headerName: t('page.columnBalance'),
         width: 130,
         align: 'right',
         headerAlign: 'right',
@@ -214,39 +221,49 @@ export default function LoansPage() {
           if (!summary) return loadingSummaries ? <CircularProgress size={14} /> : '—';
           return (
             <Typography variant="body2" fontWeight={600} data-testid={`loan-balance-${params.row.id}`}>
-              {formatCurrency(summary.payoffAmount)}
+              {money(summary.payoffAmount, params.row.account_currency)}
             </Typography>
           );
         },
       },
       {
         field: 'expected_payment',
-        headerName: 'Payment',
+        headerName: t('page.columnPayment'),
         width: 120,
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (value: number | null) => (value == null ? '—' : formatCurrency(value)),
+        valueFormatter: (value: number | null, row) => (value == null ? '—' : money(value, row.account_currency)),
       },
       {
         field: 'next_due',
-        headerName: 'Next due',
+        headerName: t('page.columnNextDue'),
         width: 120,
         valueGetter: (_, row) => summaries[row.id]?.nextDueDate ?? null,
         renderCell: (params) => params.value ?? '—',
       },
       {
         field: 'pay_by',
-        headerName: 'Pay off by',
+        headerName: t('page.columnPayBy'),
         width: 170,
         valueGetter: (_, row) => row.promo_end_date ?? null,
         renderCell: (params) => {
           const deferred = summaries[params.row.id]?.deferred;
           if (!deferred) return params.value ?? '—';
           const paid = summaries[params.row.id]?.isPaidOff;
+          const currency = params.row.account_currency;
           const color = deferred.charged ? 'error' : paid || deferred.onTrack ? 'success' : 'warning';
-          const label = deferred.charged ? 'Interest charged' : paid ? 'Cleared' : `${deferred.promoEndDate} (${daysLabel(deferred.daysUntilPromoEnd)})`;
+          const label = deferred.charged
+            ? t('page.interestCharged')
+            : paid
+              ? t('page.cleared')
+              : t('page.payByLabel', { date: deferred.promoEndDate, days: daysLabel(t, deferred.daysUntilPromoEnd) });
+          const tooltip = deferred.charged
+            ? t('page.tooltipCharged', { amount: money(deferred.chargedAmount, currency) })
+            : deferred.onTrack
+              ? t('page.tooltipOnTrack')
+              : t('page.tooltipAtRisk', { amount: money(deferred.deferredInterestAtRisk, currency) });
           return (
-            <Tooltip title={deferred.charged ? `${formatCurrency(deferred.chargedAmount)} deferred interest added` : deferred.onTrack ? 'On track at the expected payment' : `About ${formatCurrency(deferred.deferredInterestAtRisk)} at risk`}>
+            <Tooltip title={tooltip}>
               <Chip size="small" color={color} variant="outlined" label={label} />
             </Tooltip>
           );
@@ -254,10 +271,10 @@ export default function LoansPage() {
       },
       {
         field: 'status',
-        headerName: 'Status',
+        headerName: t('page.columnStatus'),
         width: 110,
         renderCell: (params) => {
-          const option = loanStatusOption(params.row.status);
+          const option = loanStatusOption(t, params.row.status);
           return <Chip size="small" label={option.label} color={option.color} />;
         },
       },
@@ -270,18 +287,18 @@ export default function LoansPage() {
         align: 'right',
         renderCell: (params) => (
           <Stack direction="row">
-            <Tooltip title="View">
-              <IconButton size="small" onClick={() => setDetailLoanId(params.row.id)} aria-label={`View ${params.row.name}`}>
+            <Tooltip title={t('page.view')}>
+              <IconButton size="small" onClick={() => setDetailLoanId(params.row.id)} aria-label={t('page.viewAria', { name: params.row.name })}>
                 <ViewIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Edit">
-              <IconButton size="small" onClick={() => openEdit(params.row)} aria-label={`Edit ${params.row.name}`}>
+            <Tooltip title={t('page.edit')}>
+              <IconButton size="small" onClick={() => openEdit(params.row)} aria-label={t('page.editAria', { name: params.row.name })}>
                 <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Delete">
-              <IconButton size="small" onClick={() => handleDelete(params.row)} aria-label={`Delete ${params.row.name}`}>
+            <Tooltip title={t('page.delete')}>
+              <IconButton size="small" onClick={() => handleDelete(params.row)} aria-label={t('page.deleteAria', { name: params.row.name })}>
                 <DeleteIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -290,7 +307,7 @@ export default function LoansPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [loadingSummaries, summaries]
+    [loadingSummaries, money, summaries, t]
   );
 
   return (
@@ -300,11 +317,11 @@ export default function LoansPage() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <LoansIcon color="primary" />
             <Typography variant="h4" component="h1" sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}>
-              Loans
+              {t('page.title')}
             </Typography>
           </Box>
           <Typography variant="body2" color="text.secondary">
-            Balances, principal vs. interest, and payoff deadlines for the money you have borrowed.
+            {t('page.subtitle')}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
@@ -314,10 +331,10 @@ export default function LoansPage() {
             onClick={handleScan}
             disabled={scanning || loans.length === 0}
           >
-            {scanning ? 'Scanning…' : 'Find Payments'}
+            {scanning ? t('page.scanning') : t('page.findPayments')}
           </Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} data-testid="loans-add">
-            Add Loan
+            {t('page.addLoan')}
           </Button>
         </Stack>
       </Box>
@@ -331,13 +348,13 @@ export default function LoansPage() {
       {loans.length === 0 ? (
         <Paper variant="outlined" sx={{ p: 6, textAlign: 'center' }}>
           <Typography variant="h6" gutterBottom>
-            No loans yet
+            {t('page.emptyTitle')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Add a loan with its terms, then link the payments you make from your accounts, by rule or by hand.
+            {t('page.emptyBody')}
           </Typography>
           <Button variant="contained" size="large" startIcon={<AddIcon />} onClick={openCreate}>
-            Add Loan
+            {t('page.addLoan')}
           </Button>
         </Paper>
       ) : (

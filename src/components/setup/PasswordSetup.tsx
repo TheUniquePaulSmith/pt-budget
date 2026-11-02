@@ -14,6 +14,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 interface PasswordSetupProps {
   /** Called after the user confirms a valid password. */
@@ -29,6 +30,7 @@ export function PasswordSetup({
   isLoading,
   error,
 }: PasswordSetupProps) {
+  const { t } = useTranslation('setup');
   const [primaryUserName, setPrimaryUserName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -41,19 +43,17 @@ export function PasswordSetup({
 
     const trimmedPrimaryUserName = primaryUserName.trim();
     if (!trimmedPrimaryUserName) {
-      setValidationError('Primary user name is required.');
+      setValidationError(t('passwordSetup.primaryUserNameRequired'));
       return;
     }
 
     if (password.length < MIN_PASSWORD_LENGTH) {
-      setValidationError(
-        `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`
-      );
+      setValidationError(t('passwordSetup.passwordTooShort', { count: MIN_PASSWORD_LENGTH }));
       return;
     }
 
     if (password !== confirm) {
-      setValidationError('Passwords do not match.');
+      setValidationError(t('passwordSetup.passwordsMismatch'));
       return;
     }
 
@@ -62,7 +62,7 @@ export function PasswordSetup({
     } catch {
       // Error is surfaced via the `error` prop from the parent.
     }
-  }, [primaryUserName, password, confirm, onPasswordConfirmed]);
+  }, [primaryUserName, password, confirm, onPasswordConfirmed, t]);
 
   const displayError = validationError ?? error;
   const canSubmit =
@@ -85,12 +85,10 @@ export function PasswordSetup({
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <LockOutlined sx={{ fontSize: 56, color: 'primary.main', mb: 1.5 }} />
           <Typography variant="h5" gutterBottom fontWeight="bold">
-            Set Up Your Database
+            {t('passwordSetup.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Your database is encrypted on this device, and this password is
-            required to open it every time you return. Choose a strong
-            password — there is no password recovery, so store it somewhere safe.
+            {t('passwordSetup.description')}
           </Typography>
         </Box>
 
@@ -101,11 +99,11 @@ export function PasswordSetup({
         )}
 
         <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>
-          Primary user
+          {t('passwordSetup.primaryUserSection')}
         </Typography>
 
         <TextField
-          label="Primary User Name"
+          label={t('passwordSetup.primaryUserNameLabel')}
           value={primaryUserName}
           onChange={(e) => setPrimaryUserName(e.target.value)}
           fullWidth
@@ -116,11 +114,11 @@ export function PasswordSetup({
         />
 
         <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>
-          Password
+          {t('passwordSetup.passwordSection')}
         </Typography>
 
         <TextField
-          label="Password"
+          label={t('passwordSetup.passwordLabel')}
           type={showPassword ? 'text' : 'password'}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -132,7 +130,7 @@ export function PasswordSetup({
               endAdornment: (
                 <InputAdornment position="end">
                   <IconButton
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? t('passwordSetup.hidePassword') : t('passwordSetup.showPassword')}
                     onClick={() => setShowPassword((v) => !v)}
                     edge="end"
                   >
@@ -145,7 +143,7 @@ export function PasswordSetup({
         />
 
         <TextField
-          label="Confirm Password"
+          label={t('passwordSetup.confirmPasswordLabel')}
           type={showConfirm ? 'text' : 'password'}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
@@ -160,7 +158,7 @@ export function PasswordSetup({
               endAdornment: (
                 <InputAdornment position="end">
                   <IconButton
-                    aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                    aria-label={showConfirm ? t('passwordSetup.hidePassword') : t('passwordSetup.showPassword')}
                     onClick={() => setShowConfirm((v) => !v)}
                     edge="end"
                   >
@@ -182,7 +180,7 @@ export function PasswordSetup({
             isLoading ? <CircularProgress size={18} color="inherit" /> : undefined
           }
         >
-          {isLoading ? 'Creating Database…' : 'Create Database'}
+          {isLoading ? t('passwordSetup.creating') : t('passwordSetup.create')}
         </Button>
       </Paper>
     </Box>

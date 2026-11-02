@@ -9,6 +9,10 @@
 
 import { format, isValid, parse } from 'date-fns';
 
+import { type CsvDateOrder, csvDateFormatsFor } from './dateOnly.csvFormats';
+
+export type { CsvDateOrder };
+
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Formats a Date as `yyyy-MM-dd` using its LOCAL calendar fields. */
@@ -62,38 +66,21 @@ export function isDateOnly(value: string): boolean {
   return probe.getUTCFullYear() === year && probe.getUTCMonth() === month - 1 && probe.getUTCDate() === day;
 }
 
-// US-first, since the app reports in USD: an ambiguous "04/06/2026" is April 6.
-const CSV_DATE_FORMATS = [
-  'yyyy-MM-dd',
-  'yyyy-MM-dd HH:mm:ss',
-  'yyyy-MM-dd HH:mm',
-  'yyyy/MM/dd',
-  'MM/dd/yyyy',
-  'M/d/yyyy',
-  'MM/dd/yyyy HH:mm:ss',
-  'MM/dd/yyyy HH:mm',
-  'M/d/yyyy HH:mm:ss',
-  'M/d/yyyy HH:mm',
-  'MM/dd/yy',
-  'M/d/yy',
-  'MM-dd-yyyy',
-  'M-d-yyyy',
-  'dd-MMM-yyyy',
-  'd-MMM-yyyy',
-  'dd MMM yyyy',
-  'd MMM yyyy',
-  'MMM d, yyyy',
-  'MMMM d, yyyy',
-  'MMM d yyyy',
-  'yyyyMMdd',
-];
-
 /**
  * Parses a bank-export date cell into `yyyy-MM-dd`, or returns null when the
- * value matches none of the known formats. Never guesses: an unparseable cell
+ * value matches none of the known formats. Ambiguous numeric dates follow
+ * `order` (see dateOnly.csvFormats.ts). Never guesses: an unparseable cell
  * must be reported to the user, not silently replaced with today.
  */
-export function parseCsvDate(raw: unknown): string | null {
+export interface ParseCsvDateOptions {
+  /**
+   * Day/month convention for ambiguous numeric dates. Defaults to MDY (US);
+   * the CSV importer passes `csvDateOrderFor(language)` from src/lib/i18n.ts.
+   */
+  order?: CsvDateOrder;
+}
+
+export function parseCsvDate(raw: unknown, { order = 'MDY' }: ParseCsvDateOptions = {}): string | null {
   if (raw == null) return null;
   const text = String(raw).trim().replace(/^["']|["']$/g, '').trim();
   if (!text) return null;
@@ -106,7 +93,7 @@ export function parseCsvDate(raw: unknown): string | null {
   if (isDateOnly(text)) return text;
 
   const reference = new Date(2000, 0, 1);
-  for (const pattern of CSV_DATE_FORMATS) {
+  for (const pattern of csvDateFormatsFor(order)) {
     const parsed = parse(text, pattern, reference);
     if (isValid(parsed)) {
       const year = parsed.getFullYear();

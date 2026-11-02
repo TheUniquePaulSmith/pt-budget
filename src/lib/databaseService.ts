@@ -54,6 +54,8 @@ import { AiToolsService } from './databaseServiceAiTools';
 import { BudgetFundsService } from './databaseServiceBudgetFunds';
 import { ClassificationService } from './databaseServiceClassification';
 import { LoansService } from './databaseServiceLoans';
+import { PreferencesService } from './databaseServicePreferences';
+import { DEFAULT_CURRENCY } from './currencies';
 import { CLASSIFICATION_QUERIES } from './sqlQueriesClassification';
 import { logger } from './logging';
 import {
@@ -187,6 +189,7 @@ export class DatabaseService {
   readonly classification: ClassificationService;
   /** Loans (schema v5): terms, loan-owned payment rules, payment ledger. */
   readonly loans: LoansService;
+  readonly preferences: PreferencesService;
 
   constructor(
     private readonly workerService: DatabaseWorkerTransport = databaseWorkerService
@@ -197,6 +200,7 @@ export class DatabaseService {
     this.budgetFunds = new BudgetFundsService(workerService);
     this.classification = new ClassificationService(workerService, this.appMetadata);
     this.loans = new LoansService(workerService);
+    this.preferences = new PreferencesService(workerService, this.appMetadata);
   }
 
   async initialize(): Promise<void> {
@@ -938,6 +942,7 @@ export class DatabaseService {
     comp.name as company_name,
     a.name as account_name,
     a.type as account_type,
+    a.currency as account_currency,
     card.last_four as card_last_four,
     card.nickname as card_nickname,
     COALESCE(card.user_id, a.owner_user_id) as effective_user_id,
@@ -1179,6 +1184,7 @@ export class DatabaseService {
         upcomingCommitments,
         categoryDeltas,
         comparisonPeriodLabel: comparison.label,
+        comparisonPeriodDays: comparison.spanDays,
       };
     } catch (error) {
       log.error('Failed to get chart data', { operation: 'getChartData', error });
@@ -1190,7 +1196,7 @@ export class DatabaseService {
    * The equal-length window immediately preceding [startDate, endDate], used for
    * the period-over-period category comparison.
    */
-  private getComparisonRange(startDate: string, endDate: string): { start: string; end: string; label: string } {
+  private getComparisonRange(startDate: string, endDate: string): { start: string; end: string; label: string; spanDays: number } {
     const shiftDays = (iso: string, days: number) =>
       new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86400000).toISOString().split('T')[0];
 
@@ -1200,7 +1206,7 @@ export class DatabaseService {
     );
     const end = shiftDays(startDate, -1);
     const start = shiftDays(end, -(spanDays - 1));
-    return { start, end, label: `previous ${spanDays} day${spanDays === 1 ? '' : 's'}` };
+    return { start, end, label: `previous ${spanDays} day${spanDays === 1 ? '' : 's'}`, spanDays };
   }
 
   /**
@@ -1621,6 +1627,7 @@ export class DatabaseService {
         account.opening_balance_date ?? null,
         account.credit_limit ?? null,
         account.is_active ?? 1,
+        account.currency ?? DEFAULT_CURRENCY,
       ]);
       const accountId = Number(accountResult[0].id);
       const cardResult = await this.workerService.query(ACCOUNT_CARD_QUERIES.CREATE, [
@@ -1661,6 +1668,7 @@ export class DatabaseService {
         updates.opening_balance_date ?? null,
         updates.credit_limit ?? null,
         updates.is_active ?? 1,
+        updates.currency ?? DEFAULT_CURRENCY,
         id,
       ]);
     } catch (error) {
@@ -2786,6 +2794,7 @@ export class DatabaseService {
       company_name: row.company_name || undefined,
       account_name: row.account_name || undefined,
       account_type: row.account_type || undefined,
+      account_currency: row.account_currency || undefined,
       card_last_four: row.card_last_four || undefined,
       card_nickname: row.card_nickname ?? null,
       effective_user_id: row.effective_user_id ?? null,
@@ -2836,6 +2845,7 @@ export class DatabaseService {
       is_active: Number(row.is_active ?? 1),
       include_in_net_worth: Number(row.include_in_net_worth ?? 1),
       import_sign_inverted: Number(row.import_sign_inverted ?? 0),
+      currency: typeof row.currency === 'string' && row.currency ? row.currency : DEFAULT_CURRENCY,
       created_at: row.created_at,
       updated_at: row.updated_at,
       owner_display_name: row.owner_display_name,

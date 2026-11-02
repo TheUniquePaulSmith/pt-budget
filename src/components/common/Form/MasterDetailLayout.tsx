@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Box, IconButton, Paper, Toolbar, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { ArrowBack } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 export interface MasterDetailLayoutProps {
   /** The list / grid. */
@@ -62,6 +63,7 @@ export function MasterDetailLayout({
   height = '100%',
   'data-testid': testId,
 }: MasterDetailLayoutProps) {
+  const { t } = useTranslation('shell');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -146,7 +148,7 @@ export function MasterDetailLayout({
       return (
         <Box data-testid={testId} data-layout="mobile-detail" sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <Toolbar variant="dense" disableGutters sx={{ gap: 1, minHeight: 44, px: 0.5 }}>
-            <IconButton onClick={onCloseDetail} aria-label="Back to list" edge="start">
+            <IconButton onClick={onCloseDetail} aria-label={t('masterDetail.backToList')} edge="start">
               <ArrowBack />
             </IconButton>
             <Typography variant="subtitle1" component="h2" noWrap sx={{ fontWeight: 600, minWidth: 0 }}>
@@ -203,7 +205,7 @@ export function MasterDetailLayout({
       <Box
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize list"
+        aria-label={t('masterDetail.resizeList')}
         aria-valuenow={Math.round(masterWidth)}
         aria-valuemin={minMasterWidth}
         tabIndex={0}
@@ -246,7 +248,7 @@ export function MasterDetailLayout({
           <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 3 }}>
             {emptyDetail ?? (
               <Typography variant="body2" color="text.secondary">
-                Select a record to see its details.
+                {t('masterDetail.emptyDetail')}
               </Typography>
             )}
           </Box>

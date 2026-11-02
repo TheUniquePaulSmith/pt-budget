@@ -34,6 +34,7 @@ import {
   Business,
   Category as CategoryIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useManageDataSlice } from '@/contexts/useDatabaseSlices';
 import { Category, Company } from '@/types/database';
 
@@ -63,6 +64,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
     addCategory, 
     addCompany 
   } = useManageDataSlice();
+  const { t } = useTranslation(['dataManagement', 'common']);
   const [tabValue, setTabValue] = useState(0);
   
   // Category management state
@@ -97,7 +99,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
       setNewCategory({ name: '', type: 'expense', color: '#FF6B6B' });
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add category');
+      setError(err instanceof Error ? err.message : t('manage.addCategoryFailed'));
     } finally {
       setLoading(false);
     }
@@ -119,7 +121,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
       setEditCategoryData(null);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update category');
+      setError(err instanceof Error ? err.message : t('manage.updateCategoryFailed'));
     } finally {
       setLoading(false);
     }
@@ -140,7 +142,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
       setNewCompany('');
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add company');
+      setError(err instanceof Error ? err.message : t('manage.addCompanyFailed'));
     } finally {
       setLoading(false);
     }
@@ -162,7 +164,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
       setEditCompanyData(null);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update company');
+      setError(err instanceof Error ? err.message : t('manage.updateCompanyFailed'));
     } finally {
       setLoading(false);
     }
@@ -190,18 +192,18 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
       <DialogTitle>
         <Box display="flex" alignItems="center" gap={1}>
           <CategoryIcon />
-          Manage Categories & Companies
+          {t('manage.title')}
         </Box>
       </DialogTitle>
-      
+
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
         )}        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-          <Tab label="Categories" />
-          <Tab label="Companies" />
+          <Tab label={t('manage.categoriesTab')} />
+          <Tab label={t('manage.companiesTab')} />
         </Tabs>
 
         {/* Categories Tab */}
@@ -210,25 +212,25 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
             {/* Add New Category */}
             <Box>
               <Typography variant="h6" gutterBottom>
-                Add New Category
+                {t('manage.addCategoryTitle')}
               </Typography>
               <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
                 <TextField
-                  label="Category Name"
+                  label={t('manage.categoryNameLabel')}
                   value={newCategory.name}
                   onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
                   size="small"
                   sx={{ minWidth: 200 }}
                 />
                 <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>Type</InputLabel>
+                  <InputLabel>{t('common:fields.type')}</InputLabel>
                   <Select
                     value={newCategory.type}
-                    label="Type"
+                    label={t('common:fields.type')}
                     onChange={(e) => setNewCategory({ ...newCategory, type: e.target.value as 'income' | 'expense' })}
                   >
-                    <MenuItem value="expense">Expense</MenuItem>
-                    <MenuItem value="income">Income</MenuItem>
+                    <MenuItem value="expense">{t('common:categoryType.expense')}</MenuItem>
+                    <MenuItem value="income">{t('common:categoryType.income')}</MenuItem>
                   </Select>
                 </FormControl>
                 <Box display="flex" gap={1}>
@@ -253,7 +255,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
                   onClick={handleAddCategory}
                   disabled={!newCategory.name.trim() || loading}
                 >
-                  Add
+                  {t('common:actions.add')}
                 </Button>
               </Box>
             </Box>
@@ -263,7 +265,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
             {/* Categories List */}
             <Box>
               <Typography variant="h6" gutterBottom>
-                Existing Categories
+                {t('manage.existingCategories')}
               </Typography>
               <List>
                 {categories.map((category) => (
@@ -281,8 +283,8 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
                             value={editCategoryData.type}
                             onChange={(e) => setEditCategoryData({ ...editCategoryData, type: e.target.value as 'income' | 'expense' })}
                           >
-                            <MenuItem value="expense">Expense</MenuItem>
-                            <MenuItem value="income">Income</MenuItem>
+                            <MenuItem value="expense">{t('common:categoryType.expense')}</MenuItem>
+                            <MenuItem value="income">{t('common:categoryType.income')}</MenuItem>
                           </Select>
                         </FormControl>
                         <Box display="flex" gap={0.5}>
@@ -323,7 +325,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
                               />
                               {category.name}
                               <Chip
-                                label={category.type}
+                                label={t(`common:categoryType.${category.type}`, { defaultValue: category.type })}
                                 size="small"
                                 color={category.type === 'income' ? 'success' : 'default'}
                               />
@@ -355,11 +357,11 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
             {/* Add New Company */}
             <Box>
               <Typography variant="h6" gutterBottom>
-                Add New Company
+                {t('manage.addCompanyTitle')}
               </Typography>
               <Box display="flex" gap={2} alignItems="center">
                 <TextField
-                  label="Company Name"
+                  label={t('manage.companyNameLabel')}
                   value={newCompany}
                   onChange={(e) => setNewCompany(e.target.value)}
                   size="small"
@@ -371,7 +373,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
                   onClick={handleAddCompany}
                   disabled={!newCompany.trim() || loading}
                 >
-                  Add
+                  {t('common:actions.add')}
                 </Button>
               </Box>
             </Box>
@@ -381,7 +383,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
             {/* Companies List */}
             <Box>
               <Typography variant="h6" gutterBottom>
-                Existing Companies
+                {t('manage.existingCompanies')}
               </Typography>
               <List>
                 {companies.map((company) => (
@@ -429,7 +431,7 @@ export default function ManageData({ open, onClose }: ManageDataProps) {
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={handleClose}>Close</Button>
+        <Button onClick={handleClose}>{t('common:actions.close')}</Button>
       </DialogActions>
     </Dialog>
   );

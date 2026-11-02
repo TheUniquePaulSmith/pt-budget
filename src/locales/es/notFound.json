@@ -1,0 +1,18 @@
+{
+  "page": {
+    "headline": "Esta página ya se ha gastado",
+    "body": "Hemos auditado todas las cuentas y esta dirección no figura en los libros. Sus fondos echaron alas y se fueron volando.",
+    "home": "Volver al presupuesto",
+    "back": "Volver atrás"
+  },
+  "recorder": {
+    "aria": "De dónde viene",
+    "title": "Caja negra",
+    "loading": "Consultando la caja negra…",
+    "requested": "Usted pidió",
+    "sender": "Enviado por",
+    "event": "Qué ocurrió",
+    "campaign": "Etiquetado con",
+    "privacy": "Calculado en su navegador a partir de lo que ya sabe. No se ha enviado nada a ninguna parte."
+  }
+}

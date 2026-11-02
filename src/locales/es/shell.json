@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "dashboard": "Panel",
+    "projects": "Proyectos",
+    "trips": "Viajes",
+    "budget": "Presupuesto",
+    "accounts": "Cuentas",
+    "loans": "Préstamos",
+    "transactions": "Transacciones",
+    "subscriptions": "Suscripciones",
+    "notifications": "Notificaciones",
+    "sql-query": "Consulta SQL",
+    "settings": "Configuración",
+    "developer-console": "Consola de desarrollador",
+    "pages": "Páginas",
+    "more": "Más",
+    "quickActions": "Acciones rápidas",
+    "addTransaction": "Añadir transacción",
+    "importCsv": "Importar CSV",
+    "manageData": "Gestionar datos"
+  },
+  "dataGrid": {
+    "noRows": "No hay filas que mostrar"
+  },
+  "sidebar": {
+    "collapse": "Contraer barra lateral",
+    "expand": "Expandir barra lateral"
+  },
+  "pageFallback": {
+    "loading": "Cargando página"
+  },
+  "notificationBell": {
+    "label": "Notificaciones",
+    "due": "{{count}} pendientes",
+    "titleWithDue": "{{label}}: {{count}} pendientes",
+    "more": "{{count}} más… haga clic en la campana para verlas todas."
+  },
+  "aiLauncher": {
+    "label": "IA local",
+    "title": "{{label}} (clic derecho para opciones de ventana)",
+    "openSidebar": "Abrir como barra lateral",
+    "openMaximized": "Abrir maximizado",
+    "openWindow": "Abrir en una ventana nueva"
+  },
+  "statusBar": {
+    "synced": "Sincronizado",
+    "pendingChanges": "Cambios pendientes",
+    "syncing": "Sincronizando…",
+    "reconnect": "Reconectar",
+    "resolveConflict": "Resolver conflicto",
+    "offline": "Sin conexión",
+    "syncError": "Error de sincronización",
+    "lastSynced": "Última sincronización: {{time}}",
+    "unsyncedSince": "Cambios sin sincronizar desde: {{time}}",
+    "lastError": "Último error: {{error}}",
+    "cloudSyncStatus": "Estado de la sincronización en la nube",
+    "connected": "Conectado",
+    "disconnected": "Desconectado",
+    "heartbeat": "Latido: hace {{seconds}} s",
+    "noHeartbeat": "No se ha recibido ningún latido",
+    "workerAlive": "Activo",
+    "workerDead": "Inactivo",
+    "tooltip": "Versión de la aplicación: {{version}}\nEstado del worker: {{worker}}\nEstado de la base de datos: {{status}}\n{{heartbeat}}"
+  },
+  "storageQuota": {
+    "unavailableChip": "Almacenamiento: N/D",
+    "unavailable": "Cuota de almacenamiento no disponible",
+    "loadingChip": "Cargando...",
+    "loading": "Cargando información de almacenamiento...",
+    "used": "Usado: {{size}}",
+    "available": "Disponible: {{size}}",
+    "information": "Información de almacenamiento",
+    "usageChip": "Almacenamiento: {{percent}}",
+    "title": "Uso del almacenamiento",
+    "refresh": "Actualizar información de almacenamiento",
+    "percentUsed": "{{percent}} usado",
+    "usageOfQuota": "{{usage}} / {{quota}}",
+    "indexedDb": "IndexedDB: {{size}}",
+    "runningLow": "⚠️ Queda poco espacio de almacenamiento. Considere exportar y hacer una copia de seguridad de sus datos.",
+    "notAvailable": "Información de almacenamiento no disponible",
+    "bytes": "{{value}} B",
+    "kilobytes": "{{value}} KB",
+    "megabytes": "{{value}} MB",
+    "gigabytes": "{{value}} GB"
+  },
+  "masterDetail": {
+    "backToList": "Volver a la lista",
+    "resizeList": "Cambiar tamaño de la lista",
+    "emptyDetail": "Seleccione un registro para ver sus detalles."
+  },
+  "resetApp": {
+    "button": "Restablecer la aplicación",
+    "title": "¿Restablecer la aplicación a su estado original?",
+    "body": "Esto elimina de forma permanente su base de datos, la configuración y las cookies, y luego recarga la aplicación como si fuera una instalación nueva. Esta acción no se puede deshacer.",
+    "passwordLabel": "Contraseña de la base de datos",
+    "passwordHelp": "Introduzca su contraseña para confirmar el restablecimiento.",
+    "failed": "Error al restablecer",
+    "resetting": "Restableciendo…"
+  }
+}

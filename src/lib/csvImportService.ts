@@ -1,7 +1,7 @@
 import type { Account, Transaction } from '../types/database';
 
 import { DatabaseService } from './databaseService';
-import { parseCsvDate } from './dateOnly';
+import { type CsvDateOrder, parseCsvDate } from './dateOnly';
 
 export interface CSVImportColumnMapping {
   accountColumn: string;
@@ -69,10 +69,20 @@ export interface CSVImportDuplicateGroup {
   transactions: CSVImportDuplicateGroupItem[];
 }
 
+/**
+ * Why a CSV row was rejected: a stable code plus the raw cell and column so the
+ * import UI can translate it (`csvImport:rejectedReason.<code>`).
+ */
+export interface CsvRejectedRowReason {
+  code: 'unrecognizedDate' | 'unrecognizedAmount';
+  value: string;
+  column: string;
+}
+
 /** A CSV data row (1-based, excluding the header) that could not be turned into a transaction. */
 export interface CsvRejectedRow {
   rowNumber: number;
-  reason: string;
+  reason: CsvRejectedRowReason;
 }
 
 export interface CsvMappingResult {
@@ -159,7 +169,51 @@ export function detectUniqueIdentifierColumn(headers: string[]): string {
  * currency symbols / thousands separators. Returns null for anything that is
  * not a number so the row can be reported instead of imported as $0.
  */
-export function parseCsvAmount(raw: unknown): number | null {
+export type CsvDecimalSeparator = '.' | ',' | 'auto';
+
+export interface ParseCsvAmountOptions {
+  /**
+   * Which separator is the decimal point. `'auto'` (default) decides per
+   * value: when both `.` and `,` appear, the last one is the decimal; a lone
+   * comma followed by one or two digits at the end is a decimal comma
+   * ("12,34"), otherwise a thousands separator ("1,234"). Pass `','` for a
+   * decimal-comma locale so "1.234" reads as one thousand two hundred
+   * thirty-four; the CSV importer passes `decimalSeparatorFor(language)`.
+   */
+  decimal?: CsvDecimalSeparator;
+}
+
+/** Normalises a numeric string to a dot-decimal form Number() understands, or null when malformed. */
+function normalizeCsvNumber(text: string, decimal: CsvDecimalSeparator): string | null {
+  const stripped = text.replace(/[^\d.,-]/g, '');
+  if (!/\d/.test(stripped)) return null;
+  const hasDot = stripped.includes('.');
+  const hasComma = stripped.includes(',');
+
+  let decimalChar: '.' | ',' | null;
+  if (hasDot && hasComma) {
+    decimalChar = stripped.lastIndexOf('.') > stripped.lastIndexOf(',') ? '.' : ',';
+  } else if (hasComma) {
+    decimalChar = decimal === '.' ? null : decimal === ',' || /,\d{1,2}$/.test(stripped) ? ',' : null;
+  } else if (hasDot) {
+    decimalChar = decimal === ',' ? (/\.\d{1,2}$/.test(stripped) && (stripped.match(/\./g) ?? []).length === 1 ? '.' : null) : '.';
+    // A decimal-comma locale writing "1.234" means one thousand; "1.5" is still a decimal.
+    if (decimal === ',' && decimalChar === '.' && /\.\d{3}$/.test(stripped)) decimalChar = null;
+  } else {
+    decimalChar = null;
+  }
+
+  const groupChar = decimalChar === '.' ? ',' : decimalChar === ',' ? '.' : null;
+  let normalized = stripped;
+  if (groupChar) normalized = normalized.split(groupChar).join('');
+  else normalized = normalized.replace(/[.,]/g, '');
+  if (decimalChar === ',') normalized = normalized.replace(',', '.');
+  // More than one decimal point left means the value was malformed ("12.34.56").
+  if ((normalized.match(/\./g) ?? []).length > 1) return null;
+  return normalized;
+}
+
+export function parseCsvAmount(raw: unknown, { decimal = 'auto' }: ParseCsvAmountOptions = {}): number | null {
   if (raw == null) return null;
   let text = String(raw).trim();
   if (!text) return null;
@@ -181,8 +235,8 @@ export function parseCsvAmount(raw: unknown): number | null {
     text = text.replace(/-\s*$/, '');
   }
 
-  const cleaned = text.replace(/[^\d.-]/g, '');
-  if (!/\d/.test(cleaned)) return null;
+  const cleaned = normalizeCsvNumber(text, decimal);
+  if (cleaned === null) return null;
   const value = Number(cleaned);
   if (!Number.isFinite(value)) return null;
   return value * sign;
@@ -393,11 +447,19 @@ export function summarizeAccountResolutions(
  * an unreadable date or amount are returned in `rejected` with a reason instead
  * of being defaulted to today / $0.
  */
+export interface CsvParseOptions {
+  /** Day/month order for ambiguous numeric dates (from the user's language). */
+  dateOrder?: CsvDateOrder;
+  /** Decimal separator convention for amounts (from the user's language). */
+  decimal?: CsvDecimalSeparator;
+}
+
 export async function mapTransactionsFromCSV(
   data: any[],
   columnMapping: CSVImportColumnMapping,
   accountMappings: CSVAccountMatch[],
-  generateTransactionHash: HashGenerator
+  generateTransactionHash: HashGenerator,
+  parseOptions: CsvParseOptions = {}
 ): Promise<CsvMappingResult> {
   const isDirectAccount = columnMapping.accountColumn.startsWith('DIRECT_ACCOUNT:');
   const directAccountMapping = isDirectAccount ? accountMappings[0] : null;
@@ -434,20 +496,20 @@ export async function mapTransactionsFromCSV(
       : '';
     const uniqueIdentifier = rawUniqueIdentifier || undefined;
 
-    const date = parseCsvDate(rawDate);
+    const date = parseCsvDate(rawDate, { order: parseOptions.dateOrder });
     if (!date) {
       rejected.push({
         rowNumber,
-        reason: `Unrecognized date "${String(rawDate ?? '').trim()}" in column "${columnMapping.dateColumn}"`,
+        reason: { code: 'unrecognizedDate', value: String(rawDate ?? '').trim(), column: columnMapping.dateColumn },
       });
       continue;
     }
 
-    const amount = parseCsvAmount(rawAmount);
+    const amount = parseCsvAmount(rawAmount, { decimal: parseOptions.decimal });
     if (amount == null) {
       rejected.push({
         rowNumber,
-        reason: `Unrecognized amount "${String(rawAmount ?? '').trim()}" in column "${columnMapping.amountColumn}"`,
+        reason: { code: 'unrecognizedAmount', value: String(rawAmount ?? '').trim(), column: columnMapping.amountColumn },
       });
       continue;
     }

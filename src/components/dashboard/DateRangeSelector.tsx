@@ -18,7 +18,8 @@ import {
   MenuItem,
 } from '@mui/material';
 import { DateRange } from '@mui/icons-material';
-import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
+import { useFormatters } from '@/contexts/useFormatters';
 import type { Account, TransactionScopeFilters, User } from '@/types/database';
 
 interface DateRangeSelectorProps {
@@ -44,6 +45,8 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
   scopeFilters = {},
   onScopeFiltersChange,
 }) => {
+  const { t } = useTranslation(['dashboard', 'common']);
+  const { date } = useFormatters();
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(customStartDate);
   const [tempEndDate, setTempEndDate] = useState(customEndDate);
@@ -68,17 +71,29 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
 
   const getTimeRangeLabel = () => {
     switch (timeRange) {
-      case 'week': return 'This Week';
-      case 'month': return 'This Month';
-      case 'year': return 'This Year';
+      case 'week': return t('timeRangeLabel.week');
+      case 'month': return t('timeRangeLabel.month');
+      case 'year': return t('timeRangeLabel.year');
       case 'custom':
         if (customStartDate && customEndDate) {
-          return `${format(new Date(customStartDate), 'MMM dd, yyyy')} - ${format(new Date(customEndDate), 'MMM dd, yyyy')}`;
+          return t('timeRangeLabel.customRange', { start: date(customStartDate), end: date(customEndDate) });
         }
-        return 'Custom Range';
-      default: return 'This Month';
+        return t('dateRangeSelector.customRange');
+      default: return t('timeRangeLabel.month');
     }
   };
+
+  const rangeChipLabel = (range: 'week' | 'month' | 'year' | 'custom') => {
+    switch (range) {
+      case 'week': return t('dateRangeSelector.week');
+      case 'month': return t('common:fields.month');
+      case 'year': return t('common:fields.year');
+      default: return t('dateRangeSelector.custom');
+    }
+  };
+
+  const renderSelectedCount = (selected: number[]) =>
+    selected.length === 0 ? t('common:fields.all') : t('dateRangeSelector.selectedCount', { count: selected.length });
 
   return (
     <>
@@ -89,29 +104,29 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
           fontWeight="bold"
           sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}
         >
-          Budget Insights
+          {t('dateRangeSelector.title')}
         </Typography>
       </Box>
 
       {/* Time Range Selector */}
       <Box mb={3}>
-        <Stack 
-          direction={{ xs: 'column', sm: 'row' }} 
-          spacing={{ xs: 1, sm: 1 }} 
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={{ xs: 1, sm: 1 }}
           alignItems={{ xs: 'flex-start', sm: 'center' }}
           sx={{ gap: { xs: 1, sm: 2 } }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <DateRange color="action" />
             <Typography variant="body1" color="text.secondary">
-              Time Period:
+              {t('dateRangeSelector.timePeriod')}
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {(['week', 'month', 'year', 'custom'] as const).map((range) => (
               <Chip
                 key={range}
-                label={range === 'week' ? 'Week' : range === 'month' ? 'Month' : range === 'year' ? 'Year' : 'Custom'}
+                label={rangeChipLabel(range)}
                 variant={timeRange === range ? 'filled' : 'outlined'}
                 color={timeRange === range ? 'primary' : 'default'}
                 onClick={() => handleTimeRangeClick(range)}
@@ -127,16 +142,16 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
         </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 2 }}>
           <FormControl size="small" sx={{ minWidth: 220 }}>
-            <InputLabel>Accounts</InputLabel>
+            <InputLabel>{t('dateRangeSelector.accounts')}</InputLabel>
             <Select
               multiple
               value={scopeFilters.accountIds ?? []}
-              label="Accounts"
+              label={t('dateRangeSelector.accounts')}
               onChange={(event) => onScopeFiltersChange?.({
                 ...scopeFilters,
                 accountIds: (event.target.value as number[]),
               })}
-              renderValue={(selected) => selected.length === 0 ? 'All' : `${selected.length} selected`}
+              renderValue={renderSelectedCount}
             >
               {accounts.map((account) => (
                 <MenuItem key={account.id} value={account.id}>{account.name}</MenuItem>
@@ -144,16 +159,16 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: 220 }}>
-            <InputLabel>Users</InputLabel>
+            <InputLabel>{t('dateRangeSelector.users')}</InputLabel>
             <Select
               multiple
               value={scopeFilters.userIds ?? []}
-              label="Users"
+              label={t('dateRangeSelector.users')}
               onChange={(event) => onScopeFiltersChange?.({
                 ...scopeFilters,
                 userIds: (event.target.value as number[]),
               })}
-              renderValue={(selected) => selected.length === 0 ? 'All' : `${selected.length} selected`}
+              renderValue={renderSelectedCount}
             >
               {users.map((user) => (
                 <MenuItem key={user.id} value={user.id}>{user.display_name}</MenuItem>
@@ -165,11 +180,11 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
 
       {/* Custom Date Range Dialog */}
       <Dialog open={customDialogOpen} onClose={() => setCustomDialogOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>Select Custom Date Range</DialogTitle>
+        <DialogTitle>{t('dateRangeSelector.dialogTitle')}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             <TextField
-              label="Start Date"
+              label={t('dateRangeSelector.startDate')}
               type="date"
               value={tempStartDate}
               onChange={(e) => setTempStartDate(e.target.value)}
@@ -177,7 +192,7 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
               fullWidth
             />
             <TextField
-              label="End Date"
+              label={t('dateRangeSelector.endDate')}
               type="date"
               value={tempEndDate}
               onChange={(e) => setTempEndDate(e.target.value)}
@@ -187,13 +202,13 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCustomDialogOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={handleCustomApply} 
+          <Button onClick={() => setCustomDialogOpen(false)}>{t('common:actions.cancel')}</Button>
+          <Button
+            onClick={handleCustomApply}
             variant="contained"
             disabled={!tempStartDate || !tempEndDate}
           >
-            Apply
+            {t('common:actions.apply')}
           </Button>
         </DialogActions>
       </Dialog>

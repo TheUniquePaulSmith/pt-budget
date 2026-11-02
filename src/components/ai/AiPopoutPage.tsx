@@ -10,6 +10,7 @@
 
 import React, { useEffect } from 'react';
 import { Box } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import { useAppShellSlice } from '@/contexts/useDatabaseSlices';
 import AiPanelContent from './AiPanelContent';
@@ -18,11 +19,12 @@ import { AiProviderContextProvider } from './AiProviderContext';
 import { AiToolsContextProvider } from './AiToolsContext';
 
 export default function AiPopoutPage() {
+  const { t } = useTranslation(['ai', 'common']);
   const { isDatabaseLoaded } = useAppShellSlice();
 
   useEffect(() => {
-    document.title = 'AI assistant – Budget Tracker';
-  }, []);
+    document.title = t('popout.title', { appName: t('common:appName') });
+  }, [t]);
 
   if (!isDatabaseLoaded) {
     // DatabaseProvider renders the unlock / setup gate in this state.

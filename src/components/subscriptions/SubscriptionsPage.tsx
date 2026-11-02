@@ -30,10 +30,12 @@ import {
 } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { format, subDays, subMonths } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useSubscriptionsSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import type {
   MerchantRule,
   RecurringSeries,
@@ -47,17 +49,16 @@ import SeriesDetailDialog from './SeriesDetailDialog';
 import RuleEditorDialog, { type RuleEditorPrefill } from './RuleEditorDialog';
 import LoansSubscriptionsSection, { type LoansSubscriptionsSectionHandle } from '@/components/loans/LoansSubscriptionsSection';
 
-const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
 type TotalSpentRange = 'all' | 'last30' | 'last90' | 'last12' | 'custom';
 
-const TOTAL_SPENT_RANGE_LABELS: Record<TotalSpentRange, string> = {
-  all: 'All time',
-  last30: 'Last 30 days',
-  last90: 'Last 90 days',
-  last12: 'Last 12 months',
-  custom: 'Custom',
-};
+/** Range options in display order; labels resolve through `subscriptions:page.range<Key>`. */
+const TOTAL_SPENT_RANGES: ReadonlyArray<{ value: TotalSpentRange; labelKey: 'page.rangeAll' | 'page.rangeLast30' | 'page.rangeLast90' | 'page.rangeLast12' | 'page.rangeCustom' }> = [
+  { value: 'all', labelKey: 'page.rangeAll' },
+  { value: 'last30', labelKey: 'page.rangeLast30' },
+  { value: 'last90', labelKey: 'page.rangeLast90' },
+  { value: 'last12', labelKey: 'page.rangeLast12' },
+  { value: 'custom', labelKey: 'page.rangeCustom' },
+];
 
 function getRelativeRange(range: Exclude<TotalSpentRange, 'all' | 'custom'>) {
   const now = new Date();
@@ -80,6 +81,8 @@ interface SubscriptionsPageProps {
 }
 
 export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: SubscriptionsPageProps) {
+  const { t } = useTranslation('subscriptions');
+  const { money } = useFormatters();
   const {
     transactionVersion,
     companies,
@@ -170,7 +173,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
       })
       .catch((err) => {
         console.error('Failed to load recurring series range:', err);
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load recurring series range');
+        if (!cancelled) setError(err instanceof Error ? err.message : t('page.loadRangeFailed'));
       })
       .finally(() => {
         if (!cancelled) setLoadingRange(false);
@@ -179,7 +182,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
     return () => {
       cancelled = true;
     };
-  }, [getRecurringSeriesWithStats, recurringSeries, totalSpentDateRange, totalSpentRange, transactionVersion]);
+  }, [getRecurringSeriesWithStats, recurringSeries, t, totalSpentDateRange, totalSpentRange, transactionVersion]);
 
   useEffect(() => {
     if (!detailCluster) {
@@ -195,7 +198,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
       })
       .catch((err) => {
         console.error('Failed to load unmatched transactions:', err);
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load unmatched transactions');
+        if (!cancelled) setError(err instanceof Error ? err.message : t('page.loadUnmatchedFailed'));
       })
       .finally(() => {
         if (!cancelled) setLoadingClusterTransactions(false);
@@ -204,7 +207,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
     return () => {
       cancelled = true;
     };
-  }, [detailCluster, getTransactionsByIds]);
+  }, [detailCluster, getTransactionsByIds, t]);
 
   const candidates = useMemo(
     () => visibleRecurringSeries.filter((series) => series.status === 'candidate'),
@@ -250,37 +253,37 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
       const summary = await runSubscriptionScan();
       setScanSummary(summary);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Subscription scan failed');
+      setError(err instanceof Error ? err.message : t('page.scanFailed'));
     } finally {
       setScanning(false);
     }
-  }, [runSubscriptionScan]);
+  }, [runSubscriptionScan, t]);
 
   const handleConfirm = useCallback(
     (series: RecurringSeries) => {
       updateRecurringSeriesStatus(series.id, 'active').catch((err) =>
-        setError(err instanceof Error ? err.message : 'Failed to confirm series')
+        setError(err instanceof Error ? err.message : t('page.confirmFailed'))
       );
     },
-    [updateRecurringSeriesStatus]
+    [t, updateRecurringSeriesStatus]
   );
 
   const handleIgnore = useCallback(
     (series: RecurringSeries) => {
       updateRecurringSeriesStatus(series.id, 'ignored').catch((err) =>
-        setError(err instanceof Error ? err.message : 'Failed to ignore series')
+        setError(err instanceof Error ? err.message : t('page.ignoreFailed'))
       );
     },
-    [updateRecurringSeriesStatus]
+    [t, updateRecurringSeriesStatus]
   );
 
   const handleRestore = useCallback(
     (series: RecurringSeries) => {
       updateRecurringSeriesStatus(series.id, 'active').catch((err) =>
-        setError(err instanceof Error ? err.message : 'Failed to restore series')
+        setError(err instanceof Error ? err.message : t('page.restoreFailed'))
       );
     },
-    [updateRecurringSeriesStatus]
+    [t, updateRecurringSeriesStatus]
   );
 
   const openCreateRuleFromCluster = useCallback((cluster: UnmatchedCluster) => {
@@ -339,10 +342,10 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
   );
 
   const clusterColumns = useMemo<GridColDef<UnmatchedCluster>[]>(() => [
-    { field: 'normalized_description', headerName: 'Description', flex: 1.4, minWidth: 220 },
+    { field: 'normalized_description', headerName: t('page.columnDescription'), flex: 1.4, minWidth: 220 },
     {
       field: 'occurrences',
-      headerName: 'Occurrences',
+      headerName: t('page.columnOccurrences'),
       width: 130,
       align: 'right',
       headerAlign: 'right',
@@ -350,17 +353,18 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
     },
     {
       field: 'average_amount',
-      headerName: 'Avg Amount',
+      headerName: t('page.columnAvgAmount'),
       width: 130,
       align: 'right',
       headerAlign: 'right',
-      renderCell: (params) => CURRENCY.format(params.row.average_amount),
+      // Averaged across accounts: default currency.
+      renderCell: (params) => money(params.row.average_amount),
     },
-    { field: 'first_seen', headerName: 'First Seen', width: 115 },
-    { field: 'last_seen', headerName: 'Last Seen', width: 115 },
+    { field: 'first_seen', headerName: t('page.columnFirstSeen'), width: 115 },
+    { field: 'last_seen', headerName: t('page.columnLastSeen'), width: 115 },
     {
       field: 'actions',
-      headerName: 'Actions',
+      headerName: t('page.columnActions'),
       minWidth: 420,
       align: 'right',
       headerAlign: 'right',
@@ -369,45 +373,45 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
       renderCell: (params) => (
         <Stack direction="row" spacing={1} justifyContent="flex-end">
           <Button size="small" startIcon={<ViewIcon />} onClick={() => setDetailCluster(params.row)}>
-            View Transactions
+            {t('page.viewTransactions')}
           </Button>
           <Button size="small" onClick={() => openCreateRuleFromCluster(params.row)}>
-            Create Rule
+            {t('page.createRule')}
           </Button>
           <Button size="small" onClick={() => trackClusterAsLoan(params.row)} disabled={!loansHandle} data-testid="cluster-track-as-loan">
-            Track as Loan Payment
+            {t('page.trackAsLoan')}
           </Button>
         </Stack>
       ),
     },
-  ], [loansHandle, openCreateRuleFromCluster, trackClusterAsLoan]);
+  ], [loansHandle, money, openCreateRuleFromCluster, t, trackClusterAsLoan]);
 
   const ruleColumns = useMemo<GridColDef<MerchantRule>[]>(() => [
     {
       field: 'source',
-      headerName: 'Source',
+      headerName: t('page.columnSource'),
       width: 120,
-      renderCell: (params) => <Chip label={params.row.source} size="small" variant="outlined" />,
+      renderCell: (params) => <Chip label={t(`ruleSource.${params.row.source}`)} size="small" variant="outlined" />,
     },
-    { field: 'pattern', headerName: 'Pattern', flex: 1.2, minWidth: 180 },
-    { field: 'match_type', headerName: 'Match', width: 100 },
-    { field: 'merchant_name', headerName: 'Merchant', flex: 1, minWidth: 150 },
+    { field: 'pattern', headerName: t('page.columnPattern'), flex: 1.2, minWidth: 180 },
+    { field: 'match_type', headerName: t('page.columnMatch'), width: 100, valueFormatter: (value: MerchantRule['match_type']) => t(`matchType.${value}`) },
+    { field: 'merchant_name', headerName: t('page.columnMerchant'), flex: 1, minWidth: 150 },
     {
       field: 'service_name',
-      headerName: 'Service',
+      headerName: t('page.columnService'),
       flex: 0.8,
       minWidth: 130,
       valueGetter: (_, row) => row.service_name || '—',
     },
-    { field: 'default_kind', headerName: 'Kind', width: 110 },
-    { field: 'priority', headerName: 'Priority', width: 95, align: 'right', headerAlign: 'right' },
+    { field: 'default_kind', headerName: t('page.columnKind'), width: 110, valueFormatter: (value: MerchantRule['default_kind']) => t(`kind.${value}`) },
+    { field: 'priority', headerName: t('page.columnPriority'), width: 95, align: 'right', headerAlign: 'right' },
     {
       field: 'enabled',
-      headerName: 'Enabled',
+      headerName: t('page.columnEnabled'),
       width: 110,
       renderCell: (params) => (
         <Chip
-          label={params.row.enabled ? 'Enabled' : 'Disabled'}
+          label={params.row.enabled ? t('page.enabled') : t('page.disabled')}
           size="small"
           color={params.row.enabled ? 'success' : 'default'}
         />
@@ -415,7 +419,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
     },
     {
       field: 'actions',
-      headerName: 'Actions',
+      headerName: t('page.columnActions'),
       width: 100,
       align: 'right',
       headerAlign: 'right',
@@ -431,45 +435,51 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
             setRuleEditorOpen(true);
           }}
         >
-          Edit
+          {t('page.edit')}
         </Button>
       ),
     },
-  ], []);
+  ], [t]);
 
   const clusterTransactionColumns = useMemo<GridColDef<Transaction>[]>(() => [
-    { field: 'date', headerName: 'Date', width: 110 },
-    { field: 'description', headerName: 'Description', flex: 1.4, minWidth: 200 },
-    userColumn<Transaction>(),
-    accountColumn<Transaction>(),
-    cardColumn<Transaction>(),
+    { field: 'date', headerName: t('page.columnDate'), width: 110 },
+    { field: 'description', headerName: t('page.columnDescription'), flex: 1.4, minWidth: 200 },
+    userColumn<Transaction>({
+      headerName: t('columns.user'),
+      owner: t('columns.owner'),
+      effectiveUser: t('columns.effectiveUser'),
+      unassigned: t('columns.unassigned'),
+    }),
+    accountColumn<Transaction>({ headerName: t('columns.account'), owner: t('columns.owner'), unknownAccount: t('columns.unknownAccount') }),
+    cardColumn<Transaction>({ headerName: t('columns.card'), noCard: t('columns.noCard') }),
     {
       field: 'amount',
-      headerName: 'Amount',
+      headerName: t('page.columnAmount'),
       width: 120,
       align: 'right',
       headerAlign: 'right',
-      renderCell: (params) => CURRENCY.format(Math.abs(params.row.amount)),
+      // A transaction's amount is in its account's currency.
+      renderCell: (params) => money(Math.abs(params.row.amount), params.row.account_currency),
     },
-  ], []);
+  ], [money, t]);
 
   return (
     <Box sx={{ p: 3 }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
         <Box>
           <Typography variant="h4" gutterBottom>
-            Subscriptions
+            {t('page.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Recurring payments detected from your transaction history.
+            {t('page.subtitle')}
           </Typography>
         </Box>
         <Box display="flex" gap={1}>
           <Button variant="outlined" startIcon={<RuleIcon />} onClick={() => setRulesDialogOpen(true)}>
-            View Rules
+            {t('page.viewRules')}
           </Button>
           <Button variant="outlined" startIcon={<AddIcon />} onClick={openCreateRule}>
-            Add Rule
+            {t('page.addRule')}
           </Button>
           <Button
             variant="contained"
@@ -477,7 +487,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
             onClick={handleScan}
             disabled={scanning}
           >
-            {scanning ? 'Scanning…' : 'Rescan'}
+            {scanning ? t('page.scanning') : t('page.rescan')}
           </Button>
         </Box>
       </Box>
@@ -491,10 +501,10 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
       {!hasAnyData ? (
         <Paper variant="outlined" sx={{ p: 6, textAlign: 'center' }}>
           <Typography variant="h6" gutterBottom>
-            No recurring charges detected yet
+            {t('page.emptyTitle')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Scan your transaction history to find subscriptions and recurring bills.
+            {t('page.emptyBody')}
           </Typography>
           <Button
             variant="contained"
@@ -503,7 +513,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
             onClick={handleScan}
             disabled={scanning}
           >
-            {scanning ? 'Scanning…' : 'Scan Transactions'}
+            {scanning ? t('page.scanning') : t('page.scanTransactions')}
           </Button>
         </Paper>
       ) : null}
@@ -522,16 +532,16 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
             <Box display="flex" alignItems="center" gap={1} mr={1}>
               <DateRangeIcon color="action" fontSize="small" />
               <Typography variant="body2" color="text.secondary">
-                Total Spent:
+                {t('page.totalSpent')}
               </Typography>
             </Box>
-            {(Object.keys(TOTAL_SPENT_RANGE_LABELS) as TotalSpentRange[]).map((range) => (
+            {TOTAL_SPENT_RANGES.map(({ value: range, labelKey }) => (
               <Chip
                 key={range}
                 label={
                   range === 'custom' && customStartDate && customEndDate
-                    ? `${customStartDate} to ${customEndDate}`
-                    : TOTAL_SPENT_RANGE_LABELS[range]
+                    ? t('page.customRange', { start: customStartDate, end: customEndDate })
+                    : t(labelKey)
                 }
                 variant={totalSpentRange === range ? 'filled' : 'outlined'}
                 color={totalSpentRange === range ? 'primary' : 'default'}
@@ -544,7 +554,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
 
           {candidates.length > 0 && (
             <SeriesTable
-              title={`Needs Review (${candidates.length})`}
+              title={t('page.needsReview', { count: candidates.length })}
               series={candidates}
               onConfirm={handleConfirm}
               onIgnore={handleIgnore}
@@ -554,18 +564,18 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
           )}
 
           <SeriesTable
-            title={`Subscriptions (${activeSubscriptions.length})`}
+            title={t('page.subscriptionsCount', { count: activeSubscriptions.length })}
             series={activeSubscriptions}
-            emptyMessage="No active subscriptions yet — confirm candidates above or run a scan."
+            emptyMessage={t('page.noActiveSubscriptions')}
             onIgnore={handleIgnore}
             onEdit={openEditRuleForSeries}
             onViewTransactions={(series) => setDetailSeries(series)}
           />
 
           <SeriesTable
-            title={`Recurring Bills (${activeBills.length})`}
+            title={t('page.recurringBills', { count: activeBills.length })}
             series={activeBills}
-            emptyMessage="No recurring bills detected yet."
+            emptyMessage={t('page.noBills')}
             onIgnore={handleIgnore}
             onEdit={openEditRuleForSeries}
             onViewTransactions={(series) => setDetailSeries(series)}
@@ -575,7 +585,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
 
           {hiddenSeries.length > 0 && (
             <SeriesTable
-              title={`Hidden (${hiddenSeries.length})`}
+              title={t('page.hidden', { count: hiddenSeries.length })}
               series={hiddenSeries}
               onRestore={handleRestore}
               onEdit={(series) => setDetailSeries(series)}
@@ -593,21 +603,20 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
                   sx={{ px: 0, justifyContent: 'flex-start' }}
                 >
                   <Typography variant="h6" component="span">
-                    Unmatched Recurring Charges ({clusters.length})
+                    {t('page.unmatched', { count: clusters.length })}
                   </Typography>
                 </Button>
                 <Stack direction="row" spacing={1}>
                   {onOpenAiPanel && (
                     <Button size="small" startIcon={<AiIcon />} onClick={onOpenAiPanel}>
-                      Suggest names with AI
+                      {t('page.suggestNames')}
                     </Button>
                   )}
                 </Stack>
               </Box>
               <Collapse in={unmatchedExpanded}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  These descriptions repeat but do not match any merchant rule yet. Create a rule to
-                  name the merchant and track the charge.
+                  {t('page.unmatchedHelp')}
                 </Typography>
                 <AppDataGrid
                   rows={clusters}
@@ -624,11 +633,11 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
       )}
 
       <Dialog open={customRangeDialogOpen} onClose={() => setCustomRangeDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Select Total Spent Range</DialogTitle>
+        <DialogTitle>{t('page.selectRange')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} pt={1}>
             <TextField
-              label="Start Date"
+              label={t('page.startDate')}
               type="date"
               value={tempCustomStartDate}
               onChange={(event) => setTempCustomStartDate(event.target.value)}
@@ -636,7 +645,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
               fullWidth
             />
             <TextField
-              label="End Date"
+              label={t('page.endDate')}
               type="date"
               value={tempCustomEndDate}
               onChange={(event) => setTempCustomEndDate(event.target.value)}
@@ -646,15 +655,15 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCustomRangeDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setCustomRangeDialogOpen(false)}>{t('page.cancel')}</Button>
           <Button variant="contained" onClick={applyCustomRange} disabled={!tempCustomStartDate || !tempCustomEndDate}>
-            Apply
+            {t('page.apply')}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={rulesDialogOpen} onClose={() => setRulesDialogOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>Merchant Rules</DialogTitle>
+        <DialogTitle>{t('page.merchantRules')}</DialogTitle>
         <DialogContent>
           <AppDataGrid
             rows={merchantRules}
@@ -665,12 +674,12 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRulesDialogOpen(false)}>Close</Button>
+          <Button onClick={() => setRulesDialogOpen(false)}>{t('page.close')}</Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={detailCluster !== null} onClose={() => setDetailCluster(null)} maxWidth="md" fullWidth>
-        <DialogTitle>{detailCluster?.normalized_description ?? 'Unmatched Transactions'}</DialogTitle>
+        <DialogTitle>{detailCluster?.normalized_description ?? t('page.unmatchedTransactions')}</DialogTitle>
         <DialogContent>
           {loadingClusterTransactions ? (
             <Box display="flex" justifyContent="center" py={3}>
@@ -678,7 +687,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
             </Box>
           ) : clusterTransactions.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              No transactions found for this recurring charge.
+              {t('page.noClusterTransactions')}
             </Typography>
           ) : (
             <AppDataGrid
@@ -691,15 +700,15 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDetailCluster(null)}>Close</Button>
+          <Button onClick={() => setDetailCluster(null)}>{t('page.close')}</Button>
           {detailCluster && (
             <Button onClick={() => trackClusterAsLoan(detailCluster)} disabled={!loansHandle}>
-              Track as Loan Payment
+              {t('page.trackAsLoan')}
             </Button>
           )}
           {detailCluster && (
             <Button variant="contained" onClick={() => openCreateRuleFromCluster(detailCluster)}>
-              Create Rule
+              {t('page.createRule')}
             </Button>
           )}
         </DialogActions>
@@ -733,9 +742,11 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
         onClose={() => setScanSummary(null)}
         message={
           scanSummary
-            ? `Scan complete: ${scanSummary.merchantsMatched} merchants assigned, ` +
-              `${scanSummary.seriesCreated} new recurring charges, ` +
-              `${scanSummary.transactionsLinked} transactions linked`
+            ? t('page.scanComplete', {
+                merchants: scanSummary.merchantsMatched,
+                series: scanSummary.seriesCreated,
+                transactions: scanSummary.transactionsLinked,
+              })
             : ''
         }
       />

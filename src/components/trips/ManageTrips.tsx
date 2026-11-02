@@ -27,7 +27,9 @@ import {
   Delete as DeleteIcon,
   FlightTakeoff as TripIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useBudgetFundsSlice, useTripsSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { Trip } from '@/types/database';
 import type { BudgetFundStatus } from '@/types/budgetCarry';
 import { currentMonthKey } from '@/lib/budgetCarry';
@@ -43,8 +45,16 @@ import { TripBudgetFields } from './TripBudgetFields';
 
 const log = logger.child({ component: 'ManageTrips' });
 
+// Values and ordering only; labels resolve through `trips:category.*` /
+// `trips:status.*` at render time.
+const TRIP_CATEGORIES: ReadonlyArray<Trip['trip_category']> = ['business', 'vacation', 'family', 'medical', 'education', 'other'];
+const TRIP_STATUSES: ReadonlyArray<Trip['status']> = ['planning', 'in_progress', 'completed', 'cancelled'];
+
 export default function ManageTrips() {
-  const { 
+  const { t } = useTranslation(['trips', 'common']);
+  // Trip costs are in the default currency.
+  const { money } = useFormatters();
+  const {
     trips, 
     addTrip, 
     updateTrip,
@@ -136,7 +146,7 @@ export default function ManageTrips() {
 
     try {
       if (!tripFormData.name.trim()) {
-        throw new Error('Trip name is required');
+        throw new Error(t('manage.nameRequired'));
       }
 
       const tripData = {
@@ -161,7 +171,7 @@ export default function ManageTrips() {
 
       handleCloseTripDialog();
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to save trip');
+      setError(error instanceof Error ? error.message : t('manage.saveFailed'));
     } finally {
       setLoading(false);
     }
@@ -183,7 +193,7 @@ export default function ManageTrips() {
       setDeleteDialogOpen(false);
       setTripToDelete(null);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to delete trip');
+      setError(error instanceof Error ? error.message : t('manage.deleteFailed'));
     } finally {
       setLoading(false);
     }
@@ -199,15 +209,14 @@ export default function ManageTrips() {
     }
   };
 
-  const getCategoryLabel = (category: Trip['trip_category']) => {
-    return category.charAt(0).toUpperCase() + category.slice(1);
-  };
+  const getCategoryLabel = (category: Trip['trip_category']) => t(`category.${category}`);
+  const getStatusLabel = (status: Trip['status']) => t(`status.${status}`);
 
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1" fontWeight="bold">
-          Manage Trips
+          {t('manage.title')}
         </Typography>
         <Button
           variant="contained"
@@ -215,7 +224,7 @@ export default function ManageTrips() {
           onClick={() => handleOpenTripDialog()}
           sx={{ minWidth: 120 }}
         >
-          Add Trip
+          {t('manage.addTrip')}
         </Button>
       </Box>
 
@@ -240,12 +249,12 @@ export default function ManageTrips() {
                     {trip.name}
                   </Typography>
                   <Box>
-                    <Tooltip title="Edit Trip">
+                    <Tooltip title={t('manage.editTrip')}>
                       <IconButton size="small" onClick={() => handleOpenTripDialog(trip)}>
                         <EditIcon />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Delete Trip">
+                    <Tooltip title={t('manage.deleteTrip')}>
                       <IconButton size="small" onClick={() => handleDeleteClick(trip)}>
                         <DeleteIcon />
                       </IconButton>
@@ -255,19 +264,19 @@ export default function ManageTrips() {
 
                 {trip.destination && (
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    <strong>Destination:</strong> {trip.destination}
+                    <strong>{t('manage.destination')}</strong> {trip.destination}
                   </Typography>
                 )}
 
                 {trip.purpose && (
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    <strong>Purpose:</strong> {trip.purpose}
+                    <strong>{t('manage.purpose')}</strong> {trip.purpose}
                   </Typography>
                 )}
 
                 <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                  <Chip 
-                    label={trip.status.charAt(0).toUpperCase() + trip.status.slice(1).replace('_', ' ')} 
+                  <Chip
+                    label={getStatusLabel(trip.status)}
                     color={getStatusColor(trip.status) as any}
                     size="small"
                   />
@@ -280,13 +289,14 @@ export default function ManageTrips() {
 
                 {(trip.start_date || trip.end_date) && (
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    <strong>Dates:</strong> {trip.start_date || 'TBD'} - {trip.end_date || 'TBD'}
+                    <strong>{t('manage.dates')}</strong>{' '}
+                    {t('manage.dateRange', { start: trip.start_date || t('manage.tbd'), end: trip.end_date || t('manage.tbd') })}
                   </Typography>
                 )}
 
                 {trip.estimated_cost && (
                   <Typography variant="body2" color="text.secondary" sx={{ mb: fundStatus[trip.id] ? 1.5 : 0 }}>
-                    <strong>Estimated Cost:</strong> ${trip.estimated_cost.toFixed(2)}
+                    <strong>{t('manage.estimatedCost')}</strong> {money(trip.estimated_cost)}
                   </Typography>
                 )}
 
@@ -302,17 +312,17 @@ export default function ManageTrips() {
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <TripIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
               <Typography variant="h6" color="text.secondary" gutterBottom>
-                No trips found
+                {t('manage.emptyTitle')}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Create your first trip to start tracking travel expenses
+                {t('manage.emptyHelp')}
               </Typography>
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={() => handleOpenTripDialog()}
               >
-                Add Your First Trip
+                {t('manage.addFirstTrip')}
               </Button>
             </Box>
           </CardContent>
@@ -328,13 +338,13 @@ export default function ManageTrips() {
       >
         <form onSubmit={handleTripSubmit}>
           <DialogTitle>
-            {editingTrip ? 'Edit Trip' : 'Add New Trip'}
+            {editingTrip ? t('manage.editTrip') : t('manage.addTitle')}
           </DialogTitle>
           <DialogContent>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
               <TextField
                 fullWidth
-                label="Trip Name"
+                label={t('manage.tripName')}
                 value={tripFormData.name}
                 onChange={(e) => setTripFormData({ ...tripFormData, name: e.target.value })}
                 required
@@ -343,14 +353,14 @@ export default function ManageTrips() {
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <TextField
                   fullWidth
-                  label="Destination"
+                  label={t('manage.destinationField')}
                   value={tripFormData.destination}
                   onChange={(e) => setTripFormData({ ...tripFormData, destination: e.target.value })}
                 />
-                
+
                 <TextField
                   fullWidth
-                  label="Purpose"
+                  label={t('manage.purposeField')}
                   value={tripFormData.purpose}
                   onChange={(e) => setTripFormData({ ...tripFormData, purpose: e.target.value })}
                 />
@@ -358,32 +368,28 @@ export default function ManageTrips() {
 
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <FormControl fullWidth>
-                  <InputLabel>Category</InputLabel>
+                  <InputLabel>{t('common:fields.category')}</InputLabel>
                   <Select
                     value={tripFormData.trip_category}
-                    label="Category"
+                    label={t('common:fields.category')}
                     onChange={(e) => setTripFormData({ ...tripFormData, trip_category: e.target.value as Trip['trip_category'] })}
                   >
-                    <MenuItem value="business">Business</MenuItem>
-                    <MenuItem value="vacation">Vacation</MenuItem>
-                    <MenuItem value="family">Family</MenuItem>
-                    <MenuItem value="medical">Medical</MenuItem>
-                    <MenuItem value="education">Education</MenuItem>
-                    <MenuItem value="other">Other</MenuItem>
+                    {TRIP_CATEGORIES.map((value) => (
+                      <MenuItem key={value} value={value}>{t(`category.${value}`)}</MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
 
                 <FormControl fullWidth>
-                  <InputLabel>Status</InputLabel>
+                  <InputLabel>{t('common:fields.status')}</InputLabel>
                   <Select
                     value={tripFormData.status}
-                    label="Status"
+                    label={t('common:fields.status')}
                     onChange={(e) => setTripFormData({ ...tripFormData, status: e.target.value as Trip['status'] })}
                   >
-                    <MenuItem value="planning">Planning</MenuItem>
-                    <MenuItem value="in_progress">In Progress</MenuItem>
-                    <MenuItem value="completed">Completed</MenuItem>
-                    <MenuItem value="cancelled">Cancelled</MenuItem>
+                    {TRIP_STATUSES.map((value) => (
+                      <MenuItem key={value} value={value}>{t(`statusOption.${value}`)}</MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
               </Box>
@@ -391,7 +397,7 @@ export default function ManageTrips() {
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <TextField
                   fullWidth
-                  label="Start Date"
+                  label={t('manage.startDate')}
                   type="date"
                   value={tripFormData.start_date}
                   onChange={(e) => setTripFormData({ ...tripFormData, start_date: e.target.value })}
@@ -400,7 +406,7 @@ export default function ManageTrips() {
 
                 <TextField
                   fullWidth
-                  label="End Date"
+                  label={t('manage.endDate')}
                   type="date"
                   value={tripFormData.end_date}
                   onChange={(e) => setTripFormData({ ...tripFormData, end_date: e.target.value })}
@@ -410,7 +416,7 @@ export default function ManageTrips() {
 
               <TextField
                 fullWidth
-                label="Estimated Cost"
+                label={t('manage.estimatedCostField')}
                 type="number"
                 value={tripFormData.estimated_cost}
                 onChange={(e) => setTripFormData({ ...tripFormData, estimated_cost: e.target.value })}
@@ -419,7 +425,7 @@ export default function ManageTrips() {
 
               <TextField
                 fullWidth
-                label="Notes"
+                label={t('common:fields.notes')}
                 multiline
                 rows={3}
                 value={tripFormData.notes}
@@ -435,9 +441,9 @@ export default function ManageTrips() {
             </Box>
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleCloseTripDialog}>Cancel</Button>
+            <Button onClick={handleCloseTripDialog}>{t('common:actions.cancel')}</Button>
             <Button type="submit" variant="contained" disabled={loading}>
-              {loading ? 'Saving...' : editingTrip ? 'Update' : 'Add'}
+              {loading ? t('manage.saving') : editingTrip ? t('common:actions.update') : t('common:actions.add')}
             </Button>
           </DialogActions>
         </form>
@@ -445,16 +451,16 @@ export default function ManageTrips() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete Trip</DialogTitle>
+        <DialogTitle>{t('manage.deleteTrip')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete &quot;{tripToDelete?.name}&quot;? This action cannot be undone.
+            {t('manage.deleteConfirm', { name: tripToDelete?.name ?? '' })}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>{t('common:actions.cancel')}</Button>
           <Button onClick={handleDeleteConfirm} color="error" disabled={loading}>
-            {loading ? 'Deleting...' : 'Delete'}
+            {loading ? t('manage.deleting') : t('common:actions.delete')}
           </Button>
         </DialogActions>
       </Dialog>

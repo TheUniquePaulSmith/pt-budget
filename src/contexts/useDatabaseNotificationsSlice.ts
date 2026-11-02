@@ -70,7 +70,7 @@ export interface DatabaseNotificationsSlice {
 }
 
 type NotificationsService = Pick<DatabaseService, 'notifications' | 'appMetadata' | 'getBudgetStatus'> &
-  Partial<Pick<DatabaseService, 'loans'>>;
+  Partial<Pick<DatabaseService, 'loans' | 'preferences'>>;
 
 interface UseDatabaseNotificationsSliceOptions {
   databaseService: NotificationsService | null;
@@ -220,9 +220,12 @@ export function useDatabaseNotificationsSlice({
     async ({ recurringSeries, loans, settings, today = todayLocalISO() }: RunNotificationScanOptions) => {
       const database = requireDatabase();
       const service = database.notifications;
-      const [notifications, resolvedSettings] = await Promise.all([
+      const [notifications, resolvedSettings, defaultCurrency] = await Promise.all([
         service.list(),
         settings ? Promise.resolve(settings) : service.getSettings(),
+        // Stored alert text quotes money in the household's default currency
+        // (surfaces rebuild it from the payload in the current language anyway).
+        database.preferences ? database.preferences.getDefaultCurrency().catch(() => undefined) : Promise.resolve(undefined),
       ]);
       const summary = await scanNotifications(
         {
@@ -237,7 +240,8 @@ export function useDatabaseNotificationsSlice({
           setStatus: (id, status, snoozedUntil) => service.setStatus(id, status, snoozedUntil ?? null),
           update: (id, input) => service.update(id, input),
         },
-        today
+        today,
+        { currency: defaultCurrency }
       );
       // Only touch app_metadata when the scan already wrote rows: a write on
       // every scan would leave cloud auto-sync permanently "pending".

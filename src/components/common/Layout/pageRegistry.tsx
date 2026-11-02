@@ -9,10 +9,14 @@
  *
  * Contract every nav control must honour (e2e selectors depend on it):
  *   - `data-testid={page.testId}` on the control that navigates to the page
- *   - an accessible name equal to `page.label` at desktop width
+ *   - an accessible name equal to the page's label at desktop width. `label`
+ *     is the English source text; nav controls render `getPageLabel(page, t)`,
+ *     which resolves the `shell:nav.<id>` translation (English by default, so
+ *     the e2e suite keeps clicking `getByRole('button', { name: 'SQL Query' })`).
  */
 
 import React, { lazy, type ComponentType } from 'react';
+import type { TFunction } from 'i18next';
 import type { SvgIconProps } from '@mui/material';
 import {
   AccountBalance as AccountIcon,
@@ -98,7 +102,9 @@ export const PAGE_DEFINITIONS: readonly PageDefinition[] = [
     order: 10,
     mobileNav: true,
     testId: 'nav-dashboard',
-    render: ({ navigate }) => <DashboardPage onNavigateToBudget={() => navigate('budget')} />,
+    render: ({ navigate }) => (
+      <DashboardPage onNavigateToBudget={() => navigate('budget')} onNavigateToSettings={() => navigate('settings')} />
+    ),
   },
   {
     id: 'projects',
@@ -210,6 +216,11 @@ export const PAGE_DEFINITIONS: readonly PageDefinition[] = [
 ];
 
 export const DEFAULT_PAGE_ID: PageId = 'dashboard';
+
+/** The page's label in the active language (`t` from `useTranslation('shell')`). */
+export function getPageLabel(page: Pick<PageDefinition, 'id' | 'label'>, t: TFunction<'shell'>): string {
+  return t(`nav.${page.id}`, { defaultValue: page.label });
+}
 
 export function getPage(id: PageId): PageDefinition {
   const page = PAGE_DEFINITIONS.find((definition) => definition.id === id);

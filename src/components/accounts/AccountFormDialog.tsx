@@ -11,6 +11,7 @@ import {
   MenuItem,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { Account, User } from '@/types/database';
 import { AccountCardFormFields, AccountFormFields, AccountOwnerField } from './AccountFormFields';
 import {
@@ -45,6 +46,8 @@ interface AccountFormDialogProps {
   users: User[];
   /** Prefilled fields for add mode (e.g. CSV import passes the account number and institution). */
   initialValues?: AccountFormPrefill;
+  /** The household's default currency; a new account starts with it. */
+  defaultCurrency?: string;
   onClose: () => void;
   onAdd: (
     account: AccountFormValues,
@@ -77,18 +80,20 @@ export function AccountFormDialog({
   defaultOwnerUserId,
   users,
   initialValues,
+  defaultCurrency,
   onClose,
   onAdd,
   onUpdate,
   onCreated,
   onAddUser,
 }: AccountFormDialogProps) {
+  const { t } = useTranslation(['accounts', 'common']);
   // Read through a ref so an inline `initialValues` literal never re-runs the
   // reset effect while the user is typing; the form is (re)filled when it opens.
   const initialValuesRef = useRef(initialValues);
   initialValuesRef.current = initialValues;
 
-  const [form, setForm] = useState(() => createAccountFormState(editingAccount, initialValues));
+  const [form, setForm] = useState(() => createAccountFormState(editingAccount, initialValues, defaultCurrency));
   const [card, setCard] = useState(() => createAccountCardFormState(initialValues));
   const [ownerUserId, setOwnerUserId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -102,7 +107,7 @@ export function AccountFormDialog({
   useEffect(() => {
     if (!open) return;
 
-    setForm(createAccountFormState(editingAccount, initialValuesRef.current));
+    setForm(createAccountFormState(editingAccount, initialValuesRef.current, defaultCurrency));
     if (!editingAccount) {
       setOwnerUserId(defaultOwnerUserId ?? null);
       setCard(createAccountCardFormState(initialValuesRef.current));
@@ -110,7 +115,7 @@ export function AccountFormDialog({
     setError(null);
     setNewPersonOpen(false);
     setNewPersonName('');
-  }, [open, editingAccount, defaultOwnerUserId]);
+  }, [open, editingAccount, defaultOwnerUserId, defaultCurrency]);
 
   const handleOwnerChange = (userId: number | null) => {
     if (userId === NEW_PERSON_VALUE) {
@@ -125,7 +130,7 @@ export function AccountFormDialog({
     if (!onAddUser) return;
     const displayName = newPersonName.trim();
     if (!displayName) {
-      setError('Display name is required');
+      setError(t('formDialog.displayNameRequired'));
       return;
     }
     setNewPersonSaving(true);
@@ -136,7 +141,7 @@ export function AccountFormDialog({
       setNewPersonName('');
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add person');
+      setError(err instanceof Error ? err.message : t('formDialog.addPersonFailed'));
     } finally {
       setNewPersonSaving(false);
     }
@@ -146,7 +151,7 @@ export function AccountFormDialog({
     e.preventDefault();
     const built = buildAccountFormValues(form);
     if (!built.ok) {
-      setError(built.error);
+      setError(t(`validation.${built.error}`));
       return;
     }
 
@@ -157,11 +162,13 @@ export function AccountFormDialog({
         await onUpdate(editingAccount.id, built.value);
       } else {
         if (!ownerUserId) {
-          throw new Error('Owner is required');
+          setError(t('formDialog.ownerRequired'));
+          return;
         }
         const cardInput = buildAccountCardInput(card, ownerUserId);
         if (!cardInput.ok) {
-          throw new Error(cardInput.error);
+          setError(t(`validation.${cardInput.error}`));
+          return;
         }
         const result = toCreatedResult(await onAdd(built.value, ownerUserId, cardInput.value));
         if (result && onCreated) {
@@ -170,7 +177,7 @@ export function AccountFormDialog({
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save account');
+      setError(err instanceof Error ? err.message : t('formDialog.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -178,7 +185,7 @@ export function AccountFormDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{editingAccount ? 'Edit Account' : 'Add New Account'}</DialogTitle>
+      <DialogTitle>{editingAccount ? t('formDialog.editTitle') : t('formDialog.addTitle')}</DialogTitle>
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -193,7 +200,7 @@ export function AccountFormDialog({
             extraItems={
               onAddUser ? (
                 <MenuItem value={NEW_PERSON_VALUE} sx={{ fontStyle: 'italic' }}>
-                  + New person…
+                  {t('formDialog.newPerson')}
                 </MenuItem>
               ) : null
             }
@@ -202,15 +209,15 @@ export function AccountFormDialog({
         <AccountFormFields state={form} onChange={setForm} autoFocus />
         {!editingAccount && (
           <>
-            <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>First Card</Typography>
+            <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>{t('formDialog.firstCard')}</Typography>
             <AccountCardFormFields state={card} onChange={setCard} users={users} />
           </>
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button onClick={handleSubmit} variant="contained" disabled={saving}>
-          {saving ? 'Saving...' : editingAccount ? 'Update' : 'Add'}
+          {saving ? t('formDialog.saving') : editingAccount ? t('common:actions.update') : t('common:actions.add')}
         </Button>
       </DialogActions>
 

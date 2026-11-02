@@ -1,0 +1,17 @@
+{
+  "manage": {
+    "addCategoryFailed": "Kategorie konnte nicht hinzugefügt werden",
+    "updateCategoryFailed": "Kategorie konnte nicht aktualisiert werden",
+    "addCompanyFailed": "Händler konnte nicht hinzugefügt werden",
+    "updateCompanyFailed": "Händler konnte nicht aktualisiert werden",
+    "title": "Kategorien & Händler verwalten",
+    "categoriesTab": "Kategorien",
+    "companiesTab": "Händler",
+    "addCategoryTitle": "Neue Kategorie hinzufügen",
+    "categoryNameLabel": "Kategoriename",
+    "existingCategories": "Vorhandene Kategorien",
+    "addCompanyTitle": "Neuen Händler hinzufügen",
+    "companyNameLabel": "Händlername",
+    "existingCompanies": "Vorhandene Händler"
+  }
+}

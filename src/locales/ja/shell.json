@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "dashboard": "ダッシュボード",
+    "projects": "プロジェクト",
+    "trips": "旅行",
+    "budget": "予算",
+    "accounts": "口座",
+    "loans": "ローン",
+    "transactions": "取引",
+    "subscriptions": "サブスクリプション",
+    "notifications": "通知",
+    "sql-query": "SQL クエリ",
+    "settings": "設定",
+    "developer-console": "開発者コンソール",
+    "pages": "ページ",
+    "more": "その他",
+    "quickActions": "クイック操作",
+    "addTransaction": "取引を追加",
+    "importCsv": "CSV をインポート",
+    "manageData": "データ管理"
+  },
+  "dataGrid": {
+    "noRows": "表示する行がありません"
+  },
+  "sidebar": {
+    "collapse": "サイドバーを折りたたむ",
+    "expand": "サイドバーを展開"
+  },
+  "pageFallback": {
+    "loading": "ページを読み込み中"
+  },
+  "notificationBell": {
+    "label": "通知",
+    "due": "期限到来 {{count}} 件",
+    "titleWithDue": "{{label}}：期限到来 {{count}} 件",
+    "more": "ほか {{count}} 件… ベルをクリックするとすべて表示されます。"
+  },
+  "aiLauncher": {
+    "label": "ローカル AI",
+    "title": "{{label}}（右クリックでウィンドウの表示方法を選択）",
+    "openSidebar": "サイドバーとして開く",
+    "openMaximized": "最大化して開く",
+    "openWindow": "新しいウィンドウで開く"
+  },
+  "statusBar": {
+    "synced": "同期済み",
+    "pendingChanges": "未同期の変更あり",
+    "syncing": "同期中…",
+    "reconnect": "再接続",
+    "resolveConflict": "競合を解決",
+    "offline": "オフライン",
+    "syncError": "同期エラー",
+    "lastSynced": "最終同期：{{time}}",
+    "unsyncedSince": "未同期の変更：{{time}} 以降",
+    "lastError": "最新のエラー：{{error}}",
+    "cloudSyncStatus": "クラウド同期の状態",
+    "connected": "接続済み",
+    "disconnected": "未接続",
+    "heartbeat": "ハートビート：{{seconds}} 秒前",
+    "noHeartbeat": "ハートビートを受信していません",
+    "workerAlive": "稼働中",
+    "workerDead": "停止",
+    "tooltip": "アプリのバージョン：{{version}}\nワーカーの状態：{{worker}}\nデータベースの状態：{{status}}\n{{heartbeat}}"
+  },
+  "storageQuota": {
+    "unavailableChip": "ストレージ：N/A",
+    "unavailable": "ストレージ容量を取得できません",
+    "loadingChip": "読み込み中...",
+    "loading": "ストレージ情報を読み込み中...",
+    "used": "使用済み：{{size}}",
+    "available": "空き：{{size}}",
+    "information": "ストレージ情報",
+    "usageChip": "ストレージ：{{percent}}",
+    "title": "ストレージ使用量",
+    "refresh": "ストレージ情報を更新",
+    "percentUsed": "{{percent}} 使用中",
+    "usageOfQuota": "{{usage}} / {{quota}}",
+    "indexedDb": "IndexedDB：{{size}}",
+    "runningLow": "⚠️ ストレージの空き容量が少なくなっています。データのエクスポートとバックアップをご検討ください。",
+    "notAvailable": "ストレージ情報を取得できません",
+    "bytes": "{{value}} B",
+    "kilobytes": "{{value}} KB",
+    "megabytes": "{{value}} MB",
+    "gigabytes": "{{value}} GB"
+  },
+  "masterDetail": {
+    "backToList": "一覧に戻る",
+    "resizeList": "一覧の幅を変更",
+    "emptyDetail": "レコードを選択すると詳細が表示されます。"
+  },
+  "resetApp": {
+    "button": "アプリをリセット",
+    "title": "アプリを初期状態に戻しますか？",
+    "body": "データベース、設定、Cookie を完全に削除し、新規インストール直後の状態でアプリを再読み込みします。この操作は取り消せません。",
+    "passwordLabel": "データベースのパスワード",
+    "passwordHelp": "リセットを確定するにはパスワードを入力してください。",
+    "failed": "リセットに失敗しました",
+    "resetting": "リセット中…"
+  }
+}

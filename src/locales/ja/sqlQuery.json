@@ -1,0 +1,57 @@
+{
+  "page": {
+    "title": "SQL クエリコンソール",
+    "sampleQueries": "サンプルクエリ",
+    "queryHeading": "SQL クエリ",
+    "enterQuery": "SQL クエリを入力してください",
+    "databaseNotLoaded": "データベースが読み込まれていません",
+    "unknownError": "不明なエラーが発生しました",
+    "formatFailed": "クエリの整形に失敗しました：{{message}}",
+    "formatFailedPlain": "クエリの整形に失敗しました",
+    "schemaUnavailable": "自動補完とスキーマチェックは利用できません：{{error}}",
+    "schemaLoadFailed": "データベーススキーマの読み込みに失敗しました",
+    "moreIssues_other": "ほか {{count}} 件の問題",
+    "timeLimit": "制限時間",
+    "timeoutSeconds_other": "{{count}} 秒",
+    "timeoutMinutes_other": "{{count}} 分",
+    "noLimit": "制限なし",
+    "executing": "実行中...",
+    "execute": "クエリを実行",
+    "format": "整形",
+    "hint": "Ctrl+Enter（Mac では Cmd+Enter）でクエリを実行します。構文、スキーマ、SELECT 専用のチェックは、データベースに送信する前にローカルで行われます。",
+    "historyTitle": "クエリ履歴（{{count}}）",
+    "historyRows_other": "（{{count}} 行）",
+    "historyError": "エラー：{{message}}",
+    "use": "使用",
+    "results": "クエリ結果",
+    "resultRows_other": "{{count}} 行",
+    "executionTime": "{{ms}}ms",
+    "noRows": "クエリは正常に実行されましたが、行は返されませんでした。"
+  },
+  "editor": {
+    "placeholder": "ここに SQL クエリを入力..."
+  },
+  "samplesDrawer": {
+    "title": "サンプルクエリ",
+    "close": "サンプルクエリを閉じる",
+    "copy": "クリップボードにコピー",
+    "useQuery": "クエリを使用"
+  },
+  "samples": {
+    "allTransactions": "すべての取引",
+    "summaryByCategory": "カテゴリ別の取引集計",
+    "monthlySpending": "月別の支出合計",
+    "topExpenseCategories": "支出の多いカテゴリ上位 10",
+    "schemaTables": "データベーススキーマ - テーブル",
+    "schemaColumns": "データベーススキーマ - 列"
+  },
+  "analysis": {
+    "unableToParse": "クエリを解析できません。",
+    "syntaxError": "構文エラー：{{message}}",
+    "multipleStatements": "複数のステートメントが検出されました。最初のステートメントのみ実行されます。",
+    "onlySelectBlocking": "このページでは SELECT クエリのみ実行できます。{{statement}} ステートメントを削除してください。",
+    "onlySelectIssue": "ここでは SELECT クエリのみ使用できます（{{statement}} が見つかりました）。",
+    "unknownTable": "不明なテーブル「{{table}}」。",
+    "unknownColumn": "列「{{column}}」はテーブル「{{table}}」に見つかりませんでした。"
+  }
+}

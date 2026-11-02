@@ -24,10 +24,12 @@ import {
   Typography,
 } from '@mui/material';
 import { NotificationsNone as BellIcon } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { useNotificationBadgeSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { useNotificationsView } from '@/components/notifications/notificationsStore';
-import { describeTiming, timingColor } from '@/components/notifications/notificationPresentation';
+import { describeNotification, describeTiming, timingColor } from '@/components/notifications/notificationPresentation';
 import { todayLocalISO } from '@/lib/dateOnly';
 import { classifyNotifications, selectDue } from '@/lib/notificationService';
 import type { AppNotification, NotificationSetting } from '@/types/database';
@@ -39,6 +41,7 @@ export interface NotificationBellSlotProps {
   onNavigate: () => void;
 }
 
+/** English default of the bell's accessible name (`shell:notificationBell.label` at render time). */
 export const NOTIFICATION_BELL_LABEL = 'Notifications';
 const PREVIEW_ROWS = 5;
 const HOVER_DELAY_MS = 250;
@@ -53,6 +56,10 @@ export function countDueNotifications(
 }
 
 export default function NotificationBellSlot({ variant, onNavigate }: NotificationBellSlotProps) {
+  const { t } = useTranslation('shell');
+  // Alert rows are rebuilt from their payload in the current language.
+  const { t: notificationsT } = useTranslation('notifications');
+  const { money, date, month } = useFormatters();
   const { notifications } = useNotificationBadgeSlice();
   const view = useNotificationsView();
   const [previewAnchor, setPreviewAnchor] = useState<HTMLElement | null>(null);
@@ -63,6 +70,7 @@ export default function NotificationBellSlot({ variant, onNavigate }: Notificati
     return selectDue(classifyNotifications(notifications, view.settings, view.today));
   }, [notifications, view.preferences.enabled, view.settings, view.today]);
   const dueCount = due.length;
+  const label = t('notificationBell.label');
 
   if (variant === 'menuItem') {
     return (
@@ -73,7 +81,7 @@ export default function NotificationBellSlot({ variant, onNavigate }: Notificati
               <BellIcon />
             </Badge>
           </ListItemIcon>
-          <ListItemText primary={NOTIFICATION_BELL_LABEL} secondary={dueCount > 0 ? `${dueCount} due` : undefined} />
+          <ListItemText primary={label} secondary={dueCount > 0 ? t('notificationBell.due', { count: dueCount }) : undefined} />
         </ListItemButton>
       </ListItem>
     );
@@ -103,8 +111,8 @@ export default function NotificationBellSlot({ variant, onNavigate }: Notificati
         onFocus={(event) => openPreview(event.currentTarget)}
         onBlur={closePreview}
         sx={{ ml: 2 }}
-        title={dueCount > 0 ? `${NOTIFICATION_BELL_LABEL}: ${dueCount} due` : NOTIFICATION_BELL_LABEL}
-        aria-label={NOTIFICATION_BELL_LABEL}
+        title={dueCount > 0 ? t('notificationBell.titleWithDue', { label, count: dueCount }) : label}
+        aria-label={label}
         data-testid="notification-bell-button"
       >
         <Badge badgeContent={dueCount} color="error" data-testid="notification-bell-badge">
@@ -127,15 +135,15 @@ export default function NotificationBellSlot({ variant, onNavigate }: Notificati
       >
         <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
           <Typography variant="subtitle2">
-            {dueCount} due
+            {t('notificationBell.due', { count: dueCount })}
           </Typography>
         </Box>
         <List dense disablePadding sx={{ pb: 1 }}>
           {due.slice(0, PREVIEW_ROWS).map((entry) => (
             <ListItem key={entry.notification.id} sx={{ py: 0.5 }}>
               <ListItemText
-                primary={entry.notification.title}
-                secondary={<Chip size="small" label={describeTiming(entry)} color={timingColor(entry)} variant="outlined" sx={{ mt: 0.5 }} />}
+                primary={describeNotification(entry.notification, notificationsT, (amount) => money(amount), { date, month, today: view.today }).title}
+                secondary={<Chip size="small" label={describeTiming(entry, notificationsT, date)} color={timingColor(entry)} variant="outlined" sx={{ mt: 0.5 }} />}
                 slotProps={{ primary: { noWrap: true, variant: 'body2' }, secondary: { component: 'div' } }}
               />
             </ListItem>
@@ -143,7 +151,7 @@ export default function NotificationBellSlot({ variant, onNavigate }: Notificati
           {dueCount > PREVIEW_ROWS && (
             <ListItem sx={{ py: 0.5 }}>
               <Typography variant="caption" color="text.secondary">
-                {dueCount - PREVIEW_ROWS} more… click the bell to see all.
+                {t('notificationBell.more', { count: dueCount - PREVIEW_ROWS })}
               </Typography>
             </ListItem>
           )}

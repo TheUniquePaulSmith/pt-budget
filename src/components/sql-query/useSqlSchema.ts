@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { fetchSqlSchema, type SqlSchemaMap } from '@/lib/sqlSchemaIntrospection';
 
@@ -15,6 +16,7 @@ export function useSqlSchema(
   executeCustomQuery: (sql: string, timeoutMs?: number) => Promise<unknown[]>,
   isDatabaseLoaded: boolean
 ): UseSqlSchemaResult {
+  const { t } = useTranslation('sqlQuery');
   const [schema, setSchema] = useState<SqlSchemaMap | null>(null);
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
@@ -29,11 +31,11 @@ export function useSqlSchema(
       const nextSchema = await fetchSqlSchema(executeCustomQuery);
       setSchema(nextSchema);
     } catch (err) {
-      setSchemaError(err instanceof Error ? err.message : 'Failed to load database schema');
+      setSchemaError(err instanceof Error ? err.message : t('page.schemaLoadFailed'));
     } finally {
       setSchemaLoading(false);
     }
-  }, [executeCustomQuery, isDatabaseLoaded]);
+  }, [executeCustomQuery, isDatabaseLoaded, t]);
 
   useEffect(() => {
     if (isDatabaseLoaded) {

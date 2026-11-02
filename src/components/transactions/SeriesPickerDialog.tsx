@@ -17,7 +17,9 @@ import {
   Autorenew as AutorenewIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useTransactionQuickActionsSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { RecurringSeries, Transaction } from '@/types/database';
 
 interface SeriesPickerDialogProps {
@@ -31,6 +33,8 @@ export default function SeriesPickerDialog({
   transaction,
   onClose,
 }: SeriesPickerDialogProps) {
+  const { t } = useTranslation(['transactions', 'common']);
+  const { money, date } = useFormatters();
   const { recurringSeries, linkTransactionToSeries, unlinkTransactionFromSeries } =
     useTransactionQuickActionsSlice();
 
@@ -76,32 +80,32 @@ export default function SeriesPickerDialog({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <AutorenewIcon />
-          Subscription Link
+          {t('seriesPicker.title')}
         </Box>
       </DialogTitle>
 
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Transaction
+            {t('seriesPicker.transaction')}
           </Typography>
           <Typography variant="body1" fontWeight="medium">
             {transaction.description}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            ${Math.abs(transaction.amount).toFixed(2)} • {new Date(transaction.date).toLocaleDateString()}
+            {money(Math.abs(transaction.amount), transaction.account_currency)} • {date(transaction.date)}
           </Typography>
         </Box>
 
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Current Link
+            {t('seriesPicker.currentLink')}
           </Typography>
           <Chip
             label={
               isLinked
-                ? transaction.series_name || `Series #${transaction.series_id}`
-                : 'Not linked'
+                ? transaction.series_name || t('seriesPicker.seriesFallback', { id: transaction.series_id })
+                : t('seriesPicker.notLinked')
             }
             color={isLinked ? 'primary' : 'default'}
             variant="outlined"
@@ -125,13 +129,13 @@ export default function SeriesPickerDialog({
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Subscription / Bill"
-              placeholder="Search recurring series..."
+              label={t('seriesPicker.seriesLabel')}
+              placeholder={t('seriesPicker.searchPlaceholder')}
               autoFocus
               helperText={
                 options.length === 0
-                  ? 'No recurring series yet — run a scan from the Subscriptions page first'
-                  : 'Active and candidate series are shown'
+                  ? t('seriesPicker.noSeriesHelp')
+                  : t('seriesPicker.seriesHelp')
               }
               fullWidth
             />
@@ -153,19 +157,19 @@ export default function SeriesPickerDialog({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           color="inherit"
           startIcon={<ClearIcon />}
           onClick={() =>
             void runAction(
               () => unlinkTransactionFromSeries(transaction.id),
-              'Failed to unlink transaction'
+              t('seriesPicker.unlinkFailed')
             )
           }
           disabled={loading || !isLinked}
         >
-          Unlink
+          {t('seriesPicker.unlink')}
         </Button>
         <Button
           variant="contained"
@@ -173,13 +177,13 @@ export default function SeriesPickerDialog({
             if (selected) {
               void runAction(
                 () => linkTransactionToSeries(transaction.id, selected.id),
-                'Failed to link transaction'
+                t('seriesPicker.linkFailed')
               );
             }
           }}
           disabled={loading || !selected}
         >
-          {loading ? 'Saving…' : 'Link'}
+          {loading ? t('common:status.saving') : t('seriesPicker.link')}
         </Button>
       </DialogActions>
     </Dialog>

@@ -1,0 +1,131 @@
+{
+  "preferences": {
+    "title": "Vos préférences",
+    "description": "Choisissez la langue de cet appareil et la devise dans laquelle vos totaux sont affichés. Vous pourrez modifier les deux plus tard dans les Paramètres.",
+    "languageLabel": "Langue",
+    "languageHelp": "S'applique uniquement à ce navigateur et prend effet immédiatement.",
+    "currencyLabel": "Devise par défaut",
+    "currencyHelp": "Chaque compte peut avoir sa propre devise ; les totaux du tableau de bord sont convertis dans celle-ci.",
+    "continue": "Continuer",
+    "saving": "Enregistrement…",
+    "skip": "Passer pour l'instant"
+  },
+  "initialAccount": {
+    "currencyLabel": "Devise",
+    "title": "Ajoutez votre premier compte",
+    "description": "Créez un compte ou une carte pour y rattacher vos transactions. Vous pourrez ajouter d'autres comptes plus tard dans les Paramètres.",
+    "nameRequired": "Le nom du compte est obligatoire.",
+    "lastFourInvalid": "Les quatre derniers chiffres doivent être exactement 4 chiffres.",
+    "nameLabel": "Nom du compte",
+    "typeLabel": "Type de compte",
+    "lastFourLabel": "Quatre derniers chiffres",
+    "saving": "Enregistrement du compte…"
+  },
+  "provider": {
+    "gdrive": "Google Drive",
+    "onedrive": "OneDrive"
+  },
+  "gate": {
+    "initializing": "Initialisation de la base de données...",
+    "importPasswordDescription": "Ce fichier de base de données est chiffré. Saisissez votre mot de passe pour le déverrouiller et l'importer.",
+    "unlockDescription": "Cette base de données est chiffrée. Saisissez votre mot de passe pour la déverrouiller.",
+    "welcomeTitle": "Bienvenue dans Budget Tracker",
+    "welcomeDescription": "Pour commencer, vous pouvez créer une nouvelle base de données ou en charger une existante depuis un fichier.",
+    "createNewDatabase": "Créer une nouvelle base de données",
+    "loadFromFile": "Charger depuis un fichier",
+    "orOpenCloudBackup": "ou ouvrir une sauvegarde cloud existante",
+    "providerNotConfigured": "{{provider}} n'est pas configuré pour ce déploiement.",
+    "openFromProvider": "Ouvrir depuis {{provider}}",
+    "importingSampleData": "Importation des données d'exemple",
+    "filesCompleted": "Fichiers traités : {{completed}} / {{total}}",
+    "currentFile": "Fichier en cours : {{file}}",
+    "tableRows": "{{table}} : {{imported}} lignes",
+    "tableRowsOfExpected": "{{table}} : {{imported}} / {{expected}} lignes",
+    "cancelSampleDataImport": "Annuler l'importation des données d'exemple",
+    "connectProvider": "Connecter {{provider}}",
+    "cloudAuthDescription": "Ce navigateur est configuré pour utiliser {{provider}} comme source de la base de données. Authentifiez-vous et choisissez une archive de sauvegarde pour continuer.",
+    "useLocalInstead": "Utiliser plutôt une base de données locale",
+    "databaseError": "Erreur de base de données",
+    "unknownInitError": "Une erreur inconnue s'est produite lors de l'initialisation de la base de données.",
+    "reloadPage": "Recharger la page"
+  },
+  "passwordSetup": {
+    "primaryUserNameRequired": "Le nom de l'utilisateur principal est obligatoire.",
+    "passwordTooShort": "Le mot de passe doit contenir au moins {{count}} caractères.",
+    "passwordsMismatch": "Les mots de passe ne correspondent pas.",
+    "title": "Configurez votre base de données",
+    "description": "Votre base de données est chiffrée sur cet appareil, et ce mot de passe est demandé à chaque ouverture. Choisissez un mot de passe fort — il n'existe aucune récupération de mot de passe, conservez-le donc en lieu sûr.",
+    "primaryUserSection": "Utilisateur principal",
+    "primaryUserNameLabel": "Nom de l'utilisateur principal",
+    "passwordSection": "Mot de passe",
+    "passwordLabel": "Mot de passe",
+    "confirmPasswordLabel": "Confirmer le mot de passe",
+    "hidePassword": "Masquer le mot de passe",
+    "showPassword": "Afficher le mot de passe",
+    "creating": "Création de la base de données…",
+    "create": "Créer la base de données"
+  },
+  "passwordEntry": {
+    "title": "Saisir le mot de passe",
+    "defaultDescription": "Cette base de données est chiffrée. Saisissez le mot de passe pour l'ouvrir.",
+    "passwordLabel": "Mot de passe",
+    "hidePassword": "Masquer le mot de passe",
+    "showPassword": "Afficher le mot de passe",
+    "decrypting": "Déchiffrement…",
+    "unlock": "Déverrouiller"
+  },
+  "storageChoice": {
+    "title": "Où stocker cette base de données ?",
+    "description": "Vous pourrez modifier ce choix plus tard dans les Paramètres.",
+    "localLabel": "Conserver en local",
+    "localDescription": "Stockée uniquement sur cet appareil.",
+    "gdriveLabel": "Google Drive",
+    "gdriveDescription": "Synchronisée automatiquement avec votre Google Drive.",
+    "onedriveLabel": "OneDrive",
+    "onedriveDescription": "Synchronisée automatiquement avec votre OneDrive.",
+    "notConfigured": "{{provider}} n'est pas configuré pour ce déploiement."
+  },
+  "testBrowser": {
+    "workerCommunicationFailed": "Échec de la communication avec le worker de test",
+    "unknownError": "Erreur inconnue pendant le test de compatibilité",
+    "statusTesting": "Test en cours...",
+    "statusNotTested": "Non testé",
+    "statusPassed": "Réussi",
+    "statusFailed": "Échoué",
+    "wasmLabel": "Prise en charge de WebAssembly",
+    "wasmDescription": "Le navigateur prend en charge WebAssembly",
+    "sharedWorkerLabel": "Prise en charge de SharedWorker",
+    "sharedWorkerDescription": "Le navigateur prend en charge l'API SharedWorker",
+    "sqliteLabel": "Module SQLite WASM",
+    "sqliteDescription": "Le module WA-SQLite se charge et s'initialise",
+    "vfsLabel": "Système de fichiers virtuel",
+    "vfsDescription": "Le backend VFS IndexedDB fonctionne correctement",
+    "databaseOperationsLabel": "Opérations de base de données",
+    "databaseOperationsDescription": "Ouvre une base de données de test et exécute une requête",
+    "title": "Test de compatibilité du navigateur",
+    "overallResult": "Résultat global :",
+    "compatible": "Compatible",
+    "incompatible": "Incompatible",
+    "incompatibleWarning": "Votre navigateur ne prend peut-être pas entièrement en charge toutes les fonctionnalités requises par l'application de budget. Certaines fonctions peuvent être limitées ou indisponibles.",
+    "errorDetails": "Détails de l'erreur",
+    "hideErrorDetails": "Masquer les détails de l'erreur",
+    "showErrorDetails": "Afficher les détails de l'erreur"
+  },
+  "encryptionProgress": {
+    "title": "Sécurisation de votre base de données",
+    "stage": {
+      "flushing": "En attente de la fin des opérations en cours…",
+      "exporting": "Exportation de l'instantané de la base de données…",
+      "encrypting": "Chiffrement de la base de données…",
+      "uploading": "Envoi vers le stockage cloud…",
+      "done": "Terminé"
+    }
+  },
+  "cloudFilePicker": {
+    "cloudStorage": "stockage cloud",
+    "fileSize": "{{size}} Ko",
+    "title": "Ouvrir depuis {{provider}}",
+    "empty": "Aucune archive de sauvegarde trouvée dans {{provider}}.",
+    "opening": "Ouverture…"
+  }
+}

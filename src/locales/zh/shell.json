@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "dashboard": "仪表盘",
+    "projects": "项目",
+    "trips": "旅行",
+    "budget": "预算",
+    "accounts": "账户",
+    "loans": "贷款",
+    "transactions": "交易",
+    "subscriptions": "订阅",
+    "notifications": "通知",
+    "sql-query": "SQL 查询",
+    "settings": "设置",
+    "developer-console": "开发者控制台",
+    "pages": "页面",
+    "more": "更多",
+    "quickActions": "快捷操作",
+    "addTransaction": "添加交易",
+    "importCsv": "导入 CSV",
+    "manageData": "管理数据"
+  },
+  "dataGrid": {
+    "noRows": "没有可显示的行"
+  },
+  "sidebar": {
+    "collapse": "收起侧边栏",
+    "expand": "展开侧边栏"
+  },
+  "pageFallback": {
+    "loading": "正在加载页面"
+  },
+  "notificationBell": {
+    "label": "通知",
+    "due": "{{count}}项到期",
+    "titleWithDue": "{{label}}：{{count}}项到期",
+    "more": "还有{{count}}项…点击铃铛查看全部。"
+  },
+  "aiLauncher": {
+    "label": "本地 AI",
+    "title": "{{label}}（右键查看窗口选项）",
+    "openSidebar": "以侧边栏打开",
+    "openMaximized": "最大化打开",
+    "openWindow": "在新窗口中打开"
+  },
+  "statusBar": {
+    "synced": "已同步",
+    "pendingChanges": "有待同步更改",
+    "syncing": "正在同步…",
+    "reconnect": "重新连接",
+    "resolveConflict": "解决冲突",
+    "offline": "离线",
+    "syncError": "同步错误",
+    "lastSynced": "上次同步：{{time}}",
+    "unsyncedSince": "自以下时间起有未同步更改：{{time}}",
+    "lastError": "最近错误：{{error}}",
+    "cloudSyncStatus": "云同步状态",
+    "connected": "已连接",
+    "disconnected": "已断开",
+    "heartbeat": "心跳：{{seconds}}秒前",
+    "noHeartbeat": "未收到心跳",
+    "workerAlive": "运行中",
+    "workerDead": "已停止",
+    "tooltip": "应用版本：{{version}}\n工作线程状态：{{worker}}\n数据库状态：{{status}}\n{{heartbeat}}"
+  },
+  "storageQuota": {
+    "unavailableChip": "存储：不可用",
+    "unavailable": "无法获取存储配额",
+    "loadingChip": "正在加载...",
+    "loading": "正在加载存储信息...",
+    "used": "已用：{{size}}",
+    "available": "可用：{{size}}",
+    "information": "存储信息",
+    "usageChip": "存储：{{percent}}",
+    "title": "存储用量",
+    "refresh": "刷新存储信息",
+    "percentUsed": "已用{{percent}}",
+    "usageOfQuota": "{{usage}} / {{quota}}",
+    "indexedDb": "IndexedDB：{{size}}",
+    "runningLow": "⚠️ 存储空间不足。建议导出并备份您的数据。",
+    "notAvailable": "存储信息不可用",
+    "bytes": "{{value}} B",
+    "kilobytes": "{{value}} KB",
+    "megabytes": "{{value}} MB",
+    "gigabytes": "{{value}} GB"
+  },
+  "masterDetail": {
+    "backToList": "返回列表",
+    "resizeList": "调整列表宽度",
+    "emptyDetail": "选择一条记录以查看详情。"
+  },
+  "resetApp": {
+    "button": "重置应用",
+    "title": "将应用重置为初始状态？",
+    "body": "这将永久删除您的数据库、设置和 Cookie，然后像全新安装一样重新加载应用。此操作无法撤销。",
+    "passwordLabel": "数据库密码",
+    "passwordHelp": "输入您的密码以确认重置。",
+    "failed": "重置失败",
+    "resetting": "正在重置…"
+  }
+}

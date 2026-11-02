@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Alert, Box, Button, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { MasterDetailLayout } from '@/components/common/Form';
 import { APP_BAR_HEIGHT, STATUS_BAR_HEIGHT } from '@/components/common/Layout/sidebarPreference';
@@ -36,6 +37,7 @@ export default function AccountsPage() {
   const {
     accounts,
     users,
+    defaultCurrency,
     addAccountWithCard,
     deleteAccount,
     updateAccount,
@@ -48,6 +50,7 @@ export default function AccountsPage() {
     updateAccountCard,
   } = useAccountManagementSlice();
 
+  const { t } = useTranslation(['accounts', 'common']);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -173,7 +176,7 @@ export default function AccountsPage() {
     setError(null);
     try {
       if (!userDisplayName.trim()) {
-        throw new Error('Display name is required');
+        throw new Error(t('page.displayNameRequired'));
       }
       if (editingUser) {
         await updateUser(editingUser.id, { display_name: userDisplayName.trim() });
@@ -182,7 +185,7 @@ export default function AccountsPage() {
       }
       closeUserDialog();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save user');
+      setError(err instanceof Error ? err.message : t('page.saveUserFailed'));
     } finally {
       setBusy(false);
     }
@@ -217,7 +220,7 @@ export default function AccountsPage() {
       }
       setDeleteTarget(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to delete ${deleteTarget.type}`);
+      setError(err instanceof Error ? err.message : t(`page.deleteFailed.${deleteTarget.type}`));
     } finally {
       setBusy(false);
     }
@@ -244,7 +247,10 @@ export default function AccountsPage() {
     <Box sx={{ p: { xs: 1.5, md: 2 }, display: 'flex', flexDirection: 'column', gap: 1.5 }} data-testid="accounts-page">
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, minHeight: 36 }}>
         <Typography variant="body2" color="text.secondary" data-testid="accounts-summary">
-          {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'} • {users.length} {users.length === 1 ? 'person' : 'people'}
+          {t('page.summary', {
+            accounts: t('common:plurals.accounts', { count: accounts.length }),
+            people: t('page.people', { count: users.length }),
+          })}
         </Typography>
         <Button
           variant="contained"
@@ -253,7 +259,7 @@ export default function AccountsPage() {
           onClick={() => setAccountDialogOpen(true)}
           data-testid="add-account-button"
         >
-          Add Account
+          {t('page.addAccount')}
         </Button>
       </Box>
 
@@ -284,7 +290,7 @@ export default function AccountsPage() {
         detail={detail}
         emptyDetail={
           <Typography variant="body2" color="text.secondary">
-            {accounts.length === 0 ? 'Add an account to get started.' : 'Select an account to edit it.'}
+            {accounts.length === 0 ? t('page.emptyNoAccounts') : t('page.emptySelect')}
           </Typography>
         }
         aside={
@@ -300,6 +306,7 @@ export default function AccountsPage() {
       />
 
       <AccountFormDialog
+        defaultCurrency={defaultCurrency}
         open={accountDialogOpen}
         editingAccount={null}
         defaultOwnerUserId={users.find((user) => user.is_primary === 1)?.id ?? users[0]?.id ?? null}

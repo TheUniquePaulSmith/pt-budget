@@ -48,7 +48,7 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
 
   // Opening an older database runs the pending migrations before the app
   // reports Connected, so the version is already current here.
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('5');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('6');
 
   // Version 5: the loan tables exist on an upgraded database too.
   expect(
@@ -114,6 +114,15 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
       "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('budget_plans', 'budget_plan_categories', 'income_sources', 'import_batches', 'account_balance_snapshots')"
     )
   ).toBe('5');
+
+  // Version 6: per-account currency (defaulted to USD on upgrade) and the exchange-rate table.
+  expect(
+    await runQueryAndReadFirstCell(page, "SELECT COUNT(*) FROM pragma_table_info('accounts') WHERE name = 'currency'")
+  ).toBe('1');
+  expect(await runQueryAndReadFirstCell(page, "SELECT COUNT(*) FROM accounts WHERE currency != 'USD'")).toBe('0');
+  expect(
+    await runQueryAndReadFirstCell(page, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'exchange_rates'")
+  ).toBe('1');
 
   // Column additions on tables that were not rebuilt.
   expect(
@@ -212,7 +221,7 @@ test('upgrades a schema v2 archive to the current version, keeping rows and addi
   test.skip(!fs.existsSync(V2_ARCHIVE_PATH), 'v2 baseline archive not captured (see tests/e2e-tools)');
   await loadArchiveAndUnlock(page, V2_ARCHIVE_PATH);
 
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('5');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('6');
 
   // Rows survive: the v2 archive carries transactions, series and links.
   expect(Number(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM transactions'))).toBeGreaterThan(0);

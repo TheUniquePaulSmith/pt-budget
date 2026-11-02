@@ -1,0 +1,62 @@
+{
+  "page": {
+    "title": "Console de consulta SQL",
+    "sampleQueries": "Consultas de exemplo",
+    "queryHeading": "Consulta SQL",
+    "enterQuery": "Digite uma consulta SQL",
+    "databaseNotLoaded": "Banco de dados não carregado",
+    "unknownError": "Ocorreu um erro desconhecido",
+    "formatFailed": "Falha ao formatar a consulta: {{message}}",
+    "formatFailedPlain": "Falha ao formatar a consulta",
+    "schemaUnavailable": "O preenchimento automático e as verificações de esquema estão indisponíveis: {{error}}",
+    "schemaLoadFailed": "Falha ao carregar o esquema do banco de dados",
+    "moreIssues_one": "+{{count}} problema",
+    "moreIssues_other": "+{{count}} problemas",
+    "timeLimit": "Limite de tempo",
+    "timeoutSeconds_one": "{{count}} segundo",
+    "timeoutSeconds_other": "{{count}} segundos",
+    "timeoutMinutes_one": "{{count}} minuto",
+    "timeoutMinutes_other": "{{count}} minutos",
+    "noLimit": "Sem limite",
+    "executing": "Executando...",
+    "execute": "Executar consulta",
+    "format": "Formatar",
+    "hint": "Ctrl+Enter (Cmd+Enter no Mac) executa a consulta. As verificações de sintaxe, esquema e somente SELECT são feitas localmente, antes de qualquer envio ao banco de dados.",
+    "historyTitle": "Histórico de consultas ({{count}})",
+    "historyRows_one": "({{count}} linha)",
+    "historyRows_other": "({{count}} linhas)",
+    "historyError": "Erro: {{message}}",
+    "use": "Usar",
+    "results": "Resultados da consulta",
+    "resultRows_one": "{{count}} linha",
+    "resultRows_other": "{{count}} linhas",
+    "executionTime": "{{ms}}ms",
+    "noRows": "A consulta foi executada com sucesso, mas não retornou linhas."
+  },
+  "editor": {
+    "placeholder": "Digite sua consulta SQL aqui..."
+  },
+  "samplesDrawer": {
+    "title": "Consultas de exemplo",
+    "close": "Fechar consultas de exemplo",
+    "copy": "Copiar para a área de transferência",
+    "useQuery": "Usar consulta"
+  },
+  "samples": {
+    "allTransactions": "Todas as transações",
+    "summaryByCategory": "Resumo de transações por categoria",
+    "monthlySpending": "Totais de gastos mensais",
+    "topExpenseCategories": "10 maiores categorias de despesa",
+    "schemaTables": "Esquema do banco de dados - Tabelas",
+    "schemaColumns": "Esquema do banco de dados - Colunas"
+  },
+  "analysis": {
+    "unableToParse": "Não foi possível analisar a consulta.",
+    "syntaxError": "Erro de sintaxe: {{message}}",
+    "multipleStatements": "Várias instruções detectadas — apenas a primeira será executada.",
+    "onlySelectBlocking": "Esta página executa apenas consultas SELECT — remova a instrução {{statement}}.",
+    "onlySelectIssue": "Apenas consultas SELECT são permitidas aqui (encontrado {{statement}}).",
+    "unknownTable": "Tabela desconhecida \"{{table}}\".",
+    "unknownColumn": "A coluna \"{{column}}\" não foi encontrada na tabela \"{{table}}\"."
+  }
+}

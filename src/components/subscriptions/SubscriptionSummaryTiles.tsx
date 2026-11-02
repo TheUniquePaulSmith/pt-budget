@@ -8,23 +8,26 @@ import {
   EventRepeat as DueIcon,
   Paid as PaidIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import StatCard from '@/components/common/Charts/StatCard';
+import { useFormatters } from '@/contexts/useFormatters';
 import { monthlyEquivalent } from '@/lib/recurringCadence';
 import { addDaysISO, todayLocalISO } from '@/lib/dateOnly';
 import type { RecurringSeries } from '@/types/database';
-
-const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 interface SubscriptionSummaryTilesProps {
   series: RecurringSeries[];
 }
 
 const SubscriptionSummaryTiles: React.FC<SubscriptionSummaryTilesProps> = ({ series }) => {
+  const { t } = useTranslation('subscriptions');
+  const { money } = useFormatters();
   const active = series.filter((item) => item.status === 'active');
   const activeSubscriptions = active.filter((item) => item.kind === 'subscription');
   const activeBills = active.filter((item) => item.kind === 'bill');
 
+  // Cross-series estimate: shown in the default currency.
   const monthlyTotal = active.reduce((total, item) => total + monthlyEquivalent(item), 0);
 
   const today = todayLocalISO();
@@ -40,38 +43,38 @@ const SubscriptionSummaryTiles: React.FC<SubscriptionSummaryTilesProps> = ({ ser
     <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
       <Box flex="1 1 240px">
         <StatCard
-          title="Est. Monthly Cost"
-          value={CURRENCY.format(monthlyTotal)}
+          title={t('summaryTiles.estMonthlyCost')}
+          value={money(monthlyTotal)}
           icon={<PaidIcon />}
           color="primary"
-          subtitle="Active subscriptions + bills"
+          subtitle={t('summaryTiles.estMonthlySubtitle')}
         />
       </Box>
       <Box flex="1 1 240px">
         <StatCard
-          title="Subscriptions"
+          title={t('summaryTiles.subscriptions')}
           value={String(activeSubscriptions.length)}
           icon={<AutorenewIcon />}
           color="success"
-          subtitle="Active fixed services"
+          subtitle={t('summaryTiles.subscriptionsSubtitle')}
         />
       </Box>
       <Box flex="1 1 240px">
         <StatCard
-          title="Recurring Bills"
+          title={t('summaryTiles.recurringBills')}
           value={String(activeBills.length)}
           icon={<BillsIcon />}
           color="warning"
-          subtitle="Utilities, telecom, cloud"
+          subtitle={t('summaryTiles.billsSubtitle')}
         />
       </Box>
       <Box flex="1 1 240px">
         <StatCard
-          title="Due in 30 Days"
+          title={t('summaryTiles.dueIn30Days')}
           value={String(dueSoon.length)}
           icon={<DueIcon />}
           color="error"
-          subtitle="Expected upcoming charges"
+          subtitle={t('summaryTiles.dueSubtitle')}
         />
       </Box>
     </Box>

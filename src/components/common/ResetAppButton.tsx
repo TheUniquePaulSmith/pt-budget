@@ -14,6 +14,7 @@ import {
   DialogTitle,
   TextField,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 interface ResetAppButtonProps {
   /** Receives the confirmation password when `requirePassword` is set. Reject to refuse the reset. */
@@ -35,6 +36,7 @@ export function ResetAppButton({
   variant = 'outlined',
   requirePassword = false,
 }: ResetAppButtonProps) {
+  const { t } = useTranslation(['shell', 'common']);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [password, setPassword] = useState('');
@@ -55,7 +57,7 @@ export function ResetAppButton({
       // onReset navigates away on success; only reachable here on failure.
       setIsResetting(false);
       if (requirePassword) {
-        setError(err instanceof Error ? err.message : 'Reset failed');
+        setError(err instanceof Error ? err.message : t('resetApp.failed'));
         setPassword('');
       } else {
         closeDialog();
@@ -72,15 +74,14 @@ export function ResetAppButton({
         startIcon={<WarningAmber />}
         onClick={() => setIsDialogOpen(true)}
       >
-        Reset App
+        {t('resetApp.button')}
       </Button>
 
       <Dialog open={isDialogOpen} onClose={() => !isResetting && closeDialog()}>
-        <DialogTitle>Reset app to its original state?</DialogTitle>
+        <DialogTitle>{t('resetApp.title')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            This permanently deletes your database, settings, and cookies, then reloads the
-            app as if freshly installed. This cannot be undone.
+            {t('resetApp.body')}
           </DialogContentText>
           {requirePassword && (
             <>
@@ -90,14 +91,14 @@ export function ResetAppButton({
                 </Alert>
               )}
               <TextField
-                label="Database password"
+                label={t('resetApp.passwordLabel')}
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && password && !isResetting) void handleConfirm();
                 }}
-                helperText="Enter your password to confirm the reset."
+                helperText={t('resetApp.passwordHelp')}
                 fullWidth
                 autoFocus
                 disabled={isResetting}
@@ -108,7 +109,7 @@ export function ResetAppButton({
         </DialogContent>
         <DialogActions>
           <Button onClick={closeDialog} disabled={isResetting}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             color="error"
@@ -117,7 +118,7 @@ export function ResetAppButton({
             disabled={isResetting || (requirePassword && !password)}
             startIcon={isResetting ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
-            {isResetting ? 'Resetting…' : 'Reset App'}
+            {isResetting ? t('resetApp.resetting') : t('resetApp.button')}
           </Button>
         </DialogActions>
       </Dialog>

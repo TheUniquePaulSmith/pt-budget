@@ -10,7 +10,9 @@ import {
   Savings,
   Speed,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import StatCard from '@/components/common/Charts/StatCard';
+import { useFormatters } from '@/contexts/useFormatters';
 import type { ChartData, DashboardSummary } from '@/types/database';
 
 interface SummaryStatsProps {
@@ -21,11 +23,13 @@ interface SummaryStatsProps {
 }
 
 const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRangeLabel, dayCount }) => {
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  };
+  const { t } = useTranslation('dashboard');
+  const { money, number, percent } = useFormatters();
 
-  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
+  // Dashboard totals are already converted into the default currency.
+  const formatCurrency = (amount: number) => money(amount);
+  const formatPercent = (value: number) =>
+    percent(value, { fromPercent: true, minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   const totalIncome = summary?.totalIncome ?? 0;
   const totalExpenses = summary?.totalExpenses ?? 0;
@@ -51,7 +55,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
     <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
       <Box flex="1 1 300px">
         <StatCard
-          title="Total Income"
+          title={t('summary.totalIncome')}
           value={formatCurrency(totalIncome)}
           icon={<TrendingUp />}
           color="success"
@@ -62,7 +66,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
       </Box>
       <Box flex="1 1 300px">
         <StatCard
-          title="Total Expenses"
+          title={t('summary.totalExpenses')}
           value={formatCurrency(totalExpenses)}
           icon={<TrendingDown />}
           color="error"
@@ -73,7 +77,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
       </Box>
       <Box flex="1 1 300px">
         <StatCard
-          title="Net Income"
+          title={t('summary.netIncome')}
           value={formatCurrency(netIncome)}
           icon={<AccountBalanceWallet />}
           color={netIncome >= 0 ? 'success' : 'error'}
@@ -84,8 +88,8 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
       </Box>
       <Box flex="1 1 300px">
         <StatCard
-          title="Transactions"
-          value={transactionCount.toString()}
+          title={t('summary.transactions')}
+          value={number(transactionCount)}
           icon={<DateRange />}
           color="primary"
           subtitle={timeRangeLabel}
@@ -93,7 +97,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
       </Box>
       <Box flex="1 1 300px">
         <StatCard
-          title="Savings Rate"
+          title={t('summary.savingsRate')}
           value={formatPercent(savingsRate)}
           icon={<Savings />}
           color={savingsRate >= 20 ? 'success' : savingsRate >= 0 ? 'warning' : 'error'}
@@ -104,7 +108,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
       </Box>
       <Box flex="1 1 300px">
         <StatCard
-          title="Spend vs Income"
+          title={t('summary.spendVsIncome')}
           value={formatPercent(spendingRate)}
           icon={<Speed />}
           color={spendingRate <= 80 ? 'success' : spendingRate <= 100 ? 'warning' : 'error'}
@@ -113,20 +117,20 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ summary, chartData, timeRan
       </Box>
       <Box flex="1 1 300px">
         <StatCard
-          title="Avg Daily Spend"
+          title={t('summary.avgDailySpend')}
           value={formatCurrency(averageDailySpend)}
           icon={<TrendingDown />}
           color="warning"
-          subtitle={`${dayCount} day${dayCount === 1 ? '' : 's'} elapsed`}
+          subtitle={t('summary.daysElapsed', { count: dayCount })}
         />
       </Box>
       <Box flex="1 1 300px">
         <StatCard
-          title="Top Expense Category"
-          value={topSpendingCategory ? formatCurrency(topSpendingCategory.value) : '$0.00'}
+          title={t('summary.topExpenseCategory')}
+          value={topSpendingCategory ? formatCurrency(topSpendingCategory.value) : money(0)}
           icon={<DateRange />}
           color="primary"
-          subtitle={topSpendingCategory ? topSpendingCategory.label : 'No spending data'}
+          subtitle={topSpendingCategory ? topSpendingCategory.label : t('summary.noSpendingData')}
         />
       </Box>
     </Box>

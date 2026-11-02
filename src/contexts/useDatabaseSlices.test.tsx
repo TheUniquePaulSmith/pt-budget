@@ -114,6 +114,7 @@ function mockDatabaseHooks() {
       merchantRules: [],
       recurringSeries: [],
       notifications: [],
+      currencyPreferences: { defaultCurrency: 'USD', exchangeRates: [] },
     },
     lifecycle: {
       createOrOpenDatabase: vi.fn(),

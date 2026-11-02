@@ -9,6 +9,8 @@ import {
   type GridValidRowModel,
 } from '@mui/x-data-grid';
 
+import { useTranslation } from 'react-i18next';
+
 import { useOptionalThemePreferences } from '@/theme/theme';
 
 import { AppDataGridFooter } from './AppDataGridFooter';
@@ -23,7 +25,7 @@ export interface AppDataGridProps<R extends GridValidRowModel = any>
 export function AppDataGrid<R extends GridValidRowModel = any>({
   height = 520,
   footerSummary,
-  emptyMessage = 'No rows to display',
+  emptyMessage,
   pageSizeOptions = [10, 25, 50, 100],
   disableRowSelectionOnClick = true,
   // Wide buffer so moderate grids render every column: off-screen action
@@ -35,7 +37,9 @@ export function AppDataGrid<R extends GridValidRowModel = any>({
   sx,
   ...props
 }: AppDataGridProps<R>) {
+  const { t } = useTranslation('shell');
   const themePreferences = useOptionalThemePreferences();
+  const resolvedEmptyMessage = emptyMessage ?? t('dataGrid.noRows');
   // Follows the theme's density dimension (compact on desktop by default) unless
   // the caller pins a density explicitly.
   const resolvedDensity = density ?? (themePreferences?.density === 'compact' ? 'compact' : 'standard');
@@ -51,7 +55,7 @@ export function AppDataGrid<R extends GridValidRowModel = any>({
         slots={{
           noRowsOverlay: () => (
             <Box sx={{ height: '100%', display: 'grid', placeItems: 'center', p: 2 }}>
-              <Typography variant="body2" color="text.secondary">{emptyMessage}</Typography>
+              <Typography variant="body2" color="text.secondary">{resolvedEmptyMessage}</Typography>
             </Box>
           ),
           footer: footerSummary

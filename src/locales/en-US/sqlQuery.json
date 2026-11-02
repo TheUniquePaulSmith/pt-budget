@@ -1,0 +1,62 @@
+{
+  "page": {
+    "title": "SQL Query Console",
+    "sampleQueries": "Sample Queries",
+    "queryHeading": "SQL Query",
+    "enterQuery": "Please enter a SQL query",
+    "databaseNotLoaded": "Database not loaded",
+    "unknownError": "Unknown error occurred",
+    "formatFailed": "Failed to format query: {{message}}",
+    "formatFailedPlain": "Failed to format query",
+    "schemaUnavailable": "Autocomplete and schema checks are unavailable: {{error}}",
+    "schemaLoadFailed": "Failed to load database schema",
+    "moreIssues_one": "+{{count}} more issue",
+    "moreIssues_other": "+{{count}} more issues",
+    "timeLimit": "Time Limit",
+    "timeoutSeconds_one": "{{count}} second",
+    "timeoutSeconds_other": "{{count}} seconds",
+    "timeoutMinutes_one": "{{count}} minute",
+    "timeoutMinutes_other": "{{count}} minutes",
+    "noLimit": "No limit",
+    "executing": "Executing...",
+    "execute": "Execute Query",
+    "format": "Format",
+    "hint": "Ctrl+Enter (Cmd+Enter on Mac) runs the query. Syntax, schema, and SELECT-only checks run locally, before anything is sent to the database.",
+    "historyTitle": "Query History ({{count}})",
+    "historyRows_one": "({{count}} row)",
+    "historyRows_other": "({{count}} rows)",
+    "historyError": "Error: {{message}}",
+    "use": "Use",
+    "results": "Query Results",
+    "resultRows_one": "{{count}} row",
+    "resultRows_other": "{{count}} rows",
+    "executionTime": "{{ms}}ms",
+    "noRows": "Query executed successfully but returned no rows."
+  },
+  "editor": {
+    "placeholder": "Enter your SQL query here..."
+  },
+  "samplesDrawer": {
+    "title": "Sample Queries",
+    "close": "Close sample queries",
+    "copy": "Copy to clipboard",
+    "useQuery": "Use Query"
+  },
+  "samples": {
+    "allTransactions": "All Transactions",
+    "summaryByCategory": "Transaction Summary by Category",
+    "monthlySpending": "Monthly Spending Totals",
+    "topExpenseCategories": "Top 10 Expense Categories",
+    "schemaTables": "Database Schema - Tables",
+    "schemaColumns": "Database Schema - Columns"
+  },
+  "analysis": {
+    "unableToParse": "Unable to parse query.",
+    "syntaxError": "Syntax error: {{message}}",
+    "multipleStatements": "Multiple statements detected — only the first statement will run.",
+    "onlySelectBlocking": "This page only runs SELECT queries — remove the {{statement}} statement.",
+    "onlySelectIssue": "Only SELECT queries are allowed here (found {{statement}}).",
+    "unknownTable": "Unknown table \"{{table}}\".",
+    "unknownColumn": "Column \"{{column}}\" was not found on table \"{{table}}\"."
+  }
+}

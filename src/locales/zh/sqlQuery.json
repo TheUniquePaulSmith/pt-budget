@@ -1,0 +1,57 @@
+{
+  "page": {
+    "title": "SQL 查询控制台",
+    "sampleQueries": "示例查询",
+    "queryHeading": "SQL 查询",
+    "enterQuery": "请输入 SQL 查询",
+    "databaseNotLoaded": "数据库未加载",
+    "unknownError": "发生未知错误",
+    "formatFailed": "格式化查询失败：{{message}}",
+    "formatFailedPlain": "格式化查询失败",
+    "schemaUnavailable": "自动补全和架构检查不可用：{{error}}",
+    "schemaLoadFailed": "加载数据库架构失败",
+    "moreIssues_other": "还有{{count}}个问题",
+    "timeLimit": "时间限制",
+    "timeoutSeconds_other": "{{count}}秒",
+    "timeoutMinutes_other": "{{count}}分钟",
+    "noLimit": "不限制",
+    "executing": "正在执行...",
+    "execute": "执行查询",
+    "format": "格式化",
+    "hint": "按 Ctrl+Enter（Mac 上为 Cmd+Enter）运行查询。语法、架构和仅限 SELECT 的检查会在本地完成，之后才会发送到数据库。",
+    "historyTitle": "查询历史（{{count}}）",
+    "historyRows_other": "（{{count}}行）",
+    "historyError": "错误：{{message}}",
+    "use": "使用",
+    "results": "查询结果",
+    "resultRows_other": "{{count}}行",
+    "executionTime": "{{ms}}ms",
+    "noRows": "查询执行成功，但没有返回任何行。"
+  },
+  "editor": {
+    "placeholder": "在此输入您的 SQL 查询..."
+  },
+  "samplesDrawer": {
+    "title": "示例查询",
+    "close": "关闭示例查询",
+    "copy": "复制到剪贴板",
+    "useQuery": "使用此查询"
+  },
+  "samples": {
+    "allTransactions": "所有交易",
+    "summaryByCategory": "按分类汇总交易",
+    "monthlySpending": "每月支出合计",
+    "topExpenseCategories": "支出最高的 10 个分类",
+    "schemaTables": "数据库架构 - 表",
+    "schemaColumns": "数据库架构 - 列"
+  },
+  "analysis": {
+    "unableToParse": "无法解析查询。",
+    "syntaxError": "语法错误：{{message}}",
+    "multipleStatements": "检测到多条语句——只会运行第一条。",
+    "onlySelectBlocking": "此页面仅运行 SELECT 查询——请移除 {{statement}} 语句。",
+    "onlySelectIssue": "此处仅允许 SELECT 查询（发现了 {{statement}}）。",
+    "unknownTable": "未知的表“{{table}}”。",
+    "unknownColumn": "在表“{{table}}”中未找到列“{{column}}”。"
+  }
+}

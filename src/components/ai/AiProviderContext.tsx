@@ -8,6 +8,7 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useAiProviderSlice } from '@/contexts/useAiToolsSlices';
 import { useAiChatRuntimeSlice } from '@/contexts/useWllamaSlices';
@@ -55,6 +56,7 @@ export interface AiProviderContextValue {
 const AiProviderContext = createContext<AiProviderContextValue | null>(null);
 
 export function AiProviderContextProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation('ai');
   const { isDatabaseLoaded, getAiProviderConfig, setAiProviderConfig } = useAiProviderSlice();
   const runtime = useAiChatRuntimeSlice();
   const [config, setConfig] = useState<AiProviderConfigDocument>(EMPTY_PROVIDER_CONFIG);
@@ -78,14 +80,14 @@ export function AiProviderContextProvider({ children }: { children: React.ReactN
     } catch (err) {
       log.error('Failed to load provider configuration', { operation: 'reload', error: err });
       if (loadRunRef.current === runId) {
-        setError(err instanceof Error ? err.message : 'Failed to load provider configuration');
+        setError(err instanceof Error ? err.message : t('providerContext.loadFailed'));
       }
     } finally {
       if (loadRunRef.current === runId) {
         setIsLoading(false);
       }
     }
-  }, [getAiProviderConfig, isDatabaseLoaded]);
+  }, [getAiProviderConfig, isDatabaseLoaded, t]);
 
   useEffect(() => {
     void reload();

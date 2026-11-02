@@ -1,0 +1,50 @@
+{
+  "category": {
+    "business": "Business",
+    "vacation": "Vacation",
+    "family": "Family",
+    "medical": "Medical",
+    "education": "Education",
+    "other": "Other"
+  },
+  "status": {
+    "planning": "Planning",
+    "in_progress": "In progress",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  },
+  "statusOption": {
+    "planning": "Planning",
+    "in_progress": "In Progress",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  },
+  "manage": {
+    "title": "Manage Trips",
+    "addTrip": "Add Trip",
+    "editTrip": "Edit Trip",
+    "deleteTrip": "Delete Trip",
+    "destination": "Destination:",
+    "purpose": "Purpose:",
+    "dates": "Dates:",
+    "dateRange": "{{start}} - {{end}}",
+    "tbd": "TBD",
+    "estimatedCost": "Estimated Cost:",
+    "emptyTitle": "No trips found",
+    "emptyHelp": "Create your first trip to start tracking travel expenses",
+    "addFirstTrip": "Add Your First Trip",
+    "addTitle": "Add New Trip",
+    "tripName": "Trip Name",
+    "destinationField": "Destination",
+    "purposeField": "Purpose",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "estimatedCostField": "Estimated Cost",
+    "saving": "Saving...",
+    "deleteConfirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+    "deleting": "Deleting...",
+    "nameRequired": "Trip name is required",
+    "saveFailed": "Failed to save trip",
+    "deleteFailed": "Failed to delete trip"
+  }
+}

@@ -7,6 +7,7 @@ import { keymap } from '@codemirror/view';
 import { Prec } from '@codemirror/state';
 import { sql, SQLite, type SQLNamespace } from '@codemirror/lang-sql';
 import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
+import { useTranslation } from 'react-i18next';
 
 import { analyzeSqlQuery, type SqlQueryAnalysis } from './sqlQueryAnalysis';
 import { createBareColumnCompletionSource } from './sqlBareColumnCompletion';
@@ -40,6 +41,7 @@ export default function SqlEditor({
   maxHeight = '480px',
   'data-testid': testId,
 }: SqlEditorProps) {
+  const { t } = useTranslation('sqlQuery');
   const theme = useTheme();
   const paletteMode = theme.palette.mode;
 
@@ -100,7 +102,7 @@ export default function SqlEditor({
       height="auto"
       minHeight={minHeight}
       maxHeight={maxHeight}
-      placeholder="Enter your SQL query here..."
+      placeholder={t('editor.placeholder')}
       basicSetup={{ tabSize: 2 }}
       style={{ fontSize: '0.875rem', fontFamily: 'monospace' }}
       data-testid={testId}

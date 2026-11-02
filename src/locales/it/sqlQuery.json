@@ -1,0 +1,62 @@
+{
+  "page": {
+    "title": "Console query SQL",
+    "sampleQueries": "Query di esempio",
+    "queryHeading": "Query SQL",
+    "enterQuery": "Inserisci una query SQL",
+    "databaseNotLoaded": "Database non caricato",
+    "unknownError": "Si è verificato un errore sconosciuto",
+    "formatFailed": "Impossibile formattare la query: {{message}}",
+    "formatFailedPlain": "Impossibile formattare la query",
+    "schemaUnavailable": "Completamento automatico e controlli dello schema non disponibili: {{error}}",
+    "schemaLoadFailed": "Impossibile caricare lo schema del database",
+    "moreIssues_one": "+{{count}} altro problema",
+    "moreIssues_other": "+{{count}} altri problemi",
+    "timeLimit": "Limite di tempo",
+    "timeoutSeconds_one": "{{count}} secondo",
+    "timeoutSeconds_other": "{{count}} secondi",
+    "timeoutMinutes_one": "{{count}} minuto",
+    "timeoutMinutes_other": "{{count}} minuti",
+    "noLimit": "Nessun limite",
+    "executing": "Esecuzione...",
+    "execute": "Esegui query",
+    "format": "Formatta",
+    "hint": "Ctrl+Invio (Cmd+Invio su Mac) esegue la query. I controlli di sintassi, schema e solo-SELECT vengono eseguiti in locale, prima che qualcosa venga inviato al database.",
+    "historyTitle": "Cronologia delle query ({{count}})",
+    "historyRows_one": "({{count}} riga)",
+    "historyRows_other": "({{count}} righe)",
+    "historyError": "Errore: {{message}}",
+    "use": "Usa",
+    "results": "Risultati della query",
+    "resultRows_one": "{{count}} riga",
+    "resultRows_other": "{{count}} righe",
+    "executionTime": "{{ms}}ms",
+    "noRows": "Query eseguita correttamente ma non ha restituito righe."
+  },
+  "editor": {
+    "placeholder": "Inserisci qui la tua query SQL..."
+  },
+  "samplesDrawer": {
+    "title": "Query di esempio",
+    "close": "Chiudi le query di esempio",
+    "copy": "Copia negli appunti",
+    "useQuery": "Usa query"
+  },
+  "samples": {
+    "allTransactions": "Tutte le transazioni",
+    "summaryByCategory": "Riepilogo delle transazioni per categoria",
+    "monthlySpending": "Totali di spesa mensili",
+    "topExpenseCategories": "Prime 10 categorie di spesa",
+    "schemaTables": "Schema del database - Tabelle",
+    "schemaColumns": "Schema del database - Colonne"
+  },
+  "analysis": {
+    "unableToParse": "Impossibile analizzare la query.",
+    "syntaxError": "Errore di sintassi: {{message}}",
+    "multipleStatements": "Rilevate più istruzioni: verrà eseguita solo la prima.",
+    "onlySelectBlocking": "Questa pagina esegue solo query SELECT: rimuovi l'istruzione {{statement}}.",
+    "onlySelectIssue": "Qui sono consentite solo query SELECT (trovato {{statement}}).",
+    "unknownTable": "Tabella sconosciuta \"{{table}}\".",
+    "unknownColumn": "La colonna \"{{column}}\" non è stata trovata nella tabella \"{{table}}\"."
+  }
+}

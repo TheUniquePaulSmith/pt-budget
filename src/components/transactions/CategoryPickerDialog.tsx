@@ -17,7 +17,9 @@ import {
   Category as CategoryIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useTransactionQuickActionsSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { Category, Transaction } from '@/types/database';
 
 interface CategoryPickerDialogProps {
@@ -31,6 +33,8 @@ export default function CategoryPickerDialog({
   transaction,
   onClose,
 }: CategoryPickerDialogProps) {
+  const { t } = useTranslation(['transactions', 'common']);
+  const { money, date, locale } = useFormatters();
   const { categories, setTransactionCategory } = useTransactionQuickActionsSlice();
 
   const [selected, setSelected] = useState<Category | null>(null);
@@ -57,7 +61,7 @@ export default function CategoryPickerDialog({
       await setTransactionCategory(transaction.id, categoryId);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to set category');
+      setError(err instanceof Error ? err.message : t('categoryPicker.setFailed'));
     } finally {
       setLoading(false);
     }
@@ -70,29 +74,29 @@ export default function CategoryPickerDialog({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CategoryIcon />
-          Set Category
+          {t('categoryPicker.title')}
         </Box>
       </DialogTitle>
 
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Transaction
+            {t('categoryPicker.transaction')}
           </Typography>
           <Typography variant="body1" fontWeight="medium">
             {transaction.description}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            ${Math.abs(transaction.amount).toFixed(2)} • {new Date(transaction.date).toLocaleDateString()}
+            {money(Math.abs(transaction.amount), transaction.account_currency)} • {date(transaction.date)}
           </Typography>
         </Box>
 
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Current Category
+            {t('categoryPicker.currentCategory')}
           </Typography>
           <Chip
-            label={transaction.category_name || 'No category'}
+            label={transaction.category_name || t('categoryPicker.noCategory')}
             variant="outlined"
             size="small"
           />
@@ -114,10 +118,12 @@ export default function CategoryPickerDialog({
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Category"
-              placeholder="Search categories..."
+              label={t('common:fields.category')}
+              placeholder={t('categoryPicker.searchPlaceholder')}
               autoFocus
-              helperText={`Showing ${transaction.type} categories`}
+              helperText={t('categoryPicker.showingCategories', {
+                type: t(`common:transactionType.${transaction.type}`).toLocaleLowerCase(locale),
+              })}
               fullWidth
             />
           )}
@@ -144,21 +150,21 @@ export default function CategoryPickerDialog({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           color="inherit"
           startIcon={<ClearIcon />}
           onClick={() => void apply(null)}
           disabled={loading || transaction.category_id == null}
         >
-          Clear
+          {t('common:actions.clear')}
         </Button>
         <Button
           variant="contained"
           onClick={() => void apply(selected?.id ?? null)}
           disabled={loading || !selected}
         >
-          {loading ? 'Saving…' : 'Apply'}
+          {loading ? t('common:status.saving') : t('common:actions.apply')}
         </Button>
       </DialogActions>
     </Dialog>

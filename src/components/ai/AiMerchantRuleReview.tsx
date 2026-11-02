@@ -13,6 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Check, Clear } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import type { MerchantRuleSuggestion } from '@/types/ai';
 
@@ -22,22 +23,12 @@ interface AiMerchantRuleReviewProps {
   onClear: () => void;
 }
 
-function describeSuggestion(suggestion: MerchantRuleSuggestion): string {
-  const parts = [
-    `Merchant: ${suggestion.merchant_name}`,
-    suggestion.service_name ? `Service: ${suggestion.service_name}` : null,
-    `Type: ${suggestion.default_kind}`,
-    `Match: ${suggestion.match_type} "${suggestion.pattern}"`,
-  ].filter(Boolean);
-
-  return parts.join(' | ');
-}
-
 export default function AiMerchantRuleReview({
   suggestions,
   onApply,
   onClear,
 }: AiMerchantRuleReviewProps) {
+  const { t } = useTranslation(['ai', 'common']);
   const [selectedIndexes, setSelectedIndexes] = useState<number[]>([]);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +46,17 @@ export default function AiMerchantRuleReview({
     return null;
   }
 
+  const describeSuggestion = (suggestion: MerchantRuleSuggestion): string => {
+    const parts = [
+      t('merchantRuleReview.merchant', { name: suggestion.merchant_name }),
+      suggestion.service_name ? t('merchantRuleReview.service', { name: suggestion.service_name }) : null,
+      t('merchantRuleReview.type', { kind: suggestion.default_kind }),
+      t('merchantRuleReview.match', { matchType: suggestion.match_type, pattern: suggestion.pattern }),
+    ].filter(Boolean);
+
+    return parts.join(' | ');
+  };
+
   const toggleSuggestion = (index: number) => {
     setSelectedIndexes((current) => current.includes(index)
       ? current.filter((value) => value !== index)
@@ -69,7 +71,7 @@ export default function AiMerchantRuleReview({
       await onApply(selectedSuggestions);
       onClear();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create merchant rules');
+      setError(err instanceof Error ? err.message : t('merchantRuleReview.createFailed'));
     } finally {
       setApplying(false);
     }
@@ -79,9 +81,9 @@ export default function AiMerchantRuleReview({
     <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
         <Typography variant="subtitle2" fontWeight={600}>
-          Merchant Rule Review
+          {t('merchantRuleReview.title')}
         </Typography>
-        <Chip size="small" label={`${suggestions.length} staged`} />
+        <Chip size="small" label={t('merchantRuleReview.staged', { count: suggestions.length })} />
       </Stack>
 
       {error && (
@@ -129,7 +131,7 @@ export default function AiMerchantRuleReview({
           onClick={() => void handleApply()}
           disabled={applying || selectedSuggestions.length === 0}
         >
-          Create Selected Rules
+          {t('merchantRuleReview.createSelected')}
         </Button>
         <Button
           variant="outlined"
@@ -138,7 +140,7 @@ export default function AiMerchantRuleReview({
           onClick={onClear}
           disabled={applying}
         >
-          Clear
+          {t('common:actions.clear')}
         </Button>
       </Stack>
     </Box>

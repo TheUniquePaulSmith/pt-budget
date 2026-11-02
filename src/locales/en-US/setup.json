@@ -1,0 +1,131 @@
+{
+  "preferences": {
+    "title": "Your Preferences",
+    "description": "Choose the language for this device and the currency your totals are shown in. You can change both later in Settings.",
+    "languageLabel": "Language",
+    "languageHelp": "Applies to this browser only and takes effect immediately.",
+    "currencyLabel": "Default currency",
+    "currencyHelp": "Every account can use its own currency; dashboard totals are converted into this one.",
+    "continue": "Continue",
+    "saving": "Saving…",
+    "skip": "Skip for now"
+  },
+  "initialAccount": {
+    "currencyLabel": "Currency",
+    "title": "Add Your First Account",
+    "description": "Set up an account or card so your transactions have somewhere to go. You can add more accounts later in Settings.",
+    "nameRequired": "Account name is required.",
+    "lastFourInvalid": "Last four digits must be exactly 4 numbers.",
+    "nameLabel": "Account Name",
+    "typeLabel": "Account Type",
+    "lastFourLabel": "Last Four Digits",
+    "saving": "Saving Account…"
+  },
+  "provider": {
+    "gdrive": "Google Drive",
+    "onedrive": "OneDrive"
+  },
+  "gate": {
+    "initializing": "Initializing database...",
+    "importPasswordDescription": "This database file is encrypted. Enter your password to unlock and import it.",
+    "unlockDescription": "This database is encrypted. Enter your password to unlock it.",
+    "welcomeTitle": "Welcome to Budget Tracker",
+    "welcomeDescription": "To get started, you can create a new database or load an existing one from a file.",
+    "createNewDatabase": "Create New Database",
+    "loadFromFile": "Load from File",
+    "orOpenCloudBackup": "or open an existing cloud backup",
+    "providerNotConfigured": "{{provider}} is not configured for this deployment.",
+    "openFromProvider": "Open from {{provider}}",
+    "importingSampleData": "Importing sample data",
+    "filesCompleted": "Files completed: {{completed}} / {{total}}",
+    "currentFile": "Current file: {{file}}",
+    "tableRows": "{{table}}: {{imported}} rows",
+    "tableRowsOfExpected": "{{table}}: {{imported}} / {{expected}} rows",
+    "cancelSampleDataImport": "Cancel Sample Data Import",
+    "connectProvider": "Connect {{provider}}",
+    "cloudAuthDescription": "This browser is configured to use {{provider}} as the database source. Authenticate and choose a backup archive to continue.",
+    "useLocalInstead": "Use Local Database Instead",
+    "databaseError": "Database Error",
+    "unknownInitError": "An unknown error occurred while initializing the database.",
+    "reloadPage": "Reload Page"
+  },
+  "passwordSetup": {
+    "primaryUserNameRequired": "Primary user name is required.",
+    "passwordTooShort": "Password must be at least {{count}} characters.",
+    "passwordsMismatch": "Passwords do not match.",
+    "title": "Set Up Your Database",
+    "description": "Your database is encrypted on this device, and this password is required to open it every time you return. Choose a strong password — there is no password recovery, so store it somewhere safe.",
+    "primaryUserSection": "Primary user",
+    "primaryUserNameLabel": "Primary User Name",
+    "passwordSection": "Password",
+    "passwordLabel": "Password",
+    "confirmPasswordLabel": "Confirm Password",
+    "hidePassword": "Hide password",
+    "showPassword": "Show password",
+    "creating": "Creating Database…",
+    "create": "Create Database"
+  },
+  "passwordEntry": {
+    "title": "Enter Password",
+    "defaultDescription": "This database is encrypted. Enter the password to open it.",
+    "passwordLabel": "Password",
+    "hidePassword": "Hide password",
+    "showPassword": "Show password",
+    "decrypting": "Decrypting…",
+    "unlock": "Unlock"
+  },
+  "storageChoice": {
+    "title": "Where should this database live?",
+    "description": "You can change this later in Settings.",
+    "localLabel": "Keep Local",
+    "localDescription": "Stored only on this device.",
+    "gdriveLabel": "Google Drive",
+    "gdriveDescription": "Automatically synced to your Google Drive.",
+    "onedriveLabel": "OneDrive",
+    "onedriveDescription": "Automatically synced to your OneDrive.",
+    "notConfigured": "{{provider}} is not configured for this deployment."
+  },
+  "testBrowser": {
+    "workerCommunicationFailed": "Failed to communicate with test worker",
+    "unknownError": "Unknown error during compatibility test",
+    "statusTesting": "Testing...",
+    "statusNotTested": "Not tested",
+    "statusPassed": "Passed",
+    "statusFailed": "Failed",
+    "wasmLabel": "WebAssembly Support",
+    "wasmDescription": "Browser supports WebAssembly",
+    "sharedWorkerLabel": "SharedWorker Support",
+    "sharedWorkerDescription": "Browser supports SharedWorker API",
+    "sqliteLabel": "SQLite WASM Module",
+    "sqliteDescription": "WA-SQLite module loads and initializes",
+    "vfsLabel": "Virtual File System",
+    "vfsDescription": "IndexedDB VFS backend works correctly",
+    "databaseOperationsLabel": "Database Operations",
+    "databaseOperationsDescription": "Opens a test database and runs a query",
+    "title": "Browser Compatibility Test",
+    "overallResult": "Overall Result:",
+    "compatible": "Compatible",
+    "incompatible": "Incompatible",
+    "incompatibleWarning": "Your browser may not fully support all required features for the budget application. Some functionality may be limited or unavailable.",
+    "errorDetails": "Error details",
+    "hideErrorDetails": "Hide error details",
+    "showErrorDetails": "Show error details"
+  },
+  "encryptionProgress": {
+    "title": "Securing Your Database",
+    "stage": {
+      "flushing": "Waiting for pending operations to finish…",
+      "exporting": "Exporting database snapshot…",
+      "encrypting": "Encrypting database…",
+      "uploading": "Uploading to cloud storage…",
+      "done": "Complete"
+    }
+  },
+  "cloudFilePicker": {
+    "cloudStorage": "cloud storage",
+    "fileSize": "{{size}} KB",
+    "title": "Open from {{provider}}",
+    "empty": "No backup archives were found in {{provider}}.",
+    "opening": "Opening…"
+  }
+}

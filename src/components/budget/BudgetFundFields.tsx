@@ -1,10 +1,10 @@
 'use client';
 
 import { Box, FormControl, FormHelperText, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
+import { useFormatters } from '@/contexts/useFormatters';
 import type { Category } from '@/types/database';
-
-import { formatBudgetCurrency, formatMonthKey } from './budgetFormat';
 
 /** Form state for the optional savings fund on a project or trip. */
 export interface BudgetFundFormValue {
@@ -61,6 +61,8 @@ interface BudgetFundFieldsProps {
 }
 
 export function BudgetFundFields({ categories, value, onChange, entityLabel, fallbackStartDate, idPrefix = 'budget-fund' }: BudgetFundFieldsProps) {
+  const { t } = useTranslation(['budget', 'common']);
+  const { money, month, symbol } = useFormatters();
   const expenseCategories = categories.filter((category) => category.type === 'expense');
   const linked = value.budget_category_id !== '';
   const category = expenseCategories.find((item) => item.id === value.budget_category_id);
@@ -69,27 +71,38 @@ export function BudgetFundFields({ categories, value, onChange, entityLabel, fal
     ? value.contribution_start_month
     : fallbackStartDate && fallbackStartDate.length >= 7 ? fallbackStartDate.slice(0, 7) : null;
   const categoryLabelId = `${idPrefix}-category-label`;
+  // The entity word is translated; an unknown label falls through unchanged.
+  const entity = entityLabel === 'project'
+    ? t('fundFields.entity.project')
+    : entityLabel === 'trip'
+      ? t('fundFields.entity.trip')
+      : entityLabel;
 
   let helper: string;
   if (!linked) {
-    helper = `Optional: pick a budget category to save for this ${entityLabel} a little each month.`;
+    helper = t('fundFields.helpUnlinked', { entity });
   } else if (!(monthly > 0)) {
-    helper = `Enter a monthly contribution to start the ${category?.name ?? 'category'} fund.`;
+    helper = t('fundFields.helpNoContribution', { category: category?.name ?? t('fundFields.categoryFallback') });
   } else if (!startMonth) {
-    helper = `Set a start month (or a start date) so contributions can accrue.`;
+    helper = t('fundFields.helpNoStart');
   } else {
-    helper = `Reserves ${formatBudgetCurrency(monthly)} per month from ${category?.name ?? 'the category'} starting ${formatMonthKey(startMonth)}; the budget counts it as planned spend and ${entityLabel} expenses draw from the fund.`;
+    helper = t('fundFields.helpReserves', {
+      amount: money(monthly),
+      category: category?.name ?? t('fundFields.theCategoryFallback'),
+      month: month(startMonth),
+      entity,
+    });
   }
 
   return (
     <Box data-testid={`${idPrefix}-fields`}>
-      <Typography variant="subtitle2" sx={{ mb: 1 }}>Savings fund</Typography>
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('fundFields.title')}</Typography>
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         <FormControl sx={{ flex: 1, minWidth: 220 }}>
-          <InputLabel id={categoryLabelId}>Linked Budget Category</InputLabel>
+          <InputLabel id={categoryLabelId}>{t('fundFields.linkedCategory')}</InputLabel>
           <Select
             labelId={categoryLabelId}
-            label="Linked Budget Category"
+            label={t('fundFields.linkedCategory')}
             value={value.budget_category_id}
             onChange={(event) => {
               const next = event.target.value as number | '';
@@ -98,7 +111,7 @@ export function BudgetFundFields({ categories, value, onChange, entityLabel, fal
             displayEmpty={false}
           >
             <MenuItem value="">
-              <em>Not linked</em>
+              <em>{t('fundFields.notLinked')}</em>
             </MenuItem>
             {expenseCategories.map((item) => (
               <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>
@@ -107,16 +120,16 @@ export function BudgetFundFields({ categories, value, onChange, entityLabel, fal
         </FormControl>
         <TextField
           sx={{ flex: 1, minWidth: 180 }}
-          label="Monthly Contribution"
+          label={t('fundFields.monthlyContribution')}
           type="number"
           value={value.monthly_contribution}
           onChange={(event) => onChange({ ...value, monthly_contribution: event.target.value })}
           disabled={!linked}
-          slotProps={{ htmlInput: { step: '0.01', min: '0' }, input: { startAdornment: '$' } }}
+          slotProps={{ htmlInput: { step: '0.01', min: '0' }, input: { startAdornment: symbol() } }}
         />
         <TextField
           sx={{ flex: 1, minWidth: 180 }}
-          label="Contribution Start Month"
+          label={t('fundFields.startMonth')}
           type="month"
           value={value.contribution_start_month}
           onChange={(event) => onChange({ ...value, contribution_start_month: event.target.value })}

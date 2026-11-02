@@ -22,7 +22,9 @@ import {
   Label as LabelIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useTransactionLabelingSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { Transaction, Project, Trip } from '@/types/database';
 
 interface TransactionLabelDialogProps {
@@ -38,8 +40,10 @@ export default function TransactionLabelDialog({
   transaction,
   onSuccess,
 }: TransactionLabelDialogProps) {
-  const { 
-    projects, 
+  const { t } = useTranslation(['transactions', 'common']);
+  const { money, date } = useFormatters();
+  const {
+    projects,
     trips,
     updateTransactionLabels,
   } = useTransactionLabelingSlice();
@@ -97,7 +101,7 @@ export default function TransactionLabelDialog({
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update transaction label');
+      setError(err instanceof Error ? err.message : t('labelDialog.updateFailed'));
     } finally {
       setLoading(false);
     }
@@ -118,7 +122,7 @@ export default function TransactionLabelDialog({
       return (
         <Chip
           icon={<LabelIcon />}
-          label={`Project: ${transaction.project_name}`}
+          label={t('labelDialog.projectChip', { name: transaction.project_name })}
           color="primary"
           variant="outlined"
           size="small"
@@ -130,7 +134,7 @@ export default function TransactionLabelDialog({
       return (
         <Chip
           icon={<LabelIcon />}
-          label={`Trip: ${transaction.trip_name}`}
+          label={t('labelDialog.tripChip', { name: transaction.trip_name })}
           color="secondary"
           variant="outlined"
           size="small"
@@ -141,7 +145,7 @@ export default function TransactionLabelDialog({
     return (
       <Chip
         icon={<ClearIcon />}
-        label="No Label"
+        label={t('labelDialog.noLabel')}
         variant="outlined"
         size="small"
       />
@@ -160,26 +164,26 @@ export default function TransactionLabelDialog({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <LabelIcon />
-          Label Transaction
+          {t('labelDialog.title')}
         </Box>
       </DialogTitle>
-      
+
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Transaction
+            {t('labelDialog.transaction')}
           </Typography>
           <Typography variant="body1" fontWeight="medium">
             {transaction.description}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            ${Math.abs(transaction.amount).toFixed(2)} • {new Date(transaction.date).toLocaleDateString()}
+            {money(Math.abs(transaction.amount), transaction.account_currency)} • {date(transaction.date)}
           </Typography>
         </Box>
 
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Current Label
+            {t('labelDialog.currentLabel')}
           </Typography>
           {getCurrentLabel()}
         </Box>
@@ -193,15 +197,15 @@ export default function TransactionLabelDialog({
         )}
 
         <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel>Label Type</InputLabel>
+          <InputLabel>{t('labelDialog.labelType')}</InputLabel>
           <Select
             value={labelType}
-            label="Label Type"
+            label={t('labelDialog.labelType')}
             onChange={handleLabelTypeChange}
           >
-            <MenuItem value="none">No Label</MenuItem>
-            <MenuItem value="project">Project</MenuItem>
-            <MenuItem value="trip">Trip</MenuItem>
+            <MenuItem value="none">{t('labelDialog.noLabel')}</MenuItem>
+            <MenuItem value="project">{t('common:fields.project')}</MenuItem>
+            <MenuItem value="trip">{t('common:fields.trip')}</MenuItem>
           </Select>
         </FormControl>
 
@@ -216,8 +220,8 @@ export default function TransactionLabelDialog({
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Select Project"
-                placeholder="Search projects..."
+                label={t('labelDialog.selectProject')}
+                placeholder={t('labelDialog.searchProjects')}
                 fullWidth
               />
             )}
@@ -248,8 +252,8 @@ export default function TransactionLabelDialog({
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Select Trip"
-                placeholder="Search trips..."
+                label={t('labelDialog.selectTrip')}
+                placeholder={t('labelDialog.searchTrips')}
                 fullWidth
               />
             )}
@@ -271,13 +275,13 @@ export default function TransactionLabelDialog({
       </DialogContent>
       
       <DialogActions>
-        <Button onClick={handleClose}>Cancel</Button>
-        <Button 
-          onClick={handleSubmit} 
+        <Button onClick={handleClose}>{t('common:actions.cancel')}</Button>
+        <Button
+          onClick={handleSubmit}
           variant="contained"
           disabled={loading || (labelType === 'project' && !selectedProjectId) || (labelType === 'trip' && !selectedTripId)}
         >
-          {loading ? 'Updating...' : 'Update Label'}
+          {loading ? t('labelDialog.updating') : t('labelDialog.updateLabel')}
         </Button>
       </DialogActions>
     </Dialog>

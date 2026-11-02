@@ -998,6 +998,7 @@ function getBaseRowsForTable(tableName, context) {
           type: 'checking',
           ownership: 'individual',
           owner_user_id: 1,
+          currency: 'USD',
         },
         {
           id: FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS,
@@ -1005,6 +1006,7 @@ function getBaseRowsForTable(tableName, context) {
           type: 'savings',
           ownership: 'individual',
           owner_user_id: 1,
+          currency: 'USD',
         },
         {
           id: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
@@ -1012,6 +1014,7 @@ function getBaseRowsForTable(tableName, context) {
           type: 'credit',
           ownership: 'individual',
           owner_user_id: 1,
+          currency: 'USD',
         },
         {
           id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT,
@@ -1019,6 +1022,7 @@ function getBaseRowsForTable(tableName, context) {
           type: 'checking',
           ownership: 'joint',
           owner_user_id: 2,
+          currency: 'USD',
         },
       ];
     case 'account_cards':

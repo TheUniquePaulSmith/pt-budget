@@ -1,0 +1,49 @@
+{
+  "category": {
+    "plumbing": "Idraulica",
+    "electrical": "Impianto elettrico",
+    "hvac": "Climatizzazione",
+    "roofing": "Tetto",
+    "flooring": "Pavimenti",
+    "painting": "Tinteggiatura",
+    "landscaping": "Giardinaggio",
+    "general_contractor": "Impresa edile",
+    "other": "Altro"
+  },
+  "status": {
+    "planning": "In pianificazione",
+    "in_progress": "In corso",
+    "completed": "Completato",
+    "on_hold": "In sospeso"
+  },
+  "manage": {
+    "title": "Progetti casa",
+    "addProject": "Aggiungi progetto",
+    "empty": "Nessun progetto ancora. Fai clic su \"Aggiungi progetto\" per creare il tuo primo progetto casa.",
+    "estimatedCost": "Costo stimato",
+    "actualCost": "Costo effettivo",
+    "notSet": "Non impostato",
+    "transactionTotal": "Totale transazioni",
+    "detailsTitle": "Dettagli del progetto e transazioni",
+    "detailsTitleWithCount": "Dettagli del progetto e transazioni ({{count}})",
+    "contactDetails": "Contatti",
+    "timeline": "Tempistiche",
+    "start": "Inizio: {{date}}",
+    "end": "Fine: {{date}}",
+    "linkedTransactions": "Transazioni collegate",
+    "transactionSecondary": "{{date}} • {{amount}} • {{category}}",
+    "uncategorized": "Senza categoria",
+    "noTransactions": "Nessuna transazione collegata a questo progetto.",
+    "editTitle": "Modifica progetto",
+    "addTitle": "Aggiungi nuovo progetto",
+    "projectName": "Nome del progetto",
+    "companyName": "Nome dell'impresa",
+    "projectCategory": "Categoria del progetto",
+    "contactPlaceholder": "Telefono, email, indirizzo, ecc.",
+    "startDate": "Data di inizio",
+    "endDate": "Data di fine",
+    "notesPlaceholder": "Note aggiuntive sul progetto...",
+    "updateProject": "Aggiorna progetto",
+    "deleteConfirm": "Vuoi davvero eliminare \"{{name}}\"? I riferimenti al progetto verranno rimossi dalle transazioni collegate."
+  }
+}

@@ -18,6 +18,7 @@ export { AI_TOOL_QUERIES } from './sqlQueriesAiTools';
 export { BUDGET_FUND_QUERIES } from './sqlQueriesBudgetFunds';
 export { CLASSIFICATION_QUERIES } from './sqlQueriesClassification';
 export { LOAN_QUERIES } from './sqlQueriesLoans';
+export { EXCHANGE_RATE_QUERIES } from './sqlQueriesPreferences';
 
 // Transaction Queries
 export const TRANSACTION_QUERIES = {
@@ -317,8 +318,8 @@ export const ACCOUNT_QUERIES = {
     ORDER BY a.name
   `,
   CREATE: `
-    INSERT INTO accounts (name, type, ownership, owner_user_id, institution, opening_balance, opening_balance_date, credit_limit, is_active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO accounts (name, type, ownership, owner_user_id, institution, opening_balance, opening_balance_date, credit_limit, is_active, currency)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     RETURNING id
   `,
   GET_BY_ID: `
@@ -339,7 +340,7 @@ export const ACCOUNT_QUERIES = {
   UPDATE: `
     UPDATE accounts
     SET name = ?, type = ?, ownership = ?, institution = ?, opening_balance = ?, opening_balance_date = ?,
-        credit_limit = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+        credit_limit = ?, is_active = ?, currency = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `,
   DELETE: `DELETE FROM accounts WHERE id = ?`,
@@ -923,7 +924,7 @@ export const UTILITY_QUERIES = {
 export const SAMPLE_DATA_QUERIES = {
   // Insert with explicit ID using REPLACE to handle conflicts (SQLite allows this when AUTOINCREMENT is used)
   INSERT_USER: `INSERT OR REPLACE INTO users (id, display_name, is_primary, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-  INSERT_ACCOUNT: `INSERT OR REPLACE INTO accounts (id, name, type, ownership, owner_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_ACCOUNT: `INSERT OR REPLACE INTO accounts (id, name, type, ownership, owner_user_id, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   INSERT_ACCOUNT_CARD: `INSERT OR REPLACE INTO account_cards (id, account_id, last_four, full_number, nickname, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   INSERT_CATEGORY: `INSERT OR REPLACE INTO categories (id, name, color, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
   INSERT_COMPANY: `INSERT OR REPLACE INTO companies (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,

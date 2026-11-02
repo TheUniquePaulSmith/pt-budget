@@ -1,6 +1,12 @@
 import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 
+import { initI18n } from '@/lib/i18n';
+
+// English bundles are inline, so this is synchronous: `useTranslation` works in
+// bare component renders and `i18n.t` in node-environment library tests.
+initI18n();
+
 if (typeof window !== 'undefined') {
 	Object.defineProperty(window, 'matchMedia', {
 		writable: true,

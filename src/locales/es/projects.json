@@ -1,0 +1,49 @@
+{
+  "category": {
+    "plumbing": "Plomería",
+    "electrical": "Electricidad",
+    "hvac": "Climatización",
+    "roofing": "Techos",
+    "flooring": "Suelos",
+    "painting": "Pintura",
+    "landscaping": "Jardinería",
+    "general_contractor": "Contratista general",
+    "other": "Otro"
+  },
+  "status": {
+    "planning": "En planificación",
+    "in_progress": "En curso",
+    "completed": "Completado",
+    "on_hold": "En espera"
+  },
+  "manage": {
+    "title": "Proyectos del hogar",
+    "addProject": "Añadir proyecto",
+    "empty": "Aún no hay proyectos. Haga clic en \"Añadir proyecto\" para crear su primer proyecto del hogar.",
+    "estimatedCost": "Costo estimado",
+    "actualCost": "Costo real",
+    "notSet": "Sin definir",
+    "transactionTotal": "Total de transacciones",
+    "detailsTitle": "Detalles del proyecto y transacciones",
+    "detailsTitleWithCount": "Detalles del proyecto y transacciones ({{count}})",
+    "contactDetails": "Datos de contacto",
+    "timeline": "Cronología",
+    "start": "Inicio: {{date}}",
+    "end": "Fin: {{date}}",
+    "linkedTransactions": "Transacciones vinculadas",
+    "transactionSecondary": "{{date}} • {{amount}} • {{category}}",
+    "uncategorized": "Sin categoría",
+    "noTransactions": "No hay transacciones vinculadas a este proyecto.",
+    "editTitle": "Editar proyecto",
+    "addTitle": "Añadir nuevo proyecto",
+    "projectName": "Nombre del proyecto",
+    "companyName": "Nombre del comercio",
+    "projectCategory": "Categoría del proyecto",
+    "contactPlaceholder": "Teléfono, correo electrónico, dirección, etc.",
+    "startDate": "Fecha de inicio",
+    "endDate": "Fecha de fin",
+    "notesPlaceholder": "Notas adicionales sobre el proyecto...",
+    "updateProject": "Actualizar proyecto",
+    "deleteConfirm": "¿Seguro que desea eliminar \"{{name}}\"? Se quitarán las referencias al proyecto de las transacciones vinculadas."
+  }
+}

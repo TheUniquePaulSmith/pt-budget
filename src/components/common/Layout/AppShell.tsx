@@ -10,6 +10,7 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { AppBar, Box, IconButton, Toolbar, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { Settings as SettingsIcon } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { useAiPanel } from '@/components/ai/AiPanelProvider';
 import AppLogo from '@/components/common/AppLogo';
@@ -29,6 +30,7 @@ import {
   getMobileNavigationPages,
   getNavigationPages,
   getPage,
+  getPageLabel,
   type PageId,
 } from './pageRegistry';
 import {
@@ -42,6 +44,7 @@ import {
 } from './sidebarPreference';
 
 export default function AppShell() {
+  const { t } = useTranslation('shell');
   const {
     isDatabaseLoaded,
     workerStatus,
@@ -160,18 +163,18 @@ export default function AppShell() {
                   data-testid="app-bar-title"
                   sx={{ fontWeight: 600, flexGrow: 1, minWidth: 0 }}
                 >
-                  {page.label}
+                  {getPageLabel(page, t)}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                   <NotificationBellSlot variant="header" onNavigate={() => navigate('notifications')} />
                   <AiLauncherSlot variant="header" />
                   {!isMobile && (
-                    <Tooltip title={settingsPage.label}>
+                    <Tooltip title={getPageLabel(settingsPage, t)}>
                       <IconButton
                         color="inherit"
                         onClick={() => navigate(settingsPage.id)}
                         sx={{ ml: 2 }}
-                        aria-label={settingsPage.label}
+                        aria-label={getPageLabel(settingsPage, t)}
                         data-testid={settingsPage.testId}
                       >
                         <SettingsIcon />

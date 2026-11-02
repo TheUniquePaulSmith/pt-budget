@@ -1,0 +1,131 @@
+{
+  "preferences": {
+    "title": "環境設定",
+    "description": "このデバイスで使う言語と、合計金額を表示する通貨を選択してください。どちらも後から設定で変更できます。",
+    "languageLabel": "言語",
+    "languageHelp": "このブラウザーにのみ適用され、すぐに反映されます。",
+    "currencyLabel": "既定通貨",
+    "currencyHelp": "口座ごとに異なる通貨を使えます。ダッシュボードの合計はこの通貨に換算して表示されます。",
+    "continue": "続行",
+    "saving": "保存中…",
+    "skip": "今はスキップ"
+  },
+  "initialAccount": {
+    "currencyLabel": "通貨",
+    "title": "最初の口座を追加",
+    "description": "取引を記録できるよう、口座またはカードを設定してください。口座は後から設定で追加できます。",
+    "nameRequired": "口座名は必須です。",
+    "lastFourInvalid": "下 4 桁は数字 4 文字で入力してください。",
+    "nameLabel": "口座名",
+    "typeLabel": "口座の種類",
+    "lastFourLabel": "下 4 桁",
+    "saving": "口座を保存中…"
+  },
+  "provider": {
+    "gdrive": "Google Drive",
+    "onedrive": "OneDrive"
+  },
+  "gate": {
+    "initializing": "データベースを初期化しています...",
+    "importPasswordDescription": "このデータベースファイルは暗号化されています。ロック解除してインポートするにはパスワードを入力してください。",
+    "unlockDescription": "このデータベースは暗号化されています。ロック解除するにはパスワードを入力してください。",
+    "welcomeTitle": "Budget Tracker へようこそ",
+    "welcomeDescription": "はじめるには、新しいデータベースを作成するか、ファイルから既存のデータベースを読み込んでください。",
+    "createNewDatabase": "新しいデータベースを作成",
+    "loadFromFile": "ファイルから読み込む",
+    "orOpenCloudBackup": "または既存のクラウドバックアップを開く",
+    "providerNotConfigured": "{{provider}} はこのデプロイでは設定されていません。",
+    "openFromProvider": "{{provider}} から開く",
+    "importingSampleData": "サンプルデータをインポート中",
+    "filesCompleted": "完了したファイル：{{completed}} / {{total}}",
+    "currentFile": "現在のファイル：{{file}}",
+    "tableRows": "{{table}}：{{imported}} 行",
+    "tableRowsOfExpected": "{{table}}：{{imported}} / {{expected}} 行",
+    "cancelSampleDataImport": "サンプルデータのインポートを中止",
+    "connectProvider": "{{provider}} に接続",
+    "cloudAuthDescription": "このブラウザーはデータベースのソースとして {{provider}} を使うよう設定されています。認証してバックアップアーカイブを選択すると続行できます。",
+    "useLocalInstead": "代わりにローカルデータベースを使う",
+    "databaseError": "データベースエラー",
+    "unknownInitError": "データベースの初期化中に不明なエラーが発生しました。",
+    "reloadPage": "ページを再読み込み"
+  },
+  "passwordSetup": {
+    "primaryUserNameRequired": "メインユーザー名は必須です。",
+    "passwordTooShort": "パスワードは {{count}} 文字以上で入力してください。",
+    "passwordsMismatch": "パスワードが一致しません。",
+    "title": "データベースを設定",
+    "description": "データベースはこのデバイス上で暗号化され、次回以降開くたびにこのパスワードが必要になります。強力なパスワードを選んでください。パスワードの復旧はできないため、安全な場所に保管してください。",
+    "primaryUserSection": "メインユーザー",
+    "primaryUserNameLabel": "メインユーザー名",
+    "passwordSection": "パスワード",
+    "passwordLabel": "パスワード",
+    "confirmPasswordLabel": "パスワード（確認）",
+    "hidePassword": "パスワードを隠す",
+    "showPassword": "パスワードを表示",
+    "creating": "データベースを作成中…",
+    "create": "データベースを作成"
+  },
+  "passwordEntry": {
+    "title": "パスワードを入力",
+    "defaultDescription": "このデータベースは暗号化されています。開くにはパスワードを入力してください。",
+    "passwordLabel": "パスワード",
+    "hidePassword": "パスワードを隠す",
+    "showPassword": "パスワードを表示",
+    "decrypting": "復号中…",
+    "unlock": "ロック解除"
+  },
+  "storageChoice": {
+    "title": "このデータベースの保存先を選択してください",
+    "description": "後から設定で変更できます。",
+    "localLabel": "ローカルに保存",
+    "localDescription": "このデバイスにのみ保存されます。",
+    "gdriveLabel": "Google Drive",
+    "gdriveDescription": "Google Drive に自動で同期されます。",
+    "onedriveLabel": "OneDrive",
+    "onedriveDescription": "OneDrive に自動で同期されます。",
+    "notConfigured": "{{provider}} はこのデプロイでは設定されていません。"
+  },
+  "testBrowser": {
+    "workerCommunicationFailed": "テスト用ワーカーとの通信に失敗しました",
+    "unknownError": "互換性テスト中に不明なエラーが発生しました",
+    "statusTesting": "テスト中...",
+    "statusNotTested": "未テスト",
+    "statusPassed": "合格",
+    "statusFailed": "不合格",
+    "wasmLabel": "WebAssembly 対応",
+    "wasmDescription": "ブラウザーが WebAssembly に対応している",
+    "sharedWorkerLabel": "SharedWorker 対応",
+    "sharedWorkerDescription": "ブラウザーが SharedWorker API に対応している",
+    "sqliteLabel": "SQLite WASM モジュール",
+    "sqliteDescription": "WA-SQLite モジュールが読み込まれ初期化される",
+    "vfsLabel": "仮想ファイルシステム",
+    "vfsDescription": "IndexedDB VFS バックエンドが正常に動作する",
+    "databaseOperationsLabel": "データベース操作",
+    "databaseOperationsDescription": "テスト用データベースを開いてクエリを実行する",
+    "title": "ブラウザー互換性テスト",
+    "overallResult": "総合結果：",
+    "compatible": "互換性あり",
+    "incompatible": "互換性なし",
+    "incompatibleWarning": "お使いのブラウザーは、このアプリに必要な機能に完全には対応していない可能性があります。一部の機能が制限されるか利用できないことがあります。",
+    "errorDetails": "エラーの詳細",
+    "hideErrorDetails": "エラーの詳細を隠す",
+    "showErrorDetails": "エラーの詳細を表示"
+  },
+  "encryptionProgress": {
+    "title": "データベースを保護しています",
+    "stage": {
+      "flushing": "保留中の処理の完了を待っています…",
+      "exporting": "データベースのスナップショットをエクスポート中…",
+      "encrypting": "データベースを暗号化中…",
+      "uploading": "クラウドストレージにアップロード中…",
+      "done": "完了"
+    }
+  },
+  "cloudFilePicker": {
+    "cloudStorage": "クラウドストレージ",
+    "fileSize": "{{size}} KB",
+    "title": "{{provider}} から開く",
+    "empty": "{{provider}} にバックアップアーカイブが見つかりませんでした。",
+    "opening": "開いています…"
+  }
+}

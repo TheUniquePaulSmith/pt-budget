@@ -33,9 +33,11 @@ import {
   AutoFixHigh,
 } from '@mui/icons-material';
 import { GridToolbar, type GridColDef } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { useSqlQuerySlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 
 import { useSqlSchema } from './useSqlSchema';
 import SampleQueriesDrawer from './SampleQueriesDrawer';
@@ -68,6 +70,8 @@ const EMPTY_ANALYSIS: SqlQueryAnalysis = { issues: [], blockingReason: null };
 const MAX_VISIBLE_ISSUES = 5;
 
 export default function SQLQueryPage() {
+  const { t } = useTranslation(['sqlQuery', 'common']);
+  const { dateTime, number } = useFormatters();
   const { executeCustomQuery, isDatabaseLoaded } = useSqlQuerySlice();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -86,7 +90,7 @@ export default function SQLQueryPage() {
 
   const executeQuery = useCallback(async () => {
     if (!query.trim()) {
-      setError('Please enter a SQL query');
+      setError(t('page.enterQuery'));
       return;
     }
 
@@ -110,7 +114,7 @@ export default function SQLQueryPage() {
     try {
       // Check if database is loaded
       if (!isDatabaseLoaded) {
-        throw new Error('Database not loaded');
+        throw new Error(t('page.databaseNotLoaded'));
       }
 
       // Execute the custom query
@@ -143,7 +147,7 @@ export default function SQLQueryPage() {
       setQueryHistory(prev => [historyEntry, ...prev.slice(0, 19)]); // Keep last 20 queries
 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      const errorMessage = err instanceof Error ? err.message : t('page.unknownError');
       setError(errorMessage);
 
       // Update history with error
@@ -152,7 +156,7 @@ export default function SQLQueryPage() {
     } finally {
       setLoading(false);
     }
-  }, [query, executeCustomQuery, isDatabaseLoaded, queryTimeout, analysis.blockingReason]);
+  }, [query, executeCustomQuery, isDatabaseLoaded, queryTimeout, analysis.blockingReason, t]);
 
   const handleFormat = useCallback(async () => {
     if (!query.trim()) {
@@ -163,11 +167,11 @@ export default function SQLQueryPage() {
       const { formatDialect, sqlite } = await import('sql-formatter');
       setQuery(formatDialect(query, { dialect: sqlite, keywordCase: 'upper' }));
     } catch (err) {
-      setError(err instanceof Error ? `Failed to format query: ${err.message}` : 'Failed to format query');
+      setError(err instanceof Error ? t('page.formatFailed', { message: err.message }) : t('page.formatFailedPlain'));
     } finally {
       setFormatting(false);
     }
-  }, [query]);
+  }, [query, t]);
 
   const handleHistorySelect = (historicalQuery: string) => {
     setQuery(historicalQuery);
@@ -240,7 +244,7 @@ export default function SQLQueryPage() {
             component="h1"
             sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' } }}
           >
-            SQL Query Console
+            {t('page.title')}
           </Typography>
         </Box>
         <Button
@@ -249,14 +253,14 @@ export default function SQLQueryPage() {
           onClick={() => setSampleQueriesOpen(true)}
           sx={{ width: { xs: '100%', sm: 'auto' } }}
         >
-          Sample Queries
+          {t('page.sampleQueries')}
         </Button>
       </Box>
 
       {/* Query Input */}
       <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
-          SQL Query
+          {t('page.queryHeading')}
         </Typography>
 
         <Box sx={{ mb: 1 }}>
@@ -272,7 +276,7 @@ export default function SQLQueryPage() {
 
         {schemaError && (
           <Typography variant="caption" color="warning.main" sx={{ display: 'block', mb: 1 }}>
-            Autocomplete and schema checks are unavailable: {schemaError}
+            {t('page.schemaUnavailable', { error: schemaError })}
           </Typography>
         )}
 
@@ -285,7 +289,7 @@ export default function SQLQueryPage() {
             ))}
             {hiddenIssueCount > 0 && (
               <Typography variant="caption" color="text.secondary">
-                +{hiddenIssueCount} more issue{hiddenIssueCount === 1 ? '' : 's'}
+                {t('page.moreIssues', { count: hiddenIssueCount })}
               </Typography>
             )}
           </Stack>
@@ -298,19 +302,19 @@ export default function SQLQueryPage() {
         >
           <TextField
             select
-            label="Time Limit"
+            label={t('page.timeLimit')}
             value={queryTimeout}
             onChange={(e) => setQueryTimeout(Number(e.target.value))}
             size="small"
             sx={{ minWidth: 130 }}
           >
-            <MenuItem value={5000}>5 seconds</MenuItem>
-            <MenuItem value={10000}>10 seconds</MenuItem>
-            <MenuItem value={30000}>30 seconds</MenuItem>
-            <MenuItem value={60000}>1 minute</MenuItem>
-            <MenuItem value={120000}>2 minutes</MenuItem>
-            <MenuItem value={300000}>5 minutes</MenuItem>
-            <MenuItem value={Number.MAX_VALUE}>No limit</MenuItem>
+            <MenuItem value={5000}>{t('page.timeoutSeconds', { count: 5 })}</MenuItem>
+            <MenuItem value={10000}>{t('page.timeoutSeconds', { count: 10 })}</MenuItem>
+            <MenuItem value={30000}>{t('page.timeoutSeconds', { count: 30 })}</MenuItem>
+            <MenuItem value={60000}>{t('page.timeoutMinutes', { count: 1 })}</MenuItem>
+            <MenuItem value={120000}>{t('page.timeoutMinutes', { count: 2 })}</MenuItem>
+            <MenuItem value={300000}>{t('page.timeoutMinutes', { count: 5 })}</MenuItem>
+            <MenuItem value={Number.MAX_VALUE}>{t('page.noLimit')}</MenuItem>
           </TextField>
           <Button
             variant="contained"
@@ -319,7 +323,7 @@ export default function SQLQueryPage() {
             disabled={loading || !query.trim() || Boolean(analysis.blockingReason)}
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
-            {loading ? 'Executing...' : 'Execute Query'}
+            {loading ? t('page.executing') : t('page.execute')}
           </Button>
           <Button
             variant="outlined"
@@ -328,7 +332,7 @@ export default function SQLQueryPage() {
             disabled={formatting || !query.trim()}
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
-            Format
+            {t('page.format')}
           </Button>
           <Button
             variant="outlined"
@@ -336,11 +340,11 @@ export default function SQLQueryPage() {
             onClick={clearQuery}
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
-            Clear
+            {t('common:actions.clear')}
           </Button>
         </Stack>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-          Ctrl+Enter (Cmd+Enter on Mac) runs the query. Syntax, schema, and SELECT-only checks run locally, before anything is sent to the database.
+          {t('page.hint')}
         </Typography>
       </Paper>
 
@@ -356,7 +360,7 @@ export default function SQLQueryPage() {
           <AccordionSummary expandIcon={<ExpandMore />}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <History />
-              <Typography variant="h6">Query History ({queryHistory.length})</Typography>
+              <Typography variant="h6">{t('page.historyTitle', { count: queryHistory.length })}</Typography>
             </Box>
           </AccordionSummary>
           <AccordionDetails>
@@ -377,16 +381,16 @@ export default function SQLQueryPage() {
                     <Box sx={{ flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                         <Chip
-                          label={entry.success ? 'Success' : 'Error'}
+                          label={entry.success ? t('common:status.success') : t('common:status.error')}
                           color={entry.success ? 'success' : 'error'}
                           size="small"
                         />
                         <Typography variant="caption" color="text.secondary">
-                          {entry.timestamp.toLocaleString()}
+                          {dateTime(entry.timestamp)}
                         </Typography>
                         {entry.success && entry.rowCount !== undefined && (
                           <Typography variant="caption" color="text.secondary">
-                            ({entry.rowCount} rows)
+                            {t('page.historyRows', { count: entry.rowCount })}
                           </Typography>
                         )}
                       </Box>
@@ -407,7 +411,7 @@ export default function SQLQueryPage() {
                       </Typography>
                       {!entry.success && entry.error && (
                         <Typography variant="caption" color="error.main" sx={{ mt: 1, display: 'block' }}>
-                          Error: {entry.error}
+                          {t('page.historyError', { message: entry.error })}
                         </Typography>
                       )}
                     </Box>
@@ -416,7 +420,7 @@ export default function SQLQueryPage() {
                       onClick={() => handleHistorySelect(entry.query)}
                       sx={{ ml: 1, flexShrink: 0 }}
                     >
-                      Use
+                      {t('page.use')}
                     </Button>
                   </Box>
                 </ListItem>
@@ -440,15 +444,17 @@ export default function SQLQueryPage() {
         <Paper sx={{ mb: 3 }} data-testid="sql-query-results">
           <Box sx={{ p: { xs: 2, sm: 3 }, borderBottom: 1, borderColor: 'divider' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-              <Typography variant="h6">Query Results</Typography>
+              <Typography variant="h6">{t('page.results')}</Typography>
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                 <Chip
-                  label={`${result.rowCount} rows`}
+                  label={t('page.resultRows', { count: result.rowCount })}
                   size="small"
                   color="primary"
                 />
                 <Chip
-                  label={`${result.executionTime.toFixed(2)}ms`}
+                  label={t('page.executionTime', {
+                    ms: number(result.executionTime, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                  })}
                   size="small"
                   variant="outlined"
                 />
@@ -474,7 +480,7 @@ export default function SQLQueryPage() {
           ) : (
             <Box sx={{ p: 3, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">
-                Query executed successfully but returned no rows.
+                {t('page.noRows')}
               </Typography>
             </Box>
           )}

@@ -15,6 +15,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import { normalizeDescription } from '@/lib/merchantMatchingService';
 import type {
@@ -51,12 +52,8 @@ interface ClassificationRuleEditorDialogProps {
 
 const ANY_ACCOUNT = 'any';
 
-const TYPE_OPTIONS: Array<{ value: TransactionType; label: string; hint: string }> = [
-  { value: 'transfer', label: 'Transfer', hint: 'Between your own accounts: card payments, savings moves. Counts as neither income nor spending.' },
-  { value: 'refund', label: 'Refund', hint: 'Money back from a merchant; nets against spending in its category.' },
-  { value: 'income', label: 'Income', hint: 'Earnings arriving in an account.' },
-  { value: 'expense', label: 'Expense', hint: 'Spending.' },
-];
+// Labels come from `common:transactionType.<value>`, hints from `ruleEditor.hint.<value>`.
+const TYPE_OPTIONS: readonly TransactionType[] = ['transfer', 'refund', 'income', 'expense'];
 
 /**
  * Create / edit one classification rule: a description pattern that decides
@@ -73,6 +70,7 @@ export default function ClassificationRuleEditorDialog({
   onUpdate,
   previewMatches,
 }: ClassificationRuleEditorDialogProps) {
+  const { t } = useTranslation(['transactions', 'common']);
   const [pattern, setPattern] = useState('');
   const [matchType, setMatchType] = useState<MerchantRuleMatchType>('contains');
   const [type, setType] = useState<TransactionType>('transfer');
@@ -138,12 +136,12 @@ export default function ClassificationRuleEditorDialog({
 
   const handleSave = async () => {
     if (!normalizedPattern) {
-      setError('Pattern is required');
+      setError(t('ruleEditor.patternRequired'));
       return;
     }
     const parsedPriority = Number(priority);
     if (!Number.isInteger(parsedPriority)) {
-      setError('Priority must be a whole number');
+      setError(t('ruleEditor.priorityInteger'));
       return;
     }
     const input: ClassificationRuleInput = {
@@ -166,7 +164,7 @@ export default function ClassificationRuleEditorDialog({
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save rule');
+      setError(err instanceof Error ? err.message : t('ruleEditor.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -174,11 +172,9 @@ export default function ClassificationRuleEditorDialog({
 
   const accountLabel = (account: Account) =>
     account.owner_display_name ? `${account.owner_display_name} - ${account.name}` : account.name;
-  const typeOption = TYPE_OPTIONS.find((option) => option.value === type);
-
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{editingRule ? 'Edit Type Rule' : 'Create Type Rule'}</DialogTitle>
+      <DialogTitle>{editingRule ? t('ruleEditor.editTitle') : t('ruleEditor.createTitle')}</DialogTitle>
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -187,51 +183,51 @@ export default function ClassificationRuleEditorDialog({
         )}
         <Box display="flex" flexDirection="column" gap={2} mt={1}>
           <TextField
-            label="Description pattern"
+            label={t('ruleEditor.patternLabel')}
             value={pattern}
             onChange={(event) => setPattern(event.target.value)}
             size="small"
             autoFocus
             helperText={
               normalizedPattern && normalizedPattern !== pattern
-                ? `Will be saved as: ${normalizedPattern}`
-                : 'Matched against cleaned-up descriptions (uppercase, reference codes removed)'
+                ? t('ruleEditor.willBeSavedAs', { pattern: normalizedPattern })
+                : t('ruleEditor.patternHelp')
             }
           />
           <TextField
             select
-            label="Match type"
+            label={t('ruleEditor.matchTypeLabel')}
             value={matchType}
             onChange={(event) => setMatchType(event.target.value as MerchantRuleMatchType)}
             size="small"
           >
-            <MenuItem value="contains">Contains</MenuItem>
-            <MenuItem value="prefix">Starts with</MenuItem>
-            <MenuItem value="exact">Exact match</MenuItem>
+            <MenuItem value="contains">{t('ruleEditor.matchContains')}</MenuItem>
+            <MenuItem value="prefix">{t('ruleEditor.matchPrefix')}</MenuItem>
+            <MenuItem value="exact">{t('ruleEditor.matchExact')}</MenuItem>
           </TextField>
           <TextField
             select
-            label="Mark matching transactions as"
+            label={t('ruleEditor.typeLabel')}
             value={type}
             onChange={(event) => setType(event.target.value as TransactionType)}
             size="small"
-            helperText={typeOption?.hint}
+            helperText={t(`ruleEditor.hint.${type}`)}
           >
             {TYPE_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
+              <MenuItem key={option} value={option}>
+                {t(`common:transactionType.${option}`)}
               </MenuItem>
             ))}
           </TextField>
           <TextField
             select
-            label="Only in account"
+            label={t('ruleEditor.accountLabel')}
             value={accountId}
             onChange={(event) => setAccountId(event.target.value)}
             size="small"
-            helperText="Leave on Any account unless the same wording means something else elsewhere"
+            helperText={t('ruleEditor.accountHelp')}
           >
-            <MenuItem value={ANY_ACCOUNT}>Any account</MenuItem>
+            <MenuItem value={ANY_ACCOUNT}>{t('ruleEditor.anyAccount')}</MenuItem>
             {accounts.map((account) => (
               <MenuItem key={account.id} value={String(account.id)}>
                 {accountLabel(account)}
@@ -241,13 +237,13 @@ export default function ClassificationRuleEditorDialog({
           {type === 'transfer' && (
             <TextField
               select
-              label="Other side of the transfer"
+              label={t('ruleEditor.counterpartLabel')}
               value={counterpartId}
               onChange={(event) => setCounterpartId(event.target.value)}
               size="small"
-              helperText="When you know which account the money goes to or comes from, matching finds the other leg more confidently"
+              helperText={t('ruleEditor.counterpartHelp')}
             >
-              <MenuItem value={ANY_ACCOUNT}>Unknown / not tracked here</MenuItem>
+              <MenuItem value={ANY_ACCOUNT}>{t('ruleEditor.counterpartUnknown')}</MenuItem>
               {accounts
                 .filter((account) => String(account.id) !== accountId)
                 .map((account) => (
@@ -259,34 +255,34 @@ export default function ClassificationRuleEditorDialog({
           )}
           <Box display="flex" gap={2} alignItems="center">
             <TextField
-              label="Priority"
+              label={t('ruleEditor.priorityLabel')}
               value={priority}
               onChange={(event) => setPriority(event.target.value)}
               size="small"
               sx={{ width: 140 }}
-              helperText="Lower wins"
+              helperText={t('ruleEditor.priorityHelp')}
               slotProps={{ htmlInput: { inputMode: 'numeric' } }}
             />
             {editingRule && (
               <FormControlLabel
                 control={<Switch checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />}
-                label="Enabled"
+                label={t('common:status.enabled')}
               />
             )}
           </Box>
           <Typography variant="body2" color="text.secondary" data-testid="type-rule-preview">
             {previewCount === null
-              ? 'Enter a pattern to preview matches.'
-              : `This rule would apply to ${previewCount} existing transaction${previewCount === 1 ? '' : 's'}.`}
+              ? t('ruleEditor.previewEmpty')
+              : t('ruleEditor.preview', { count: previewCount })}
           </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button variant="contained" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : editingRule ? 'Save Rule' : 'Create Rule'}
+          {saving ? t('common:status.saving') : editingRule ? t('ruleEditor.saveRule') : t('ruleEditor.createRule')}
         </Button>
       </DialogActions>
     </Dialog>

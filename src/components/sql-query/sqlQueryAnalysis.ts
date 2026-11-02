@@ -10,6 +10,7 @@
 // only a *successfully parsed* non-SELECT statement blocks execution, since
 // that's unambiguous. Real correctness is always decided by the actual
 // SQLite engine when the query runs.
+import { i18n } from '@/lib/i18n';
 import type { SqlSchemaMap } from '@/lib/sqlSchemaIntrospection';
 
 export interface SqlQueryIssue {
@@ -90,8 +91,8 @@ export async function analyzeSqlQuery(
     const from = typeof location?.start?.offset === 'number' ? location.start.offset : 0;
     const rawTo = typeof location?.end?.offset === 'number' ? location.end.offset : from + 1;
     const range = clampRange(sql, from, rawTo);
-    const message = err instanceof Error ? err.message.split('\n')[0] : 'Unable to parse query.';
-    issues.push({ severity: 'error', message: `Syntax error: ${message}`, ...range });
+    const message = err instanceof Error ? err.message.split('\n')[0] : i18n.t('sqlQuery:analysis.unableToParse');
+    issues.push({ severity: 'error', message: i18n.t('sqlQuery:analysis.syntaxError', { message }), ...range });
     return { issues, blockingReason: null };
   }
 
@@ -99,7 +100,7 @@ export async function analyzeSqlQuery(
   if (statements.length > 1) {
     issues.push({
       severity: 'warning',
-      message: 'Multiple statements detected — only the first statement will run.',
+      message: i18n.t('sqlQuery:analysis.multipleStatements'),
       ...clampRange(sql, 0, 1),
     });
   }
@@ -111,10 +112,10 @@ export async function analyzeSqlQuery(
       : 'unknown';
     if (type !== 'select') {
       const label = STATEMENT_LABELS[type] ?? type.toUpperCase();
-      blockingReason = `This page only runs SELECT queries — remove the ${label} statement.`;
+      blockingReason = i18n.t('sqlQuery:analysis.onlySelectBlocking', { statement: label });
       issues.push({
         severity: 'error',
-        message: `Only SELECT queries are allowed here (found ${label}).`,
+        message: i18n.t('sqlQuery:analysis.onlySelectIssue', { statement: label }),
         ...clampRange(sql, 0, 1),
       });
     }
@@ -134,7 +135,7 @@ export async function analyzeSqlQuery(
         if (!schema[tableName.toLowerCase()]) {
           const range = findIdentifierRange(sql, tableName);
           if (range) {
-            issues.push({ severity: 'error', message: `Unknown table "${tableName}".`, ...range });
+            issues.push({ severity: 'error', message: i18n.t('sqlQuery:analysis.unknownTable', { table: tableName }), ...range });
           }
         }
       }
@@ -161,7 +162,7 @@ export async function analyzeSqlQuery(
           if (range) {
             issues.push({
               severity: 'warning',
-              message: `Column "${columnName}" was not found on table "${table.name}".`,
+              message: i18n.t('sqlQuery:analysis.unknownColumn', { column: columnName, table: table.name }),
               ...range,
             });
           }

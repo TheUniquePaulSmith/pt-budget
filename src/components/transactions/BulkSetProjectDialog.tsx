@@ -16,6 +16,7 @@ import {
   Assignment as ProjectIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useTransactionReportSlice } from '@/contexts/useDatabaseSlices';
 import { Project } from '@/types/database';
 
@@ -30,6 +31,7 @@ export default function BulkSetProjectDialog({
   transactionIds,
   onClose,
 }: BulkSetProjectDialogProps) {
+  const { t } = useTranslation(['transactions', 'common']);
   const { projects, applyTransactionClassifications } = useTransactionReportSlice();
 
   const [selected, setSelected] = useState<Project | null>(null);
@@ -53,7 +55,7 @@ export default function BulkSetProjectDialog({
       );
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to set project');
+      setError(err instanceof Error ? err.message : t('bulkProject.setFailed'));
     } finally {
       setLoading(false);
     }
@@ -64,17 +66,17 @@ export default function BulkSetProjectDialog({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <ProjectIcon />
-          Set Project
+          {t('bulkProject.title')}
         </Box>
       </DialogTitle>
 
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary">
-            Apply to {transactionIds.length} selected transaction{transactionIds.length === 1 ? '' : 's'}
+            {t('bulkProject.applyTo', { count: transactionIds.length })}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Setting a project clears any trip label on these transactions.
+            {t('bulkProject.clearsTrip')}
           </Typography>
         </Box>
 
@@ -94,8 +96,8 @@ export default function BulkSetProjectDialog({
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Project"
-              placeholder="Search projects..."
+              label={t('common:fields.project')}
+              placeholder={t('bulkProject.searchPlaceholder')}
               autoFocus
               fullWidth
             />
@@ -104,21 +106,21 @@ export default function BulkSetProjectDialog({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           color="inherit"
           startIcon={<ClearIcon />}
           onClick={() => void apply(null)}
           disabled={loading}
         >
-          Clear
+          {t('common:actions.clear')}
         </Button>
         <Button
           variant="contained"
           onClick={() => void apply(selected?.id ?? null)}
           disabled={loading || !selected}
         >
-          {loading ? 'Saving…' : 'Apply'}
+          {loading ? t('common:status.saving') : t('common:actions.apply')}
         </Button>
       </DialogActions>
     </Dialog>

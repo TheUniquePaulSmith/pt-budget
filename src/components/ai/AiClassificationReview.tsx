@@ -13,6 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Check, Clear } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import type {
   ApplyTransactionClassificationInput,
@@ -25,22 +26,12 @@ interface AiClassificationReviewProps {
   onClear: () => void;
 }
 
-function describeSuggestion(suggestion: TransactionClassificationSuggestion): string {
-  const parts = [
-    suggestion.categoryName ? `Category: ${suggestion.categoryName}` : null,
-    suggestion.companyName ? `Company: ${suggestion.companyName}` : null,
-    suggestion.projectId ? `Project #${suggestion.projectId}` : null,
-    suggestion.tripId ? `Trip #${suggestion.tripId}` : null,
-  ].filter(Boolean);
-
-  return parts.length > 0 ? parts.join(' | ') : 'No classification values proposed';
-}
-
 export default function AiClassificationReview({
   suggestions,
   onApply,
   onClear,
 }: AiClassificationReviewProps) {
+  const { t } = useTranslation(['ai', 'common']);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +49,17 @@ export default function AiClassificationReview({
     return null;
   }
 
+  const describeSuggestion = (suggestion: TransactionClassificationSuggestion): string => {
+    const parts = [
+      suggestion.categoryName ? t('classificationReview.category', { name: suggestion.categoryName }) : null,
+      suggestion.companyName ? t('classificationReview.company', { name: suggestion.companyName }) : null,
+      suggestion.projectId ? t('classificationReview.project', { id: suggestion.projectId }) : null,
+      suggestion.tripId ? t('classificationReview.trip', { id: suggestion.tripId }) : null,
+    ].filter(Boolean);
+
+    return parts.length > 0 ? parts.join(' | ') : t('classificationReview.noValues');
+  };
+
   const toggleSuggestion = (transactionId: number) => {
     setSelectedIds((current) => current.includes(transactionId)
       ? current.filter((id) => id !== transactionId)
@@ -72,7 +74,7 @@ export default function AiClassificationReview({
       await onApply(selectedSuggestions);
       onClear();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to apply classifications');
+      setError(err instanceof Error ? err.message : t('classificationReview.applyFailed'));
     } finally {
       setApplying(false);
     }
@@ -82,9 +84,9 @@ export default function AiClassificationReview({
     <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
         <Typography variant="subtitle2" fontWeight={600}>
-          Classification Review
+          {t('classificationReview.title')}
         </Typography>
-        <Chip size="small" label={`${suggestions.length} staged`} />
+        <Chip size="small" label={t('classificationReview.staged', { count: suggestions.length })} />
       </Stack>
 
       {error && (
@@ -106,7 +108,10 @@ export default function AiClassificationReview({
               label={
                 <Box>
                   <Typography variant="body2" fontWeight={600}>
-                    #{suggestion.transactionId} {suggestion.transaction?.description ?? ''}
+                    {t('classificationReview.transactionLabel', {
+                      id: suggestion.transactionId,
+                      description: suggestion.transaction?.description ?? '',
+                    })}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     {describeSuggestion(suggestion)}
@@ -132,7 +137,7 @@ export default function AiClassificationReview({
           onClick={() => void handleApply()}
           disabled={applying || selectedSuggestions.length === 0}
         >
-          Apply Selected
+          {t('classificationReview.applySelected')}
         </Button>
         <Button
           variant="outlined"
@@ -141,7 +146,7 @@ export default function AiClassificationReview({
           onClick={onClear}
           disabled={applying}
         >
-          Clear
+          {t('common:actions.clear')}
         </Button>
       </Stack>
     </Box>

@@ -24,13 +24,14 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import { useNotificationsSettingsSlice } from '@/contexts/useNotificationsSlices';
 import { logger } from '@/lib/logging';
 import { getOsNotificationPermission } from '@/lib/notificationService';
 import type { NotificationSetting } from '@/types/database';
 import { ALERT_TYPES, REMINDER_TYPES, type NotificationType } from '@/types/notifications';
-import { NOTIFICATION_TYPE_DESCRIPTIONS, NOTIFICATION_TYPE_LABELS } from './notificationPresentation';
+import { typeDescription, typeLabel } from './notificationPresentation';
 import { notifyNotificationSettingsChanged, setNotificationsView } from './notificationsStore';
 
 const log = logger.child({ component: 'NotificationsSettingsTab' });
@@ -38,6 +39,7 @@ const log = logger.child({ component: 'NotificationsSettingsTab' });
 const TYPE_ORDER: NotificationType[] = [...REMINDER_TYPES, ...ALERT_TYPES];
 
 export default function NotificationsSettingsTab() {
+  const { t } = useTranslation('notifications');
   const {
     isDatabaseLoaded,
     getNotificationSettings,
@@ -70,12 +72,12 @@ export default function NotificationsSettingsTab() {
       .catch((err) => {
         if (cancelled) return;
         log.error('Failed to load notification settings', { operation: 'loadSettings', error: err });
-        setError(err instanceof Error ? err.message : 'Failed to load notification settings');
+        setError(err instanceof Error ? err.message : t('settingsTab.loadFailed'));
       });
     return () => {
       cancelled = true;
     };
-  }, [getNotificationPreferences, getNotificationSettings, isDatabaseLoaded]);
+  }, [getNotificationPreferences, getNotificationSettings, isDatabaseLoaded, t]);
 
   const saveSetting = useCallback(
     async (next: NotificationSetting) => {
@@ -85,10 +87,10 @@ export default function NotificationsSettingsTab() {
         notifyNotificationSettingsChanged();
       } catch (err) {
         log.error('Failed to save notification setting', { operation: 'saveSetting', error: err, type: next.type });
-        setError(err instanceof Error ? err.message : 'Failed to save notification setting');
+        setError(err instanceof Error ? err.message : t('settingsTab.saveSettingFailed'));
       }
     },
-    [upsertNotificationSetting]
+    [t, upsertNotificationSetting]
   );
 
   const commitLeadDays = useCallback(
@@ -97,14 +99,14 @@ export default function NotificationsSettingsTab() {
       const parsed = Number(draft);
       if (!Number.isInteger(parsed) || parsed < 0 || parsed > 365) {
         setLeadDrafts((current) => ({ ...current, [row.type]: String(row.lead_days) }));
-        setError('Lead time must be a whole number of days between 0 and 365');
+        setError(t('settingsTab.leadInvalid'));
         return;
       }
       if (parsed === row.lead_days) return;
       setError(null);
       await saveSetting({ ...row, lead_days: parsed });
     },
-    [leadDrafts, saveSetting]
+    [leadDrafts, saveSetting, t]
   );
 
   const handleGlobalToggle = async (next: boolean) => {
@@ -114,7 +116,7 @@ export default function NotificationsSettingsTab() {
       notifyNotificationSettingsChanged();
     } catch (err) {
       setEnabled(!next);
-      setError(err instanceof Error ? err.message : 'Failed to save setting');
+      setError(err instanceof Error ? err.message : t('settingsTab.saveFailed'));
     }
   };
 
@@ -122,7 +124,7 @@ export default function NotificationsSettingsTab() {
     if (next) {
       // Permission is only ever requested from here, never on app load.
       if (typeof Notification === 'undefined') {
-        setError('This browser does not support OS notifications.');
+        setError(t('settingsTab.osUnsupported'));
         return;
       }
       let permission = Notification.permission;
@@ -137,11 +139,7 @@ export default function NotificationsSettingsTab() {
       setOsPermission(permission);
       setNotificationsView({ osPermission: permission });
       if (permission !== 'granted') {
-        setError(
-          permission === 'denied'
-            ? 'The browser blocked notifications for this site. Allow them in the browser’s site settings, then try again.'
-            : 'Notification permission was not granted.'
-        );
+        setError(permission === 'denied' ? t('settingsTab.osBlocked') : t('settingsTab.osNotGranted'));
         return;
       }
     }
@@ -151,28 +149,27 @@ export default function NotificationsSettingsTab() {
       notifyNotificationSettingsChanged();
     } catch (err) {
       setOsEnabled(!next);
-      setError(err instanceof Error ? err.message : 'Failed to save setting');
+      setError(err instanceof Error ? err.message : t('settingsTab.saveFailed'));
     }
   };
 
   const permissionText =
     osPermission === 'unsupported'
-      ? 'Not supported by this browser'
+      ? t('settingsTab.permissionUnsupported')
       : osPermission === 'granted'
-        ? 'Allowed by the browser'
+        ? t('settingsTab.permissionGranted')
         : osPermission === 'denied'
-          ? 'Blocked by the browser'
-          : 'Permission will be requested when you turn this on';
+          ? t('settingsTab.permissionDenied')
+          : t('settingsTab.permissionDefault');
 
   return (
     <Stack spacing={3} data-testid="notifications-settings-tab">
       <Box>
         <Typography variant="h5" gutterBottom>
-          Notifications
+          {t('settingsTab.title')}
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
-          Reminders and alerts show on the dashboard, the bell in the header and the Notifications page.
-          Changes are saved immediately.
+          {t('settingsTab.description')}
         </Typography>
       </Box>
 
@@ -186,7 +183,7 @@ export default function NotificationsSettingsTab() {
 
       <Box>
         <Typography variant="h6" gutterBottom>
-          General
+          {t('settingsTab.general')}
         </Typography>
         <Stack spacing={1}>
           <FormControlLabel
@@ -198,10 +195,10 @@ export default function NotificationsSettingsTab() {
                 slotProps={{ input: { 'data-testid': 'notifications-enabled-switch' } as React.InputHTMLAttributes<HTMLInputElement> }}
               />
             }
-            label="Enable notifications"
+            label={t('settingsTab.enable')}
           />
           <Typography variant="body2" color="text.secondary">
-            Turning this off stops scanning for alerts and hides the badge; your reminders are kept.
+            {t('settingsTab.enableHelp')}
           </Typography>
           <FormControlLabel
             control={
@@ -212,11 +209,10 @@ export default function NotificationsSettingsTab() {
                 slotProps={{ input: { 'data-testid': 'notifications-os-switch' } as React.InputHTMLAttributes<HTMLInputElement> }}
               />
             }
-            label="Also show browser (OS) notifications"
+            label={t('settingsTab.osEnable')}
           />
           <Typography variant="body2" color="text.secondary">
-            {permissionText}. Browser notifications only fire while Budget Tracker is open in a tab, once per item per day,
-            and only for the types ticked below.
+            {t('settingsTab.osHelp', { permission: permissionText })}
           </Typography>
         </Stack>
       </Box>
@@ -225,32 +221,33 @@ export default function NotificationsSettingsTab() {
 
       <Box>
         <Typography variant="h6" gutterBottom>
-          Types and lead times
+          {t('settingsTab.typesTitle')}
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
-          Lead time is how many days before the date an item becomes due. A reminder can override it.
+          {t('settingsTab.typesHelp')}
         </Typography>
         <Table size="small" data-testid="notification-type-table">
           <TableHead>
             <TableRow>
-              <TableCell>Type</TableCell>
-              <TableCell align="center">Enabled</TableCell>
-              <TableCell align="right">Lead days</TableCell>
-              <TableCell align="center">Browser</TableCell>
+              <TableCell>{t('settingsTab.columnType')}</TableCell>
+              <TableCell align="center">{t('settingsTab.columnEnabled')}</TableCell>
+              <TableCell align="right">{t('settingsTab.columnLeadDays')}</TableCell>
+              <TableCell align="center">{t('settingsTab.columnBrowser')}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {TYPE_ORDER.map((type) => {
               const row = settings.find((setting) => setting.type === type);
               if (!row) return null;
+              const label = typeLabel(type, t);
               return (
                 <TableRow key={type} data-testid={`notification-setting-${type}`}>
                   <TableCell>
                     <Typography variant="body2" fontWeight={600}>
-                      {NOTIFICATION_TYPE_LABELS[type]}
+                      {label}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {NOTIFICATION_TYPE_DESCRIPTIONS[type]}
+                      {typeDescription(type, t)}
                     </Typography>
                   </TableCell>
                   <TableCell align="center">
@@ -259,7 +256,7 @@ export default function NotificationsSettingsTab() {
                       checked={Boolean(row.enabled)}
                       disabled={!enabled}
                       onChange={(event) => void saveSetting({ ...row, enabled: event.target.checked ? 1 : 0 })}
-                      slotProps={{ input: { 'aria-label': `Enable ${NOTIFICATION_TYPE_LABELS[type]}`, 'data-testid': `notification-setting-${type}-enabled` } as React.InputHTMLAttributes<HTMLInputElement> }}
+                      slotProps={{ input: { 'aria-label': t('settingsTab.enableType', { type: label }), 'data-testid': `notification-setting-${type}-enabled` } as React.InputHTMLAttributes<HTMLInputElement> }}
                     />
                   </TableCell>
                   <TableCell align="right">
@@ -275,7 +272,7 @@ export default function NotificationsSettingsTab() {
                       }}
                       sx={{ width: 96 }}
                       slotProps={{
-                        htmlInput: { min: 0, max: 365, 'aria-label': `${NOTIFICATION_TYPE_LABELS[type]} lead days`, 'data-testid': `notification-setting-${type}-lead` },
+                        htmlInput: { min: 0, max: 365, 'aria-label': t('settingsTab.leadDaysFor', { type: label }), 'data-testid': `notification-setting-${type}-lead` },
                       }}
                     />
                   </TableCell>
@@ -285,7 +282,7 @@ export default function NotificationsSettingsTab() {
                       checked={Boolean(row.os_notify)}
                       disabled={!enabled || !row.enabled || !osEnabled}
                       onChange={(event) => void saveSetting({ ...row, os_notify: event.target.checked ? 1 : 0 })}
-                      slotProps={{ input: { 'aria-label': `Browser notifications for ${NOTIFICATION_TYPE_LABELS[type]}`, 'data-testid': `notification-setting-${type}-os` } as React.InputHTMLAttributes<HTMLInputElement> }}
+                      slotProps={{ input: { 'aria-label': t('settingsTab.browserFor', { type: label }), 'data-testid': `notification-setting-${type}-os` } as React.InputHTMLAttributes<HTMLInputElement> }}
                     />
                   </TableCell>
                 </TableRow>

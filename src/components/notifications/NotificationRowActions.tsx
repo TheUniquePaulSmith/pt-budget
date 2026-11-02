@@ -23,6 +23,7 @@ import {
   Close as DismissIcon,
   Snooze as SnoozeIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import { addDaysISO, isDateOnly, todayLocalISO } from '@/lib/dateOnly';
 import type { SnoozePreset } from '@/lib/notificationService';
@@ -30,6 +31,8 @@ import type { AppNotification } from '@/types/database';
 
 export interface NotificationRowActionsProps {
   notification: AppNotification;
+  /** The title as displayed (system alerts are rebuilt in the current language); defaults to the stored title. */
+  title?: string;
   onComplete: (notification: AppNotification) => Promise<void>;
   onSnooze: (id: number, until: SnoozePreset | string) => Promise<void>;
   onDismiss: (id: number) => Promise<void>;
@@ -40,12 +43,14 @@ export interface NotificationRowActionsProps {
 
 export default function NotificationRowActions({
   notification,
+  title,
   onComplete,
   onSnooze,
   onDismiss,
   onError,
   size = 'small',
 }: NotificationRowActionsProps) {
+  const { t } = useTranslation(['notifications', 'common']);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [pickDateOpen, setPickDateOpen] = useState(false);
   const [pickedDate, setPickedDate] = useState(() => addDaysISO(todayLocalISO(), 1));
@@ -62,8 +67,9 @@ export default function NotificationRowActions({
     }
   };
 
+  const displayTitle = title ?? notification.title;
   const closed = notification.status === 'done' || notification.status === 'dismissed';
-  const doneLabel = notification.kind === 'reminder' && notification.recurrence !== 'once' ? 'Done (advance to next)' : 'Done';
+  const doneLabel = notification.kind === 'reminder' && notification.recurrence !== 'once' ? t('rowActions.doneAdvance') : t('rowActions.done');
 
   return (
     <>
@@ -72,20 +78,20 @@ export default function NotificationRowActions({
           <IconButton
             size={size}
             color="success"
-            aria-label={`Mark ${notification.title} done`}
+            aria-label={t('rowActions.doneAria', { title: displayTitle })}
             data-testid={`notification-done-${notification.id}`}
             disabled={busy || closed}
-            onClick={() => run(() => onComplete(notification), 'Could not complete the notification')}
+            onClick={() => run(() => onComplete(notification), t('rowActions.completeFailed'))}
           >
             <DoneIcon fontSize={size} />
           </IconButton>
         </span>
       </Tooltip>
-      <Tooltip title="Snooze">
+      <Tooltip title={t('rowActions.snooze')}>
         <span>
           <IconButton
             size={size}
-            aria-label={`Snooze ${notification.title}`}
+            aria-label={t('rowActions.snoozeAria', { title: displayTitle })}
             data-testid={`notification-snooze-${notification.id}`}
             disabled={busy || closed}
             onClick={(event) => setMenuAnchor(event.currentTarget)}
@@ -94,14 +100,14 @@ export default function NotificationRowActions({
           </IconButton>
         </span>
       </Tooltip>
-      <Tooltip title="Dismiss">
+      <Tooltip title={t('rowActions.dismiss')}>
         <span>
           <IconButton
             size={size}
-            aria-label={`Dismiss ${notification.title}`}
+            aria-label={t('rowActions.dismissAria', { title: displayTitle })}
             data-testid={`notification-dismiss-${notification.id}`}
             disabled={busy || closed}
-            onClick={() => run(() => onDismiss(notification.id), 'Could not dismiss the notification')}
+            onClick={() => run(() => onDismiss(notification.id), t('rowActions.dismissFailed'))}
           >
             <DismissIcon fontSize={size} />
           </IconButton>
@@ -112,18 +118,18 @@ export default function NotificationRowActions({
         <MenuItem
           onClick={() => {
             setMenuAnchor(null);
-            void run(() => onSnooze(notification.id, 'day'), 'Could not snooze the notification');
+            void run(() => onSnooze(notification.id, 'day'), t('rowActions.snoozeFailed'));
           }}
         >
-          Snooze 1 day
+          {t('rowActions.snoozeDay')}
         </MenuItem>
         <MenuItem
           onClick={() => {
             setMenuAnchor(null);
-            void run(() => onSnooze(notification.id, 'week'), 'Could not snooze the notification');
+            void run(() => onSnooze(notification.id, 'week'), t('rowActions.snoozeFailed'));
           }}
         >
-          Snooze 1 week
+          {t('rowActions.snoozeWeek')}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -131,15 +137,15 @@ export default function NotificationRowActions({
             setPickDateOpen(true);
           }}
         >
-          Pick a date…
+          {t('rowActions.pickDate')}
         </MenuItem>
       </Menu>
 
       <Dialog open={pickDateOpen} onClose={() => setPickDateOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Snooze until</DialogTitle>
+        <DialogTitle>{t('rowActions.snoozeUntilTitle')}</DialogTitle>
         <DialogContent>
           <TextField
-            label="Date"
+            label={t('rowActions.dateLabel')}
             type="date"
             value={pickedDate}
             onChange={(event) => setPickedDate(event.target.value)}
@@ -149,16 +155,16 @@ export default function NotificationRowActions({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPickDateOpen(false)}>Cancel</Button>
+          <Button onClick={() => setPickDateOpen(false)}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             disabled={!isDateOnly(pickedDate) || pickedDate <= todayLocalISO()}
             onClick={() => {
               setPickDateOpen(false);
-              void run(() => onSnooze(notification.id, pickedDate), 'Could not snooze the notification');
+              void run(() => onSnooze(notification.id, pickedDate), t('rowActions.snoozeFailed'));
             }}
           >
-            Snooze
+            {t('rowActions.snoozeConfirm')}
           </Button>
         </DialogActions>
       </Dialog>

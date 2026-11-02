@@ -453,6 +453,7 @@ export class ClassificationService {
       id: Number(candidate.id),
       account_id: Number(candidate.account_id),
       account_name: String(candidate.account_name ?? ''),
+      account_currency: candidate.account_currency ? String(candidate.account_currency) : undefined,
       date: String(candidate.date),
       amount: Number(candidate.amount),
       description: String(candidate.description ?? ''),

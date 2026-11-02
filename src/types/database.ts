@@ -50,6 +50,7 @@ export interface Transaction {
   company_name?: string;
   account_name?: string;
   account_type?: string;
+  account_currency?: string; // The account's ISO 4217 currency (amounts are stored in it)
   card_last_four?: string;
   card_nickname?: string | null;
   effective_user_id?: number | null;
@@ -131,6 +132,7 @@ export interface Account {
   is_active?: number; // SQLite boolean
   include_in_net_worth?: number; // SQLite boolean
   import_sign_inverted?: number; // SQLite boolean: this bank exports charges as positive numbers
+  currency?: string; // ISO 4217; always present on rows read from the database (schema v6), optional for inputs
   created_at: string;
   updated_at: string;
   // Joined fields from SQL queries
@@ -157,9 +159,28 @@ export interface AccountCard {
 export type AccountEditableFields = Partial<
   Pick<
     Account,
-    'name' | 'type' | 'ownership' | 'institution' | 'opening_balance' | 'opening_balance_date' | 'credit_limit' | 'is_active'
+    'name' | 'type' | 'ownership' | 'institution' | 'opening_balance' | 'opening_balance_date' | 'credit_limit' | 'is_active' | 'currency'
   >
 >;
+
+/**
+ * A manual exchange rate (schema v6): `rate` = units of the default currency
+ * per 1 unit of `currency`; null = unknown, and rows in that currency drop out
+ * of every cross-account total until a rate is entered. The default currency
+ * itself never has a row.
+ */
+export interface ExchangeRate {
+  currency: string;
+  rate: number | null;
+  updated_at: string;
+}
+
+/** The household's currency preferences, cached by the database provider. */
+export interface CurrencyPreferences {
+  /** app_metadata `preferences.defaultCurrency`; 'USD' when unset. */
+  defaultCurrency: string;
+  exchangeRates: ExchangeRate[];
+}
 
 /** One import run; lets the app say how fresh its data is and undo an import. */
 export interface ImportBatch {
@@ -527,6 +548,8 @@ export interface ChartData {
   // Current period vs the immediately preceding equal-length period.
   categoryDeltas: ChartCategoryDelta[];
   comparisonPeriodLabel: string;
+  /** Length of the comparison window in days (the UI renders "previous N days" in the user's language). */
+  comparisonPeriodDays: number;
 }
 
 export interface ProjectCosts {
@@ -686,6 +709,8 @@ export interface Loan {
   project_name?: string;
   project_company_name?: string | null;
   account_name?: string;
+  /** The linked account's currency; loan amounts are shown in it (default currency when unlinked). */
+  account_currency?: string | null;
   payment_count?: number;
   total_paid?: number;
   last_payment_date?: string | null;

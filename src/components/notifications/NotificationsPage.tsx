@@ -31,24 +31,36 @@ import {
   Radar as ScanIcon,
 } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { useNotificationsPageSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { classifyNotifications, compareByOccurrence } from '@/lib/notificationService';
 import type { AppNotification, AppNotificationInput } from '@/types/database';
 import type { ClassifiedNotification, NotificationBucket } from '@/types/notifications';
 import NotificationRowActions from './NotificationRowActions';
 import ReminderEditorDialog from './ReminderEditorDialog';
-import { describeTiming, RECURRENCE_LABELS, STATUS_LABELS, timingColor, typeChipColor, typeLabel } from './notificationPresentation';
+import {
+  describeNotification,
+  describeTiming,
+  recurrenceLabel,
+  statusLabel,
+  timingColor,
+  typeChipColor,
+  typeLabel,
+} from './notificationPresentation';
 import { requestNotificationRescan, useNotificationsView } from './notificationsStore';
 
-const TABS: Array<{ id: NotificationBucket; label: string; empty: string }> = [
-  { id: 'due', label: 'Due', empty: 'Nothing is due right now.' },
-  { id: 'upcoming', label: 'Upcoming', empty: 'No upcoming reminders.' },
-  { id: 'history', label: 'History', empty: 'No completed or dismissed notifications yet.' },
+const TABS: Array<{ id: NotificationBucket; label: 'page.tabDue' | 'page.tabUpcoming' | 'page.tabHistory'; empty: 'page.emptyDue' | 'page.emptyUpcoming' | 'page.emptyHistory' }> = [
+  { id: 'due', label: 'page.tabDue', empty: 'page.emptyDue' },
+  { id: 'upcoming', label: 'page.tabUpcoming', empty: 'page.emptyUpcoming' },
+  { id: 'history', label: 'page.tabHistory', empty: 'page.emptyHistory' },
 ];
 
 export default function NotificationsPage() {
+  const { t } = useTranslation('notifications');
+  const { money, date, month, dateTime } = useFormatters();
   const {
     notifications,
     categories,
@@ -88,38 +100,40 @@ export default function NotificationsPage() {
     async (input: AppNotificationInput, existingId: number | null) => {
       if (existingId === null) {
         await createNotification(input);
-        setToast('Reminder created');
+        setToast(t('page.reminderCreated'));
       } else {
         await updateNotification(existingId, input);
-        setToast('Reminder updated');
+        setToast(t('page.reminderUpdated'));
       }
     },
-    [createNotification, updateNotification]
+    [createNotification, t, updateNotification]
   );
 
   const handleDelete = useCallback(
     async (notification: AppNotification) => {
       try {
         await deleteNotification(notification.id);
-        setToast('Reminder deleted');
+        setToast(t('page.reminderDeleted'));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to delete reminder');
+        setError(err instanceof Error ? err.message : t('page.deleteFailed'));
       }
     },
-    [deleteNotification]
+    [deleteNotification, t]
   );
 
-  const columns = useMemo<GridColDef<ClassifiedNotification>[]>(
-    () => [
+  const columns = useMemo<GridColDef<ClassifiedNotification>[]>(() => {
+    const describe = (notification: AppNotification) =>
+      describeNotification(notification, t, (amount) => money(amount), { date, month, today: view.today });
+    return [
       {
         field: 'type',
-        headerName: 'Type',
+        headerName: t('page.columnType'),
         width: 150,
-        valueGetter: (_, row) => typeLabel(row.notification.type),
+        valueGetter: (_, row) => typeLabel(row.notification.type, t),
         renderCell: (params) => (
           <Chip
             size="small"
-            label={typeLabel(params.row.notification.type)}
+            label={typeLabel(params.row.notification.type, t)}
             color={typeChipColor(params.row.notification)}
             variant={params.row.notification.kind === 'alert' ? 'filled' : 'outlined'}
           />
@@ -127,52 +141,55 @@ export default function NotificationsPage() {
       },
       {
         field: 'title',
-        headerName: 'Title',
+        headerName: t('page.columnTitle'),
         flex: 1.6,
         minWidth: 220,
-        valueGetter: (_, row) => row.notification.title,
-        renderCell: (params) => (
-          <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={600} noWrap title={params.row.notification.title}>
-              {params.row.notification.title}
-            </Typography>
-            {params.row.notification.body && (
-              <Typography variant="caption" color="text.secondary" noWrap title={params.row.notification.body}>
-                {params.row.notification.body}
+        valueGetter: (_, row) => describe(row.notification).title,
+        renderCell: (params) => {
+          const text = describe(params.row.notification);
+          return (
+            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', minWidth: 0 }}>
+              <Typography variant="body2" fontWeight={600} noWrap title={text.title}>
+                {text.title}
               </Typography>
-            )}
-          </Box>
-        ),
+              {text.body && (
+                <Typography variant="caption" color="text.secondary" noWrap title={text.body}>
+                  {text.body}
+                </Typography>
+              )}
+            </Box>
+          );
+        },
       },
       {
         field: 'occurrence',
-        headerName: 'When',
+        headerName: t('page.columnWhen'),
         width: 210,
         valueGetter: (_, row) => row.occurrence ?? '',
         renderCell: (params) => (
           <Box display="flex" alignItems="center" gap={1}>
-            <Typography variant="body2">{params.row.occurrence ?? '—'}</Typography>
+            <Typography variant="body2">{params.row.occurrence ? date(params.row.occurrence) : '—'}</Typography>
             {params.row.bucket !== 'history' && (
-              <Chip size="small" label={describeTiming(params.row)} color={timingColor(params.row)} variant="outlined" />
+              <Chip size="small" label={describeTiming(params.row, t, date)} color={timingColor(params.row)} variant="outlined" />
             )}
           </Box>
         ),
       },
       {
         field: 'recurrence',
-        headerName: 'Repeats',
+        headerName: t('page.columnRepeats'),
         width: 110,
-        valueGetter: (_, row) => RECURRENCE_LABELS[row.notification.recurrence] ?? row.notification.recurrence,
+        valueGetter: (_, row) => recurrenceLabel(row.notification.recurrence, t),
       },
       {
         field: 'status',
-        headerName: 'Status',
+        headerName: t('page.columnStatus'),
         width: 110,
-        valueGetter: (_, row) => STATUS_LABELS[row.notification.status] ?? row.notification.status,
+        valueGetter: (_, row) => statusLabel(row.notification.status, t),
       },
       {
         field: 'actions',
-        headerName: 'Actions',
+        headerName: t('page.columnActions'),
         width: 220,
         align: 'right',
         headerAlign: 'right',
@@ -180,11 +197,13 @@ export default function NotificationsPage() {
         filterable: false,
         renderCell: (params) => {
           const { notification } = params.row;
+          const text = describe(notification);
           return (
             <Box display="flex" justifyContent="flex-end" alignItems="center">
               {params.row.bucket !== 'history' && (
                 <NotificationRowActions
                   notification={notification}
+                  title={text.title}
                   onComplete={completeNotification}
                   onSnooze={snoozeNotification}
                   onDismiss={dismissNotification}
@@ -193,10 +212,10 @@ export default function NotificationsPage() {
               )}
               {notification.source === 'user' && (
                 <>
-                  <Tooltip title="Edit">
+                  <Tooltip title={t('page.edit')}>
                     <IconButton
                       size="small"
-                      aria-label={`Edit ${notification.title}`}
+                      aria-label={t('page.editAria', { title: text.title })}
                       onClick={() => {
                         setEditing(notification);
                         setEditorOpen(true);
@@ -205,8 +224,8 @@ export default function NotificationsPage() {
                       <EditIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Delete">
-                    <IconButton size="small" aria-label={`Delete ${notification.title}`} onClick={() => void handleDelete(notification)}>
+                  <Tooltip title={t('page.delete')}>
+                    <IconButton size="small" aria-label={t('page.deleteAria', { title: text.title })} onClick={() => void handleDelete(notification)}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -216,21 +235,20 @@ export default function NotificationsPage() {
           );
         },
       },
-    ],
-    [completeNotification, dismissNotification, handleDelete, snoozeNotification]
-  );
+    ];
+  }, [completeNotification, date, dismissNotification, handleDelete, money, month, snoozeNotification, t, view.today]);
 
-  const lastScanText = view.preferences.lastScanAt ? new Date(view.preferences.lastScanAt).toLocaleString() : 'never';
+  const lastScanText = view.preferences.lastScanAt ? dateTime(view.preferences.lastScanAt) : t('page.lastScanNever');
 
   return (
     <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }} data-testid="notifications-page">
       <Box display="flex" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={2} mb={2}>
         <Box>
           <Typography variant="h4" component="h1" gutterBottom>
-            Notifications
+            {t('page.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Reminders you create and alerts about payments and budgets. Last scan: {lastScanText}.
+            {t('page.subtitle', { lastScan: lastScanText })}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
@@ -241,7 +259,7 @@ export default function NotificationsPage() {
             disabled={view.scanning || !view.ready}
             data-testid="notifications-rescan"
           >
-            {view.scanning ? 'Scanning…' : 'Rescan'}
+            {view.scanning ? t('page.scanning') : t('page.rescan')}
           </Button>
           <Button
             variant="contained"
@@ -252,14 +270,14 @@ export default function NotificationsPage() {
             }}
             data-testid="notifications-new-reminder"
           >
-            New reminder
+            {t('page.newReminder')}
           </Button>
         </Stack>
       </Box>
 
       {!view.preferences.enabled && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Notifications are turned off in Settings. Existing rows are listed here, but nothing new is scanned or counted.
+          {t('page.disabledInfo')}
         </Alert>
       )}
       {error && (
@@ -279,7 +297,7 @@ export default function NotificationsPage() {
             <Tab
               key={entry.id}
               value={entry.id}
-              label={`${entry.label} (${byBucket[entry.id].length})`}
+              label={t('page.tabLabel', { label: t(entry.label), n: byBucket[entry.id].length })}
               data-testid={`notifications-tab-${entry.id}`}
             />
           ))}
@@ -287,7 +305,7 @@ export default function NotificationsPage() {
 
         {notifications.length === 0 ? (
           <Typography color="text.secondary" sx={{ p: 2 }} data-testid="notifications-empty">
-            No notifications yet.
+            {t('page.empty')}
           </Typography>
         ) : (
           <AppDataGrid
@@ -296,7 +314,7 @@ export default function NotificationsPage() {
             getRowId={(row) => row.notification.id}
             height={Math.min(Math.max(rows.length, 3) * 56 + 120, 640)}
             hideFooter={rows.length <= 25}
-            emptyMessage={TABS.find((entry) => entry.id === tab)?.empty}
+            emptyMessage={t(TABS.find((entry) => entry.id === tab)?.empty ?? 'page.emptyDue')}
             disableVirtualization={process.env.NODE_ENV === 'test'}
             data-testid={`notifications-grid-${tab}`}
           />

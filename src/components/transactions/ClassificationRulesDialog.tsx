@@ -15,11 +15,11 @@ import {
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import type { Account, ClassificationRule, ClassificationRuleInput, MerchantRuleMatchType, TransactionType } from '@/types/database';
 import ClassificationRuleEditorDialog from './ClassificationRuleEditorDialog';
-import { TYPE_LABELS } from './typeSourcePresentation';
 
 interface ClassificationRulesDialogProps {
   open: boolean;
@@ -37,12 +37,6 @@ interface ClassificationRulesDialogProps {
   }) => Promise<number>;
 }
 
-const MATCH_LABELS: Record<MerchantRuleMatchType, string> = {
-  contains: 'contains',
-  prefix: 'starts with',
-  exact: 'is exactly',
-};
-
 /** Lists the household's type rules with add / edit / delete. */
 export default function ClassificationRulesDialog({
   open,
@@ -54,6 +48,7 @@ export default function ClassificationRulesDialog({
   onDelete,
   previewMatches,
 }: ClassificationRulesDialogProps) {
+  const { t } = useTranslation(['transactions', 'common']);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<ClassificationRule | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,39 +57,39 @@ export default function ClassificationRulesDialog({
     () => [
       {
         field: 'pattern',
-        headerName: 'Description',
+        headerName: t('common:fields.description'),
         flex: 1.4,
         minWidth: 220,
-        valueGetter: (_, row) => `${MATCH_LABELS[row.match_type]} "${row.pattern}"`,
+        valueGetter: (_, row) => t('rules.patternCell', { match: t(`matchType.${row.match_type}`), pattern: row.pattern }),
       },
       {
         field: 'type',
-        headerName: 'Mark as',
+        headerName: t('rules.columns.markAs'),
         width: 110,
-        renderCell: (params) => <Chip label={TYPE_LABELS[params.row.type]} size="small" variant="outlined" />,
+        renderCell: (params) => <Chip label={t(`common:transactionType.${params.row.type}`)} size="small" variant="outlined" />,
       },
       {
         field: 'account_name',
-        headerName: 'Account',
+        headerName: t('common:fields.account'),
         flex: 0.8,
         minWidth: 140,
-        valueGetter: (_, row) => row.account_name || 'Any',
+        valueGetter: (_, row) => row.account_name || t('rules.anyAccount'),
       },
       {
         field: 'counterpart_account_name',
-        headerName: 'Other side',
+        headerName: t('rules.columns.otherSide'),
         flex: 0.8,
         minWidth: 140,
         valueGetter: (_, row) => (row.type === 'transfer' ? row.counterpart_account_name || '—' : ''),
       },
-      { field: 'priority', headerName: 'Priority', width: 95, align: 'right', headerAlign: 'right' },
+      { field: 'priority', headerName: t('rules.columns.priority'), width: 95, align: 'right', headerAlign: 'right' },
       {
         field: 'enabled',
-        headerName: 'Enabled',
+        headerName: t('rules.columns.enabled'),
         width: 100,
         renderCell: (params) => (
           <Chip
-            label={params.row.enabled ? 'Enabled' : 'Disabled'}
+            label={params.row.enabled ? t('common:status.enabled') : t('common:status.disabled')}
             size="small"
             color={params.row.enabled ? 'success' : 'default'}
           />
@@ -102,7 +97,7 @@ export default function ClassificationRulesDialog({
       },
       {
         field: 'actions',
-        headerName: 'Actions',
+        headerName: t('common:fields.actions'),
         width: 150,
         align: 'right',
         headerAlign: 'right',
@@ -117,36 +112,34 @@ export default function ClassificationRulesDialog({
                 setEditorOpen(true);
               }}
             >
-              Edit
+              {t('common:actions.edit')}
             </Button>
             <Button
               size="small"
               color="error"
               onClick={() => {
                 onDelete(params.row.id).catch((err) =>
-                  setError(err instanceof Error ? err.message : 'Failed to delete rule')
+                  setError(err instanceof Error ? err.message : t('rules.deleteFailed'))
                 );
               }}
             >
-              Delete
+              {t('common:actions.delete')}
             </Button>
           </Stack>
         ),
       },
     ],
-    [onDelete]
+    [onDelete, t]
   );
 
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-        <DialogTitle>Type Rules</DialogTitle>
+        <DialogTitle>{t('rules.title')}</DialogTitle>
         <DialogContent>
           <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1} mb={2}>
             <Typography variant="body2" color="text.secondary">
-              A rule decides the type of every transaction whose description matches it: card payments and
-              moves between your own accounts become transfers, merchant credits become refunds. Rules win
-              over automatic detection; a type you set by hand always wins over a rule.
+              {t('rules.intro')}
             </Typography>
             <Button
               variant="outlined"
@@ -157,7 +150,7 @@ export default function ClassificationRulesDialog({
               }}
               data-testid="type-rules-add"
             >
-              Add Rule
+              {t('rules.addRule')}
             </Button>
           </Box>
           {error && (
@@ -167,8 +160,7 @@ export default function ClassificationRulesDialog({
           )}
           {rules.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-              No type rules yet. Add one here, or pick &quot;Create type rule…&quot; from a transaction&apos;s menu to
-              start from its description.
+              {t('rules.empty')}
             </Typography>
           ) : (
             <AppDataGrid
@@ -181,7 +173,7 @@ export default function ClassificationRulesDialog({
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={onClose}>Close</Button>
+          <Button onClick={onClose}>{t('common:actions.close')}</Button>
         </DialogActions>
       </Dialog>
 

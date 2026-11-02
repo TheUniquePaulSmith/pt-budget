@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "dashboard": "Übersicht",
+    "projects": "Projekte",
+    "trips": "Reisen",
+    "budget": "Budget",
+    "accounts": "Konten",
+    "loans": "Darlehen",
+    "transactions": "Transaktionen",
+    "subscriptions": "Abonnements",
+    "notifications": "Benachrichtigungen",
+    "sql-query": "SQL-Abfrage",
+    "settings": "Einstellungen",
+    "developer-console": "Entwicklerkonsole",
+    "pages": "Seiten",
+    "more": "Mehr",
+    "quickActions": "Schnellaktionen",
+    "addTransaction": "Transaktion hinzufügen",
+    "importCsv": "CSV importieren",
+    "manageData": "Daten verwalten"
+  },
+  "dataGrid": {
+    "noRows": "Keine Zeilen vorhanden"
+  },
+  "sidebar": {
+    "collapse": "Seitenleiste einklappen",
+    "expand": "Seitenleiste ausklappen"
+  },
+  "pageFallback": {
+    "loading": "Seite wird geladen"
+  },
+  "notificationBell": {
+    "label": "Benachrichtigungen",
+    "due": "{{count}} fällig",
+    "titleWithDue": "{{label}}: {{count}} fällig",
+    "more": "{{count}} weitere… Klicken Sie auf die Glocke, um alle zu sehen."
+  },
+  "aiLauncher": {
+    "label": "Lokale KI",
+    "title": "{{label}} (Rechtsklick für Fensteroptionen)",
+    "openSidebar": "Als Seitenleiste öffnen",
+    "openMaximized": "Maximiert öffnen",
+    "openWindow": "In neuem Fenster öffnen"
+  },
+  "statusBar": {
+    "synced": "Synchronisiert",
+    "pendingChanges": "Ausstehende Änderungen",
+    "syncing": "Wird synchronisiert…",
+    "reconnect": "Erneut verbinden",
+    "resolveConflict": "Konflikt lösen",
+    "offline": "Offline",
+    "syncError": "Synchronisierungsfehler",
+    "lastSynced": "Zuletzt synchronisiert: {{time}}",
+    "unsyncedSince": "Nicht synchronisierte Änderungen seit: {{time}}",
+    "lastError": "Letzter Fehler: {{error}}",
+    "cloudSyncStatus": "Status der Cloud-Synchronisierung",
+    "connected": "Verbunden",
+    "disconnected": "Getrennt",
+    "heartbeat": "Heartbeat: vor {{seconds}} s",
+    "noHeartbeat": "Kein Heartbeat empfangen",
+    "workerAlive": "Aktiv",
+    "workerDead": "Beendet",
+    "tooltip": "App-Version: {{version}}\nWorker-Status: {{worker}}\nDatenbankstatus: {{status}}\n{{heartbeat}}"
+  },
+  "storageQuota": {
+    "unavailableChip": "Speicher: k. A.",
+    "unavailable": "Speicherkontingent nicht verfügbar",
+    "loadingChip": "Wird geladen...",
+    "loading": "Speicherinformationen werden geladen...",
+    "used": "Belegt: {{size}}",
+    "available": "Verfügbar: {{size}}",
+    "information": "Speicherinformationen",
+    "usageChip": "Speicher: {{percent}}",
+    "title": "Speichernutzung",
+    "refresh": "Speicherinformationen aktualisieren",
+    "percentUsed": "{{percent}} belegt",
+    "usageOfQuota": "{{usage}} / {{quota}}",
+    "indexedDb": "IndexedDB: {{size}}",
+    "runningLow": "⚠️ Der Speicherplatz wird knapp. Exportieren und sichern Sie Ihre Daten.",
+    "notAvailable": "Speicherinformationen nicht verfügbar",
+    "bytes": "{{value}} B",
+    "kilobytes": "{{value}} KB",
+    "megabytes": "{{value}} MB",
+    "gigabytes": "{{value}} GB"
+  },
+  "masterDetail": {
+    "backToList": "Zurück zur Liste",
+    "resizeList": "Listenbreite ändern",
+    "emptyDetail": "Wählen Sie einen Eintrag aus, um die Details zu sehen."
+  },
+  "resetApp": {
+    "button": "App zurücksetzen",
+    "title": "App in den Ursprungszustand zurücksetzen?",
+    "body": "Dadurch werden Ihre Datenbank, Einstellungen und Cookies dauerhaft gelöscht und die App wird wie nach einer Neuinstallation neu geladen. Dies kann nicht rückgängig gemacht werden.",
+    "passwordLabel": "Datenbankpasswort",
+    "passwordHelp": "Geben Sie Ihr Passwort ein, um das Zurücksetzen zu bestätigen.",
+    "failed": "Zurücksetzen fehlgeschlagen",
+    "resetting": "Wird zurückgesetzt…"
+  }
+}

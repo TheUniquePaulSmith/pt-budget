@@ -1,0 +1,154 @@
+{
+  "typeShort": {
+    "checking": "Conta corrente",
+    "savings": "Poupança",
+    "credit": "Cartão de crédito",
+    "loan": "Empréstimo",
+    "investment": "Investimento",
+    "retirement": "Aposentadoria"
+  },
+  "display": {
+    "accountOwner": "Titular da conta",
+    "unknownUser": "Usuário desconhecido"
+  },
+  "validation": {
+    "nameRequired": "O nome da conta é obrigatório",
+    "numbersInvalid": "O saldo inicial e o limite de crédito devem ser números",
+    "cardDigitsRequired": "Informe pelo menos os últimos 4 dígitos"
+  },
+  "formFields": {
+    "nameLabel": "Nome da conta",
+    "typeLabel": "Tipo de conta",
+    "currencyLabel": "Moeda",
+    "ownershipLabel": "Titularidade",
+    "ownershipJoint": "Conjunta (compartilhada pela família)",
+    "institutionLabel": "Instituição (opcional)",
+    "institutionPlaceholder": "Nome do banco ou corretora",
+    "openingBalanceLabel": "Saldo inicial",
+    "openingBalanceHelp": "Saldo antes da primeira transação registrada",
+    "asOfLabel": "Em",
+    "creditLimitLabel": "Limite de crédito",
+    "creditLimitHelp": "Usado para mostrar quanto do limite está em uso",
+    "activeLabel": "Ativa",
+    "closedLabel": "Encerrada (mantida para histórico)",
+    "ownerLabel": "Titular",
+    "selectOwner": "Selecionar titular",
+    "cardNumberLabel": "Número do cartão / conta",
+    "cardNumberHelp": "Informe o número completo ou apenas os últimos 4 dígitos — somente os últimos 4 são exibidos nas outras telas",
+    "cardNicknameLabel": "Apelido (opcional)",
+    "cardholderLabel": "Portador",
+    "cardholderOwner": "Titular da conta"
+  },
+  "formDialog": {
+    "addTitle": "Adicionar nova conta",
+    "editTitle": "Editar conta",
+    "newPerson": "+ Nova pessoa…",
+    "firstCard": "Primeiro cartão",
+    "displayNameRequired": "O nome de exibição é obrigatório",
+    "addPersonFailed": "Falha ao adicionar pessoa",
+    "ownerRequired": "O titular é obrigatório",
+    "saveFailed": "Falha ao salvar conta",
+    "saving": "Salvando..."
+  },
+  "detailForm": {
+    "ownerChip": "Titular: {{name}}",
+    "saved": "Salvo.",
+    "saveFailed": "Falha ao salvar conta",
+    "accountSectionTitle": "Conta",
+    "accountSectionDescription": "As alterações são aplicadas quando você pressiona Salvar.",
+    "cardsSectionTitle": "Cartões",
+    "cardsSectionDescription": "Cartões e números de conta usados pela importação de CSV para reconhecer as transações. Cada conta mantém pelo menos um.",
+    "dangerZoneTitle": "Zona de perigo",
+    "deleteAccount": "Excluir conta",
+    "deleteHint": "As transações já registradas nesta conta são mantidas."
+  },
+  "grid": {
+    "noCards": "Sem cartões",
+    "columnAccount": "Conta",
+    "columnType": "Tipo",
+    "columnInstitution": "Instituição",
+    "columnOwner": "Titular",
+    "columnCards": "Cartões",
+    "columnCurrency": "Moeda",
+    "columnOpening": "Saldo inicial",
+    "columnActive": "Ativa",
+    "columnNetWorth": "Patrimônio líquido",
+    "ownerJoint": "{{owner}} (conjunta)",
+    "activeTitle": "Ativa",
+    "closedTitle": "Encerrada",
+    "countedInNetWorth": "Contabilizada no patrimônio líquido",
+    "excluded": "Excluída",
+    "empty": "Nenhuma conta ainda. Adicione sua primeira conta para começar."
+  },
+  "page": {
+    "summary": "{{accounts}} • {{people}}",
+    "people_one": "{{count}} pessoa",
+    "people_other": "{{count}} pessoas",
+    "addAccount": "Adicionar conta",
+    "displayNameRequired": "O nome de exibição é obrigatório",
+    "saveUserFailed": "Falha ao salvar usuário",
+    "deleteFailed": {
+      "user": "Falha ao excluir usuário",
+      "account": "Falha ao excluir conta",
+      "card": "Falha ao excluir cartão"
+    },
+    "emptyNoAccounts": "Adicione uma conta para começar.",
+    "emptySelect": "Selecione uma conta para editá-la."
+  },
+  "cardsTable": {
+    "cardholderOwner": "Titular da conta",
+    "saveFailed": "Falha ao salvar cartão",
+    "numberLabel": "Número do cartão / conta",
+    "nicknameLabel": "Apelido",
+    "cardholderLabel": "Portador",
+    "tableLabel": "Cartões",
+    "columnNumber": "Número",
+    "columnNickname": "Apelido",
+    "columnCardholder": "Portador",
+    "empty": "Nenhum cartão nesta conta.",
+    "saveCard": "Salvar cartão",
+    "cancelCardEdit": "Cancelar edição do cartão",
+    "editCard": "Editar cartão",
+    "editCardTitle": "Editar cartão",
+    "lastCardTooltip": "Uma conta deve manter pelo menos um cartão",
+    "deleteCard": "Excluir cartão",
+    "saveNewCard": "Salvar novo cartão",
+    "cancelNewCard": "Cancelar novo cartão",
+    "addCard": "Adicionar cartão"
+  },
+  "deleteDialog": {
+    "title": {
+      "user": "Excluir usuário",
+      "account": "Excluir conta",
+      "card": "Excluir cartão"
+    },
+    "question": {
+      "user": "Tem certeza de que deseja excluir este usuário?",
+      "account": "Tem certeza de que deseja excluir esta conta?",
+      "card": "Tem certeza de que deseja excluir este cartão?"
+    },
+    "hint": {
+      "user": "Isso removerá o usuário de todas as contas compartilhadas.",
+      "account": "Todas as transações associadas a esta conta serão mantidas.",
+      "card": "As importações de CSV que correspondem a este número de cartão deixarão de funcionar."
+    },
+    "deleting": "Excluindo..."
+  },
+  "peoplePanel": {
+    "title": "Pessoas",
+    "empty": "Nenhuma pessoa ainda.",
+    "rename": "Renomear {{name}}",
+    "editUser": "Editar usuário",
+    "primaryCannotDelete": "O usuário principal não pode ser excluído",
+    "deleteUser": "Excluir usuário",
+    "delete": "Excluir {{name}}",
+    "primaryUser": "Usuário principal",
+    "counts": "{{owned}} como titular • {{cardholder}} como portador"
+  },
+  "userDialog": {
+    "addTitle": "Adicionar novo usuário",
+    "editTitle": "Editar usuário",
+    "displayNameLabel": "Nome de exibição",
+    "saving": "Salvando..."
+  }
+}

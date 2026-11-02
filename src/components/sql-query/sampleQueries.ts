@@ -1,15 +1,24 @@
+/** Key under `sqlQuery:samples.*` that holds the sample's display title. */
+export type SampleQueryId =
+  | 'allTransactions'
+  | 'summaryByCategory'
+  | 'monthlySpending'
+  | 'topExpenseCategories'
+  | 'schemaTables'
+  | 'schemaColumns';
+
 export interface SampleQuery {
-  title: string;
+  id: SampleQueryId;
   query: string;
 }
 
 export const SAMPLE_QUERIES: SampleQuery[] = [
   {
-    title: 'All Transactions',
+    id: 'allTransactions',
     query: 'SELECT * FROM transactions ORDER BY date DESC LIMIT 10;',
   },
   {
-    title: 'Transaction Summary by Category',
+    id: 'summaryByCategory',
     query: `SELECT
   c.name as category,
   t.type,
@@ -21,7 +30,7 @@ GROUP BY c.name, t.type
 ORDER BY total_amount DESC;`,
   },
   {
-    title: 'Monthly Spending Totals',
+    id: 'monthlySpending',
     query: `SELECT
   strftime('%Y-%m', date) as month,
   SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
@@ -31,7 +40,7 @@ GROUP BY strftime('%Y-%m', date)
 ORDER BY month DESC;`,
   },
   {
-    title: 'Top 10 Expense Categories',
+    id: 'topExpenseCategories',
     query: `SELECT
   c.name as category,
   COUNT(*) as transaction_count,
@@ -44,7 +53,7 @@ ORDER BY total_spent DESC
 LIMIT 10;`,
   },
   {
-    title: 'Database Schema - Tables',
+    id: 'schemaTables',
     query: `SELECT
   name as table_name,
   type
@@ -53,7 +62,7 @@ WHERE type IN ('table', 'view')
 ORDER BY name;`,
   },
   {
-    title: 'Database Schema - Columns',
+    id: 'schemaColumns',
     query: `SELECT
   m.name as table_name,
   p.name as column_name,

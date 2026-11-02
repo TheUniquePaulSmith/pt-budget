@@ -197,6 +197,7 @@ const accountRow: Account = {
   is_active: 1,
   include_in_net_worth: 1,
   import_sign_inverted: 0,
+  currency: 'USD',
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
   owner_display_name: 'Pat Doe',
@@ -1156,7 +1157,7 @@ describe('DatabaseService singleton-backed mutation wrappers', () => {
       call: (service: DatabaseService) =>
         service.updateAccount(53, { name: 'Renamed Checking', type: 'savings', ownership: 'joint' }),
       query: ACCOUNT_QUERIES.UPDATE,
-      parameters: ['Renamed Checking', 'savings', 'joint', null, 0, null, null, 1, 53],
+      parameters: ['Renamed Checking', 'savings', 'joint', null, 0, null, null, 1, 'USD', 53],
       response: [],
       expected: undefined,
     },

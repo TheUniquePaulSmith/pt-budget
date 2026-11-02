@@ -2,6 +2,7 @@
 
 import { Box, IconButton, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import type { BudgetPeriod } from '@/types/database';
 
@@ -36,14 +37,15 @@ function shiftPeriod(period: BudgetPeriod, delta: number): BudgetPeriod {
 }
 
 export function BudgetPeriodSelector({ period, onChange }: BudgetPeriodSelectorProps) {
+  const { t } = useTranslation(['budget', 'common']);
   return (
     <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <IconButton onClick={() => onChange(shiftPeriod(period, -1))} aria-label="Previous period">
+        <IconButton onClick={() => onChange(shiftPeriod(period, -1))} aria-label={t('periodSelector.previous')}>
           <ChevronLeft />
         </IconButton>
         <Typography variant="h6" sx={{ minWidth: 120, textAlign: 'center' }}>{period.key}</Typography>
-        <IconButton onClick={() => onChange(shiftPeriod(period, 1))} aria-label="Next period">
+        <IconButton onClick={() => onChange(shiftPeriod(period, 1))} aria-label={t('periodSelector.next')}>
           <ChevronRight />
         </IconButton>
       </Box>
@@ -55,9 +57,9 @@ export function BudgetPeriodSelector({ period, onChange }: BudgetPeriodSelectorP
           if (value) onChange({ type: value, key: currentKey(value) });
         }}
       >
-        <ToggleButton value="month">Month</ToggleButton>
-        <ToggleButton value="quarter">Quarter</ToggleButton>
-        <ToggleButton value="year">Year</ToggleButton>
+        <ToggleButton value="month">{t('common:fields.month')}</ToggleButton>
+        <ToggleButton value="quarter">{t('periodSelector.quarter')}</ToggleButton>
+        <ToggleButton value="year">{t('common:fields.year')}</ToggleButton>
       </ToggleButtonGroup>
     </Box>
   );

@@ -18,7 +18,9 @@ import {
   Business as BusinessIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { useTransactionQuickActionsSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import { Transaction } from '@/types/database';
 
 interface CompanyPickerDialogProps {
@@ -40,6 +42,8 @@ export default function CompanyPickerDialog({
   transaction,
   onClose,
 }: CompanyPickerDialogProps) {
+  const { t } = useTranslation(['transactions', 'common']);
+  const { money, date } = useFormatters();
   const { companies, setTransactionCompany } = useTransactionQuickActionsSlice();
 
   const [selected, setSelected] = useState<CompanyOption | null>(null);
@@ -71,7 +75,7 @@ export default function CompanyPickerDialog({
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to set company');
+      setError(err instanceof Error ? err.message : t('companyPicker.setFailed'));
     } finally {
       setLoading(false);
     }
@@ -84,29 +88,29 @@ export default function CompanyPickerDialog({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <BusinessIcon />
-          Set Company
+          {t('companyPicker.title')}
         </Box>
       </DialogTitle>
 
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Transaction
+            {t('companyPicker.transaction')}
           </Typography>
           <Typography variant="body1" fontWeight="medium">
             {transaction.description}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            ${Math.abs(transaction.amount).toFixed(2)} • {new Date(transaction.date).toLocaleDateString()}
+            {money(Math.abs(transaction.amount), transaction.account_currency)} • {date(transaction.date)}
           </Typography>
         </Box>
 
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Current Company
+            {t('companyPicker.currentCompany')}
           </Typography>
           <Chip
-            label={transaction.company_name || 'No company'}
+            label={transaction.company_name || t('companyPicker.noCompany')}
             variant="outlined"
             size="small"
           />
@@ -155,10 +159,10 @@ export default function CompanyPickerDialog({
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Company"
-              placeholder="Search or create a company..."
+              label={t('common:fields.company')}
+              placeholder={t('companyPicker.searchPlaceholder')}
               autoFocus
-              helperText="Type a new name to create it"
+              helperText={t('companyPicker.createHelp')}
               fullWidth
             />
           )}
@@ -167,7 +171,7 @@ export default function CompanyPickerDialog({
             return (
               <Box component="li" key={key} {...otherProps}>
                 <Typography variant="body1">
-                  {option.isNew ? `Create "${option.name}"` : option.name}
+                  {option.isNew ? t('companyPicker.createOption', { name: option.name }) : option.name}
                 </Typography>
               </Box>
             );
@@ -176,21 +180,21 @@ export default function CompanyPickerDialog({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           color="inherit"
           startIcon={<ClearIcon />}
           onClick={() => void apply(null)}
           disabled={loading || transaction.company_id == null}
         >
-          Clear
+          {t('common:actions.clear')}
         </Button>
         <Button
           variant="contained"
           onClick={() => void apply(selected)}
           disabled={loading || !selected}
         >
-          {loading ? 'Saving…' : selected?.isNew ? 'Create & Apply' : 'Apply'}
+          {loading ? t('common:status.saving') : selected?.isNew ? t('companyPicker.createAndApply') : t('common:actions.apply')}
         </Button>
       </DialogActions>
     </Dialog>

@@ -19,12 +19,16 @@ import {
   createFilterOptions,
 } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, userColumn } from '@/components/common/DataGrid/columns';
+import { useFormatters } from '@/contexts/useFormatters';
 import type {
   Company,
   RecurringSeries,
+  RecurringSeriesCadence,
+  RecurringSeriesKind,
   RecurringSeriesStatus,
   Transaction,
 } from '@/types/database';
@@ -33,8 +37,6 @@ import type {
   RecurringSeriesUpdate,
 } from '@/contexts/useDatabaseSubscriptionsSlice';
 
-const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
 interface CompanyOption {
   id: number;
   name: string;
@@ -42,6 +44,10 @@ interface CompanyOption {
 }
 
 const companyFilter = createFilterOptions<CompanyOption>();
+
+const KIND_VALUES: ReadonlyArray<RecurringSeriesKind> = ['subscription', 'bill'];
+const CADENCE_VALUES: ReadonlyArray<RecurringSeriesCadence> = ['weekly', 'biweekly', 'monthly', 'quarterly', 'yearly', 'irregular'];
+const STATUS_VALUES: ReadonlyArray<RecurringSeriesStatus> = ['candidate', 'active', 'inactive', 'ignored'];
 
 interface SeriesDetailDialogProps {
   open: boolean;
@@ -64,6 +70,8 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
   onDelete,
   getSeriesTransactions,
 }) => {
+  const { t } = useTranslation('subscriptions');
+  const { money } = useFormatters();
   const [name, setName] = useState('');
   const [kind, setKind] = useState<RecurringSeries['kind']>('subscription');
   const [cadence, setCadence] = useState<RecurringSeries['cadence']>('monthly');
@@ -84,20 +92,26 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
   );
 
   const transactionColumns = useMemo<GridColDef<Transaction>[]>(() => [
-    { field: 'date', headerName: 'Date', width: 110 },
-    { field: 'description', headerName: 'Description', flex: 1.4, minWidth: 200 },
-    userColumn<Transaction>(),
-    accountColumn<Transaction>(),
-    cardColumn<Transaction>(),
+    { field: 'date', headerName: t('seriesDetailDialog.columnDate'), width: 110 },
+    { field: 'description', headerName: t('seriesDetailDialog.columnDescription'), flex: 1.4, minWidth: 200 },
+    userColumn<Transaction>({
+      headerName: t('columns.user'),
+      owner: t('columns.owner'),
+      effectiveUser: t('columns.effectiveUser'),
+      unassigned: t('columns.unassigned'),
+    }),
+    accountColumn<Transaction>({ headerName: t('columns.account'), owner: t('columns.owner'), unknownAccount: t('columns.unknownAccount') }),
+    cardColumn<Transaction>({ headerName: t('columns.card'), noCard: t('columns.noCard') }),
     {
       field: 'amount',
-      headerName: 'Amount',
+      headerName: t('seriesDetailDialog.columnAmount'),
       width: 120,
       align: 'right',
       headerAlign: 'right',
-      renderCell: (params) => CURRENCY.format(Math.abs(params.row.amount)),
+      // A transaction's amount is in its account's currency.
+      renderCell: (params) => money(Math.abs(params.row.amount), params.row.account_currency),
     },
-  ], []);
+  ], [money, t]);
 
   useEffect(() => {
     if (!open || !series) return;
@@ -128,19 +142,19 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
   const handleSave = async () => {
     if (!series) return;
     if (!name.trim()) {
-      setError('Name is required');
+      setError(t('seriesDetailDialog.nameRequired'));
       return;
     }
 
     const parsedAmount = expectedAmount.trim() === '' ? null : Number(expectedAmount);
     if (parsedAmount !== null && Number.isNaN(parsedAmount)) {
-      setError('Expected amount must be a number');
+      setError(t('seriesDetailDialog.amountMustBeNumber'));
       return;
     }
 
     const parsedDueDay = dueDay.trim() === '' ? null : Number(dueDay);
     if (parsedDueDay !== null && (!Number.isInteger(parsedDueDay) || parsedDueDay < 1 || parsedDueDay > 31)) {
-      setError('Due day must be a whole number between 1 and 31');
+      setError(t('seriesDetailDialog.dueDayRange'));
       return;
     }
 
@@ -165,7 +179,7 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
       );
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save changes');
+      setError(err instanceof Error ? err.message : t('seriesDetailDialog.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -179,7 +193,7 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
       await onDelete(series.id);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete series');
+      setError(err instanceof Error ? err.message : t('seriesDetailDialog.deleteFailed'));
     } finally {
       setSaving(false);
     }
@@ -199,7 +213,7 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
 
         <Box display="flex" flexWrap="wrap" gap={2} mt={1} mb={3}>
           <TextField
-            label="Name"
+            label={t('seriesDetailDialog.name')}
             value={name}
             onChange={(event) => setName(event.target.value)}
             sx={{ flex: '2 1 240px' }}
@@ -234,7 +248,7 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
               return (
                 <Box component="li" key={key} {...otherProps}>
                   <Typography variant="body2">
-                    {option.isNew ? `Create "${option.name}"` : option.name}
+                    {option.isNew ? t('seriesDetailDialog.createCompany', { name: option.name }) : option.name}
                   </Typography>
                 </Box>
               );
@@ -247,40 +261,42 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Company"
+                label={t('seriesDetailDialog.company')}
                 size="small"
-                helperText="Pick an existing company to merge into it, or type a new name"
+                helperText={t('seriesDetailDialog.companyHelp')}
               />
             )}
           />
           <TextField
             select
-            label="Type"
+            label={t('seriesDetailDialog.type')}
             value={kind}
             onChange={(event) => setKind(event.target.value as RecurringSeries['kind'])}
             sx={{ flex: '1 1 140px' }}
             size="small"
           >
-            <MenuItem value="subscription">Subscription</MenuItem>
-            <MenuItem value="bill">Recurring bill</MenuItem>
+            {KIND_VALUES.map((value) => (
+              <MenuItem key={value} value={value}>
+                {t(`kind.${value}`)}
+              </MenuItem>
+            ))}
           </TextField>
           <TextField
             select
-            label="Cadence"
+            label={t('seriesDetailDialog.cadence')}
             value={cadence}
             onChange={(event) => setCadence(event.target.value as RecurringSeries['cadence'])}
             sx={{ flex: '1 1 140px' }}
             size="small"
           >
-            <MenuItem value="weekly">Weekly</MenuItem>
-            <MenuItem value="biweekly">Every 2 weeks</MenuItem>
-            <MenuItem value="monthly">Monthly</MenuItem>
-            <MenuItem value="quarterly">Quarterly</MenuItem>
-            <MenuItem value="yearly">Yearly</MenuItem>
-            <MenuItem value="irregular">Irregular</MenuItem>
+            {CADENCE_VALUES.map((value) => (
+              <MenuItem key={value} value={value}>
+                {t(`cadence.${value}`)}
+              </MenuItem>
+            ))}
           </TextField>
           <TextField
-            label="Expected amount"
+            label={t('seriesDetailDialog.expectedAmount')}
             value={expectedAmount}
             onChange={(event) => setExpectedAmount(event.target.value)}
             sx={{ flex: '1 1 140px' }}
@@ -289,19 +305,20 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
           />
           <TextField
             select
-            label="Status"
+            label={t('seriesDetailDialog.status')}
             value={status}
             onChange={(event) => setStatus(event.target.value as RecurringSeriesStatus)}
             sx={{ flex: '1 1 140px' }}
             size="small"
           >
-            <MenuItem value="candidate">Needs review</MenuItem>
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="inactive">Inactive</MenuItem>
-            <MenuItem value="ignored">Ignored</MenuItem>
+            {STATUS_VALUES.map((value) => (
+              <MenuItem key={value} value={value}>
+                {t(`status.${value}`)}
+              </MenuItem>
+            ))}
           </TextField>
           <TextField
-            label="Notes"
+            label={t('seriesDetailDialog.notes')}
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
             fullWidth
@@ -318,28 +335,26 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
                   slotProps={{ input: { 'data-testid': 'series-autopay-switch' } as React.InputHTMLAttributes<HTMLInputElement> }}
                 />
               }
-              label="Paid automatically (autopay)"
+              label={t('seriesDetailDialog.autopay')}
             />
             <TextField
-              label="Due day of month"
+              label={t('seriesDetailDialog.dueDay')}
               type="number"
               value={dueDay}
               onChange={(event) => setDueDay(event.target.value)}
               size="small"
               sx={{ width: 170 }}
               slotProps={{ htmlInput: { min: 1, max: 31, 'data-testid': 'series-due-day' } }}
-              helperText={isAutopay ? 'Optional' : 'Optional; otherwise the next expected date is used'}
+              helperText={isAutopay ? t('seriesDetailDialog.optional') : t('seriesDetailDialog.dueDayHelp')}
             />
             <Typography variant="body2" color="text.secondary" sx={{ flex: '1 1 240px' }}>
-              {isAutopay
-                ? 'Autopay series never raise payment-due alerts.'
-                : 'Bills you pay by hand show a payment-due alert ahead of the due day (lead time in Settings → Notifications).'}
+              {isAutopay ? t('seriesDetailDialog.autopayHelp') : t('seriesDetailDialog.manualHelp')}
             </Typography>
           </Box>
         </Box>
 
         <Typography variant="subtitle1" gutterBottom>
-          Matched transactions
+          {t('seriesDetailDialog.matchedTransactions')}
         </Typography>
         {loadingTransactions ? (
           <Box display="flex" justifyContent="center" py={3}>
@@ -347,7 +362,7 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
           </Box>
         ) : transactions.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            No transactions are linked to this series yet.
+            {t('seriesDetailDialog.noTransactions')}
           </Typography>
         ) : (
           <AppDataGrid
@@ -361,14 +376,14 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
       </DialogContent>
       <DialogActions>
         <Button color="error" onClick={handleDelete} disabled={saving}>
-          Delete Series
+          {t('seriesDetailDialog.deleteSeries')}
         </Button>
         <Box flex={1} />
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t('seriesDetailDialog.cancel')}
         </Button>
         <Button variant="contained" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('seriesDetailDialog.saving') : t('seriesDetailDialog.save')}
         </Button>
       </DialogActions>
     </Dialog>

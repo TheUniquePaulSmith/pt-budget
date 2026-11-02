@@ -1,0 +1,131 @@
+{
+  "preferences": {
+    "title": "Suas preferências",
+    "description": "Escolha o idioma deste dispositivo e a moeda em que seus totais são exibidos. Você pode alterar ambos depois em Configurações.",
+    "languageLabel": "Idioma",
+    "languageHelp": "Aplica-se apenas a este navegador e entra em vigor imediatamente.",
+    "currencyLabel": "Moeda padrão",
+    "currencyHelp": "Cada conta pode usar sua própria moeda; os totais do painel são convertidos para esta.",
+    "continue": "Continuar",
+    "saving": "Salvando…",
+    "skip": "Pular por enquanto"
+  },
+  "initialAccount": {
+    "currencyLabel": "Moeda",
+    "title": "Adicione sua primeira conta",
+    "description": "Configure uma conta ou cartão para que suas transações tenham um destino. Você pode adicionar mais contas depois em Configurações.",
+    "nameRequired": "O nome da conta é obrigatório.",
+    "lastFourInvalid": "Os últimos quatro dígitos devem ter exatamente 4 números.",
+    "nameLabel": "Nome da conta",
+    "typeLabel": "Tipo de conta",
+    "lastFourLabel": "Últimos quatro dígitos",
+    "saving": "Salvando conta…"
+  },
+  "provider": {
+    "gdrive": "Google Drive",
+    "onedrive": "OneDrive"
+  },
+  "gate": {
+    "initializing": "Inicializando banco de dados...",
+    "importPasswordDescription": "Este arquivo de banco de dados está criptografado. Digite sua senha para desbloqueá-lo e importá-lo.",
+    "unlockDescription": "Este banco de dados está criptografado. Digite sua senha para desbloqueá-lo.",
+    "welcomeTitle": "Bem-vindo ao Budget Tracker",
+    "welcomeDescription": "Para começar, você pode criar um novo banco de dados ou carregar um existente a partir de um arquivo.",
+    "createNewDatabase": "Criar novo banco de dados",
+    "loadFromFile": "Carregar de arquivo",
+    "orOpenCloudBackup": "ou abra um backup existente na nuvem",
+    "providerNotConfigured": "{{provider}} não está configurado para esta instalação.",
+    "openFromProvider": "Abrir do {{provider}}",
+    "importingSampleData": "Importando dados de exemplo",
+    "filesCompleted": "Arquivos concluídos: {{completed}} / {{total}}",
+    "currentFile": "Arquivo atual: {{file}}",
+    "tableRows": "{{table}}: {{imported}} linhas",
+    "tableRowsOfExpected": "{{table}}: {{imported}} / {{expected}} linhas",
+    "cancelSampleDataImport": "Cancelar importação de dados de exemplo",
+    "connectProvider": "Conectar {{provider}}",
+    "cloudAuthDescription": "Este navegador está configurado para usar o {{provider}} como origem do banco de dados. Autentique-se e escolha um arquivo de backup para continuar.",
+    "useLocalInstead": "Usar banco de dados local",
+    "databaseError": "Erro no banco de dados",
+    "unknownInitError": "Ocorreu um erro desconhecido ao inicializar o banco de dados.",
+    "reloadPage": "Recarregar página"
+  },
+  "passwordSetup": {
+    "primaryUserNameRequired": "O nome do usuário principal é obrigatório.",
+    "passwordTooShort": "A senha deve ter pelo menos {{count}} caracteres.",
+    "passwordsMismatch": "As senhas não coincidem.",
+    "title": "Configure seu banco de dados",
+    "description": "Seu banco de dados é criptografado neste dispositivo, e esta senha será exigida sempre que você voltar. Escolha uma senha forte — não há recuperação de senha, então guarde-a em um lugar seguro.",
+    "primaryUserSection": "Usuário principal",
+    "primaryUserNameLabel": "Nome do usuário principal",
+    "passwordSection": "Senha",
+    "passwordLabel": "Senha",
+    "confirmPasswordLabel": "Confirmar senha",
+    "hidePassword": "Ocultar senha",
+    "showPassword": "Mostrar senha",
+    "creating": "Criando banco de dados…",
+    "create": "Criar banco de dados"
+  },
+  "passwordEntry": {
+    "title": "Digite a senha",
+    "defaultDescription": "Este banco de dados está criptografado. Digite a senha para abri-lo.",
+    "passwordLabel": "Senha",
+    "hidePassword": "Ocultar senha",
+    "showPassword": "Mostrar senha",
+    "decrypting": "Descriptografando…",
+    "unlock": "Desbloquear"
+  },
+  "storageChoice": {
+    "title": "Onde este banco de dados deve ficar?",
+    "description": "Você pode alterar isso depois em Configurações.",
+    "localLabel": "Manter local",
+    "localDescription": "Armazenado apenas neste dispositivo.",
+    "gdriveLabel": "Google Drive",
+    "gdriveDescription": "Sincronizado automaticamente com o seu Google Drive.",
+    "onedriveLabel": "OneDrive",
+    "onedriveDescription": "Sincronizado automaticamente com o seu OneDrive.",
+    "notConfigured": "{{provider}} não está configurado para esta instalação."
+  },
+  "testBrowser": {
+    "workerCommunicationFailed": "Falha na comunicação com o worker de teste",
+    "unknownError": "Erro desconhecido durante o teste de compatibilidade",
+    "statusTesting": "Testando...",
+    "statusNotTested": "Não testado",
+    "statusPassed": "Aprovado",
+    "statusFailed": "Falhou",
+    "wasmLabel": "Suporte a WebAssembly",
+    "wasmDescription": "O navegador oferece suporte a WebAssembly",
+    "sharedWorkerLabel": "Suporte a SharedWorker",
+    "sharedWorkerDescription": "O navegador oferece suporte à API SharedWorker",
+    "sqliteLabel": "Módulo SQLite WASM",
+    "sqliteDescription": "O módulo WA-SQLite carrega e inicializa",
+    "vfsLabel": "Sistema de arquivos virtual",
+    "vfsDescription": "O backend VFS do IndexedDB funciona corretamente",
+    "databaseOperationsLabel": "Operações de banco de dados",
+    "databaseOperationsDescription": "Abre um banco de dados de teste e executa uma consulta",
+    "title": "Teste de compatibilidade do navegador",
+    "overallResult": "Resultado geral:",
+    "compatible": "Compatível",
+    "incompatible": "Incompatível",
+    "incompatibleWarning": "Seu navegador pode não oferecer suporte completo a todos os recursos necessários para o aplicativo de orçamento. Algumas funcionalidades podem ficar limitadas ou indisponíveis.",
+    "errorDetails": "Detalhes do erro",
+    "hideErrorDetails": "Ocultar detalhes do erro",
+    "showErrorDetails": "Mostrar detalhes do erro"
+  },
+  "encryptionProgress": {
+    "title": "Protegendo seu banco de dados",
+    "stage": {
+      "flushing": "Aguardando a conclusão das operações pendentes…",
+      "exporting": "Exportando snapshot do banco de dados…",
+      "encrypting": "Criptografando banco de dados…",
+      "uploading": "Enviando para o armazenamento em nuvem…",
+      "done": "Concluído"
+    }
+  },
+  "cloudFilePicker": {
+    "cloudStorage": "armazenamento em nuvem",
+    "fileSize": "{{size}} KB",
+    "title": "Abrir do {{provider}}",
+    "empty": "Nenhum arquivo de backup foi encontrado no {{provider}}.",
+    "opening": "Abrindo…"
+  }
+}

@@ -25,6 +25,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Add as AddIcon, Check as SaveIcon, Close as CancelIcon, Delete as DeleteIcon, Edit as EditIcon } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import type { AccountCard, User } from '@/types/database';
 import { parseCardNumberInput } from './accountCardNumber';
@@ -59,6 +60,7 @@ interface CardholderSelectProps {
 }
 
 function CardholderSelect({ value, users, onChange, label }: CardholderSelectProps) {
+  const { t } = useTranslation(['accounts', 'common']);
   return (
     <FormControl size="small" fullWidth>
       <InputLabel>{label}</InputLabel>
@@ -67,7 +69,7 @@ function CardholderSelect({ value, users, onChange, label }: CardholderSelectPro
         label={label}
         onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))}
       >
-        <MenuItem value="">Account owner</MenuItem>
+        <MenuItem value="">{t('cardsTable.cardholderOwner')}</MenuItem>
         {users.map((user) => (
           <MenuItem key={user.id} value={user.id}>
             {user.display_name}
@@ -87,6 +89,7 @@ export default function AccountCardsTable({
   onUpdateCard,
   onRequestDeleteCard,
 }: AccountCardsTableProps) {
+  const { t } = useTranslation(['accounts', 'common']);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<CardDraft>(EMPTY_DRAFT);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -115,7 +118,7 @@ export default function AccountCardsTable({
   const submit = async (candidate: CardDraft, apply: (parsed: { last_four: string; full_number: string | null }) => Promise<void>) => {
     const parsed = parseCardNumberInput(candidate.cardNumberInput);
     if (!parsed.ok) {
-      setError(parsed.error);
+      setError(t(`validation.${parsed.error}`));
       return false;
     }
     setSaving(true);
@@ -124,7 +127,7 @@ export default function AccountCardsTable({
       await apply({ last_four: parsed.last_four, full_number: parsed.full_number });
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save card');
+      setError(err instanceof Error ? err.message : t('cardsTable.saveFailed'));
       return false;
     } finally {
       setSaving(false);
@@ -156,7 +159,7 @@ export default function AccountCardsTable({
         <TextField
           size="small"
           fullWidth
-          label="Card / account number"
+          label={t('cardsTable.numberLabel')}
           value={value.cardNumberInput}
           onChange={(event) => onChange({ ...value, cardNumberInput: event.target.value })}
           autoFocus
@@ -168,7 +171,7 @@ export default function AccountCardsTable({
         <TextField
           size="small"
           fullWidth
-          label="Nickname"
+          label={t('cardsTable.nicknameLabel')}
           value={value.nickname}
           onChange={(event) => onChange({ ...value, nickname: event.target.value })}
           inputProps={{ 'data-testid': `card-${kind}-nickname` }}
@@ -176,7 +179,7 @@ export default function AccountCardsTable({
       </TableCell>
       <TableCell sx={{ minWidth: 150 }}>
         <CardholderSelect
-          label="Cardholder"
+          label={t('cardsTable.cardholderLabel')}
           value={value.userId}
           users={users}
           onChange={(userId) => onChange({ ...value, userId })}
@@ -192,12 +195,12 @@ export default function AccountCardsTable({
           {error}
         </Alert>
       )}
-      <Table size="small" aria-label="Cards">
+      <Table size="small" aria-label={t('cardsTable.tableLabel')}>
         <TableHead>
           <TableRow>
-            <TableCell>Number</TableCell>
-            <TableCell>Nickname</TableCell>
-            <TableCell>Cardholder</TableCell>
+            <TableCell>{t('cardsTable.columnNumber')}</TableCell>
+            <TableCell>{t('cardsTable.columnNickname')}</TableCell>
+            <TableCell>{t('cardsTable.columnCardholder')}</TableCell>
             <TableCell align="right" sx={{ width: 96 }} />
           </TableRow>
         </TableHead>
@@ -206,7 +209,7 @@ export default function AccountCardsTable({
             <TableRow>
               <TableCell colSpan={4}>
                 <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                  No cards on this account.
+                  {t('cardsTable.empty')}
                 </Typography>
               </TableCell>
             </TableRow>
@@ -216,10 +219,10 @@ export default function AccountCardsTable({
               <TableRow key={card.id} data-testid={`card-row-${card.id}`}>
                 {renderEditorCells(editDraft, setEditDraft, 'edit')}
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                  <IconButton size="small" color="primary" onClick={() => void handleSaveEdit(card)} disabled={saving} aria-label="Save card" title="Save card">
+                  <IconButton size="small" color="primary" onClick={() => void handleSaveEdit(card)} disabled={saving} aria-label={t('cardsTable.saveCard')} title={t('cardsTable.saveCard')}>
                     <SaveIcon fontSize="small" />
                   </IconButton>
-                  <IconButton size="small" onClick={cancelEdit} disabled={saving} aria-label="Cancel card edit" title="Cancel">
+                  <IconButton size="small" onClick={cancelEdit} disabled={saving} aria-label={t('cardsTable.cancelCardEdit')} title={t('common:actions.cancel')}>
                     <CancelIcon fontSize="small" />
                   </IconButton>
                 </TableCell>
@@ -228,19 +231,19 @@ export default function AccountCardsTable({
               <TableRow key={card.id} hover data-testid={`card-row-${card.id}`}>
                 <TableCell sx={{ fontFamily: 'monospace' }}>••••{card.last_four}</TableCell>
                 <TableCell>{card.nickname || <Typography variant="caption" color="text.secondary">—</Typography>}</TableCell>
-                <TableCell>{cardholderName(card, users, ownerName)}</TableCell>
+                <TableCell>{cardholderName(card, users, t, ownerName)}</TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                  <IconButton size="small" onClick={() => startEdit(card)} disabled={disabled || saving} aria-label="Edit card" title="Edit Card">
+                  <IconButton size="small" onClick={() => startEdit(card)} disabled={disabled || saving} aria-label={t('cardsTable.editCard')} title={t('cardsTable.editCardTitle')}>
                     <EditIcon fontSize="small" />
                   </IconButton>
-                  <Tooltip title={cards.length <= 1 ? 'An account must keep at least one card' : 'Delete card'}>
+                  <Tooltip title={cards.length <= 1 ? t('cardsTable.lastCardTooltip') : t('cardsTable.deleteCard')}>
                     <span>
                       <IconButton
                         size="small"
                         color="error"
                         onClick={() => onRequestDeleteCard(card)}
                         disabled={disabled || saving || cards.length <= 1}
-                        aria-label="Delete card"
+                        aria-label={t('cardsTable.deleteCard')}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -254,7 +257,7 @@ export default function AccountCardsTable({
             <TableRow data-testid="card-add-row">
               {renderEditorCells(draft, setDraft, 'add')}
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                <IconButton size="small" color="primary" onClick={() => void handleAdd()} disabled={saving || !draft.cardNumberInput} aria-label="Save new card" title="Save new card">
+                <IconButton size="small" color="primary" onClick={() => void handleAdd()} disabled={saving || !draft.cardNumberInput} aria-label={t('cardsTable.saveNewCard')} title={t('cardsTable.saveNewCard')}>
                   <SaveIcon fontSize="small" />
                 </IconButton>
                 <IconButton
@@ -265,8 +268,8 @@ export default function AccountCardsTable({
                     setError(null);
                   }}
                   disabled={saving}
-                  aria-label="Cancel new card"
-                  title="Cancel"
+                  aria-label={t('cardsTable.cancelNewCard')}
+                  title={t('common:actions.cancel')}
                 >
                   <CancelIcon fontSize="small" />
                 </IconButton>
@@ -288,7 +291,7 @@ export default function AccountCardsTable({
           sx={{ mt: 0.5 }}
           data-testid="add-card-button"
         >
-          Add card
+          {t('cardsTable.addCard')}
         </Button>
       )}
     </Box>

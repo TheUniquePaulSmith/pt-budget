@@ -1,0 +1,154 @@
+{
+  "typeShort": {
+    "checking": "Courant",
+    "savings": "Épargne",
+    "credit": "Carte de crédit",
+    "loan": "Prêt",
+    "investment": "Investissement",
+    "retirement": "Retraite"
+  },
+  "display": {
+    "accountOwner": "Titulaire du compte",
+    "unknownUser": "Utilisateur inconnu"
+  },
+  "validation": {
+    "nameRequired": "Le nom du compte est obligatoire",
+    "numbersInvalid": "Le solde d'ouverture et le plafond de crédit doivent être des nombres",
+    "cardDigitsRequired": "Saisissez au moins les 4 derniers chiffres"
+  },
+  "formFields": {
+    "nameLabel": "Nom du compte",
+    "typeLabel": "Type de compte",
+    "currencyLabel": "Devise",
+    "ownershipLabel": "Titularité",
+    "ownershipJoint": "Joint (partagé par le foyer)",
+    "institutionLabel": "Établissement (facultatif)",
+    "institutionPlaceholder": "Nom de la banque ou du courtier",
+    "openingBalanceLabel": "Solde d'ouverture",
+    "openingBalanceHelp": "Solde avant la première transaction suivie",
+    "asOfLabel": "Au",
+    "creditLimitLabel": "Plafond de crédit",
+    "creditLimitHelp": "Sert à afficher la part du plafond utilisée",
+    "activeLabel": "Actif",
+    "closedLabel": "Clôturé (conservé pour l'historique)",
+    "ownerLabel": "Titulaire",
+    "selectOwner": "Sélectionner un titulaire",
+    "cardNumberLabel": "Numéro de carte / compte",
+    "cardNumberHelp": "Saisissez le numéro complet ou seulement les 4 derniers chiffres — seuls les 4 derniers sont affichés ailleurs",
+    "cardNicknameLabel": "Surnom (facultatif)",
+    "cardholderLabel": "Porteur de la carte",
+    "cardholderOwner": "Titulaire du compte"
+  },
+  "formDialog": {
+    "addTitle": "Ajouter un compte",
+    "editTitle": "Modifier le compte",
+    "newPerson": "+ Nouvelle personne…",
+    "firstCard": "Première carte",
+    "displayNameRequired": "Le nom d'affichage est obligatoire",
+    "addPersonFailed": "Échec de l'ajout de la personne",
+    "ownerRequired": "Le titulaire est obligatoire",
+    "saveFailed": "Échec de l'enregistrement du compte",
+    "saving": "Enregistrement..."
+  },
+  "detailForm": {
+    "ownerChip": "Titulaire : {{name}}",
+    "saved": "Enregistré.",
+    "saveFailed": "Échec de l'enregistrement du compte",
+    "accountSectionTitle": "Compte",
+    "accountSectionDescription": "Les modifications s'appliquent lorsque vous cliquez sur Enregistrer.",
+    "cardsSectionTitle": "Cartes",
+    "cardsSectionDescription": "Cartes et numéros de compte sur lesquels s'appuient les imports CSV. Chaque compte en conserve au moins un.",
+    "dangerZoneTitle": "Zone sensible",
+    "deleteAccount": "Supprimer le compte",
+    "deleteHint": "Les transactions déjà enregistrées sur ce compte sont conservées."
+  },
+  "grid": {
+    "noCards": "Aucune carte",
+    "columnAccount": "Compte",
+    "columnType": "Type",
+    "columnInstitution": "Établissement",
+    "columnOwner": "Titulaire",
+    "columnCards": "Cartes",
+    "columnCurrency": "Devise",
+    "columnOpening": "Ouverture",
+    "columnActive": "Actif",
+    "columnNetWorth": "Patrimoine net",
+    "ownerJoint": "{{owner}} (joint)",
+    "activeTitle": "Actif",
+    "closedTitle": "Clôturé",
+    "countedInNetWorth": "Compté dans le patrimoine net",
+    "excluded": "Exclu",
+    "empty": "Aucun compte pour l'instant. Ajoutez votre premier compte pour commencer."
+  },
+  "page": {
+    "summary": "{{accounts}} • {{people}}",
+    "people_one": "{{count}} personne",
+    "people_other": "{{count}} personnes",
+    "addAccount": "Ajouter un compte",
+    "displayNameRequired": "Le nom d'affichage est obligatoire",
+    "saveUserFailed": "Échec de l'enregistrement de l'utilisateur",
+    "deleteFailed": {
+      "user": "Échec de la suppression de l'utilisateur",
+      "account": "Échec de la suppression du compte",
+      "card": "Échec de la suppression de la carte"
+    },
+    "emptyNoAccounts": "Ajoutez un compte pour commencer.",
+    "emptySelect": "Sélectionnez un compte pour le modifier."
+  },
+  "cardsTable": {
+    "cardholderOwner": "Titulaire du compte",
+    "saveFailed": "Échec de l'enregistrement de la carte",
+    "numberLabel": "Numéro de carte / compte",
+    "nicknameLabel": "Surnom",
+    "cardholderLabel": "Porteur de la carte",
+    "tableLabel": "Cartes",
+    "columnNumber": "Numéro",
+    "columnNickname": "Surnom",
+    "columnCardholder": "Porteur",
+    "empty": "Aucune carte sur ce compte.",
+    "saveCard": "Enregistrer la carte",
+    "cancelCardEdit": "Annuler la modification de la carte",
+    "editCard": "Modifier la carte",
+    "editCardTitle": "Modifier la carte",
+    "lastCardTooltip": "Un compte doit conserver au moins une carte",
+    "deleteCard": "Supprimer la carte",
+    "saveNewCard": "Enregistrer la nouvelle carte",
+    "cancelNewCard": "Annuler la nouvelle carte",
+    "addCard": "Ajouter une carte"
+  },
+  "deleteDialog": {
+    "title": {
+      "user": "Supprimer l'utilisateur",
+      "account": "Supprimer le compte",
+      "card": "Supprimer la carte"
+    },
+    "question": {
+      "user": "Voulez-vous vraiment supprimer cet utilisateur ?",
+      "account": "Voulez-vous vraiment supprimer ce compte ?",
+      "card": "Voulez-vous vraiment supprimer cette carte ?"
+    },
+    "hint": {
+      "user": "L'utilisateur sera retiré de tous les comptes partagés.",
+      "account": "Toutes les transactions associées à ce compte seront conservées.",
+      "card": "Les imports CSV correspondant à ce numéro de carte ne fonctionneront plus."
+    },
+    "deleting": "Suppression..."
+  },
+  "peoplePanel": {
+    "title": "Personnes",
+    "empty": "Aucune personne pour l'instant.",
+    "rename": "Renommer {{name}}",
+    "editUser": "Modifier l'utilisateur",
+    "primaryCannotDelete": "L'utilisateur principal ne peut pas être supprimé",
+    "deleteUser": "Supprimer l'utilisateur",
+    "delete": "Supprimer {{name}}",
+    "primaryUser": "Utilisateur principal",
+    "counts": "{{owned}} en titularité • {{cardholder}} en porteur"
+  },
+  "userDialog": {
+    "addTitle": "Ajouter un utilisateur",
+    "editTitle": "Modifier l'utilisateur",
+    "displayNameLabel": "Nom d'affichage",
+    "saving": "Enregistrement..."
+  }
+}

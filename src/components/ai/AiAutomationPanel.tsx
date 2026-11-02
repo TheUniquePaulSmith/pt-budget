@@ -9,6 +9,7 @@ import {
   Switch,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 import { useAiDatabaseToolsSlice } from '@/contexts/useDatabaseSlices';
 import type {
@@ -37,6 +38,7 @@ export default function AiAutomationPanel({
   merchantRuleSuggestions,
   onClearMerchantRuleSuggestions,
 }: AiAutomationPanelProps) {
+  const { t } = useTranslation('ai');
   const databaseTools = useAiDatabaseToolsSlice();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -44,7 +46,7 @@ export default function AiAutomationPanel({
     classifications: ApplyTransactionClassificationInput[]
   ) => {
     const result = await databaseTools.applyTransactionClassifications(classifications);
-    setStatusMessage(`Applied ${result.appliedCount} classification${result.appliedCount === 1 ? '' : 's'}.`);
+    setStatusMessage(t('automation.appliedClassifications', { count: result.appliedCount }));
   };
 
   const applyMerchantRules = async (rules: MerchantRuleSuggestion[]) => {
@@ -59,7 +61,7 @@ export default function AiAutomationPanel({
     }
     // Re-scan so the new rules take effect immediately
     await databaseTools.runSubscriptionScan();
-    setStatusMessage(`Created ${rules.length} merchant rule${rules.length === 1 ? '' : 's'} and re-ran the subscription scan.`);
+    setStatusMessage(t('automation.createdRules', { count: rules.length }));
   };
 
   const hasSuggestions = classificationSuggestions.length > 0 || merchantRuleSuggestions.length > 0;
@@ -69,10 +71,10 @@ export default function AiAutomationPanel({
       <Stack spacing={2}>
         <Box>
           <Typography variant="subtitle1" fontWeight={600}>
-            Automation
+            {t('automation.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Review tool calls and approve database changes.
+            {t('automation.subtitle')}
           </Typography>
         </Box>
 
@@ -83,7 +85,7 @@ export default function AiAutomationPanel({
               onChange={(event) => onWriteModeChange(event.target.checked ? 'autoApply' : 'review')}
             />
           }
-          label="Auto-apply classification writes"
+          label={t('automation.autoApply')}
         />
 
         {statusMessage && (
@@ -94,7 +96,7 @@ export default function AiAutomationPanel({
 
         {!hasSuggestions && (
           <Alert severity="info">
-            Reviewable classification and merchant rule suggestions will appear here when the model proposes them. Tool calls the model makes are shown inline in the Chat tab.
+            {t('automation.empty')}
           </Alert>
         )}
 

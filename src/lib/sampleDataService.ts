@@ -457,6 +457,7 @@ export class SampleDataService {
             row.type,
             row.ownership ?? 'individual',
             row.owner_user_id,
+            row.currency ?? 'USD',
             row.created_at,
             row.updated_at,
           ],

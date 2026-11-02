@@ -17,7 +17,9 @@ import {
   Switch,
   TextField,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
+import CurrencySelect from '@/components/common/CurrencySelect';
 import type { AccountOwnership, AccountType, User } from '@/types/database';
 import { ACCOUNT_TYPE_OPTIONS, type AccountCardFormState, type AccountFormState } from './accountFormModel';
 
@@ -31,6 +33,7 @@ export interface AccountFormFieldsProps {
 }
 
 export function AccountFormFields({ state, onChange, autoFocus = false, size = 'dense' }: AccountFormFieldsProps) {
+  const { t } = useTranslation(['accounts', 'common']);
   const update = (patch: Partial<AccountFormState>) => onChange({ ...state, ...patch });
   const margin = size === 'dense' ? 'dense' : 'none';
   const fieldSize = size === 'small' ? 'small' : 'medium';
@@ -41,60 +44,69 @@ export function AccountFormFields({ state, onChange, autoFocus = false, size = '
         autoFocus={autoFocus}
         margin={margin}
         size={fieldSize}
-        label="Account Name"
+        label={t('formFields.nameLabel')}
         fullWidth
         value={state.name}
         onChange={(e) => update({ name: e.target.value })}
         required
       />
       <FormControl fullWidth margin={margin} size={fieldSize}>
-        <InputLabel>Account Type</InputLabel>
+        <InputLabel>{t('formFields.typeLabel')}</InputLabel>
         <Select
           value={state.type}
-          label="Account Type"
+          label={t('formFields.typeLabel')}
           onChange={(e) => update({ type: e.target.value as AccountType })}
         >
           {ACCOUNT_TYPE_OPTIONS.map((option) => (
-            <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+            <MenuItem key={option.value} value={option.value}>{t(`common:accountType.${option.value}`)}</MenuItem>
           ))}
         </Select>
       </FormControl>
+      <CurrencySelect
+        id="account-currency"
+        label={t('formFields.currencyLabel')}
+        value={state.currency}
+        onChange={(currency) => update({ currency })}
+        margin={margin}
+        size={fieldSize}
+        testId="account-currency"
+      />
       <FormControl fullWidth margin={margin} size={fieldSize}>
-        <InputLabel>Ownership</InputLabel>
+        <InputLabel>{t('formFields.ownershipLabel')}</InputLabel>
         <Select
           value={state.ownership}
-          label="Ownership"
+          label={t('formFields.ownershipLabel')}
           onChange={(e) => update({ ownership: e.target.value as AccountOwnership })}
         >
-          <MenuItem value="individual">Individual</MenuItem>
-          <MenuItem value="joint">Joint (shared by the household)</MenuItem>
+          <MenuItem value="individual">{t('common:accountOwnership.individual')}</MenuItem>
+          <MenuItem value="joint">{t('formFields.ownershipJoint')}</MenuItem>
         </Select>
       </FormControl>
       <TextField
         margin={margin}
         size={fieldSize}
-        label="Institution (Optional)"
+        label={t('formFields.institutionLabel')}
         fullWidth
         value={state.institution}
         onChange={(e) => update({ institution: e.target.value })}
-        placeholder="Bank or brokerage name"
+        placeholder={t('formFields.institutionPlaceholder')}
       />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
         <TextField
           margin={margin}
           size={fieldSize}
-          label="Opening Balance"
+          label={t('formFields.openingBalanceLabel')}
           type="number"
           fullWidth
           value={state.openingBalance}
           onChange={(e) => update({ openingBalance: e.target.value })}
           inputProps={{ step: 0.01 }}
-          helperText="Balance before the first tracked transaction"
+          helperText={t('formFields.openingBalanceHelp')}
         />
         <TextField
           margin={margin}
           size={fieldSize}
-          label="As Of"
+          label={t('formFields.asOfLabel')}
           type="date"
           fullWidth
           value={state.openingBalanceDate}
@@ -106,19 +118,19 @@ export function AccountFormFields({ state, onChange, autoFocus = false, size = '
         <TextField
           margin={margin}
           size={fieldSize}
-          label="Credit Limit"
+          label={t('formFields.creditLimitLabel')}
           type="number"
           fullWidth
           value={state.creditLimit}
           onChange={(e) => update({ creditLimit: e.target.value })}
           inputProps={{ step: 1, min: 0 }}
-          helperText="Used to show how much of the limit is in use"
+          helperText={t('formFields.creditLimitHelp')}
         />
       )}
       <FormControlLabel
         sx={{ mt: 1 }}
         control={<Switch checked={state.isActive} onChange={(e) => update({ isActive: e.target.checked })} />}
-        label={state.isActive ? 'Active' : 'Closed (kept for history)'}
+        label={state.isActive ? t('formFields.activeLabel') : t('formFields.closedLabel')}
       />
     </>
   );
@@ -134,16 +146,17 @@ export interface AccountOwnerFieldProps {
 }
 
 export function AccountOwnerField({ value, onChange, users, size = 'dense', extraItems }: AccountOwnerFieldProps) {
+  const { t } = useTranslation(['accounts', 'common']);
   return (
     <FormControl fullWidth margin={size === 'dense' ? 'dense' : 'none'} size={size === 'small' ? 'small' : 'medium'}>
-      <InputLabel>Owner</InputLabel>
+      <InputLabel>{t('formFields.ownerLabel')}</InputLabel>
       <Select
         value={value ?? ''}
-        label="Owner"
+        label={t('formFields.ownerLabel')}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
         required
       >
-        <MenuItem value="" disabled>Select Owner</MenuItem>
+        <MenuItem value="" disabled>{t('formFields.selectOwner')}</MenuItem>
         {users.map((user) => (
           <MenuItem key={user.id} value={user.id}>{user.display_name}</MenuItem>
         ))}
@@ -161,6 +174,7 @@ export interface AccountCardFormFieldsProps {
 }
 
 export function AccountCardFormFields({ state, onChange, users, size = 'dense' }: AccountCardFormFieldsProps) {
+  const { t } = useTranslation(['accounts', 'common']);
   const update = (patch: Partial<AccountCardFormState>) => onChange({ ...state, ...patch });
   const margin = size === 'dense' ? 'dense' : 'none';
   const fieldSize = size === 'small' ? 'small' : 'medium';
@@ -170,29 +184,29 @@ export function AccountCardFormFields({ state, onChange, users, size = 'dense' }
       <TextField
         margin={margin}
         size={fieldSize}
-        label="Card / Account Number"
+        label={t('formFields.cardNumberLabel')}
         fullWidth
         value={state.cardNumberInput}
         onChange={(e) => update({ cardNumberInput: e.target.value })}
-        helperText="Enter the full number or just the last 4 digits — only the last 4 are shown elsewhere"
+        helperText={t('formFields.cardNumberHelp')}
         required
       />
       <TextField
         margin={margin}
         size={fieldSize}
-        label="Nickname (Optional)"
+        label={t('formFields.cardNicknameLabel')}
         fullWidth
         value={state.cardNickname}
         onChange={(e) => update({ cardNickname: e.target.value })}
       />
       <FormControl fullWidth margin={margin} size={fieldSize}>
-        <InputLabel>Cardholder</InputLabel>
+        <InputLabel>{t('formFields.cardholderLabel')}</InputLabel>
         <Select
           value={state.cardUserId ?? ''}
-          label="Cardholder"
+          label={t('formFields.cardholderLabel')}
           onChange={(e) => update({ cardUserId: e.target.value ? Number(e.target.value) : null })}
         >
-          <MenuItem value="">Account owner</MenuItem>
+          <MenuItem value="">{t('formFields.cardholderOwner')}</MenuItem>
           {users.map((user) => (
             <MenuItem key={user.id} value={user.id}>{user.display_name}</MenuItem>
           ))}

@@ -24,6 +24,8 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { parseISO } from 'date-fns';
+import { useTranslation } from 'react-i18next';
+import { useOptionalLocale } from '@/contexts/LocaleContext';
 import { useTransactionComposerSlice } from '@/contexts/useDatabaseSlices';
 import { toLocalDateOnly } from '@/lib/dateOnly';
 import { Transaction, TransactionType, AccountCard } from '@/types/database';
@@ -73,6 +75,8 @@ export default function AddTransaction({
   mode = 'add',
   transaction = null,
 }: AddTransactionProps) {
+  const { t } = useTranslation(['transactions', 'common']);
+  const dateFnsLocale = useOptionalLocale()?.dateFnsLocale;
   const {
     addTransaction,
     updateTransaction,
@@ -118,13 +122,13 @@ export default function AddTransaction({
     setSubmitError(null);
     try {      // Validate required fields
       if (!formData.description.trim()) {
-        throw new Error('Description is required');
+        throw new Error(t('common:errors.required', { field: t('common:fields.description') }));
       }
       if (!formData.amount || parseFloat(formData.amount) <= 0) {
-        throw new Error('Amount must be greater than 0');
+        throw new Error(t('common:errors.mustBePositive', { field: t('common:fields.amount') }));
       }
       if (!formData.account_id) {
-        throw new Error('Please select an account');
+        throw new Error(t('addTransaction.selectAccountError'));
       }
 
       // Handle new category creation
@@ -181,7 +185,7 @@ export default function AddTransaction({
       handleClose();
     } catch (error) {
       console.error(isEdit ? 'Error updating transaction:' : 'Error adding transaction:', error);
-      setSubmitError(error instanceof Error ? error.message : 'The transaction could not be saved');
+      setSubmitError(error instanceof Error ? error.message : t('addTransaction.saveFailed'));
     } finally {
       setLoading(false);
     }
@@ -232,18 +236,18 @@ export default function AddTransaction({
   }, [formData.account_id, getAccountCards]);
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateFnsLocale}>
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>{isEdit ? 'Edit Transaction' : 'Add New Transaction'}</DialogTitle>
+        <DialogTitle>{isEdit ? t('addTransaction.editTitle') : t('addTransaction.addTitle')}</DialogTitle>
         <form onSubmit={handleSubmit}>
           <DialogContent>
             <Box display="flex" flexDirection="column" gap={2}>
               {submitError && <Alert severity="error">{submitError}</Alert>}
               <FormControl fullWidth>
-                <InputLabel>Transaction Type</InputLabel>
+                <InputLabel>{t('addTransaction.typeLabel')}</InputLabel>
                 <Select
                   value={formData.type}
-                  label="Transaction Type"
+                  label={t('addTransaction.typeLabel')}
                   onChange={(e) => {
                     const nextType = e.target.value as TransactionType;
                     setFormData({
@@ -254,34 +258,34 @@ export default function AddTransaction({
                     });
                   }}
                 >
-                  <MenuItem value="expense">Expense</MenuItem>
-                  <MenuItem value="income">Income</MenuItem>
-                  <MenuItem value="refund">Refund (money back from a merchant)</MenuItem>
-                  <MenuItem value="transfer">Transfer (between your own accounts)</MenuItem>
+                  <MenuItem value="expense">{t('common:transactionType.expense')}</MenuItem>
+                  <MenuItem value="income">{t('common:transactionType.income')}</MenuItem>
+                  <MenuItem value="refund">{t('addTransaction.typeRefundOption')}</MenuItem>
+                  <MenuItem value="transfer">{t('addTransaction.typeTransferOption')}</MenuItem>
                 </Select>
                 {formData.type === 'refund' && (
-                  <FormHelperText>Counts against spending in its category, not as income.</FormHelperText>
+                  <FormHelperText>{t('addTransaction.refundHelp')}</FormHelperText>
                 )}
                 {formData.type === 'transfer' && (
-                  <FormHelperText>Card payments, savings moves and loan payments. Counts as neither income nor spending.</FormHelperText>
+                  <FormHelperText>{t('addTransaction.transferHelp')}</FormHelperText>
                 )}
               </FormControl>
               {formData.type === 'transfer' && (
                 <FormControl fullWidth>
-                  <InputLabel>Direction</InputLabel>
+                  <InputLabel>{t('addTransaction.directionLabel')}</InputLabel>
                   <Select
                     value={formData.direction}
-                    label="Direction"
+                    label={t('addTransaction.directionLabel')}
                     onChange={(e) => setFormData({ ...formData, direction: e.target.value as TransferDirection })}
                   >
-                    <MenuItem value="out">Money out of this account</MenuItem>
-                    <MenuItem value="in">Money into this account</MenuItem>
+                    <MenuItem value="out">{t('addTransaction.directionOut')}</MenuItem>
+                    <MenuItem value="in">{t('addTransaction.directionIn')}</MenuItem>
                   </Select>
                 </FormControl>
               )}
 
               <TextField
-                label="Description"
+                label={t('common:fields.description')}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 required
@@ -289,7 +293,7 @@ export default function AddTransaction({
               />
 
               <TextField
-                label="Amount"
+                label={t('common:fields.amount')}
                 type="number"
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
@@ -297,7 +301,7 @@ export default function AddTransaction({
                 fullWidth
                 inputProps={{ step: 0.01, min: 0 }}
               />              <DatePicker
-                label="Date"
+                label={t('common:fields.date')}
                 value={formData.date}
                 onChange={(date: Date | null) => setFormData({ ...formData, date: date || new Date() })}
                 slotProps={{ textField: { fullWidth: true } }}
@@ -319,7 +323,7 @@ export default function AddTransaction({
                 inputValue={categoryInput}
                 onInputChange={(_, value) => setCategoryInput(value)}
                 renderInput={(params) => (
-                  <TextField {...params} label="Category" helperText="Type to create a new category" />
+                  <TextField {...params} label={t('common:fields.category')} helperText={t('addTransaction.categoryHelp')} />
                 )}                renderTags={(value, getTagProps) =>
                   value.map((option, index) => {
                     const { key, ...chipProps } = getTagProps({ index });
@@ -348,7 +352,7 @@ export default function AddTransaction({
                 inputValue={companyInput}
                 onInputChange={(_, value) => setCompanyInput(value)}
                 renderInput={(params) => (
-                  <TextField {...params} label="Company (Optional)" helperText="Type to create a new company" />
+                  <TextField {...params} label={t('addTransaction.companyLabel')} helperText={t('addTransaction.companyHelp')} />
                 )}
               />              {formData.type === 'expense' && (
                 <Autocomplete
@@ -361,8 +365,8 @@ export default function AddTransaction({
                   renderInput={(params) => (
                     <TextField 
                       {...params} 
-                      label="House Project (Optional)" 
-                      helperText="Link this expense to a house project" 
+                      label={t('addTransaction.projectLabel')}
+                      helperText={t('addTransaction.projectHelp')}
                     />
                   )}                  renderOption={(props, option) => {
                     const { key, ...otherProps } = props;
@@ -381,11 +385,11 @@ export default function AddTransaction({
               )}
 
               <FormControl fullWidth>
-                <InputLabel id="add-transaction-account-label">Account</InputLabel>
+                <InputLabel id="add-transaction-account-label">{t('common:fields.account')}</InputLabel>
                 <Select<number | ''>
                   labelId="add-transaction-account-label"
                   value={formData.account_id}
-                  label="Account"
+                  label={t('common:fields.account')}
                   onChange={(e) => {
                     const value = e.target.value;
                     setFormData({
@@ -397,7 +401,7 @@ export default function AddTransaction({
                   required
                 >
                   <MenuItem value="">
-                    <em>Select an account</em>
+                    <em>{t('addTransaction.selectAccount')}</em>
                   </MenuItem>
                   {accounts.map((account) => (
                     <MenuItem key={account.id} value={account.id}>
@@ -408,11 +412,11 @@ export default function AddTransaction({
               </FormControl>
 
               <FormControl fullWidth disabled={!formData.account_id || accountCards.length === 0}>
-                <InputLabel id="add-transaction-card-label">Card</InputLabel>
+                <InputLabel id="add-transaction-card-label">{t('common:fields.card')}</InputLabel>
                 <Select<number | ''>
                   labelId="add-transaction-card-label"
                   value={formData.card_id ?? ''}
-                  label="Card"
+                  label={t('common:fields.card')}
                   onChange={(e) => {
                     const value = e.target.value;
                     setFormData({
@@ -422,7 +426,7 @@ export default function AddTransaction({
                   }}
                 >
                   <MenuItem value="">
-                    <em>No card</em>
+                    <em>{t('addTransaction.noCard')}</em>
                   </MenuItem>
                   {accountCards.map((card) => (
                     <MenuItem key={card.id} value={card.id}>
@@ -439,14 +443,16 @@ export default function AddTransaction({
                     onChange={(e) => setFormData({ ...formData, is_recurring: e.target.checked })}
                   />
                 }
-                label="Recurring Transaction"
+                label={t('addTransaction.recurringLabel')}
               />
             </Box>
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleClose}>Cancel</Button>
+            <Button onClick={handleClose}>{t('common:actions.cancel')}</Button>
             <Button type="submit" variant="contained" disabled={loading}>
-              {loading ? (isEdit ? 'Saving...' : 'Adding...') : isEdit ? 'Save Changes' : 'Add Transaction'}
+              {loading
+                ? (isEdit ? t('addTransaction.saving') : t('addTransaction.adding'))
+                : isEdit ? t('addTransaction.saveChanges') : t('addTransaction.submit')}
             </Button>
           </DialogActions>
         </form>

@@ -1,0 +1,17 @@
+{
+  "manage": {
+    "addCategoryFailed": "カテゴリの追加に失敗しました",
+    "updateCategoryFailed": "カテゴリの更新に失敗しました",
+    "addCompanyFailed": "取引先の追加に失敗しました",
+    "updateCompanyFailed": "取引先の更新に失敗しました",
+    "title": "カテゴリと取引先の管理",
+    "categoriesTab": "カテゴリ",
+    "companiesTab": "取引先",
+    "addCategoryTitle": "新しいカテゴリを追加",
+    "categoryNameLabel": "カテゴリ名",
+    "existingCategories": "既存のカテゴリ",
+    "addCompanyTitle": "新しい取引先を追加",
+    "companyNameLabel": "取引先名",
+    "existingCompanies": "既存の取引先"
+  }
+}

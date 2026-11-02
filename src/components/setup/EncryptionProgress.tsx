@@ -8,6 +8,7 @@ import {
   Paper,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 export type EncryptionProgressStage =
   | 'flushing'
@@ -24,27 +25,21 @@ interface EncryptionProgressProps {
   variant?: 'fullscreen' | 'inline';
 }
 
-const STAGE_LABELS: Record<EncryptionProgressStage, string> = {
-  flushing: 'Waiting for pending operations to finish…',
-  exporting: 'Exporting database snapshot…',
-  encrypting: 'Encrypting database…',
-  uploading: 'Uploading to cloud storage…',
-  done: 'Complete',
-};
-
 export function EncryptionProgress({
   stage,
   progress = null,
   variant = 'fullscreen',
 }: EncryptionProgressProps) {
+  const { t } = useTranslation('setup');
+
   const content = (
     <Paper sx={{ p: 4, maxWidth: 440, width: '100%', textAlign: 'center' }}>
       <LockOutlined sx={{ fontSize: 56, color: 'primary.main', mb: 2 }} />
       <Typography variant="h6" gutterBottom>
-        Securing Your Database
+        {t('encryptionProgress.title')}
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        {STAGE_LABELS[stage]}
+        {t(`encryptionProgress.stage.${stage}`)}
       </Typography>
 
       {progress !== null ? (

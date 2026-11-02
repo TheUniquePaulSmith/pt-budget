@@ -8,6 +8,7 @@ import {
   DialogTitle,
   Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 export type DeleteTargetType = 'user' | 'account' | 'card';
 
@@ -26,25 +27,22 @@ export function DeleteConfirmDialog({
   onClose,
   onConfirm,
 }: DeleteConfirmDialogProps) {
+  const { t } = useTranslation(['accounts', 'common']);
+  const target: DeleteTargetType = targetType ?? 'account';
+
   return (
     <Dialog open={open} onClose={onClose}>
-      <DialogTitle>
-        Delete {targetType === 'user' ? 'User' : targetType === 'card' ? 'Card' : 'Account'}
-      </DialogTitle>
+      <DialogTitle>{t(`deleteDialog.title.${target}`)}</DialogTitle>
       <DialogContent>
-        <Typography>Are you sure you want to delete this {targetType}?</Typography>
+        <Typography>{t(`deleteDialog.question.${target}`)}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {targetType === 'user'
-            ? 'This will remove the user from all shared accounts.'
-            : targetType === 'card'
-            ? 'CSV imports matching this card number will no longer work.'
-            : 'All transactions associated with this account will remain.'}
+          {t(`deleteDialog.hint.${target}`)}
         </Typography>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button onClick={onConfirm} color="error" disabled={loading}>
-          {loading ? 'Deleting...' : 'Delete'}
+          {loading ? t('deleteDialog.deleting') : t('common:actions.delete')}
         </Button>
       </DialogActions>
     </Dialog>

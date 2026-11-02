@@ -1,0 +1,168 @@
+{
+  "carryMode": {
+    "none": "Sin traspaso de saldo",
+    "surplus": "Traspasar superávit",
+    "deficit": "Traspasar déficit",
+    "both": "Traspasar ambos"
+  },
+  "carryModeDescription": {
+    "none": "Cada mes empieza desde el importe del plan.",
+    "surplus": "El presupuesto no gastado pasa al mes siguiente; el exceso de gasto se perdona.",
+    "deficit": "El exceso de gasto se descuenta del mes siguiente; el presupuesto no gastado se descarta.",
+    "both": "El saldo neto, positivo o negativo, pasa al mes siguiente."
+  },
+  "carryBadge": {
+    "none": "Sin traspaso de saldo",
+    "surplus": "Traspasa el superávit",
+    "deficit": "Traspasa el déficit",
+    "both": "Traspasa ambos"
+  },
+  "page": {
+    "title": "Presupuesto",
+    "subtitle": "Los planes mensuales se mantienen hasta que se cambian. Las vistas de trimestre y año suman los presupuestos mensuales vigentes.",
+    "managePlan": "Gestionar plan"
+  },
+  "periodSelector": {
+    "previous": "Periodo anterior",
+    "next": "Periodo siguiente",
+    "quarter": "Trimestre"
+  },
+  "statusPanel": {
+    "spentTooltip": "{{amount}} gastados en esta categoría.",
+    "fundSpendTooltip": "{{amount}} de ese importe los pagó un fondo vinculado y quedan fuera.",
+    "fundContributionsTooltip": "{{amount}} están reservados como aportaciones a fondos.",
+    "noBudgetSet": "Sin presupuesto definido",
+    "noBudgetHelp": "Cree un plan de presupuesto para este mes. Los planes se mantienen hasta que otro con un mes de vigencia posterior los sustituye.",
+    "title": "Estado del presupuesto",
+    "monthsCovered_one": "{{covered}} de {{count}} mes cubierto",
+    "monthsCovered_other": "{{covered}} de {{count}} meses cubiertos",
+    "over": "{{amount}} de exceso",
+    "left": "Quedan {{amount}}",
+    "noThresholdsHelp": "Cree un plan de presupuesto para definir límites de gasto. Las fuentes de ingresos se incluyen igualmente más abajo.",
+    "notSet": "Sin definir",
+    "budgeted": "Presupuestado",
+    "carriedIn": "Traspasado",
+    "effectiveBudget": "Presupuesto efectivo",
+    "actualExpenses": "Gastos reales",
+    "fundContributions": "Aportaciones a fondos",
+    "expectedIncome": "Ingresos previstos",
+    "linkedIncome": "Ingresos vinculados",
+    "categories": "Categorías",
+    "categoriesTable": "Categorías del presupuesto",
+    "columnBudget": "Presupuesto",
+    "columnEffective": "Efectivo",
+    "columnSpent": "Gastado",
+    "columnRemaining": "Restante",
+    "categoryFallback": "Categoría {{id}}",
+    "resetTooltip": "Saldo traspasado restablecido desde {{month}}",
+    "fundTooltip": "{{amount}} reservados para fondos de proyectos o viajes vinculados",
+    "fundBadge": "Fondo",
+    "unbudgetedSpend": "Gasto sin presupuestar: {{amount}}"
+  },
+  "historyList": {
+    "title": "Historial",
+    "noPlan": "{{period}}: sin plan",
+    "over": "{{period}}: {{amount}} de exceso",
+    "under": "{{period}}: {{amount}} por debajo"
+  },
+  "planEditor": {
+    "title": "Plan de presupuesto",
+    "effectiveMonth": "Mes de vigencia",
+    "totalAmount": "Importe total",
+    "appliesHelp": "Este plan se aplica desde su mes de vigencia hasta que otro plan lo sustituya.",
+    "carryOver": "Traspaso de saldo",
+    "resetTooltip": "Descartar cualquier saldo traspasado al mes de vigencia de este plan para esta categoría y empezar de nuevo desde el importe del plan.",
+    "resetAria": "Restablecer el saldo traspasado desde este mes",
+    "resetLabel": "Restablecer desde este mes",
+    "removeCategory": "Quitar categoría",
+    "addCategory": "Añadir categoría",
+    "carryHelp": "El traspaso de saldo pasa el sobrante de cada mes (superávit, déficit o ambos) al mes siguiente a partir del mes de vigencia de este plan. \"Restablecer desde este mes\" descarta el saldo que una categoría trae a este mes.",
+    "deletePlan": "Eliminar plan"
+  },
+  "fundFields": {
+    "entity": {
+      "project": "proyecto",
+      "trip": "viaje"
+    },
+    "categoryFallback": "categoría",
+    "theCategoryFallback": "la categoría",
+    "helpUnlinked": "Opcional: elija una categoría del presupuesto para ahorrar un poco cada mes para este {{entity}}.",
+    "helpNoContribution": "Introduzca una aportación mensual para iniciar el fondo de {{category}}.",
+    "helpNoStart": "Defina un mes de inicio (o una fecha de inicio) para que las aportaciones se acumulen.",
+    "helpReserves": "Reserva {{amount}} al mes de {{category}} a partir de {{month}}; el presupuesto lo cuenta como gasto planificado y los gastos del {{entity}} se cubren con el fondo.",
+    "title": "Fondo de ahorro",
+    "linkedCategory": "Categoría de presupuesto vinculada",
+    "notLinked": "Sin vincular",
+    "monthlyContribution": "Aportación mensual",
+    "startMonth": "Mes de inicio de las aportaciones"
+  },
+  "fundSummary": {
+    "noEstimate": "sin estimación",
+    "goalReached": "objetivo alcanzado",
+    "toGoal": "{{amount}} para el objetivo",
+    "fund": "Fondo",
+    "perMonth": "{{amount}}/mes",
+    "tooltip": "{{contributed}} aportados, {{spent}} gastados, {{detail}}",
+    "saved": "Ahorrado {{amount}}",
+    "balance": "saldo {{amount}}"
+  },
+  "fundsCard": {
+    "noEstimatedCost": "Sin costo estimado definido",
+    "goalReached": "Objetivo alcanzado",
+    "monthsToGo_one": "Falta {{count}} mes",
+    "monthsToGo_other": "Faltan {{count}} meses",
+    "toGoal": "{{amount}} para el objetivo",
+    "title": "Fondos",
+    "subtitle": "Proyectos y viajes que ahorran a través de una categoría del presupuesto, a fecha de {{month}}.",
+    "empty": "Vincule un proyecto o viaje a una categoría del presupuesto con una aportación mensual para iniciar un fondo.",
+    "contributionsFrom": "Las aportaciones empiezan en {{start}}",
+    "contributionsFromTo": "Las aportaciones van de {{start}} a {{end}}",
+    "setStartMonth": "Defina un mes o una fecha de inicio para acumular aportaciones",
+    "notContributing": "Sin aportaciones",
+    "savedOfEstimated": "{{contributed}} de {{estimated}} ahorrados",
+    "setEstimatedCost": "Defina un costo estimado para seguir el progreso",
+    "progressAria": "Progreso de {{name}}",
+    "saved": "Ahorrado {{amount}}",
+    "perMonth": "{{amount}}/mes",
+    "balance": "Saldo {{amount}}",
+    "spent": "gastado {{amount}}"
+  },
+  "incomeSources": {
+    "notSet": "Sin definir",
+    "title": "Fuentes de ingresos",
+    "user": "Usuario: {{name}}",
+    "unassigned": "Sin asignar",
+    "linkedAccount": "Cuenta vinculada: {{name}}",
+    "unknownAccount": "Cuenta desconocida",
+    "expectedSummary": "Previsto {{amount}} {{frequency}} • {{monthly}} / mes",
+    "summary": "{{amount}} {{frequency}} • {{monthly}} / mes",
+    "frequency": {
+      "weekly": "cada semana",
+      "biweekly": "cada 2 semanas",
+      "semi_monthly": "dos veces al mes",
+      "monthly": "cada mes"
+    },
+    "frequencyOption": {
+      "weekly": "Semanal",
+      "biweekly": "Cada 2 semanas",
+      "semi_monthly": "Dos veces al mes",
+      "monthly": "Mensual"
+    },
+    "editTooltip": "Editar fuente de ingresos",
+    "deleteTooltip": "Eliminar fuente de ingresos",
+    "empty": "No hay fuentes de ingresos configuradas.",
+    "editTitle": "Editar fuente de ingresos",
+    "addTitle": "Añadir fuente de ingresos",
+    "kind": "Tipo de fuente",
+    "kindOption": {
+      "recurring_salary": "Salario recurrente",
+      "linked_account": "Cuenta vinculada"
+    },
+    "expectedAmount": "Importe previsto",
+    "expectedAmountHelp": "Opcional. Déjelo en blanco para usar solo los depósitos reales.",
+    "frequencyLabel": "Frecuencia",
+    "startDate": "Fecha de inicio",
+    "endDate": "Fecha de fin",
+    "saving": "Guardando..."
+  }
+}

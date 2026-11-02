@@ -1,0 +1,181 @@
+{
+  "type": {
+    "birthday": "誕生日",
+    "anniversary": "記念日",
+    "seasonal": "季節の予定",
+    "custom": "カスタムリマインダー",
+    "overdue_payment": "支払期日",
+    "budget_overspend": "予算超過",
+    "loan_promo_ending": "ローンの支払期限"
+  },
+  "typeDescription": {
+    "birthday": "毎年繰り返す、覚えておきたい誕生日。",
+    "anniversary": "記念日などの毎年の日付。",
+    "seasonal": "季節ごとの用事や更新（税金、保険、冬支度など）。",
+    "custom": "その他、1 回限りまたは繰り返しの予定。",
+    "overdue_payment": "手動で支払うサブスクリプションや請求のうち、期日が来たものや超過したもの（自動引き落としに設定されていないシリーズ）。",
+    "budget_overspend": "月の予算額を超過した予算カテゴリ。",
+    "loan_promo_ending": "支払期限が近い、または残高を残して期限を過ぎた金利繰延型ローン。利息がさかのぼって請求される可能性があります。"
+  },
+  "recurrence": {
+    "once": "1 回のみ",
+    "monthly": "毎月",
+    "yearly": "毎年"
+  },
+  "status": {
+    "active": "有効",
+    "snoozed": "スヌーズ中",
+    "dismissed": "却下",
+    "done": "完了"
+  },
+  "timing": {
+    "dueToday": "今日が期日",
+    "dueTomorrow": "明日が期日",
+    "dueInDays_other": "あと {{count}} 日",
+    "overdue_other": "{{count}} 日超過",
+    "noDate": "日付なし",
+    "snoozedUntil": "{{date}} までスヌーズ"
+  },
+  "dueLabel": {
+    "today": "今日が期日",
+    "tomorrow": "明日が期日",
+    "inDays_other": "あと {{count}} 日",
+    "overdue_other": "{{count}} 日超過"
+  },
+  "alerts": {
+    "overduePayment": {
+      "title": "{{name}}：{{due}}",
+      "body": "{{date}} に支払い予定です。このアラートを止めるには、シリーズを自動引き落としに設定してください。",
+      "bodyWithAmount": "{{date}} に支払い（{{amount}}）予定です。このアラートを止めるには、シリーズを自動引き落としに設定してください。"
+    },
+    "loanPromo": {
+      "chargedTitle": "{{name}}：繰延利息が請求されました",
+      "chargedBody": "支払期限 {{date}} を残高を残して過ぎたため、繰延利息 {{amount}} が加算されました。",
+      "onTrackTitle": "{{name}}：{{date}} までに完済",
+      "onTrackBody": "残高 {{balance}}、{{due}}。予定返済額で順調です。{{interest}} 以上の繰延利息を避けるため、支払いを続けてください。",
+      "offTrackTitle": "{{name}}：{{date}} に間に合わないペース",
+      "offTrackBody": "残高 {{balance}}、{{due}}。約 {{interest}} の繰延利息が請求される見込みです。",
+      "offTrackBodyWithRequired": "残高 {{balance}}、{{due}}。約 {{interest}} の繰延利息が請求される見込みです。期限内に完済するには月 {{amount}} の支払いが必要です。"
+    },
+    "budgetOverspend": {
+      "categoryFallback": "カテゴリ {{id}}",
+      "title": "{{name}} が予算超過",
+      "body": "{{month}} の予算 {{budgeted}} に対し {{spent}} 使用（{{over}} 超過）。",
+      "bodyCarriedIn": "{{month}} の予算 {{budgeted}}（繰越 {{carried}} を含む）に対し {{spent}} 使用（{{over}} 超過）。",
+      "bodyCarriedOver": "{{month}} の予算 {{budgeted}}（繰越 {{carried}} を含む）に対し {{spent}} 使用（{{over}} 超過）。"
+    }
+  },
+  "page": {
+    "title": "通知",
+    "subtitle": "作成したリマインダーと、支払いや予算に関するアラートです。最終スキャン：{{lastScan}}。",
+    "lastScanNever": "なし",
+    "scanning": "スキャン中…",
+    "rescan": "再スキャン",
+    "newReminder": "新しいリマインダー",
+    "disabledInfo": "通知は設定でオフになっています。既存の項目はここに表示されますが、新しいスキャンや集計は行われません。",
+    "empty": "通知はまだありません。",
+    "tabLabel": "{{label}}（{{n}}）",
+    "tabDue": "期限到来",
+    "tabUpcoming": "今後",
+    "tabHistory": "履歴",
+    "emptyDue": "現在、期限が来ている項目はありません。",
+    "emptyUpcoming": "今後のリマインダーはありません。",
+    "emptyHistory": "完了または却下した通知はまだありません。",
+    "columnType": "種類",
+    "columnTitle": "タイトル",
+    "columnWhen": "日時",
+    "columnRepeats": "繰り返し",
+    "columnStatus": "状態",
+    "columnActions": "操作",
+    "edit": "編集",
+    "editAria": "{{title}} を編集",
+    "delete": "削除",
+    "deleteAria": "{{title}} を削除",
+    "reminderCreated": "リマインダーを作成しました",
+    "reminderUpdated": "リマインダーを更新しました",
+    "reminderDeleted": "リマインダーを削除しました",
+    "deleteFailed": "リマインダーの削除に失敗しました"
+  },
+  "rowActions": {
+    "done": "完了にする",
+    "doneAdvance": "完了にする（次回へ進める）",
+    "doneAria": "{{title}} を完了にする",
+    "snooze": "スヌーズ",
+    "snoozeAria": "{{title}} をスヌーズ",
+    "dismiss": "却下",
+    "dismissAria": "{{title}} を却下",
+    "snoozeDay": "1 日スヌーズ",
+    "snoozeWeek": "1 週間スヌーズ",
+    "pickDate": "日付を選択…",
+    "snoozeUntilTitle": "スヌーズ期限",
+    "dateLabel": "日付",
+    "snoozeConfirm": "スヌーズ",
+    "completeFailed": "通知を完了にできませんでした",
+    "dismissFailed": "通知を却下できませんでした",
+    "snoozeFailed": "通知をスヌーズできませんでした"
+  },
+  "dashboardCard": {
+    "title": "リマインダーとアラート",
+    "summary": "期限到来 {{due}} 件 · 今後 {{days}} 日以内 {{upcoming}} 件",
+    "comingUp": "今後の予定",
+    "more_other": "ほか {{count}} 件は通知ページでご覧ください。"
+  },
+  "settingsTab": {
+    "title": "通知",
+    "description": "リマインダーとアラートは、ダッシュボード、ヘッダーのベル、通知ページに表示されます。変更はすぐに保存されます。",
+    "general": "全般",
+    "enable": "通知を有効にする",
+    "enableHelp": "オフにするとアラートのスキャンが停止し、バッジが非表示になります。リマインダーは保持されます。",
+    "osEnable": "ブラウザー（OS）の通知も表示する",
+    "osHelp": "{{permission}}。ブラウザー通知は Budget Tracker がタブで開いている間のみ、項目ごとに 1 日 1 回、下でチェックした種類についてのみ表示されます。",
+    "permissionUnsupported": "このブラウザーでは非対応",
+    "permissionGranted": "ブラウザーで許可済み",
+    "permissionDenied": "ブラウザーでブロック済み",
+    "permissionDefault": "オンにすると許可を求められます",
+    "typesTitle": "種類と事前通知",
+    "typesHelp": "事前通知の日数は、日付の何日前に期限到来とみなすかです。リマインダーごとに上書きできます。",
+    "columnType": "種類",
+    "columnEnabled": "有効",
+    "columnLeadDays": "事前通知（日）",
+    "columnBrowser": "ブラウザー",
+    "enableType": "{{type}}を有効にする",
+    "leadDaysFor": "{{type}}の事前通知日数",
+    "browserFor": "{{type}}のブラウザー通知",
+    "loadFailed": "通知設定の読み込みに失敗しました",
+    "saveSettingFailed": "通知設定の保存に失敗しました",
+    "saveFailed": "設定の保存に失敗しました",
+    "leadInvalid": "事前通知の日数は 0 ～ 365 の整数で入力してください",
+    "osUnsupported": "このブラウザーは OS 通知に対応していません。",
+    "osBlocked": "ブラウザーがこのサイトの通知をブロックしています。ブラウザーのサイト設定で許可してから、もう一度お試しください。",
+    "osNotGranted": "通知の許可が得られませんでした。"
+  },
+  "editor": {
+    "editTitle": "リマインダーを編集",
+    "newTitle": "新しいリマインダー",
+    "type": "種類",
+    "title": "タイトル",
+    "date": "日付",
+    "repeats": "繰り返し",
+    "notes": "メモ",
+    "customLead": "事前通知をカスタマイズ",
+    "leadDaysLabel": "通知する日数（何日前）",
+    "leadDefault_other": "{{type}}の既定値を使用：{{count}} 日前。",
+    "linkTo": "リンク先",
+    "linkNothing": "なし",
+    "linkSeries": "サブスクリプションまたは請求",
+    "linkCategory": "予算カテゴリ",
+    "category": "カテゴリ",
+    "series": "シリーズ",
+    "titleRequired": "タイトルは必須です",
+    "dateInvalid": "有効な日付を入力してください",
+    "leadInvalid": "事前通知の日数は 0 ～ 365 の整数で入力してください",
+    "saveFailed": "リマインダーの保存に失敗しました",
+    "saving": "保存中…",
+    "save": "保存",
+    "create": "リマインダーを作成"
+  },
+  "runtime": {
+    "scanFailed": "通知のスキャンに失敗しました",
+    "loadFailed": "通知設定の読み込みに失敗しました"
+  }
+}

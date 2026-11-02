@@ -17,8 +17,8 @@ type MigrationOp =
 const migrations = MIGRATIONS as Array<{ version: number; statements: MigrationOp[] }>;
 
 describe('database schema', () => {
-  it('is at version 5 with migrations in ascending order ending at the current version', () => {
-    expect(SCHEMA_VERSION).toBe(5);
+  it('is at version 6 with migrations in ascending order ending at the current version', () => {
+    expect(SCHEMA_VERSION).toBe(6);
     const versions = migrations.map((migration) => migration.version);
     expect(versions).toEqual([...versions].sort((a, b) => a - b));
     expect(versions.at(-1)).toBe(SCHEMA_VERSION);

@@ -1,0 +1,50 @@
+{
+  "category": {
+    "business": "Trabalho",
+    "vacation": "Férias",
+    "family": "Família",
+    "medical": "Saúde",
+    "education": "Educação",
+    "other": "Outro"
+  },
+  "status": {
+    "planning": "Planejamento",
+    "in_progress": "Em andamento",
+    "completed": "Concluída",
+    "cancelled": "Cancelada"
+  },
+  "statusOption": {
+    "planning": "Planejamento",
+    "in_progress": "Em andamento",
+    "completed": "Concluída",
+    "cancelled": "Cancelada"
+  },
+  "manage": {
+    "title": "Gerenciar viagens",
+    "addTrip": "Adicionar viagem",
+    "editTrip": "Editar viagem",
+    "deleteTrip": "Excluir viagem",
+    "destination": "Destino:",
+    "purpose": "Finalidade:",
+    "dates": "Datas:",
+    "dateRange": "{{start}} - {{end}}",
+    "tbd": "A definir",
+    "estimatedCost": "Custo estimado:",
+    "emptyTitle": "Nenhuma viagem encontrada",
+    "emptyHelp": "Crie sua primeira viagem para começar a acompanhar as despesas de viagem",
+    "addFirstTrip": "Adicione sua primeira viagem",
+    "addTitle": "Adicionar nova viagem",
+    "tripName": "Nome da viagem",
+    "destinationField": "Destino",
+    "purposeField": "Finalidade",
+    "startDate": "Data inicial",
+    "endDate": "Data final",
+    "estimatedCostField": "Custo estimado",
+    "saving": "Salvando...",
+    "deleteConfirm": "Tem certeza de que deseja excluir \"{{name}}\"? Esta ação não pode ser desfeita.",
+    "deleting": "Excluindo...",
+    "nameRequired": "O nome da viagem é obrigatório",
+    "saveFailed": "Falha ao salvar viagem",
+    "deleteFailed": "Falha ao excluir viagem"
+  }
+}

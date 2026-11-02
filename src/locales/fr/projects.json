@@ -1,0 +1,49 @@
+{
+  "category": {
+    "plumbing": "Plomberie",
+    "electrical": "Électricité",
+    "hvac": "Chauffage / Climatisation",
+    "roofing": "Toiture",
+    "flooring": "Revêtement de sol",
+    "painting": "Peinture",
+    "landscaping": "Aménagement paysager",
+    "general_contractor": "Entrepreneur général",
+    "other": "Autre"
+  },
+  "status": {
+    "planning": "En planification",
+    "in_progress": "En cours",
+    "completed": "Terminé",
+    "on_hold": "En pause"
+  },
+  "manage": {
+    "title": "Projets immobiliers",
+    "addProject": "Ajouter un projet",
+    "empty": "Aucun projet pour l'instant. Cliquez sur « Ajouter un projet » pour créer votre premier projet immobilier.",
+    "estimatedCost": "Coût estimé",
+    "actualCost": "Coût réel",
+    "notSet": "Non défini",
+    "transactionTotal": "Total des transactions",
+    "detailsTitle": "Détails du projet et transactions",
+    "detailsTitleWithCount": "Détails du projet et transactions ({{count}})",
+    "contactDetails": "Coordonnées",
+    "timeline": "Calendrier",
+    "start": "Début : {{date}}",
+    "end": "Fin : {{date}}",
+    "linkedTransactions": "Transactions liées",
+    "transactionSecondary": "{{date}} • {{amount}} • {{category}}",
+    "uncategorized": "Sans catégorie",
+    "noTransactions": "Aucune transaction liée à ce projet.",
+    "editTitle": "Modifier le projet",
+    "addTitle": "Ajouter un projet",
+    "projectName": "Nom du projet",
+    "companyName": "Nom de l'entreprise",
+    "projectCategory": "Catégorie du projet",
+    "contactPlaceholder": "Téléphone, e-mail, adresse, etc.",
+    "startDate": "Date de début",
+    "endDate": "Date de fin",
+    "notesPlaceholder": "Notes supplémentaires sur le projet...",
+    "updateProject": "Mettre à jour le projet",
+    "deleteConfirm": "Voulez-vous vraiment supprimer « {{name}} » ? Les références à ce projet seront retirées des transactions liées."
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "carryMode": {
+    "none": "No carry-over",
+    "surplus": "Carry surplus",
+    "deficit": "Carry deficit",
+    "both": "Carry both"
+  },
+  "carryModeDescription": {
+    "none": "Each month starts from the plan amount.",
+    "surplus": "Unspent budget rolls into the next month; overspend is forgiven.",
+    "deficit": "Overspend is deducted from the next month; unspent budget is dropped.",
+    "both": "The net balance, positive or negative, rolls into the next month."
+  },
+  "carryBadge": {
+    "none": "No carry-over",
+    "surplus": "Carries surplus",
+    "deficit": "Carries deficit",
+    "both": "Carries both"
+  },
+  "page": {
+    "title": "Budget",
+    "subtitle": "Monthly plans carry forward until changed. Quarter and year views roll up effective monthly budgets.",
+    "managePlan": "Manage Plan"
+  },
+  "periodSelector": {
+    "previous": "Previous period",
+    "next": "Next period",
+    "quarter": "Quarter"
+  },
+  "statusPanel": {
+    "spentTooltip": "Spent {{amount}} in this category.",
+    "fundSpendTooltip": "{{amount}} of it was paid by a linked fund and is left out.",
+    "fundContributionsTooltip": "{{amount}} is reserved as fund contributions.",
+    "noBudgetSet": "No budget set",
+    "noBudgetHelp": "Create a budget plan for this month. Plans carry forward until a later effective month supersedes them.",
+    "title": "Budget Status",
+    "monthsCovered_one": "{{covered}} of {{count}} month covered",
+    "monthsCovered_other": "{{covered}} of {{count}} months covered",
+    "over": "{{amount}} over",
+    "left": "{{amount}} left",
+    "noThresholdsHelp": "Create a budget plan for spending thresholds. Income sources are still included below.",
+    "notSet": "Not set",
+    "budgeted": "Budgeted",
+    "carriedIn": "Carried in",
+    "effectiveBudget": "Effective budget",
+    "actualExpenses": "Actual expenses",
+    "fundContributions": "Fund contributions",
+    "expectedIncome": "Expected income",
+    "linkedIncome": "Linked income",
+    "categories": "Categories",
+    "categoriesTable": "Budget categories",
+    "columnBudget": "Budget",
+    "columnEffective": "Effective",
+    "columnSpent": "Spent",
+    "columnRemaining": "Remaining",
+    "categoryFallback": "Category {{id}}",
+    "resetTooltip": "Carried balance reset from {{month}}",
+    "fundTooltip": "{{amount}} reserved for linked project or trip funds",
+    "fundBadge": "Fund",
+    "unbudgetedSpend": "Unbudgeted spend: {{amount}}"
+  },
+  "historyList": {
+    "title": "History",
+    "noPlan": "{{period}}: No plan",
+    "over": "{{period}}: {{amount}} over",
+    "under": "{{period}}: {{amount}} under"
+  },
+  "planEditor": {
+    "title": "Budget Plan",
+    "effectiveMonth": "Effective Month",
+    "totalAmount": "Total Amount",
+    "appliesHelp": "This plan applies from its effective month until another plan supersedes it.",
+    "carryOver": "Carry-over",
+    "resetTooltip": "Discard any balance carried into this plan's effective month for this category and start again from the plan amount.",
+    "resetAria": "Reset carried balance from this month",
+    "resetLabel": "Reset from this month",
+    "removeCategory": "Remove category",
+    "addCategory": "Add Category",
+    "carryHelp": "Carry-over rolls each month's leftover (surplus, deficit, or both) into the next month from this plan's effective month on. \"Reset from this month\" drops whatever balance a category brings into this month.",
+    "deletePlan": "Delete Plan"
+  },
+  "fundFields": {
+    "entity": {
+      "project": "project",
+      "trip": "trip"
+    },
+    "categoryFallback": "category",
+    "theCategoryFallback": "the category",
+    "helpUnlinked": "Optional: pick a budget category to save for this {{entity}} a little each month.",
+    "helpNoContribution": "Enter a monthly contribution to start the {{category}} fund.",
+    "helpNoStart": "Set a start month (or a start date) so contributions can accrue.",
+    "helpReserves": "Reserves {{amount}} per month from {{category}} starting {{month}}; the budget counts it as planned spend and {{entity}} expenses draw from the fund.",
+    "title": "Savings fund",
+    "linkedCategory": "Linked Budget Category",
+    "notLinked": "Not linked",
+    "monthlyContribution": "Monthly Contribution",
+    "startMonth": "Contribution Start Month"
+  },
+  "fundSummary": {
+    "noEstimate": "no estimate",
+    "goalReached": "goal reached",
+    "toGoal": "{{amount}} to goal",
+    "fund": "Fund",
+    "perMonth": "{{amount}}/month",
+    "tooltip": "{{contributed}} contributed, {{spent}} spent, {{detail}}",
+    "saved": "Saved {{amount}}",
+    "balance": "balance {{amount}}"
+  },
+  "fundsCard": {
+    "noEstimatedCost": "No estimated cost set",
+    "goalReached": "Goal reached",
+    "monthsToGo_one": "{{count}} month to go",
+    "monthsToGo_other": "{{count}} months to go",
+    "toGoal": "{{amount}} to goal",
+    "title": "Funds",
+    "subtitle": "Projects and trips saving through a budget category, as of {{month}}.",
+    "empty": "Link a project or trip to a budget category with a monthly contribution to start a fund.",
+    "contributionsFrom": "Contributions run from {{start}}",
+    "contributionsFromTo": "Contributions run from {{start}} to {{end}}",
+    "setStartMonth": "Set a start month or start date to accrue contributions",
+    "notContributing": "Not contributing",
+    "savedOfEstimated": "{{contributed}} of {{estimated}} saved",
+    "setEstimatedCost": "Set an estimated cost to track progress",
+    "progressAria": "{{name}} progress",
+    "saved": "Saved {{amount}}",
+    "perMonth": "{{amount}}/month",
+    "balance": "Balance {{amount}}",
+    "spent": "spent {{amount}}"
+  },
+  "incomeSources": {
+    "notSet": "Not set",
+    "title": "Income Sources",
+    "user": "User: {{name}}",
+    "unassigned": "Unassigned",
+    "linkedAccount": "Linked account: {{name}}",
+    "unknownAccount": "Unknown account",
+    "expectedSummary": "Expected {{amount}} {{frequency}} • {{monthly}} / month",
+    "summary": "{{amount}} {{frequency}} • {{monthly}} / month",
+    "frequency": {
+      "weekly": "weekly",
+      "biweekly": "biweekly",
+      "semi_monthly": "semi-monthly",
+      "monthly": "monthly"
+    },
+    "frequencyOption": {
+      "weekly": "Weekly",
+      "biweekly": "Biweekly",
+      "semi_monthly": "Semi-monthly",
+      "monthly": "Monthly"
+    },
+    "editTooltip": "Edit income source",
+    "deleteTooltip": "Delete income source",
+    "empty": "No income sources configured.",
+    "editTitle": "Edit Income Source",
+    "addTitle": "Add Income Source",
+    "kind": "Kind",
+    "kindOption": {
+      "recurring_salary": "Recurring Salary",
+      "linked_account": "Linked Account"
+    },
+    "expectedAmount": "Expected Amount",
+    "expectedAmountHelp": "Optional. Leave blank to use actual deposits only.",
+    "frequencyLabel": "Frequency",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "saving": "Saving..."
+  }
+}

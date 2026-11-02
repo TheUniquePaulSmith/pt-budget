@@ -27,9 +27,12 @@ import {
   Typography,
 } from '@mui/material';
 import { DeleteSweep } from '@mui/icons-material';
+import type { TFunction } from 'i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { ResetAppButton } from '@/components/common/ResetAppButton';
 import { useSettingsSlice } from '@/contexts/useDatabaseSlices';
+import { useFormatters } from '@/contexts/useFormatters';
 import {
   LOG_RETENTION_AGE_OPTIONS,
   LOG_RETENTION_ENTRY_OPTIONS,
@@ -46,13 +49,14 @@ import { resetApp } from '@/lib/resetApp';
 
 const log = logger.child({ component: 'DeveloperSettingsTab' });
 
-function ageLabel(days: number): string {
-  if (days === 0) return 'Until evicted by the entry cap';
-  if (days === 1) return '1 day';
-  return `${days} days`;
+function ageLabel(days: number, t: TFunction<['developer', 'common']>): string {
+  if (days === 0) return t('settingsTab.untilEvicted');
+  return t('settingsTab.days', { count: days });
 }
 
 export default function DeveloperSettingsTab() {
+  const { t } = useTranslation(['developer', 'common']);
+  const { number } = useFormatters();
   const { terminateWorker } = useSettingsSlice();
   const [retention, setRetention] = useState<LogRetention>(() => getLogRetention());
   const [storedCount, setStoredCount] = useState<number | null>(null);
@@ -96,10 +100,10 @@ export default function DeveloperSettingsTab() {
     <Stack spacing={3}>
       <Box>
         <Typography variant="h5" gutterBottom>
-          Developer
+          {t('settingsTab.title')}
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
-          Debug-only tools, visible because the app was opened with <code>?debug</code>.
+          <Trans i18nKey="settingsTab.description" ns="developer" components={{ code: <code /> }} />
         </Typography>
       </Box>
 
@@ -107,48 +111,52 @@ export default function DeveloperSettingsTab() {
 
       <Box>
         <Typography variant="h6" gutterBottom>
-          Diagnostic logs
+          {t('settingsTab.logsTitle')}
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
-          Structured logs from every tab and the database worker are kept in a separate, unencrypted
-          browser store (<code>ptbudgetapp-logs</code>) and shown in the Developer Console.
+          <Trans i18nKey="settingsTab.logsDescription" ns="developer" components={{ code: <code /> }} />
           {storedCount !== null && (
             <>
               {' '}
-              Currently storing <strong data-testid="log-stored-count">{storedCount.toLocaleString()}</strong>{' '}
-              {storedCount === 1 ? 'entry' : 'entries'}.
+              <Trans
+                i18nKey="settingsTab.storing"
+                ns="developer"
+                count={storedCount}
+                values={{ value: number(storedCount) }}
+                components={{ strong: <strong data-testid="log-stored-count" /> }}
+              />
             </>
           )}
         </Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
           <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel id="log-retention-entries-label">Keep at most</InputLabel>
+            <InputLabel id="log-retention-entries-label">{t('settingsTab.keepAtMost')}</InputLabel>
             <Select
               labelId="log-retention-entries-label"
-              label="Keep at most"
+              label={t('settingsTab.keepAtMost')}
               value={retention.maxEntries}
               onChange={(e) => updateRetention({ maxEntries: Number(e.target.value) })}
               data-testid="log-retention-entries"
             >
               {LOG_RETENTION_ENTRY_OPTIONS.map((count) => (
                 <MenuItem key={count} value={count}>
-                  {count.toLocaleString()} entries
+                  {t('settingsTab.entries', { value: number(count) })}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: 240 }}>
-            <InputLabel id="log-retention-age-label">Keep for</InputLabel>
+            <InputLabel id="log-retention-age-label">{t('settingsTab.keepFor')}</InputLabel>
             <Select
               labelId="log-retention-age-label"
-              label="Keep for"
+              label={t('settingsTab.keepFor')}
               value={retention.maxAgeDays}
               onChange={(e) => updateRetention({ maxAgeDays: Number(e.target.value) })}
               data-testid="log-retention-age"
             >
               {LOG_RETENTION_AGE_OPTIONS.map((days) => (
                 <MenuItem key={days} value={days}>
-                  {ageLabel(days)}
+                  {ageLabel(days, t)}
                 </MenuItem>
               ))}
             </Select>
@@ -162,7 +170,7 @@ export default function DeveloperSettingsTab() {
           disabled={storedCount === 0}
           data-testid="log-clear-settings"
         >
-          Clear diagnostic logs
+          {t('settingsTab.clearLogs')}
         </Button>
       </Box>
 
@@ -170,11 +178,10 @@ export default function DeveloperSettingsTab() {
 
       <Box>
         <Typography variant="h6" gutterBottom>
-          Reset App
+          {t('settingsTab.resetTitle')}
         </Typography>
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Deletes the database, all settings, and cookies, then reloads the app to its
-          original, first-run state. This cannot be undone.
+          {t('settingsTab.resetWarning')}
         </Alert>
         <FormControlLabel
           sx={{ mb: 1, display: 'flex' }}
@@ -185,22 +192,21 @@ export default function DeveloperSettingsTab() {
               inputProps={{ 'data-testid': 'reset-include-logs' } as React.InputHTMLAttributes<HTMLInputElement>}
             />
           }
-          label="Also clear diagnostic logs"
+          label={t('settingsTab.alsoClearLogs')}
         />
         <ResetAppButton onReset={() => resetApp(terminateWorker, { includeLogs: includeLogsInReset })} />
       </Box>
 
       <Dialog open={clearDialogOpen} onClose={() => !isClearing && setClearDialogOpen(false)}>
-        <DialogTitle>Clear diagnostic logs?</DialogTitle>
+        <DialogTitle>{t('settingsTab.clearDialogTitle')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Every stored log entry from every tab and the database worker is deleted. Your
-            financial data is not affected.
+            {t('settingsTab.clearDialogBody')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setClearDialogOpen(false)} disabled={isClearing}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             color="warning"
@@ -209,7 +215,7 @@ export default function DeveloperSettingsTab() {
             disabled={isClearing}
             data-testid="log-clear-confirm"
           >
-            {isClearing ? 'Clearing…' : 'Clear logs'}
+            {isClearing ? t('settingsTab.clearing') : t('settingsTab.clearConfirm')}
           </Button>
         </DialogActions>
       </Dialog>

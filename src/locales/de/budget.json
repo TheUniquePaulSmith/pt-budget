@@ -1,0 +1,168 @@
+{
+  "carryMode": {
+    "none": "Kein Übertrag",
+    "surplus": "Überschuss übertragen",
+    "deficit": "Defizit übertragen",
+    "both": "Beides übertragen"
+  },
+  "carryModeDescription": {
+    "none": "Jeder Monat beginnt mit dem Planbetrag.",
+    "surplus": "Nicht ausgegebenes Budget wird in den nächsten Monat übertragen; Überschreitungen werden erlassen.",
+    "deficit": "Überschreitungen werden vom nächsten Monat abgezogen; nicht ausgegebenes Budget verfällt.",
+    "both": "Der Nettosaldo, positiv oder negativ, wird in den nächsten Monat übertragen."
+  },
+  "carryBadge": {
+    "none": "Kein Übertrag",
+    "surplus": "Überträgt Überschuss",
+    "deficit": "Überträgt Defizit",
+    "both": "Überträgt beides"
+  },
+  "page": {
+    "title": "Budget",
+    "subtitle": "Monatspläne gelten bis zur nächsten Änderung weiter. Quartals- und Jahresansichten fassen die wirksamen Monatsbudgets zusammen.",
+    "managePlan": "Plan verwalten"
+  },
+  "periodSelector": {
+    "previous": "Vorheriger Zeitraum",
+    "next": "Nächster Zeitraum",
+    "quarter": "Quartal"
+  },
+  "statusPanel": {
+    "spentTooltip": "{{amount}} in dieser Kategorie ausgegeben.",
+    "fundSpendTooltip": "{{amount}} davon wurde aus einer verknüpften Rücklage bezahlt und bleibt außen vor.",
+    "fundContributionsTooltip": "{{amount}} ist als Rücklagenbeitrag reserviert.",
+    "noBudgetSet": "Kein Budget festgelegt",
+    "noBudgetHelp": "Erstellen Sie einen Budgetplan für diesen Monat. Pläne gelten weiter, bis ein späterer wirksamer Monat sie ablöst.",
+    "title": "Budgetstatus",
+    "monthsCovered_one": "{{covered}} von {{count}} Monat abgedeckt",
+    "monthsCovered_other": "{{covered}} von {{count}} Monaten abgedeckt",
+    "over": "{{amount}} darüber",
+    "left": "{{amount}} übrig",
+    "noThresholdsHelp": "Erstellen Sie einen Budgetplan mit Ausgabengrenzen. Einnahmequellen werden unten trotzdem berücksichtigt.",
+    "notSet": "Nicht festgelegt",
+    "budgeted": "Budgetiert",
+    "carriedIn": "Übertragen",
+    "effectiveBudget": "Wirksames Budget",
+    "actualExpenses": "Tatsächliche Ausgaben",
+    "fundContributions": "Rücklagenbeiträge",
+    "expectedIncome": "Erwartete Einnahmen",
+    "linkedIncome": "Verknüpfte Einnahmen",
+    "categories": "Kategorien",
+    "categoriesTable": "Budgetkategorien",
+    "columnBudget": "Budget",
+    "columnEffective": "Wirksam",
+    "columnSpent": "Ausgegeben",
+    "columnRemaining": "Verbleibend",
+    "categoryFallback": "Kategorie {{id}}",
+    "resetTooltip": "Übertragener Saldo ab {{month}} zurückgesetzt",
+    "fundTooltip": "{{amount}} für verknüpfte Projekt- oder Reiserücklagen reserviert",
+    "fundBadge": "Rücklage",
+    "unbudgetedSpend": "Ausgaben ohne Budget: {{amount}}"
+  },
+  "historyList": {
+    "title": "Verlauf",
+    "noPlan": "{{period}}: Kein Plan",
+    "over": "{{period}}: {{amount}} darüber",
+    "under": "{{period}}: {{amount}} darunter"
+  },
+  "planEditor": {
+    "title": "Budgetplan",
+    "effectiveMonth": "Gültig ab Monat",
+    "totalAmount": "Gesamtbetrag",
+    "appliesHelp": "Dieser Plan gilt ab seinem Startmonat, bis ein anderer Plan ihn ablöst.",
+    "carryOver": "Übertrag",
+    "resetTooltip": "Verwirft jeden Saldo, der für diese Kategorie in den Startmonat dieses Plans übertragen wird, und beginnt wieder beim Planbetrag.",
+    "resetAria": "Übertragenen Saldo ab diesem Monat zurücksetzen",
+    "resetLabel": "Ab diesem Monat zurücksetzen",
+    "removeCategory": "Kategorie entfernen",
+    "addCategory": "Kategorie hinzufügen",
+    "carryHelp": "Der Übertrag nimmt den Rest jedes Monats (Überschuss, Defizit oder beides) ab dem Startmonat dieses Plans in den nächsten Monat mit. „Ab diesem Monat zurücksetzen“ verwirft den Saldo, den eine Kategorie in diesen Monat mitbringt.",
+    "deletePlan": "Plan löschen"
+  },
+  "fundFields": {
+    "entity": {
+      "project": "das Projekt",
+      "trip": "die Reise"
+    },
+    "categoryFallback": "Kategorie",
+    "theCategoryFallback": "der Kategorie",
+    "helpUnlinked": "Optional: Wählen Sie eine Budgetkategorie, um jeden Monat etwas für {{entity}} zurückzulegen.",
+    "helpNoContribution": "Geben Sie einen monatlichen Beitrag ein, um die Rücklage {{category}} zu starten.",
+    "helpNoStart": "Legen Sie einen Startmonat (oder ein Startdatum) fest, damit Beiträge angesammelt werden können.",
+    "helpReserves": "Reserviert ab {{month}} monatlich {{amount}} aus {{category}}; das Budget zählt dies als geplante Ausgabe, und Ausgaben für {{entity}} werden aus der Rücklage bezahlt.",
+    "title": "Sparrücklage",
+    "linkedCategory": "Verknüpfte Budgetkategorie",
+    "notLinked": "Nicht verknüpft",
+    "monthlyContribution": "Monatlicher Beitrag",
+    "startMonth": "Startmonat der Beiträge"
+  },
+  "fundSummary": {
+    "noEstimate": "keine Schätzung",
+    "goalReached": "Ziel erreicht",
+    "toGoal": "{{amount}} bis zum Ziel",
+    "fund": "Rücklage",
+    "perMonth": "{{amount}}/Monat",
+    "tooltip": "{{contributed}} eingezahlt, {{spent}} ausgegeben, {{detail}}",
+    "saved": "{{amount}} gespart",
+    "balance": "Saldo {{amount}}"
+  },
+  "fundsCard": {
+    "noEstimatedCost": "Keine geschätzten Kosten festgelegt",
+    "goalReached": "Ziel erreicht",
+    "monthsToGo_one": "Noch {{count}} Monat",
+    "monthsToGo_other": "Noch {{count}} Monate",
+    "toGoal": "{{amount}} bis zum Ziel",
+    "title": "Rücklagen",
+    "subtitle": "Projekte und Reisen, für die über eine Budgetkategorie gespart wird, Stand {{month}}.",
+    "empty": "Verknüpfen Sie ein Projekt oder eine Reise mit einer Budgetkategorie und einem monatlichen Beitrag, um eine Rücklage zu starten.",
+    "contributionsFrom": "Beiträge laufen ab {{start}}",
+    "contributionsFromTo": "Beiträge laufen von {{start}} bis {{end}}",
+    "setStartMonth": "Legen Sie einen Startmonat oder ein Startdatum fest, um Beiträge anzusammeln",
+    "notContributing": "Keine Beiträge",
+    "savedOfEstimated": "{{contributed}} von {{estimated}} gespart",
+    "setEstimatedCost": "Legen Sie geschätzte Kosten fest, um den Fortschritt zu verfolgen",
+    "progressAria": "Fortschritt von {{name}}",
+    "saved": "{{amount}} gespart",
+    "perMonth": "{{amount}}/Monat",
+    "balance": "Saldo {{amount}}",
+    "spent": "{{amount}} ausgegeben"
+  },
+  "incomeSources": {
+    "notSet": "Nicht festgelegt",
+    "title": "Einnahmequellen",
+    "user": "Benutzer: {{name}}",
+    "unassigned": "Nicht zugewiesen",
+    "linkedAccount": "Verknüpftes Konto: {{name}}",
+    "unknownAccount": "Unbekanntes Konto",
+    "expectedSummary": "Erwartet {{amount}} {{frequency}} • {{monthly}} / Monat",
+    "summary": "{{amount}} {{frequency}} • {{monthly}} / Monat",
+    "frequency": {
+      "weekly": "wöchentlich",
+      "biweekly": "alle zwei Wochen",
+      "semi_monthly": "zweimal monatlich",
+      "monthly": "monatlich"
+    },
+    "frequencyOption": {
+      "weekly": "Wöchentlich",
+      "biweekly": "Alle zwei Wochen",
+      "semi_monthly": "Zweimal monatlich",
+      "monthly": "Monatlich"
+    },
+    "editTooltip": "Einnahmequelle bearbeiten",
+    "deleteTooltip": "Einnahmequelle löschen",
+    "empty": "Keine Einnahmequellen eingerichtet.",
+    "editTitle": "Einnahmequelle bearbeiten",
+    "addTitle": "Einnahmequelle hinzufügen",
+    "kind": "Art",
+    "kindOption": {
+      "recurring_salary": "Regelmäßiges Gehalt",
+      "linked_account": "Verknüpftes Konto"
+    },
+    "expectedAmount": "Erwarteter Betrag",
+    "expectedAmountHelp": "Optional. Leer lassen, um nur tatsächliche Eingänge zu verwenden.",
+    "frequencyLabel": "Häufigkeit",
+    "startDate": "Startdatum",
+    "endDate": "Enddatum",
+    "saving": "Wird gespeichert..."
+  }
+}

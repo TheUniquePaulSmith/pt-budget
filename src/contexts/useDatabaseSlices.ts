@@ -32,6 +32,7 @@ export {
   useTransactionTypeActionsSlice,
 } from './useClassificationSlices';
 export { useLoansPageSlice, useSubscriptionsLoansSlice } from './useLoansSlices';
+export { useCurrencyPreferencesSlice } from './usePreferencesSlices';
 
 export function useAppShellSlice() {
   const status = useDatabaseStatus();
@@ -121,6 +122,7 @@ export function useTransactionReportSlice() {
     users: collections.users,
     trips: collections.trips,
     recurringSeries: collections.recurringSeries,
+    defaultCurrency: collections.currencyPreferences.defaultCurrency,
     getTransactionsPaginated: transactions.getTransactionsPaginated,
     getTransactionsForExport: transactions.getTransactionsForExport,
     setTransactionComment: transactions.setTransactionComment,
@@ -195,6 +197,7 @@ export function useCsvImportSlice() {
   return {
     accounts: collections.accounts,
     users: collections.users,
+    defaultCurrency: collections.currencyPreferences.defaultCurrency,
     // Inline account / person creation during import (mutations refresh the collections).
     addAccountWithCard: accounts.addAccountWithCard,
     addUser: users.addUser,
@@ -252,6 +255,8 @@ export function useDashboardSlice() {
     categories: collections.categories,
     accounts: collections.accounts,
     users: collections.users,
+    defaultCurrency: collections.currencyPreferences.defaultCurrency,
+    exchangeRates: collections.currencyPreferences.exchangeRates,
     getRecentTransactions: transactions.getRecentTransactions,
     getDashboardSummary: transactions.getDashboardSummary,
     getChartData: transactions.getChartData,
@@ -290,6 +295,7 @@ export function useAccountManagementSlice() {
   return {
     accounts: collections.accounts,
     users: collections.users,
+    defaultCurrency: collections.currencyPreferences.defaultCurrency,
     addAccountWithCard: accounts.addAccountWithCard,
     deleteAccount: accounts.deleteAccount,
     updateAccount: accounts.updateAccount,

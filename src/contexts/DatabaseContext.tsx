@@ -80,6 +80,12 @@ import {
   useDatabaseLoansSlice,
   type DatabaseLoansSlice,
 } from './useDatabaseLoansSlice';
+// Schema v6: currency preferences (default currency, manual exchange rates).
+import {
+  useDatabasePreferencesSlice,
+  type DatabasePreferencesSlice,
+} from './useDatabasePreferencesSlice';
+import { CurrencyPreferencesContext } from './CurrencyPreferencesContext';
 import { useDatabaseInitialization } from './useDatabaseInitialization';
 import { isDebugMode } from '../lib/debugMode';
 //import { appLogger } from '../lib/logger';
@@ -162,6 +168,7 @@ interface DatabaseContextType {
   budgetFunds: DatabaseBudgetFundsSlice;
   classification: DatabaseClassificationSlice;
   loans: DatabaseLoansSlice;
+  preferences: DatabasePreferencesSlice;
 }
 
 const DatabaseStatusContext = createContext<DatabaseStatusSlice | null>(null);
@@ -194,6 +201,7 @@ const DatabaseBudgetFundsContext =
 const DatabaseClassificationContext =
   createContext<DatabaseClassificationSlice | null>(null);
 const DatabaseLoansContext = createContext<DatabaseLoansSlice | null>(null);
+const DatabasePreferencesContext = createContext<DatabasePreferencesSlice | null>(null);
 
 function useRequiredContext<T>(
   context: React.Context<T | null>,
@@ -261,6 +269,9 @@ export const useDatabaseClassification = () =>
 export const useDatabaseLoans = () =>
   useRequiredContext(DatabaseLoansContext, 'useDatabaseLoans');
 
+export const useDatabasePreferences = () =>
+  useRequiredContext(DatabasePreferencesContext, 'useDatabasePreferences');
+
 export const useDatabaseContext = (): DatabaseContextType => ({
   status: useDatabaseStatus(),
   collections: useDatabaseCollections(),
@@ -280,6 +291,7 @@ export const useDatabaseContext = (): DatabaseContextType => ({
   budgetFunds: useDatabaseBudgetFunds(),
   classification: useDatabaseClassification(),
   loans: useDatabaseLoans(),
+  preferences: useDatabasePreferences(),
 });
 
 interface DatabaseProviderProps {
@@ -305,6 +317,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     refreshNotifications,
     refreshClassificationRules,
     refreshLoans,
+    refreshCurrencyPreferences,
   } = useDatabaseCollectionsState({
     getDatabaseService: () => databaseService,
   });
@@ -326,6 +339,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     setError,
     handleBrowserTestComplete,
     handlePasswordSetupConfirmed,
+    handlePreferencesConfirmed,
+    skipPreferences,
+    setupDefaultCurrency,
     handleInitialAccountConfirmed,
     skipInitialAccount,
     handlePasswordEntrySubmitted,
@@ -506,6 +522,12 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     refreshTransactions,
     refreshAccounts,
   });
+  const preferencesSlice = useDatabasePreferencesSlice({
+    databaseService,
+    refreshCurrencyPreferences,
+    refreshTransactions,
+    refreshBudgets,
+  });
 
   // Custom SQL query execution
   const executeCustomQuery = useCallback(async (sql: string, timeoutMs?: number): Promise<any[]> => {
@@ -634,6 +656,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         onSwitchToLocalSource={switchToLocalSource}
         onCancelSampleDataImport={cancelSampleDataImport}
         onPasswordSetupConfirmed={handlePasswordSetupConfirmed}
+        onPreferencesConfirmed={handlePreferencesConfirmed}
+        onSkipPreferences={skipPreferences}
+        setupDefaultCurrency={setupDefaultCurrency}
         onInitialAccountConfirmed={handleInitialAccountConfirmed}
         onSkipInitialAccount={skipInitialAccount}
         onPasswordEntrySubmitted={handlePasswordEntrySubmitted}
@@ -664,7 +689,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
                             <DatabaseBudgetFundsContext.Provider value={budgetFundsSlice}>
                             <DatabaseClassificationContext.Provider value={classificationSlice}>
                             <DatabaseLoansContext.Provider value={loansSlice}>
+                            <DatabasePreferencesContext.Provider value={preferencesSlice}>
+                            <CurrencyPreferencesContext.Provider value={collections.currencyPreferences}>
                               {children}
+                            </CurrencyPreferencesContext.Provider>
+                            </DatabasePreferencesContext.Provider>
                             </DatabaseLoansContext.Provider>
                             </DatabaseClassificationContext.Provider>
                             </DatabaseBudgetFundsContext.Provider>

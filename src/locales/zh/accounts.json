@@ -1,0 +1,153 @@
+{
+  "typeShort": {
+    "checking": "支票",
+    "savings": "储蓄",
+    "credit": "信用卡",
+    "loan": "贷款",
+    "investment": "投资",
+    "retirement": "退休"
+  },
+  "display": {
+    "accountOwner": "账户所有者",
+    "unknownUser": "未知用户"
+  },
+  "validation": {
+    "nameRequired": "账户名称为必填项",
+    "numbersInvalid": "期初余额和信用额度必须是数字",
+    "cardDigitsRequired": "请至少输入末 4 位数字"
+  },
+  "formFields": {
+    "nameLabel": "账户名称",
+    "typeLabel": "账户类型",
+    "currencyLabel": "货币",
+    "ownershipLabel": "所有权",
+    "ownershipJoint": "联名（家庭共用）",
+    "institutionLabel": "机构（可选）",
+    "institutionPlaceholder": "银行或券商名称",
+    "openingBalanceLabel": "期初余额",
+    "openingBalanceHelp": "第一笔记录交易之前的余额",
+    "asOfLabel": "截至",
+    "creditLimitLabel": "信用额度",
+    "creditLimitHelp": "用于显示已使用额度的比例",
+    "activeLabel": "活跃",
+    "closedLabel": "已关闭（保留历史记录）",
+    "ownerLabel": "所有者",
+    "selectOwner": "选择所有者",
+    "cardNumberLabel": "卡号/账号",
+    "cardNumberHelp": "输入完整号码或仅末 4 位——其他地方只显示末 4 位",
+    "cardNicknameLabel": "昵称（可选）",
+    "cardholderLabel": "持卡人",
+    "cardholderOwner": "账户所有者"
+  },
+  "formDialog": {
+    "addTitle": "添加新账户",
+    "editTitle": "编辑账户",
+    "newPerson": "+ 新成员…",
+    "firstCard": "第一张卡",
+    "displayNameRequired": "显示名称为必填项",
+    "addPersonFailed": "添加成员失败",
+    "ownerRequired": "所有者为必填项",
+    "saveFailed": "保存账户失败",
+    "saving": "正在保存..."
+  },
+  "detailForm": {
+    "ownerChip": "所有者：{{name}}",
+    "saved": "已保存。",
+    "saveFailed": "保存账户失败",
+    "accountSectionTitle": "账户",
+    "accountSectionDescription": "按下“保存”后更改才会生效。",
+    "cardsSectionTitle": "卡",
+    "cardsSectionDescription": "CSV 导入时用于匹配的卡号和账号。每个账户至少保留一张。",
+    "dangerZoneTitle": "危险区域",
+    "deleteAccount": "删除账户",
+    "deleteHint": "已记录在此账户下的交易将被保留。"
+  },
+  "grid": {
+    "noCards": "无卡",
+    "columnAccount": "账户",
+    "columnType": "类型",
+    "columnInstitution": "机构",
+    "columnOwner": "所有者",
+    "columnCards": "卡",
+    "columnCurrency": "货币",
+    "columnOpening": "期初",
+    "columnActive": "活跃",
+    "columnNetWorth": "净资产",
+    "ownerJoint": "{{owner}}（联名）",
+    "activeTitle": "活跃",
+    "closedTitle": "已关闭",
+    "countedInNetWorth": "计入净资产",
+    "excluded": "不计入",
+    "empty": "还没有账户。添加您的第一个账户以开始使用。"
+  },
+  "page": {
+    "summary": "{{accounts}} • {{people}}",
+    "people_other": "{{count}}位成员",
+    "addAccount": "添加账户",
+    "displayNameRequired": "显示名称为必填项",
+    "saveUserFailed": "保存用户失败",
+    "deleteFailed": {
+      "user": "删除用户失败",
+      "account": "删除账户失败",
+      "card": "删除卡失败"
+    },
+    "emptyNoAccounts": "添加一个账户以开始使用。",
+    "emptySelect": "选择一个账户进行编辑。"
+  },
+  "cardsTable": {
+    "cardholderOwner": "账户所有者",
+    "saveFailed": "保存卡失败",
+    "numberLabel": "卡号/账号",
+    "nicknameLabel": "昵称",
+    "cardholderLabel": "持卡人",
+    "tableLabel": "卡",
+    "columnNumber": "号码",
+    "columnNickname": "昵称",
+    "columnCardholder": "持卡人",
+    "empty": "此账户下没有卡。",
+    "saveCard": "保存卡",
+    "cancelCardEdit": "取消编辑卡",
+    "editCard": "编辑卡",
+    "editCardTitle": "编辑卡",
+    "lastCardTooltip": "每个账户必须至少保留一张卡",
+    "deleteCard": "删除卡",
+    "saveNewCard": "保存新卡",
+    "cancelNewCard": "取消添加新卡",
+    "addCard": "添加卡"
+  },
+  "deleteDialog": {
+    "title": {
+      "user": "删除用户",
+      "account": "删除账户",
+      "card": "删除卡"
+    },
+    "question": {
+      "user": "确定要删除此用户吗？",
+      "account": "确定要删除此账户吗？",
+      "card": "确定要删除此卡吗？"
+    },
+    "hint": {
+      "user": "这将把该用户从所有共享账户中移除。",
+      "account": "与此账户关联的所有交易将被保留。",
+      "card": "匹配此卡号的 CSV 导入将不再生效。"
+    },
+    "deleting": "正在删除..."
+  },
+  "peoplePanel": {
+    "title": "成员",
+    "empty": "还没有成员。",
+    "rename": "重命名{{name}}",
+    "editUser": "编辑用户",
+    "primaryCannotDelete": "主用户不能被删除",
+    "deleteUser": "删除用户",
+    "delete": "删除{{name}}",
+    "primaryUser": "主用户",
+    "counts": "拥有{{owned}}个 • 持卡{{cardholder}}张"
+  },
+  "userDialog": {
+    "addTitle": "添加新用户",
+    "editTitle": "编辑用户",
+    "displayNameLabel": "显示名称",
+    "saving": "正在保存..."
+  }
+}

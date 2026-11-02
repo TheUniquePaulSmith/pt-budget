@@ -27,16 +27,18 @@ import {
   Rule as RuleIcon,
 } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import type { LoanPaymentUpdate } from '@/contexts/useDatabaseLoansSlice';
+import { useFormatters } from '@/contexts/useFormatters';
 import type { Account, Loan, LoanManualPaymentInput, LoanMatchRule, LoanMatchRuleInput, MerchantRuleMatchType } from '@/types/database';
 import type { LoanLedgerEntry, LoanLinkCandidate, LoanRuleScanSummary, LoanSummary } from '@/types/loans';
 import LinkTransactionDialog from './LinkTransactionDialog';
 import LoanPaymentDialog from './LoanPaymentDialog';
 import LoanPrincipalInterestChart from './LoanPrincipalInterestChart';
 import LoanRuleEditorDialog from './LoanRuleEditorDialog';
-import { daysLabel, formatCurrency, formatPercent, loanStatusOption, loanTypeLabel } from './loanPresentation';
+import { daysLabel, loanStatusOption, loanTypeLabel } from './loanPresentation';
 
 interface LoanDetailDialogProps {
   open: boolean;
@@ -98,6 +100,8 @@ export default function LoanDetailDialog({
   deletePayment,
   refreshToken,
 }: LoanDetailDialogProps) {
+  const { t } = useTranslation('loans');
+  const { money, percent } = useFormatters();
   const [summary, setSummary] = useState<LoanSummary | null>(null);
   const [rules, setRules] = useState<LoanMatchRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,6 +115,10 @@ export default function LoanDetailDialog({
   const [scanning, setScanning] = useState(false);
 
   const loanId = loan?.id ?? null;
+  // Every amount on this dialog is the loan's: shown in its linked account's currency.
+  const currency = loan?.account_currency ?? null;
+  const amount = useCallback((value: number | null | undefined) => money(value, currency), [currency, money]);
+  const rate = (value: number | null | undefined) => percent(value, { fromPercent: true, maximumFractionDigits: 2 });
 
   const reload = useCallback(async () => {
     if (loanId == null) return;
@@ -121,11 +129,11 @@ export default function LoanDetailDialog({
       setSummary(nextSummary);
       setRules(nextRules);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load loan');
+      setError(err instanceof Error ? err.message : t('detailDialog.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [getRules, getSummary, loanId]);
+  }, [getRules, getSummary, loanId, t]);
 
   useEffect(() => {
     if (!open || loanId == null) {
@@ -142,10 +150,10 @@ export default function LoanDetailDialog({
     try {
       const result = await applyRules();
       const mine = loanId != null ? result.byLoan[loanId] ?? 0 : 0;
-      setNotice(mine > 0 ? `Linked ${mine} new payment${mine === 1 ? '' : 's'} to this loan.` : 'No new matching transactions.');
+      setNotice(mine > 0 ? t('detailDialog.rulesLinked', { count: mine }) : t('detailDialog.rulesNone'));
       if (result.linked === 0) await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to apply rules');
+      setError(err instanceof Error ? err.message : t('detailDialog.applyFailed'));
     } finally {
       setScanning(false);
     }
@@ -153,44 +161,44 @@ export default function LoanDetailDialog({
 
   const handleDeletePayment = async (entry: LoanLedgerEntry) => {
     if (entry.payment_id == null) return;
-    const what = entry.transaction_id != null ? 'Unlink this transaction from the loan?' : 'Delete this recorded payment?';
+    const what = entry.transaction_id != null ? t('detailDialog.confirmUnlink') : t('detailDialog.confirmDeletePayment');
     if (!window.confirm(what)) return;
     try {
       await deletePayment(entry.payment_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove payment');
+      setError(err instanceof Error ? err.message : t('detailDialog.removePaymentFailed'));
     }
   };
 
   const handleDeleteRule = async (rule: LoanMatchRule) => {
-    if (!window.confirm(`Delete the rule "${rule.pattern}"? Payments it already linked stay on the loan.`)) return;
+    if (!window.confirm(t('detailDialog.confirmDeleteRule', { pattern: rule.pattern }))) return;
     try {
       await deleteRule(rule.id);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete rule');
+      setError(err instanceof Error ? err.message : t('detailDialog.deleteRuleFailed'));
     }
   };
 
   const ledgerColumns = useMemo<GridColDef<LoanLedgerEntry>[]>(
     () => [
-      { field: 'date', headerName: 'Date', width: 110 },
+      { field: 'date', headerName: t('detailDialog.columnDate'), width: 110 },
       {
         field: 'description',
-        headerName: 'Payment',
+        headerName: t('detailDialog.columnPayment'),
         flex: 1.4,
         minWidth: 200,
         renderCell: (params) => {
           const row = params.row;
           if (row.kind === 'deferred_interest_charge') {
             return (
-              <Chip size="small" color="error" variant="outlined" label="Deferred interest charged" />
+              <Chip size="small" color="error" variant="outlined" label={t('detailDialog.deferredChargedChip')} />
             );
           }
           return (
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2" noWrap>
-                {row.description || (row.transaction_id == null ? 'Recorded by hand' : 'Transaction')}
+                {row.description || (row.transaction_id == null ? t('detailDialog.recordedByHand') : t('detailDialog.transaction'))}
               </Typography>
               {row.account_name && (
                 <Typography variant="caption" color="text.secondary" noWrap display="block">
@@ -203,39 +211,39 @@ export default function LoanDetailDialog({
       },
       {
         field: 'amount',
-        headerName: 'Amount',
+        headerName: t('detailDialog.columnAmount'),
         width: 115,
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (value: number) => formatCurrency(value),
+        valueFormatter: (value: number) => amount(value),
       },
       {
         field: 'principal',
-        headerName: 'Principal',
+        headerName: t('detailDialog.columnPrincipal'),
         width: 115,
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (value: number) => formatCurrency(value),
+        valueFormatter: (value: number) => amount(value),
       },
       {
         field: 'interest',
-        headerName: 'Interest',
+        headerName: t('detailDialog.columnInterest'),
         width: 115,
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (value: number) => formatCurrency(value),
+        valueFormatter: (value: number) => amount(value),
       },
       {
         field: 'balance_after',
-        headerName: 'Balance',
+        headerName: t('detailDialog.columnBalance'),
         width: 120,
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (value: number) => formatCurrency(value),
+        valueFormatter: (value: number) => amount(value),
       },
       {
         field: 'source',
-        headerName: 'Source',
+        headerName: t('detailDialog.columnSource'),
         width: 150,
         sortable: false,
         renderCell: (params) => {
@@ -243,10 +251,10 @@ export default function LoanDetailDialog({
           if (row.kind !== 'payment') return null;
           return (
             <Stack direction="row" spacing={0.5}>
-              <Chip size="small" variant="outlined" label={row.match_source === 'rule' ? 'Rule' : 'Manual'} />
+              <Chip size="small" variant="outlined" label={row.match_source === 'rule' ? t('detailDialog.sourceRule') : t('detailDialog.sourceManual')} />
               {row.split_source === 'manual' && (
-                <Tooltip title="Principal / interest entered from the statement">
-                  <Chip size="small" color="info" variant="outlined" label="Split set" />
+                <Tooltip title={t('detailDialog.splitSetTooltip')}>
+                  <Chip size="small" color="info" variant="outlined" label={t('detailDialog.splitSet')} />
                 </Tooltip>
               )}
             </Stack>
@@ -265,20 +273,20 @@ export default function LoanDetailDialog({
           if (row.kind !== 'payment') return null;
           return (
             <Stack direction="row">
-              <Tooltip title="Edit split / notes">
+              <Tooltip title={t('detailDialog.editSplitTooltip')}>
                 <IconButton
                   size="small"
                   onClick={() => {
                     setPaymentEntry(row);
                     setPaymentOpen(true);
                   }}
-                  aria-label="Edit payment"
+                  aria-label={t('detailDialog.editPaymentAria')}
                 >
                   <EditIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Tooltip title={row.transaction_id != null ? 'Unlink from loan' : 'Delete payment'}>
-                <IconButton size="small" onClick={() => handleDeletePayment(row)} aria-label="Remove payment">
+              <Tooltip title={row.transaction_id != null ? t('detailDialog.unlinkTooltip') : t('detailDialog.deletePaymentTooltip')}>
+                <IconButton size="small" onClick={() => handleDeletePayment(row)} aria-label={t('detailDialog.removePaymentAria')}>
                   <DeleteIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -288,15 +296,29 @@ export default function LoanDetailDialog({
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [amount, t]
   );
 
   if (!loan) return null;
 
-  const status = loanStatusOption(loan.status);
+  const status = loanStatusOption(t, loan.status);
   const projection = summary?.projection ?? null;
   const deferred = summary?.deferred ?? null;
   const ledgerRows = summary?.ledger ?? [];
+
+  const subtitle = [
+    loan.lender,
+    loan.owner_display_name,
+    loanTypeLabel(t, loan.loan_type),
+    loan.project_name
+      ? loan.project_company_name
+        ? t('detailDialog.projectWithCompanyPart', { name: loan.project_name, company: loan.project_company_name })
+        : t('detailDialog.projectPart', { name: loan.project_name })
+      : null,
+    loan.account_name ? t('detailDialog.accountPart', { name: loan.account_name }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <>
@@ -308,15 +330,13 @@ export default function LoanDetailDialog({
                 {loan.name}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {[loan.lender, loan.owner_display_name, loanTypeLabel(loan.loan_type)].filter(Boolean).join(' · ')}
-                {loan.project_name ? ` · Project: ${loan.project_name}${loan.project_company_name ? ` (${loan.project_company_name})` : ''}` : ''}
-                {loan.account_name ? ` · Account: ${loan.account_name}` : ''}
+                {subtitle}
               </Typography>
             </Box>
             <Stack direction="row" spacing={1} alignItems="center">
               <Chip size="small" label={status.label} color={status.color} />
               <Button size="small" startIcon={<EditIcon />} onClick={() => onEdit(loan)}>
-                Edit Loan
+                {t('detailDialog.editLoan')}
               </Button>
             </Stack>
           </Box>
@@ -340,23 +360,68 @@ export default function LoanDetailDialog({
           ) : summary ? (
             <>
               <Box display="flex" flexWrap="wrap" gap={3} mb={2}>
-                <Stat label="Balance" value={formatCurrency(summary.balance)} hint={summary.accruedInterest > 0 ? `+ ${formatCurrency(summary.accruedInterest)} interest accrued` : undefined} testId="loan-detail-balance" />
-                <Stat label="Payoff today" value={formatCurrency(summary.payoffAmount)} hint={loan.allows_full_payoff ? 'Full payoff allowed' : `Restricted: ${loan.prepayment_terms || 'see lender terms'}`} />
-                <Stat label="Paid so far" value={formatCurrency(summary.totalPaid)} hint={`${formatCurrency(summary.totalPrincipalPaid)} principal · ${formatCurrency(summary.totalInterestPaid)} interest`} />
                 <Stat
-                  label="Original amount"
-                  value={formatCurrency(summary.originalPrincipal)}
-                  hint={[loan.opened_date ? `Opened ${loan.opened_date}` : null, loan.interest_rate != null ? `${formatPercent(loan.interest_rate)} APR` : null, loan.term_months ? `${loan.term_months} months` : null].filter(Boolean).join(' · ') || undefined}
+                  label={t('detailDialog.statBalance')}
+                  value={amount(summary.balance)}
+                  hint={summary.accruedInterest > 0 ? t('detailDialog.accruedHint', { amount: amount(summary.accruedInterest) }) : undefined}
+                  testId="loan-detail-balance"
                 />
                 <Stat
-                  label="Next payment"
-                  value={summary.nextDueDate ?? (summary.isPaidOff ? 'Paid off' : '—')}
-                  hint={loan.expected_payment != null ? `${formatCurrency(loan.expected_payment)} expected` : projection?.paymentDerivedFromTerm ? `${formatCurrency(projection.assumedPayment)} from the term` : 'Set an expected payment for a projection'}
+                  label={t('detailDialog.statPayoffToday')}
+                  value={amount(summary.payoffAmount)}
+                  hint={
+                    loan.allows_full_payoff
+                      ? t('detailDialog.fullPayoffAllowed')
+                      : t('detailDialog.restricted', { terms: loan.prepayment_terms || t('detailDialog.seeLenderTerms') })
+                  }
                 />
                 <Stat
-                  label="Projected payoff"
-                  value={summary.isPaidOff ? 'Paid off' : projection ? (projection.neverPaysOff ? 'Never at this payment' : projection.payoffDate ?? '—') : '—'}
-                  hint={projection && !projection.neverPaysOff ? `${projection.monthsRemaining} payments · ${formatCurrency(projection.totalInterestRemaining)} more interest` : projection?.neverPaysOff ? 'The payment does not cover the interest' : undefined}
+                  label={t('detailDialog.statPaidSoFar')}
+                  value={amount(summary.totalPaid)}
+                  hint={t('detailDialog.paidSplit', { principal: amount(summary.totalPrincipalPaid), interest: amount(summary.totalInterestPaid) })}
+                />
+                <Stat
+                  label={t('detailDialog.statOriginalAmount')}
+                  value={amount(summary.originalPrincipal)}
+                  hint={
+                    [
+                      loan.opened_date ? t('detailDialog.openedOn', { date: loan.opened_date }) : null,
+                      loan.interest_rate != null ? t('detailDialog.apr', { rate: rate(loan.interest_rate) }) : null,
+                      loan.term_months ? t('plurals.months', { ns: 'common', count: loan.term_months }) : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || undefined
+                  }
+                />
+                <Stat
+                  label={t('detailDialog.statNextPayment')}
+                  value={summary.nextDueDate ?? (summary.isPaidOff ? t('detailDialog.paidOff') : '—')}
+                  hint={
+                    loan.expected_payment != null
+                      ? t('detailDialog.expectedPayment', { amount: amount(loan.expected_payment) })
+                      : projection?.paymentDerivedFromTerm
+                        ? t('detailDialog.paymentFromTerm', { amount: amount(projection.assumedPayment) })
+                        : t('detailDialog.setExpectedPayment')
+                  }
+                />
+                <Stat
+                  label={t('detailDialog.statProjectedPayoff')}
+                  value={
+                    summary.isPaidOff
+                      ? t('detailDialog.paidOff')
+                      : projection
+                        ? projection.neverPaysOff
+                          ? t('detailDialog.neverAtThisPayment')
+                          : projection.payoffDate ?? '—'
+                        : '—'
+                  }
+                  hint={
+                    projection && !projection.neverPaysOff
+                      ? t('detailDialog.remainingHint', { payments: projection.monthsRemaining, amount: amount(projection.totalInterestRemaining) })
+                      : projection?.neverPaysOff
+                        ? t('detailDialog.paymentDoesNotCover')
+                        : undefined
+                  }
                 />
               </Box>
 
@@ -367,26 +432,55 @@ export default function LoanDetailDialog({
                   data-testid="loan-deferred-panel"
                 >
                   {deferred.charged ? (
-                    <>
-                      The promo ended {deferred.promoEndDate} with a balance of {formatCurrency(deferred.projectedBalanceAtPromoEnd)}, so{' '}
-                      <strong>{formatCurrency(deferred.chargedAmount)}</strong> of deferred interest was added. Interest now accrues at{' '}
-                      {formatPercent(loan.deferred_interest_rate)}.
-                    </>
+                    <Trans
+                      t={t}
+                      i18nKey="detailDialog.deferredCharged"
+                      values={{
+                        date: deferred.promoEndDate,
+                        balance: amount(deferred.projectedBalanceAtPromoEnd),
+                        charged: amount(deferred.chargedAmount),
+                        rate: rate(loan.deferred_interest_rate),
+                      }}
+                      components={{ strong: <strong /> }}
+                    />
                   ) : summary.isPaidOff ? (
-                    <>Paid off inside the promo: no deferred interest is due.</>
+                    <>{t('detailDialog.deferredPaidInside')}</>
                   ) : (
                     <>
-                      <strong>Pay off by {deferred.promoEndDate}</strong> ({daysLabel(deferred.daysUntilPromoEnd)}) to avoid{' '}
-                      {formatPercent(loan.deferred_interest_rate)} deferred interest. Accrued so far: {formatCurrency(deferred.deferredInterestAccrued)}.{' '}
+                      <Trans
+                        t={t}
+                        i18nKey="detailDialog.deferredPayBy"
+                        values={{
+                          date: deferred.promoEndDate,
+                          days: daysLabel(t, deferred.daysUntilPromoEnd),
+                          rate: rate(loan.deferred_interest_rate),
+                          accrued: amount(deferred.deferredInterestAccrued),
+                        }}
+                        components={{ strong: <strong /> }}
+                      />{' '}
                       {deferred.onTrack
-                        ? `At the expected payment the balance clears in time.`
-                        : `At the expected payment ${formatCurrency(deferred.projectedBalanceAtPromoEnd)} would remain and about ${formatCurrency(deferred.deferredInterestAtRisk)} of interest would be charged.`}{' '}
-                      {deferred.requiredMonthlyToAvoid != null && (
-                        <>
-                          Required: <strong>{formatCurrency(deferred.requiredMonthlyToAvoid)}</strong>
-                          {deferred.paymentsRemainingInPromo > 0 ? ` × ${deferred.paymentsRemainingInPromo} payment${deferred.paymentsRemainingInPromo === 1 ? '' : 's'}` : ' now'}.
-                        </>
-                      )}
+                        ? t('detailDialog.deferredOnTrack')
+                        : t('detailDialog.deferredAtRisk', {
+                            remaining: amount(deferred.projectedBalanceAtPromoEnd),
+                            atRisk: amount(deferred.deferredInterestAtRisk),
+                          })}{' '}
+                      {deferred.requiredMonthlyToAvoid != null &&
+                        (deferred.paymentsRemainingInPromo > 0 ? (
+                          <Trans
+                            t={t}
+                            i18nKey="detailDialog.deferredRequiredPayments"
+                            count={deferred.paymentsRemainingInPromo}
+                            values={{ amount: amount(deferred.requiredMonthlyToAvoid), count: deferred.paymentsRemainingInPromo }}
+                            components={{ strong: <strong /> }}
+                          />
+                        ) : (
+                          <Trans
+                            t={t}
+                            i18nKey="detailDialog.deferredRequiredNow"
+                            values={{ amount: amount(deferred.requiredMonthlyToAvoid) }}
+                            components={{ strong: <strong /> }}
+                          />
+                        ))}
                     </>
                   )}
                 </Alert>
@@ -394,16 +488,16 @@ export default function LoanDetailDialog({
 
               <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
                 <Typography variant="subtitle1" gutterBottom>
-                  Principal vs. interest
+                  {t('detailDialog.principalVsInterest')}
                 </Typography>
-                <LoanPrincipalInterestChart summary={summary} />
+                <LoanPrincipalInterestChart summary={summary} currency={currency} />
               </Paper>
 
               <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1} mb={1}>
-                <Typography variant="subtitle1">Payments ({summary.paymentCount})</Typography>
+                <Typography variant="subtitle1">{t('detailDialog.payments', { count: summary.paymentCount })}</Typography>
                 <Stack direction="row" spacing={1}>
                   <Button size="small" startIcon={<LinkIcon />} onClick={() => setLinkOpen(true)} data-testid="loan-link-transaction">
-                    Link Transaction
+                    {t('detailDialog.linkTransaction')}
                   </Button>
                   <Button
                     size="small"
@@ -414,7 +508,7 @@ export default function LoanDetailDialog({
                     }}
                     data-testid="loan-record-payment"
                   >
-                    Record Payment
+                    {t('detailDialog.recordPayment')}
                   </Button>
                 </Stack>
               </Box>
@@ -425,7 +519,7 @@ export default function LoanDetailDialog({
                   getRowId={(row) => (row.kind === 'payment' ? `payment-${row.payment_id}` : `charge-${row.date}`)}
                   height={Math.min(Math.max(ledgerRows.length, 2) * 52 + 72, 420)}
                   hideFooter={ledgerRows.length <= 25}
-                  emptyMessage="No payments linked yet."
+                  emptyMessage={t('detailDialog.noPayments')}
                   disableVirtualization={process.env.NODE_ENV === 'test'}
                 />
               </Box>
@@ -434,9 +528,9 @@ export default function LoanDetailDialog({
 
               <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1} mb={1}>
                 <Box>
-                  <Typography variant="subtitle1">Payment rules ({rules.length})</Typography>
+                  <Typography variant="subtitle1">{t('detailDialog.paymentRules', { count: rules.length })}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Transactions matching a rule are linked automatically; they never become subscriptions or bills.
+                    {t('detailDialog.rulesHelp')}
                   </Typography>
                 </Box>
                 <Stack direction="row" spacing={1}>
@@ -446,7 +540,7 @@ export default function LoanDetailDialog({
                     onClick={handleApplyRules}
                     disabled={scanning || rules.length === 0}
                   >
-                    Apply Rules Now
+                    {t('detailDialog.applyRulesNow')}
                   </Button>
                   <Button
                     size="small"
@@ -458,13 +552,13 @@ export default function LoanDetailDialog({
                     }}
                     data-testid="loan-add-rule"
                   >
-                    Add Rule
+                    {t('detailDialog.addRule')}
                   </Button>
                 </Stack>
               </Box>
               {rules.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
-                  No rules yet. Add one with the text your bank uses for this payment (for example &quot;SYNCHRONY BANK PAYMENT&quot;).
+                  {t('detailDialog.noRules')}
                 </Typography>
               ) : (
                 <Stack spacing={1} data-testid="loan-rules-list">
@@ -473,13 +567,13 @@ export default function LoanDetailDialog({
                       <Typography variant="body2" fontFamily="monospace" sx={{ flex: '1 1 200px' }}>
                         {rule.pattern}
                       </Typography>
-                      <Chip size="small" variant="outlined" label={rule.match_type === 'contains' ? 'Contains' : rule.match_type === 'prefix' ? 'Starts with' : 'Exact'} />
-                      <Chip size="small" variant="outlined" label={rule.account_name ? `From ${rule.account_name}` : 'Any account'} />
-                      {!rule.enabled && <Chip size="small" label="Disabled" />}
+                      <Chip size="small" variant="outlined" label={t(`matchType.${rule.match_type}`)} />
+                      <Chip size="small" variant="outlined" label={rule.account_name ? t('detailDialog.fromAccount', { name: rule.account_name }) : t('detailDialog.anyAccount')} />
+                      {!rule.enabled && <Chip size="small" label={t('detailDialog.disabled')} />}
                       <Box flex={1} />
                       <IconButton
                         size="small"
-                        aria-label="Edit rule"
+                        aria-label={t('detailDialog.editRuleAria')}
                         onClick={() => {
                           setEditingRule(rule);
                           setRuleEditorOpen(true);
@@ -487,7 +581,7 @@ export default function LoanDetailDialog({
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" aria-label="Delete rule" onClick={() => handleDeleteRule(rule)}>
+                      <IconButton size="small" aria-label={t('detailDialog.deleteRuleAria')} onClick={() => handleDeleteRule(rule)}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Paper>
@@ -499,7 +593,7 @@ export default function LoanDetailDialog({
                 <>
                   <Divider sx={{ my: 3 }} />
                   <Typography variant="subtitle1" gutterBottom>
-                    Notes
+                    {t('detailDialog.notes')}
                   </Typography>
                   <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                     {loan.notes}
@@ -511,7 +605,7 @@ export default function LoanDetailDialog({
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose} data-testid="loan-detail-close">
-            Close
+            {t('detailDialog.close')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -529,6 +623,7 @@ export default function LoanDetailDialog({
       <LoanPaymentDialog
         open={paymentOpen}
         loanId={loan.id}
+        currency={currency}
         entry={paymentEntry}
         onClose={() => setPaymentOpen(false)}
         onAdd={async (input) => {
@@ -552,7 +647,7 @@ export default function LoanDetailDialog({
           await addRule(input);
           const result = await applyRules();
           const mine = result.byLoan[loan.id] ?? 0;
-          setNotice(mine > 0 ? `Rule created and ${mine} payment${mine === 1 ? '' : 's'} linked.` : 'Rule created. It applies to future transactions.');
+          setNotice(mine > 0 ? t('detailDialog.ruleCreatedLinked', { count: mine }) : t('detailDialog.ruleCreatedFuture'));
           await reload();
         }}
         onUpdate={async (id, input) => {

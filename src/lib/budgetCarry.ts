@@ -8,11 +8,15 @@ import type { BudgetCarryMonth, BudgetCategoryCarryStatus, BudgetStatusWithCarry
 /** Longest look-back getBudgetStatus walks to seed a carried balance. */
 export const MAX_CARRY_LOOKBACK_MONTHS = 36;
 
-export const BUDGET_CARRY_MODES: ReadonlyArray<{ value: BudgetCarryMode; label: string; description: string }> = [
-  { value: 'none', label: 'No carry-over', description: 'Each month starts from the plan amount.' },
-  { value: 'surplus', label: 'Carry surplus', description: 'Unspent budget rolls into the next month; overspend is forgiven.' },
-  { value: 'deficit', label: 'Carry deficit', description: 'Overspend is deducted from the next month; unspent budget is dropped.' },
-  { value: 'both', label: 'Carry both', description: 'The net balance, positive or negative, rolls into the next month.' },
+/**
+ * Carry modes in display order. Labels and descriptions live in
+ * `budget:carryMode.*` / `budget:carryModeDescription.*`.
+ */
+export const BUDGET_CARRY_MODES: ReadonlyArray<{ value: BudgetCarryMode }> = [
+  { value: 'none' },
+  { value: 'surplus' },
+  { value: 'deficit' },
+  { value: 'both' },
 ];
 
 export function isBudgetCarryMode(value: unknown): value is BudgetCarryMode {

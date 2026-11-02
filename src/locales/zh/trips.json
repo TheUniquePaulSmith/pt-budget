@@ -1,0 +1,50 @@
+{
+  "category": {
+    "business": "商务",
+    "vacation": "度假",
+    "family": "家庭",
+    "medical": "医疗",
+    "education": "教育",
+    "other": "其他"
+  },
+  "status": {
+    "planning": "规划中",
+    "in_progress": "进行中",
+    "completed": "已完成",
+    "cancelled": "已取消"
+  },
+  "statusOption": {
+    "planning": "规划中",
+    "in_progress": "进行中",
+    "completed": "已完成",
+    "cancelled": "已取消"
+  },
+  "manage": {
+    "title": "管理旅行",
+    "addTrip": "添加旅行",
+    "editTrip": "编辑旅行",
+    "deleteTrip": "删除旅行",
+    "destination": "目的地：",
+    "purpose": "目的：",
+    "dates": "日期：",
+    "dateRange": "{{start}} - {{end}}",
+    "tbd": "待定",
+    "estimatedCost": "预估费用：",
+    "emptyTitle": "未找到旅行",
+    "emptyHelp": "创建您的第一次旅行，开始记录差旅支出",
+    "addFirstTrip": "添加您的第一次旅行",
+    "addTitle": "添加新旅行",
+    "tripName": "旅行名称",
+    "destinationField": "目的地",
+    "purposeField": "目的",
+    "startDate": "开始日期",
+    "endDate": "结束日期",
+    "estimatedCostField": "预估费用",
+    "saving": "正在保存...",
+    "deleteConfirm": "确定要删除“{{name}}”吗？此操作无法撤销。",
+    "deleting": "正在删除...",
+    "nameRequired": "旅行名称为必填项",
+    "saveFailed": "保存旅行失败",
+    "deleteFailed": "删除旅行失败"
+  }
+}

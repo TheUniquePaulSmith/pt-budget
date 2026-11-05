@@ -126,7 +126,7 @@
   },
   "security": {
     "title": "Sicherheit",
-    "description": "Verwalten Sie das Passwort, das Ihre Exporte und Cloud-Backups schützt.",
+    "description": "Verwalte das Passwort oder die Wiederherstellungsphrase, die deine Datenbank, Exporte und Cloud-Sicherungen schützt, sowie die weiteren Wege, auf denen dieses Gerät sie entsperren kann.",
     "lockTitle": "Datenbank sperren",
     "lockHelp": "Synchronisiert Ihre Datenbank mit der Cloud (falls verbunden) und sperrt sie dann – zum Fortfahren benötigen Sie Ihr Passwort.",
     "locking": "Wird gesperrt…",
@@ -235,5 +235,46 @@
     "applying": "Wird angewendet…",
     "confirmDiscard": "Bestätigen: Lokale Änderungen verwerfen",
     "useCloud": "Cloud-Version verwenden"
+  },
+  "master": {
+    "title": "Hauptgeheimnis",
+    "currentPassword": "Deine Datenbank ist durch ein Passwort geschützt.",
+    "currentRecovery": "Deine Datenbank ist durch eine Wiederherstellungsphrase aus 12 Wörtern geschützt.",
+    "switchToRecovery": "Zu Wiederherstellungsphrase wechseln",
+    "switchToPassword": "Zu Passwort wechseln",
+    "failed": "Die Sicherheitseinstellungen konnten nicht gelesen werden."
+  },
+  "switchMaster": {
+    "toRecoveryTitle": "Zu einer Wiederherstellungsphrase wechseln",
+    "toPasswordTitle": "Zu einem Passwort wechseln",
+    "enterCurrentPassword": "Gib dein aktuelles Passwort ein, um fortzufahren.",
+    "enterCurrentRecovery": "Gib deine aktuelle Wiederherstellungsphrase ein, um fortzufahren.",
+    "currentPasswordLabel": "Aktuelles Passwort",
+    "chooseNewPassword": "Wähle das Passwort, das deine Datenbank ab jetzt schützt. Die Wiederherstellungsphrase funktioniert danach nicht mehr.",
+    "newPasswordLabel": "Neues Passwort",
+    "confirmPasswordLabel": "Neues Passwort bestätigen",
+    "switching": "Wird gewechselt…",
+    "submit": "Wechseln",
+    "doneRecovery": "Deine Datenbank ist jetzt durch die Wiederherstellungsphrase geschützt. Das alte Passwort funktioniert nicht mehr.",
+    "donePassword": "Deine Datenbank ist jetzt durch das neue Passwort geschützt. Die alte Wiederherstellungsphrase funktioniert nicht mehr."
+  },
+  "unlockMethods": {
+    "title": "Entsperrmethoden",
+    "description": "Wege, diese Datenbank auf diesem Gerät zu öffnen. Das Passwort oder die Wiederherstellungsphrase gibt es immer; andere Methoden sind bequeme Ergänzungen, die sich jederzeit entfernen lassen.",
+    "master": "Haupt",
+    "empty": "Auf diesem Gerät sind keine zusätzlichen Entsperrmethoden eingerichtet.",
+    "added": "Hinzugefügt am {{date}}",
+    "lastUsed": "Zuletzt verwendet am {{date}}",
+    "typePassword": "Passwort",
+    "typeRecovery": "Wiederherstellungsphrase",
+    "typePasskey": "Passkey",
+    "typeCloud": "Cloud-Konto"
+  },
+  "securityErrors": {
+    "INVALID_SECRET": "Das aktuelle Passwort oder die aktuelle Wiederherstellungsphrase ist falsch.",
+    "CANNOT_REMOVE_MASTER": "Das Passwort oder die Wiederherstellungsphrase kann nicht entfernt werden – ersetze es stattdessen.",
+    "SLOT_NOT_FOUND": "Diese Entsperrmethode existiert nicht mehr.",
+    "LOCKED": "Entsperre zuerst die Datenbank.",
+    "failed": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
   }
 }

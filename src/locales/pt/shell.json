@@ -95,6 +95,8 @@
     "passwordLabel": "Senha do banco de dados",
     "passwordHelp": "Digite sua senha para confirmar a redefinição.",
     "failed": "Falha ao redefinir",
-    "resetting": "Redefinindo…"
+    "resetting": "Redefinindo…",
+    "recoveryLabel": "Frase de recuperação",
+    "recoveryHelp": "Digite sua frase de recuperação de 12 palavras para confirmar a redefinição."
   }
 }

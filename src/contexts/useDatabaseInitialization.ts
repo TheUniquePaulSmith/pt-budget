@@ -18,6 +18,7 @@ import {
 } from '@/lib/cloudSyncService';
 import { createCloudProviderClient } from '@/lib/cloudProviderClients';
 import { isEncryptedArchive } from '@/lib/databaseEncryption';
+import { getErrorCode, type MasterSecret, type MasterSlotType, type UnlockMethod, type UnlockMethods } from '@/lib/encryptionTypes';
 import {
   getLinkedCloudFile,
   loadPersistedDatabaseSourceState,
@@ -58,6 +59,12 @@ export type InitializationState =
    * is no "open without a password" for an encrypted database.
    */
   | 'needs-unlock'
+  /**
+   * An encryption header from a version before key slots (password-derived
+   * page key) exists on this device. It cannot be opened; the only way
+   * forward is Reset App and a fresh setup or restore.
+   */
+  | 'needs-legacy-reset'
   | 'initialized'
   | 'error';
 
@@ -105,10 +112,19 @@ interface UseDatabaseInitializationResult {
     testResults: TestResults
   ) => Promise<void>;
   /**
-   * Called by the password setup screen once the user has confirmed a password.
-   * Sets the password in the worker and then creates the new database.
+   * Called by the setup screen once the user has confirmed a master secret
+   * (a password, or the entropy behind a freshly generated recovery phrase).
+   * Creates the new database protected by it.
    */
-  handlePasswordSetupConfirmed: (password: string, primaryUserName: string) => Promise<void>;
+  handlePasswordSetupConfirmed: (master: MasterSecret, primaryUserName: string) => Promise<void>;
+  /** The key slots on this device, loaded before the unlock screen is shown (null until known). */
+  unlockMethods: UnlockMethods | null;
+  /** Refreshes `unlockMethods` from the worker (e.g. after a slot was added while unlocked). */
+  refreshUnlockMethods: () => Promise<void>;
+  /** While an encrypted archive waits for its master secret: which kind of secret it needs. */
+  pendingArchiveMasterType: MasterSlotType | null;
+  /** Wipes a pre-key-slot (v1) database this version cannot open and starts over. */
+  handleLegacyResetRequested: () => Promise<void>;
   /**
    * Called by the preferences screen (right after password setup) with the
    * chosen default currency; the language is already applied by LocaleProvider.
@@ -131,10 +147,10 @@ interface UseDatabaseInitializationResult {
   /** Skips adding an initial account and continues to the next setup step. */
   skipInitialAccount: () => Promise<void>;
   /**
-   * Called by the password entry screen when the user enters a password to
-   * decrypt a file they are loading.
+   * Called by the unlock screen when the user enters the master secret of an
+   * encrypted archive they are loading (file or cloud restore).
    */
-  handlePasswordEntrySubmitted: (password: string) => Promise<void>;
+  handlePasswordEntrySubmitted: (master: MasterSecret) => Promise<void>;
   /** Cancels a pending password-entry flow and returns to the setup screen. */
   cancelPasswordEntry: () => void;
   /** Called from the needs-storage-choice screen right after password setup. */
@@ -159,15 +175,15 @@ interface UseDatabaseInitializationResult {
    * encrypting VFS) and, once open, reconciles with the cloud source if
    * one is linked.
    */
-  handleUnlockSubmitted: (password: string) => Promise<void>;
+  handleUnlockSubmitted: (method: UnlockMethod) => Promise<void>;
   /**
    * Debug-only Reset App from the needs-unlock gate. Rejects with
-   * "Incorrect password" — leaving everything untouched — unless `password`
-   * matches the database's stored verifier; otherwise terminates the worker
+   * "Incorrect password" — leaving everything untouched — unless `master`
+   * opens the database's master key slot; otherwise terminates the worker
    * and wipes all local data. The unlocked-app Reset (Settings → Developer)
-   * needs no password: the user has already authenticated.
+   * needs no secret: the user has already authenticated.
    */
-  handleLockedResetRequested: (password: string) => Promise<void>;
+  handleLockedResetRequested: (master: MasterSecret) => Promise<void>;
 }
 
 const BROWSER_TEST_STORAGE_KEY = 'budgetApp_browserTestPassed';
@@ -192,6 +208,8 @@ export function useDatabaseInitialization({
   const [cloudFilePicker, setCloudFilePicker] = useState<CloudFilePickerState>(
     CLOSED_CLOUD_FILE_PICKER
   );
+  const [unlockMethods, setUnlockMethods] = useState<UnlockMethods | null>(null);
+  const [pendingArchiveMasterType, setPendingArchiveMasterType] = useState<MasterSlotType | null>(null);
 
   // Bytes of an encrypted archive that is waiting to be decrypted (e.g. after
   // the user selects a file we detect is encrypted and need the password).
@@ -257,11 +275,22 @@ export function useDatabaseInitialization({
           } else {
             // An encrypted database exists on this device (regardless of
             // whether the persisted source is local or cloud-linked) — the
-            // engine can't open it without the password. Reconciling with
-            // the cloud source (if linked) happens after a successful
-            // unlock, in handleUnlockSubmitted.
-            log.info('Found an existing encrypted database, needs unlock', { operation: 'initialize' });
-            setInitializationState('needs-unlock');
+            // engine can't open it without a key slot's secret. Which slots
+            // exist is readable before unlock and decides what the lock
+            // screen offers. Reconciling with the cloud source (if linked)
+            // happens after a successful unlock, in handleUnlockSubmitted.
+            const methods = await service.getUnlockMethods().catch((err: unknown) => {
+              log.warn('Could not read the unlock methods', { operation: 'initialize', error: err });
+              return null;
+            });
+            setUnlockMethods(methods);
+            if (methods?.legacyHeader) {
+              log.warn('Found a pre-key-slot (v1) encryption header; it cannot be opened', { operation: 'initialize' });
+              setInitializationState('needs-legacy-reset');
+            } else {
+              log.info('Found an existing encrypted database, needs unlock', { operation: 'initialize' });
+              setInitializationState('needs-unlock');
+            }
           }
         } else if (persistedSourceState.source !== 'local') {
           setInitializationState('needs-cloud-auth');
@@ -408,8 +437,10 @@ export function useDatabaseInitialization({
           .catch(() => false);
 
         if (!encryptionAlreadyReady) {
-          // Park the file bytes and ask the user for the password.
+          // Park the file bytes and ask the user for the archive's master
+          // secret (its header says whether that is a password or a phrase).
           pendingEncryptedBytesRef.current = fileBytes;
+          setPendingArchiveMasterType(databaseService.getEncryptedArchiveMeta(fileBytes)?.masterSlot.type ?? 'password');
           setInitializationState('needs-password-entry');
           return;
         }
@@ -508,6 +539,7 @@ export function useDatabaseInitialization({
           // persists the cloud link once the password is confirmed to work.
           pendingEncryptedBytesRef.current = bytes;
           pendingCloudContextRef.current = { provider, file: freshMeta };
+          setPendingArchiveMasterType(databaseService.getEncryptedArchiveMeta(bytes)?.masterSlot.type ?? 'password');
           closeCloudFilePicker();
           setInitializationState('needs-password-entry');
           return;
@@ -618,7 +650,7 @@ export function useDatabaseInitialization({
   // ---------------------------------------------------------------------------
 
   const handlePasswordSetupConfirmed = useCallback(
-    async (password: string, primaryUserName: string) => {
+    async (master: MasterSecret, primaryUserName: string) => {
       if (!databaseService) {
         throw new Error('Database service not initialized');
       }
@@ -628,7 +660,7 @@ export function useDatabaseInitialization({
 
       try {
         const shouldLoadSampleData = SampleDataService.shouldLoadSampleData();
-        await databaseService.createNewDatabase(password, {
+        await databaseService.createNewDatabase(master, {
           deferIndexes: shouldLoadSampleData,
         });
 
@@ -826,7 +858,7 @@ export function useDatabaseInitialization({
   // ---------------------------------------------------------------------------
 
   const handlePasswordEntrySubmitted = useCallback(
-    async (password: string) => {
+    async (master: MasterSecret) => {
       if (!databaseService) {
         throw new Error('Database service not initialized');
       }
@@ -840,19 +872,25 @@ export function useDatabaseInitialization({
       setError(null);
 
       try {
-        // Verify the password can actually decrypt THIS archive before
-        // establishing a local encryption header under it — a wrong
-        // password must never leave behind a header that blocks a clean
-        // retry (this state is only reachable before any local database
-        // exists, so there's nothing else to protect yet).
-        const canDecrypt = await databaseService.canDecryptArchive(pendingBytes, password);
-        if (!canDecrypt) {
-          throw new Error('Incorrect password for this database');
+        const meta = databaseService.getEncryptedArchiveMeta(pendingBytes);
+        if (!meta) {
+          throw new Error('This file is not a readable encrypted backup');
         }
 
-        // Password confirmed: establish this device's local encryption
-        // under it, then decrypt and import the archive.
-        await databaseService.createNewDatabase(password, { deferIndexes: true });
+        // Verify the secret can actually decrypt THIS archive before
+        // establishing a local encryption header under it — a wrong secret
+        // must never leave behind a header that blocks a clean retry (this
+        // state is only reachable before any local database exists, so
+        // there's nothing else to protect yet).
+        const canDecrypt = await databaseService.canDecryptArchive(pendingBytes, master);
+        if (!canDecrypt) {
+          throw new Error(master.type === 'password' ? 'Incorrect password for this database' : 'Incorrect recovery phrase for this database');
+        }
+
+        // Secret confirmed: this device adopts the archive's root key and
+        // master slot (so backup and local copy share one secret), then
+        // decrypts and imports the archive.
+        await databaseService.createNewDatabase(master, { deferIndexes: true }, { keyId: meta.keyId, masterSlot: meta.masterSlot });
         await databaseService.importDatabaseArchiveData(pendingBytes);
 
         const cloudContext = pendingCloudContextRef.current;
@@ -865,6 +903,7 @@ export function useDatabaseInitialization({
         }
 
         pendingEncryptedBytesRef.current = null;
+        setPendingArchiveMasterType(null);
 
         await loadAllData(databaseService);
         setInitializationState('initialized');
@@ -882,6 +921,7 @@ export function useDatabaseInitialization({
   const cancelPasswordEntry = useCallback(() => {
     pendingEncryptedBytesRef.current = null;
     pendingCloudContextRef.current = null;
+    setPendingArchiveMasterType(null);
     setError(null);
     setInitializationState('needs-setup');
   }, []);
@@ -891,13 +931,26 @@ export function useDatabaseInitialization({
   // ---------------------------------------------------------------------------
 
   /** Puts the app into the needs-unlock gate. Call only after the connection has already been closed/locked in the worker. */
+  const refreshUnlockMethods = useCallback(async () => {
+    if (!databaseService) return;
+    try {
+      setUnlockMethods(await databaseService.getUnlockMethods());
+    } catch (err) {
+      log.warn('Could not refresh the unlock methods', { operation: 'getUnlockMethods', error: err });
+    }
+  }, [databaseService]);
+
   const lockDatabaseState = useCallback(() => {
     setError(null);
+    // A slot added during this session (a new passkey, say) must show on the
+    // lock screen, so re-read the header rather than trusting the copy taken
+    // at startup.
+    void refreshUnlockMethods();
     setInitializationState('needs-unlock');
-  }, []);
+  }, [refreshUnlockMethods]);
 
   const handleUnlockSubmitted = useCallback(
-    async (password: string) => {
+    async (method: UnlockMethod) => {
       if (!databaseService) {
         throw new Error('Database service not initialized');
       }
@@ -906,10 +959,10 @@ export function useDatabaseInitialization({
       setError(null);
 
       try {
-        // The SQLite engine itself enforces the password here (the
-        // encrypting VFS rejects a wrong key), so once this succeeds there's
-        // nothing left to separately verify against the cloud copy.
-        await databaseService.unlockDatabase(password);
+        // The worker refuses a wrong secret (the key slot's AES-GCM unwrap
+        // fails), so once this succeeds there's nothing left to separately
+        // verify against the cloud copy.
+        await databaseService.unlockDatabase(method);
 
         if (databaseSourceState.source !== 'local') {
           const provider = databaseSourceState.source;
@@ -928,6 +981,8 @@ export function useDatabaseInitialization({
               try {
                 const { bytes, freshMeta } = await downloadCloudArchive({ provider, file: linkedFile });
                 await applyDownloadedArchive({ databaseService, provider, file: freshMeta, bytes });
+                // The pull may have adopted a master slot changed on another device.
+                void refreshUnlockMethods();
               } catch (err) {
                 log.error('Failed to pull the newer cloud copy', { operation: 'unlockDatabase', process: 'cloud-sync', error: err });
                 setError(err instanceof Error ? err.message : 'Failed to sync from the cloud');
@@ -941,13 +996,13 @@ export function useDatabaseInitialization({
         await loadAllData(databaseService);
         setInitializationState('initialized');
       } catch (err) {
-        log.error('Failed to unlock database', { operation: 'unlockDatabase', error: err });
+        log.error('Failed to unlock database', { operation: 'unlockDatabase', error: err, code: getErrorCode(err) });
         setError(err instanceof Error ? err.message : 'Incorrect password');
       } finally {
         setIsLoading(false);
       }
     },
-    [databaseService, databaseSourceState, loadAllData]
+    [databaseService, databaseSourceState, loadAllData, refreshUnlockMethods]
   );
 
   // ---------------------------------------------------------------------------
@@ -955,25 +1010,35 @@ export function useDatabaseInitialization({
   // ---------------------------------------------------------------------------
 
   const handleLockedResetRequested = useCallback(
-    async (password: string) => {
+    async (master: MasterSecret) => {
       if (!databaseService) {
         throw new Error('Database service not initialized');
       }
 
       // A locked app has not proven who is at the keyboard, so resetting it
-      // (which destroys the database) takes the same password as unlocking it.
-      // Checked against the stored verifier without unlocking anything, and
+      // (which destroys the database) takes the same secret as unlocking it.
+      // Checked against the master key slot without unlocking anything, and
       // before any teardown starts.
-      const isCorrect = await databaseService.verifyCurrentPassword(password);
+      const isCorrect = await databaseService.verifyMaster(master);
       if (!isCorrect) {
-        log.warn('Reset App rejected: incorrect password', { operation: 'resetApp' });
-        throw new Error('Incorrect password');
+        log.warn('Reset App rejected: incorrect secret', { operation: 'resetApp' });
+        throw new Error(master.type === 'password' ? 'Incorrect password' : 'Incorrect recovery phrase');
       }
 
       await resetApp(terminateWorker);
     },
     [databaseService, terminateWorker]
   );
+
+  /**
+   * A v1 (pre-key-slot) header cannot be opened by this version and its
+   * verifier format is gone, so there is no secret to check: wiping it is
+   * the same as the user clearing site data.
+   */
+  const handleLegacyResetRequested = useCallback(async () => {
+    log.warn('Resetting a legacy (v1) encrypted database', { operation: 'resetApp' });
+    await resetApp(terminateWorker);
+  }, [terminateWorker]);
 
   return {
     databaseService,
@@ -1012,5 +1077,9 @@ export function useDatabaseInitialization({
     lockDatabaseState,
     handleUnlockSubmitted,
     handleLockedResetRequested,
+    unlockMethods,
+    refreshUnlockMethods,
+    pendingArchiveMasterType,
+    handleLegacyResetRequested,
   };
 }

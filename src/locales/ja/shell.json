@@ -95,6 +95,8 @@
     "passwordLabel": "データベースのパスワード",
     "passwordHelp": "リセットを確定するにはパスワードを入力してください。",
     "failed": "リセットに失敗しました",
-    "resetting": "リセット中…"
+    "resetting": "リセット中…",
+    "recoveryLabel": "リカバリーフレーズ",
+    "recoveryHelp": "リセットを確認するには12単語のリカバリーフレーズを入力してください。"
   }
 }

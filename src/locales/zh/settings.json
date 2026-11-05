@@ -124,7 +124,7 @@
   },
   "security": {
     "title": "安全",
-    "description": "管理保护您的导出文件和云端备份的密码。",
+    "description": "管理保护你的数据库、导出文件和云端备份的密码或恢复短语，以及此设备可用的其他解锁方式。",
     "lockTitle": "锁定数据库",
     "lockHelp": "将数据库同步到云端（如已连接），然后锁定——之后需要密码才能继续。",
     "locking": "正在锁定…",
@@ -231,5 +231,46 @@
     "applying": "正在应用…",
     "confirmDiscard": "确认：丢弃本地更改",
     "useCloud": "使用云端版本"
+  },
+  "master": {
+    "title": "主密钥",
+    "currentPassword": "你的数据库由密码保护。",
+    "currentRecovery": "你的数据库由 12 个单词的恢复短语保护。",
+    "switchToRecovery": "切换为恢复短语",
+    "switchToPassword": "切换为密码",
+    "failed": "无法读取安全设置。"
+  },
+  "switchMaster": {
+    "toRecoveryTitle": "切换为恢复短语",
+    "toPasswordTitle": "切换为密码",
+    "enterCurrentPassword": "输入当前密码以继续。",
+    "enterCurrentRecovery": "输入当前恢复短语以继续。",
+    "currentPasswordLabel": "当前密码",
+    "chooseNewPassword": "选择今后用于保护数据库的密码。恢复短语将不再有效。",
+    "newPasswordLabel": "新密码",
+    "confirmPasswordLabel": "确认新密码",
+    "switching": "正在切换…",
+    "submit": "切换",
+    "doneRecovery": "你的数据库现在由恢复短语保护。旧密码已失效。",
+    "donePassword": "你的数据库现在由新密码保护。旧的恢复短语已失效。"
+  },
+  "unlockMethods": {
+    "title": "解锁方式",
+    "description": "在此设备上打开此数据库的方式。密码或恢复短语始终存在；其他方式是便捷的附加项，可随时移除。",
+    "master": "主",
+    "empty": "此设备上未设置其他解锁方式。",
+    "added": "添加于 {{date}}",
+    "lastUsed": "上次使用：{{date}}",
+    "typePassword": "密码",
+    "typeRecovery": "恢复短语",
+    "typePasskey": "通行密钥",
+    "typeCloud": "云账户"
+  },
+  "securityErrors": {
+    "INVALID_SECRET": "当前密码或恢复短语不正确。",
+    "CANNOT_REMOVE_MASTER": "密码或恢复短语不能移除，只能替换。",
+    "SLOT_NOT_FOUND": "该解锁方式已不存在。",
+    "LOCKED": "请先解锁数据库。",
+    "failed": "出了点问题，请重试。"
   }
 }

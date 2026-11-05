@@ -16,6 +16,11 @@ import { bootstrapDatabase, runQueryAndReadFirstCell } from '../e2e/helpers/boot
 //   npm run sample-data:generate -- --months=12 --count=130 --seed=review
 //   npx playwright test --config playwright.fixture-export.config.ts
 // Output: tests/e2e/fixtures/v1-budget-tracker.zip (password: TEST_PASSWORD)
+//
+// A fixture captured from a build older than the key-slot encryption (archive
+// format v1) must be re-wrapped before the current app can read it:
+//   node scripts/convert-archive-v1-to-v2.mjs <in.zip> <out.zip> --password TestPassword1!
+// The inner ZIP (and the old-schema database in it) is preserved byte-for-byte.
 const OUTPUT_PATH = path.join(__dirname, '..', 'e2e', 'fixtures', 'v1-budget-tracker.zip');
 
 test('export a v1 database archive with sample data', async ({ page }) => {

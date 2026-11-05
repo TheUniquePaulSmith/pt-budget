@@ -1,39 +1,36 @@
 /**
- * Database Encryption / Decryption utilities.
+ * Page-side reader for the encrypted-archive envelope (format v2).
  *
- * Encrypted archive binary envelope format:
+ * Encrypted archive binary envelope format (written by the worker, see
+ * public/database-encryption.js — the two implementations are kept in step by
+ * databaseEncryption.parity.test.ts):
  *   [4 bytes: header JSON length, little-endian uint32]
- *   [N bytes: EncryptedArchiveMeta JSON (UTF-8, unencrypted)]
+ *   [N bytes: ArchiveMetaV2 JSON (UTF-8, unencrypted)]
  *   [remaining bytes: AES-GCM encrypted payload]
  *
- * The payload is the encrypted bytes of the inner ZIP archive
- * (the existing database.vfs.json + dbstatus.json archive).
- *
- * Key derivation: PBKDF2-HMAC-SHA256, 600 000 iterations, 256-bit key.
- * The salt and IV are stored in the unencrypted header so archives can be
- * decrypted independently given the correct password.
- *
- * AES-GCM's built-in authentication tag means a wrong password produces an
- * explicit decryption error rather than garbled output.
+ * The page never decrypts anything: all key material lives in the
+ * SharedWorker. This module only recognises the envelope and reads its
+ * plaintext header (timestamp, root-key id, master slot type) so the UI can
+ * decide what to ask the user for.
  */
 
-export const ENCRYPTED_ARCHIVE_FORMAT = 'budget-tracker-encrypted-v1' as const;
+import type { ArchiveMetaV2 } from './encryptionTypes';
 
-export const PBKDF2_ITERATIONS = 600_000;
-export const SALT_BYTE_LENGTH = 32;
-export const IV_BYTE_LENGTH = 12; // AES-GCM standard IV length
+export const ENCRYPTED_ARCHIVE_FORMAT = 'budget-tracker-encrypted-v2' as const;
+export const LEGACY_ENCRYPTED_ARCHIVE_FORMAT = 'budget-tracker-encrypted-v1' as const;
+const ENCRYPTED_ARCHIVE_FORMAT_PREFIX = 'budget-tracker-encrypted-v';
+const MAX_HEADER_BYTES = 65_536;
 
-export interface EncryptedArchiveMeta {
-  format: typeof ENCRYPTED_ARCHIVE_FORMAT;
-  /** ISO 8601 timestamp of the last write — readable without decryption. */
-  lastSaveTimestamp: string;
-  /** Hex-encoded 32-byte PBKDF2 salt. */
-  salt: string;
-  /** Hex-encoded 12-byte AES-GCM IV. */
-  iv: string;
-  pbkdf2Iterations: number;
-  algorithm: 'AES-GCM';
-  keyLength: 256;
+export const IV_BYTE_LENGTH = 12;
+
+export class ArchiveFormatError extends Error {
+  readonly code: 'UNSUPPORTED_ARCHIVE_FORMAT' | 'ARCHIVE_CORRUPT';
+
+  constructor(code: 'UNSUPPORTED_ARCHIVE_FORMAT' | 'ARCHIVE_CORRUPT', message: string) {
+    super(message);
+    this.name = 'ArchiveFormatError';
+    this.code = code;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -47,8 +44,8 @@ export function bytesToHex(bytes: Uint8Array): string {
 }
 
 export function hexToBytes(hex: string): Uint8Array {
-  if (hex.length % 2 !== 0) {
-    throw new Error('Invalid hex string length');
+  if (hex.length % 2 !== 0 || /[^0-9a-fA-F]/.test(hex)) {
+    throw new Error('Invalid hex string');
   }
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
@@ -57,33 +54,16 @@ export function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
-async function importPasswordKey(password: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    'PBKDF2',
-    false,
-    ['deriveKey']
-  );
-}
-
-export async function deriveKey(
-  password: string,
-  salt: Uint8Array
-): Promise<CryptoKey> {
-  const keyMaterial = await importPasswordKey(password);
-  return crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt,
-      iterations: PBKDF2_ITERATIONS,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false, // non-extractable
-    ['encrypt', 'decrypt']
-  );
+function readHeaderLength(bytes: Uint8Array): number {
+  if (bytes.byteLength < 8) {
+    throw new ArchiveFormatError('ARCHIVE_CORRUPT', 'Invalid encrypted archive: file is too short');
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const headerLength = view.getUint32(0, true);
+  if (headerLength > MAX_HEADER_BYTES || 4 + headerLength > bytes.byteLength) {
+    throw new ArchiveFormatError('ARCHIVE_CORRUPT', 'Invalid encrypted archive: header length out of bounds');
+  }
+  return headerLength;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,23 +71,21 @@ export async function deriveKey(
 // ---------------------------------------------------------------------------
 
 /**
- * Returns `true` if the bytes appear to be an encrypted archive produced by
- * this module. Only reads the first ~100 bytes; does not decrypt anything.
+ * Returns `true` if the bytes look like an encrypted archive written by any
+ * version of this app (v1 included, so callers can report "unsupported
+ * format" rather than "not an archive"). Reads only the first ~100 bytes.
  */
 export function isEncryptedArchive(bytes: Uint8Array): boolean {
   if (bytes.byteLength < 8) return false;
 
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const headerLength = view.getUint32(0, true);
-
-  // Sanity bounds: header must fit inside the buffer and be reasonable in size.
-  if (headerLength > 65_536 || 4 + headerLength > bytes.byteLength) return false;
+  if (headerLength > MAX_HEADER_BYTES || 4 + headerLength > bytes.byteLength) return false;
 
   try {
-    // Only decode the first 100 bytes of the header for a quick check.
     const peekEnd = Math.min(4 + 100, 4 + headerLength);
     const peek = new TextDecoder().decode(bytes.slice(4, peekEnd));
-    return peek.includes(ENCRYPTED_ARCHIVE_FORMAT);
+    return peek.includes(ENCRYPTED_ARCHIVE_FORMAT_PREFIX);
   } catch {
     return false;
   }
@@ -118,180 +96,36 @@ export function isEncryptedArchive(bytes: Uint8Array): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Reads and returns the unencrypted metadata header from an encrypted archive.
- * This does NOT decrypt the payload, so no password is required.
+ * Reads and validates the unencrypted v2 metadata header. Throws
+ * `UNSUPPORTED_ARCHIVE_FORMAT` for a v1 archive and `ARCHIVE_CORRUPT` for
+ * anything else that is not a well-formed v2 header.
  */
-export function readEncryptedArchiveMeta(bytes: Uint8Array): EncryptedArchiveMeta {
-  if (bytes.byteLength < 8) {
-    throw new Error('Invalid encrypted archive: file is too short');
-  }
-
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const headerLength = view.getUint32(0, true);
-
-  if (headerLength > 65_536 || 4 + headerLength > bytes.byteLength) {
-    throw new Error('Invalid encrypted archive: header length out of bounds');
-  }
-
+export function readEncryptedArchiveMeta(bytes: Uint8Array): ArchiveMetaV2 {
+  const headerLength = readHeaderLength(bytes);
   const headerText = new TextDecoder().decode(bytes.slice(4, 4 + headerLength));
 
-  let meta: EncryptedArchiveMeta;
+  let meta: Partial<Omit<ArchiveMetaV2, 'format'>> & { format?: string };
   try {
-    meta = JSON.parse(headerText) as EncryptedArchiveMeta;
+    meta = JSON.parse(headerText) as Partial<Omit<ArchiveMetaV2, 'format'>> & { format?: string };
   } catch {
-    throw new Error('Invalid encrypted archive: header is not valid JSON');
+    throw new ArchiveFormatError('ARCHIVE_CORRUPT', 'Invalid encrypted archive: header is not valid JSON');
   }
 
+  if (meta.format === LEGACY_ENCRYPTED_ARCHIVE_FORMAT) {
+    throw new ArchiveFormatError(
+      'UNSUPPORTED_ARCHIVE_FORMAT',
+      'This backup was created by an older version of the app and can no longer be opened. Export a new backup from a current version.'
+    );
+  }
   if (meta.format !== ENCRYPTED_ARCHIVE_FORMAT) {
-    throw new Error(
+    throw new ArchiveFormatError(
+      'UNSUPPORTED_ARCHIVE_FORMAT',
       `Invalid encrypted archive: unsupported format "${meta.format}"`
     );
   }
-
-  return meta;
-}
-
-// ---------------------------------------------------------------------------
-// Encryption
-// ---------------------------------------------------------------------------
-
-/**
- * Wraps `plainArchiveBytes` (the inner ZIP produced by `createDatabaseArchive`)
- * in the encrypted envelope format and returns the outer bytes.
- */
-export async function encryptArchive(
-  plainArchiveBytes: Uint8Array,
-  password: string,
-  lastSaveTimestamp: string
-): Promise<Uint8Array> {
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
-  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTE_LENGTH));
-
-  const key = await deriveKey(password, salt);
-
-  const encryptedPayloadBuffer = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    plainArchiveBytes
-  );
-
-  const meta: EncryptedArchiveMeta = {
-    format: ENCRYPTED_ARCHIVE_FORMAT,
-    lastSaveTimestamp,
-    salt: bytesToHex(salt),
-    iv: bytesToHex(iv),
-    pbkdf2Iterations: PBKDF2_ITERATIONS,
-    algorithm: 'AES-GCM',
-    keyLength: 256,
-  };
-
-  const headerBytes = new TextEncoder().encode(JSON.stringify(meta));
-  const headerLengthBytes = new Uint8Array(4);
-  new DataView(headerLengthBytes.buffer).setUint32(0, headerBytes.byteLength, true);
-
-  const encryptedPayloadBytes = new Uint8Array(encryptedPayloadBuffer);
-  const result = new Uint8Array(
-    4 + headerBytes.byteLength + encryptedPayloadBytes.byteLength
-  );
-  result.set(headerLengthBytes, 0);
-  result.set(headerBytes, 4);
-  result.set(encryptedPayloadBytes, 4 + headerBytes.byteLength);
-
-  return result;
-}
-
-// ---------------------------------------------------------------------------
-// Decryption
-// ---------------------------------------------------------------------------
-
-/**
- * Decrypts an encrypted archive and returns the inner ZIP bytes.
- * Throws if the password is wrong or the archive is corrupted.
- */
-export async function decryptArchive(
-  encryptedBytes: Uint8Array,
-  password: string
-): Promise<Uint8Array> {
-  const meta = readEncryptedArchiveMeta(encryptedBytes);
-
-  const salt = hexToBytes(meta.salt);
-  const iv = hexToBytes(meta.iv);
-
-  const view = new DataView(
-    encryptedBytes.buffer,
-    encryptedBytes.byteOffset,
-    encryptedBytes.byteLength
-  );
-  const headerLength = view.getUint32(0, true);
-  const encryptedPayload = encryptedBytes.slice(4 + headerLength);
-
-  const key = await deriveKey(password, salt);
-
-  try {
-    const plainBuffer = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      encryptedPayload
-    );
-    return new Uint8Array(plainBuffer);
-  } catch {
-    throw new Error(
-      'Decryption failed: the password is incorrect or the archive is corrupted'
-    );
+  if (typeof meta.keyId !== 'string' || typeof meta.iv !== 'string' || !meta.masterSlot || typeof meta.masterSlot !== 'object') {
+    throw new ArchiveFormatError('ARCHIVE_CORRUPT', 'Invalid encrypted archive: header is incomplete');
   }
-}
 
-// ---------------------------------------------------------------------------
-// Page-encryption key (VFS-level at-rest encryption of the live database)
-// ---------------------------------------------------------------------------
-//
-// Uses the same PBKDF2-HMAC-SHA256 -> AES-256-GCM derivation as the archive
-// path above, but with its own independently-random salt (persisted in the
-// worker's out-of-band encryption header) so the page-encryption key and the
-// archive-encryption key are cryptographically independent even though both
-// are derived from the same password.
-
-const PAGE_KEY_VERIFIER_PLAINTEXT = 'budget-tracker-page-key-check-v1';
-
-/** Derives the AES-256-GCM key used to encrypt/decrypt live database pages. */
-export async function derivePageKey(
-  password: string,
-  pageSalt: Uint8Array
-): Promise<CryptoKey> {
-  return deriveKey(password, pageSalt);
-}
-
-/**
- * Encrypts a fixed, non-secret constant under `pageKey` so a later unlock
- * attempt can reject a wrong password immediately, without ever touching the
- * VFS-managed blocks.
- */
-export async function createPageKeyVerifier(
-  pageKey: CryptoKey
-): Promise<{ verifierIv: string; verifierCiphertext: string }> {
-  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTE_LENGTH));
-  const plaintext = new TextEncoder().encode(PAGE_KEY_VERIFIER_PLAINTEXT);
-  const cipherBuffer = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, pageKey, plaintext);
-  return {
-    verifierIv: bytesToHex(iv),
-    verifierCiphertext: bytesToHex(new Uint8Array(cipherBuffer)),
-  };
-}
-
-/** Returns `true` only if `pageKey` correctly decrypts the stored verifier. */
-export async function checkPageKeyVerifier(
-  pageKey: CryptoKey,
-  verifierIv: string,
-  verifierCiphertext: string
-): Promise<boolean> {
-  try {
-    const plainBuffer = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: hexToBytes(verifierIv) },
-      pageKey,
-      hexToBytes(verifierCiphertext)
-    );
-    return new TextDecoder().decode(plainBuffer) === PAGE_KEY_VERIFIER_PLAINTEXT;
-  } catch {
-    return false;
-  }
+  return meta as ArchiveMetaV2;
 }

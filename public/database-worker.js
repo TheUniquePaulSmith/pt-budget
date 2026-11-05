@@ -152,16 +152,22 @@ class DatabaseWorker {
     this.queryQueue = [];
     this.isProcessingQuery = false;
 
-    // Encryption — both are cached in worker memory for the lifetime of this
+    // Encryption — cached in worker memory for the lifetime of this
     // SharedWorker instance (i.e. while at least one tab remains open).
-    // `pageKey` (mirrors the VFS's own key) gates every database open/read/
-    // write; `encryptionPassword` is the raw password, used only to derive
-    // the separate archive-encryption key (see database-encryption.js).
+    // `rootKey` is the database's random 256-bit root key as raw bytes (kept
+    // raw so new key slots can wrap it later); `pageKey` and `archiveKey` are
+    // the HKDF-derived AES-GCM subkeys. `pageKey` (mirrors the VFS's own key)
+    // gates every database open/read/write; `archiveKey` encrypts exports.
+    // No password or other slot secret is ever retained (see
+    // database-key-slots.js and docs/Encryption.md).
+    this.rootKey = null;
     this.pageKey = null;
-    this.encryptionPassword = null;
+    this.archiveKey = null;
 
-    // Lazy-loaded encryption module (public/database-encryption.js)
+    // Lazy-loaded encryption modules (public/database-encryption.js,
+    // public/database-key-slots.js)
     this._encryptionModule = null;
+    this._keySlotsModule = null;
 
     // Change-notification debounce state (see notifyDatabaseChanged)
     this.changeNotifyTimer = null;
@@ -189,6 +195,38 @@ class DatabaseWorker {
     return this._encryptionModule;
   }
 
+  async getKeySlotsModule() {
+    if (!this._keySlotsModule) {
+      this._keySlotsModule = await import('/database-key-slots.js');
+    }
+    return this._keySlotsModule;
+  }
+
+  /** Forgets every piece of key material (root key zeroed) and clears the VFS key. */
+  clearKeyMaterial() {
+    if (this.rootKey) {
+      this.rootKey.fill(0);
+    }
+    this.rootKey = null;
+    this.pageKey = null;
+    this.archiveKey = null;
+    this.vfs?.clearKey();
+  }
+
+  /**
+   * Installs `rootKey` as the live key: derives the page and archive subkeys
+   * and hands the page key to the encrypting VFS. Takes ownership of the bytes.
+   */
+  async installRootKey(rootKey, blockSize) {
+    const ks = await this.getKeySlotsModule();
+    const [pageKey, archiveKey] = await Promise.all([ks.derivePageKey(rootKey), ks.deriveArchiveKey(rootKey)]);
+    this.clearKeyMaterial();
+    this.rootKey = rootKey;
+    this.pageKey = pageKey;
+    this.archiveKey = archiveKey;
+    this.vfs.setKey(pageKey, blockSize);
+  }
+
   // True when a page key is held AND the header it was derived from still
   // exists. The header lives in its own IndexedDB database, so it can vanish
   // (Reset App, cleared site data) while this SharedWorker keeps running with
@@ -196,7 +234,7 @@ class DatabaseWorker {
   // so drop it and let the caller fall back to the setup/password flow
   // rather than importing into a store that has no header.
   async isEncryptionReady(requestLog) {
-    if (this.pageKey === null) {
+    if (this.rootKey === null) {
       return false;
     }
 
@@ -234,9 +272,7 @@ class DatabaseWorker {
       this.isConnected = false;
     }
 
-    this.vfs.clearKey();
-    this.pageKey = null;
-    this.encryptionPassword = null;
+    this.clearKeyMaterial();
 
     this.vfs.close();
     const { EncryptedIDBBatchAtomicVFS } = await import('/database-encrypted-vfs.js');
@@ -245,24 +281,70 @@ class DatabaseWorker {
   }
 
   async encryptArchiveBytes(plainArchiveBytes, lastSaveTimestamp) {
-    if (!this.encryptionPassword) {
-      throw new Error('Database is locked — unlock it before exporting');
+    if (!this.archiveKey) {
+      throw new (await this.getEncryptionModule()).EncryptionError('LOCKED', 'Database is locked — unlock it before exporting');
     }
     const enc = await this.getEncryptionModule();
-    return enc.encryptArchive(plainArchiveBytes, this.encryptionPassword, lastSaveTimestamp);
+    const ks = await this.getKeySlotsModule();
+    const header = ks.assertHeaderInvariants(await this.requireEncryptionHeader());
+    return enc.encryptArchive(
+      plainArchiveBytes,
+      { archiveKey: this.archiveKey, keyId: header.keyId, masterSlot: ks.findMasterSlot(header) },
+      lastSaveTimestamp
+    );
   }
 
-  // `explicitPassword` lets a caller decrypt a standalone archive (e.g. a
-  // file/cloud download picked before any local database exists) using
-  // whatever password the user just typed, without depending on — or
-  // side-affecting — the worker's ambient cached password.
-  async decryptArchiveBytes(encryptedBytes, explicitPassword) {
-    const password = explicitPassword || this.encryptionPassword;
-    if (!password) {
-      throw new Error('Database is locked — unlock it before importing');
-    }
+  /**
+   * Decrypts a standalone archive (a picked file or a cloud download).
+   *
+   * With `master` (`{ type, secret }`), the archive's embedded master slot is
+   * opened with that secret — used before any local database exists, and when
+   * the archive belongs to a different database. Without it, the archive must
+   * have been written by THIS database (same `keyId`), and the in-memory
+   * archive key decrypts it; otherwise ARCHIVE_KEY_MISMATCH asks the caller
+   * to prompt for the archive's own master secret.
+   *
+   * `adoptMasterSlot` is the cloud-sync path: when the archive carries a
+   * different master slot for the same root key (the master was changed on
+   * another device), the local header adopts it so this device asks for the
+   * new secret from now on.
+   */
+  async decryptArchiveBytes(encryptedBytes, options = {}, requestLog) {
+    const log = requestLog || this.log;
     const enc = await this.getEncryptionModule();
-    return enc.decryptArchive(encryptedBytes, password);
+    const ks = await this.getKeySlotsModule();
+    const meta = enc.readEncryptedArchiveMeta(encryptedBytes);
+
+    if (options.master) {
+      const rootKey = await ks.openSlot(meta.masterSlot, options.master.secret);
+      try {
+        const archiveKey = await ks.deriveArchiveKey(rootKey);
+        return await enc.decryptArchive(encryptedBytes, archiveKey);
+      } finally {
+        ks.zeroize(rootKey);
+      }
+    }
+
+    if (!this.archiveKey) {
+      throw new enc.EncryptionError('LOCKED', 'Database is locked — unlock it before importing');
+    }
+    const header = await this.requireEncryptionHeader();
+    if (meta.keyId !== header.keyId) {
+      throw new enc.EncryptionError(
+        'ARCHIVE_KEY_MISMATCH',
+        'This backup belongs to a different database — enter its password or recovery phrase to open it'
+      );
+    }
+    const plainBytes = await enc.decryptArchive(encryptedBytes, this.archiveKey);
+
+    if (options.adoptMasterSlot) {
+      const adopted = ks.adoptArchiveMasterSlot(header, meta);
+      if (adopted) {
+        await this.writeEncryptionHeader(adopted);
+        log.info('Master key slot adopted from the synced archive', { masterType: meta.masterSlot.type });
+      }
+    }
+    return plainBytes;
   }
 
   // ---------------------------------------------------------------------------
@@ -331,15 +413,51 @@ class DatabaseWorker {
     }
   }
 
-  /** Compares a candidate password against the stored header's verifier, without unlocking anything. */
-  async verifyPassword(password) {
-    if (typeof password !== 'string' || password.length === 0) return false;
+  /** Header facts the lock screen needs before anything is unlocked: which slots exist and of what type. */
+  async getUnlockMethods() {
+    const ks = await this.getKeySlotsModule();
+    const header = await this.readEncryptionHeader();
+    return { ...ks.summarizeHeader(header), isUnlocked: this.rootKey !== null };
+  }
+
+  /** Reads the header and refuses v1 (password-derived page key) headers, which this version cannot open. */
+  async requireV2Header() {
+    const ks = await this.getKeySlotsModule();
+    const enc = await this.getEncryptionModule();
+    const header = await this.readEncryptionHeader();
+    if (!header) {
+      throw new enc.EncryptionError('NO_DATABASE', 'No encrypted database found on this device');
+    }
+    if (ks.isLegacyHeader(header)) {
+      throw new enc.EncryptionError(
+        'LEGACY_HEADER',
+        'This database was created by an older version of the app and cannot be opened. Reset the app and set it up again.'
+      );
+    }
+    return ks.assertHeaderInvariants(header);
+  }
+
+  /** Normalises a `{ type, secret }` master descriptor from the page; the secret may arrive as an ArrayBuffer. */
+  static normalizeMaster(master) {
+    if (!master || typeof master !== 'object' || !['password', 'recovery'].includes(master.type)) {
+      throw new Error('A master secret of type "password" or "recovery" is required');
+    }
+    const secret = master.secret instanceof ArrayBuffer ? new Uint8Array(master.secret) : master.secret;
+    if (master.type === 'password' && (typeof secret !== 'string' || secret.length === 0)) {
+      throw new Error('Password must be a non-empty string');
+    }
+    return { type: master.type, secret };
+  }
+
+  /** Compares a candidate master secret against the header's master slot, without unlocking anything. */
+  async verifyMaster(master) {
     try {
-      const header = await this.readEncryptionHeader();
-      if (!header) return false;
-      const enc = await this.getEncryptionModule();
-      const candidateKey = await enc.derivePageKey(password, enc.hexToBytes(header.pageSalt));
-      return await enc.checkPageKeyVerifier(candidateKey, header.verifierIv, header.verifierCiphertext);
+      const ks = await this.getKeySlotsModule();
+      const header = await this.requireV2Header();
+      const slot = ks.findMasterSlot(header);
+      const { type, secret } = DatabaseWorker.normalizeMaster(master);
+      if (slot.type !== type) return false;
+      return await ks.verifySlotSecret(slot, secret);
     } catch {
       return false;
     }
@@ -349,86 +467,115 @@ class DatabaseWorker {
   // Database create / unlock / lock (VFS-level page encryption)
   // ---------------------------------------------------------------------------
 
-  /** Creates a brand-new encrypted database. Fails if one already exists on this device. */
-  async createNewDatabase(password, filename, options, requestLog) {
+  /**
+   * Creates a brand-new encrypted database. Fails if one already exists on this device.
+   *
+   * `master` is `{ type: 'password', secret }` or `{ type: 'recovery', secret: Uint8Array(16) }`.
+   * With `restoreFrom` (`{ keyId, masterSlot }` from an archive header) the
+   * database adopts the ARCHIVE's root key — unwrapped from its master slot
+   * with `master` — so the restored database shares one master slot with the
+   * backup it came from, instead of minting a new root key.
+   */
+  async createNewDatabase({ master, label, restoreFrom, filename, options }, requestLog) {
     const log = requestLog || this.log;
     if (!this.isInitialized) {
       await this.initialize(log);
     }
-    if (typeof password !== 'string' || password.length === 0) {
-      throw new Error('Password must be a non-empty string');
-    }
+    const { type, secret } = DatabaseWorker.normalizeMaster(master);
 
     const existing = await this.readEncryptionHeader();
     if (existing) {
-      throw new Error('An encrypted database already exists on this device');
+      throw new (await this.getEncryptionModule()).EncryptionError('DATABASE_EXISTS', 'An encrypted database already exists on this device');
     }
 
-    const enc = await this.getEncryptionModule();
+    const ks = await this.getKeySlotsModule();
     const vfsModule = await import('/database-encrypted-vfs.js');
-    const pageSalt = crypto.getRandomValues(new Uint8Array(32));
-    const pageKey = await enc.derivePageKey(password, pageSalt);
-    const verifier = await enc.createPageKeyVerifier(pageKey);
+    const blockSize = vfsModule.DEFAULT_BLOCK_SIZE;
 
-    const header = {
-      id: 'default',
-      format: 'budget-tracker-page-encryption-header-v1',
-      createdAt: new Date().toISOString(),
-      pageSalt: enc.bytesToHex(pageSalt),
-      pbkdf2Iterations: enc.PBKDF2_ITERATIONS,
-      blockSize: vfsModule.DEFAULT_BLOCK_SIZE,
-      verifierIv: verifier.verifierIv,
-      verifierCiphertext: verifier.verifierCiphertext,
-    };
+    let rootKey;
+    let header;
+    if (restoreFrom) {
+      // Wrong secret → INVALID_SECRET before anything is written.
+      rootKey = await ks.openSlot(restoreFrom.masterSlot, secret);
+      header = ks.createHeader({ keyId: restoreFrom.keyId, blockSize, masterSlot: restoreFrom.masterSlot });
+    } else {
+      rootKey = ks.generateRootKey();
+      const masterSlot = await ks.createSlot({ type, secret, label }, rootKey);
+      header = ks.createHeader({ keyId: ks.generateKeyId(), blockSize, masterSlot });
+    }
+
     await this.writeEncryptionHeader(header);
-
-    this.vfs.setKey(pageKey, header.blockSize);
-    this.pageKey = pageKey;
-    this.encryptionPassword = password;
-    log.info('Encryption header written for a new database');
+    await this.installRootKey(rootKey, header.blockSize);
+    log.info('Encryption header written for a new database', { masterType: type, restored: Boolean(restoreFrom) });
 
     return await this.openDatabase(filename, true, options, log);
   }
 
-  /** Unlocks the existing encrypted database on this device. Rejects on a wrong password without touching the VFS/blocks. */
-  async unlockDatabase(password, filename, requestLog) {
+  /**
+   * Unlocks the existing encrypted database on this device with one of its
+   * key slots. Rejects on a wrong secret without touching the VFS/blocks.
+   *
+   * `method` is `{ type: 'password'|'recovery', secret }` for the master slot,
+   * or `{ type: 'passkey'|'cloud', slotId, secret: Uint8Array }` for a
+   * convenience slot.
+   */
+  async unlockDatabase({ method, filename }, requestLog) {
     const log = requestLog || this.log;
     if (!this.isInitialized) {
       await this.initialize(log);
     }
-    if (typeof password !== 'string' || password.length === 0) {
-      throw new Error('Password must be a non-empty string');
-    }
-    if (this.isConnected) {
-      throw new Error('Database is already unlocked — call lock_database first');
-    }
-
-    const header = await this.readEncryptionHeader();
-    if (!header) {
-      throw new Error('No encrypted database found on this device');
-    }
-
     const enc = await this.getEncryptionModule();
-    const pageKey = await enc.derivePageKey(password, enc.hexToBytes(header.pageSalt));
-    const isValid = await enc.checkPageKeyVerifier(pageKey, header.verifierIv, header.verifierCiphertext);
-    if (!isValid) {
-      log.warn('Unlock rejected: incorrect password');
-      throw new Error('Incorrect password');
+    if (this.isConnected) {
+      throw new enc.EncryptionError('ALREADY_UNLOCKED', 'Database is already unlocked — call lock_database first');
+    }
+    if (!method || typeof method !== 'object') {
+      throw new Error('An unlock method is required');
     }
 
-    this.vfs.setKey(pageKey, header.blockSize);
-    this.pageKey = pageKey;
-    this.encryptionPassword = password;
+    const ks = await this.getKeySlotsModule();
+    const header = await this.requireV2Header();
 
+    let slot;
+    if (ks.MASTER_SLOT_TYPES.includes(method.type)) {
+      slot = ks.findMasterSlot(header);
+      if (slot.type !== method.type) {
+        throw new enc.EncryptionError('INVALID_SLOT_TYPE', `This database is protected by a ${slot.type === 'password' ? 'password' : 'recovery phrase'}`);
+      }
+    } else {
+      slot = ks.findSlot(header, method.slotId);
+      if (!slot || slot.type !== method.type) {
+        throw new enc.EncryptionError('SLOT_NOT_FOUND', 'That unlock method is no longer registered on this device');
+      }
+    }
+
+    const secret = method.secret instanceof ArrayBuffer ? new Uint8Array(method.secret) : method.secret;
+    let rootKey;
+    try {
+      rootKey = await ks.openSlot(slot, secret);
+    } catch (error) {
+      if (error?.code === 'INVALID_SECRET') {
+        log.warn('Unlock rejected: incorrect secret', { slotType: slot.type });
+      }
+      throw error;
+    } finally {
+      if (secret instanceof Uint8Array) ks.zeroize(secret);
+    }
+
+    slot.lastUsedAt = new Date().toISOString();
+    try {
+      await this.writeEncryptionHeader(ks.withSlots(header, header.slots));
+    } catch (error) {
+      log.warn('Could not record the slot usage time', { error });
+    }
+
+    await this.installRootKey(rootKey, header.blockSize);
     return await this.openDatabase(filename, false, {}, log);
   }
 
   /** Closes the live connection and forgets the key — the database cannot be read again until unlock_database succeeds. */
   async lockDatabase(requestLog) {
     await this.closeDatabaseConnection();
-    this.vfs?.clearKey();
-    this.pageKey = null;
-    this.encryptionPassword = null;
+    this.clearKeyMaterial();
     (requestLog || this.log).info('Database locked');
   }
 
@@ -474,9 +621,7 @@ class DatabaseWorker {
       this.isConnected = false;
     }
 
-    this.vfs?.clearKey();
-    this.pageKey = null;
-    this.encryptionPassword = null;
+    this.clearKeyMaterial();
     try {
       this.vfs?.close();
     } catch (error) {
@@ -514,87 +659,101 @@ class DatabaseWorker {
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // Key slot management (unlocked database only)
+  // ---------------------------------------------------------------------------
+
+  async requireUnlockedHeader() {
+    if (!this.rootKey) {
+      throw new (await this.getEncryptionModule()).EncryptionError('LOCKED', 'Database is locked — unlock it first');
+    }
+    return this.requireV2Header();
+  }
+
   /**
-   * Re-encrypts every physically-stored block under a newly-derived key.
-   * Only the `data` field of each `blocks` record changes — file paths,
-   * physical offsets, and the VFS's own version/crash-recovery bookkeeping
-   * in `metadata` are untouched.
+   * Replaces the master slot: verifies `current` opens the existing master
+   * slot, then wraps the SAME root key under `next` (a password or a recovery
+   * phrase). Nothing stored in the VFS is touched — changing the master is a
+   * re-wrap of 32 bytes, not a re-encryption of the database. Serialised with
+   * queries so no export can observe a half-written header.
    */
-  async changePassword(oldPassword, newPassword, requestLog) {
-    if (typeof newPassword !== 'string' || newPassword.length === 0) {
-      throw new Error('New password must be a non-empty string');
-    }
-    const oldHeader = await this.readEncryptionHeader();
-    if (!oldHeader) {
-      throw new Error('No encrypted database found on this device');
-    }
-    const isCurrentValid = await this.verifyPassword(oldPassword);
-    if (!isCurrentValid) {
-      throw new Error('Current password is incorrect');
-    }
-    if (!this.pageKey) {
-      throw new Error('Database is locked — unlock it before changing the password');
+  async replaceMaster({ current, next, label }, requestLog) {
+    const ks = await this.getKeySlotsModule();
+    const enc = await this.getEncryptionModule();
+    const header = await this.requireUnlockedHeader();
+    const currentMaster = DatabaseWorker.normalizeMaster(current);
+    const nextMaster = DatabaseWorker.normalizeMaster(next);
+
+    const masterSlot = ks.findMasterSlot(header);
+    if (masterSlot.type !== currentMaster.type || !(await ks.verifySlotSecret(masterSlot, currentMaster.secret))) {
+      throw new enc.EncryptionError(
+        'INVALID_SECRET',
+        currentMaster.type === 'password' ? 'Current password is incorrect' : 'Recovery phrase is incorrect'
+      );
     }
 
     return await this.enqueueQuery(async () => {
-      const log = this.activeLog.child({ process: 'change-password' });
-      log.info('Re-encrypting database under a new password...');
-      const startedAt = Date.now();
-      const enc = await this.getEncryptionModule();
-      const vfsModule = await import('/database-encrypted-vfs.js');
-      const { physicalBlockSize, decryptBlock, encryptBlock, formatFilename } = vfsModule;
-
-      const oldPageKey = this.pageKey;
-      const newPageSalt = crypto.getRandomValues(new Uint8Array(32));
-      const newPageKey = await enc.derivePageKey(newPassword, newPageSalt);
-      const newVerifier = await enc.createPageKeyVerifier(newPageKey);
-      const pbs = physicalBlockSize(oldHeader.blockSize);
-
-      await this.closeDatabaseConnection();
-
-      const idb = await this.openVfsDatabase();
-      try {
-        const readTransaction = idb.transaction('blocks', 'readonly');
-        const blocks = await this.readAllFromStore(readTransaction.objectStore('blocks'));
-        await this.waitForTransaction(readTransaction);
-
-        const reencrypted = await Promise.all(
-          blocks.map(async (block) => {
-            const physicalOffset = -block.offset;
-            const blockIndex = Math.round(physicalOffset / pbs);
-            const aad = formatFilename(this.vfs.name, block.path);
-            const physicalData = block.data instanceof Uint8Array ? block.data : new Uint8Array(block.data);
-            const plaintext = await decryptBlock(oldPageKey, aad, blockIndex, physicalData);
-            const newPhysicalData = await encryptBlock(newPageKey, aad, blockIndex, plaintext);
-            return { ...block, data: newPhysicalData };
-          })
-        );
-
-        const writeTransaction = idb.transaction('blocks', 'readwrite');
-        const blocksStore = writeTransaction.objectStore('blocks');
-        for (const block of reencrypted) {
-          blocksStore.put(block);
-        }
-        await this.waitForTransaction(writeTransaction);
-      } finally {
-        idb.close();
-      }
-
-      const newHeader = {
-        ...oldHeader,
-        pageSalt: enc.bytesToHex(newPageSalt),
-        verifierIv: newVerifier.verifierIv,
-        verifierCiphertext: newVerifier.verifierCiphertext,
-      };
-      await this.writeEncryptionHeader(newHeader);
-
-      this.vfs.setKey(newPageKey, newHeader.blockSize);
-      this.pageKey = newPageKey;
-      this.encryptionPassword = newPassword;
-
-      await this.reopenCurrentDatabase();
-      log.info('Password changed', { durationMs: Date.now() - startedAt });
+      const log = this.activeLog.child({ process: 'replace-master' });
+      const newSlot = await ks.createSlot({ type: nextMaster.type, secret: nextMaster.secret, label }, this.rootKey);
+      const slots = [newSlot, ...header.slots.filter((slot) => !ks.isMasterSlot(slot))];
+      await this.writeEncryptionHeader(ks.withSlots(header, slots));
+      log.info('Master key slot replaced', { from: masterSlot.type, to: nextMaster.type });
+      return { masterSlot: ks.summarizeSlot(newSlot) };
     }, requestLog);
+  }
+
+  /**
+   * Adds a convenience slot (passkey or cloud) wrapping the live root key.
+   * `slot` is `{ type, secret: Uint8Array, label?, kdf: {...public params} }`.
+   */
+  async addSlot({ slot }, requestLog) {
+    const ks = await this.getKeySlotsModule();
+    const enc = await this.getEncryptionModule();
+    const header = await this.requireUnlockedHeader();
+    if (!slot || !ks.CONVENIENCE_SLOT_TYPES.includes(slot.type)) {
+      throw new enc.EncryptionError('INVALID_SLOT_TYPE', 'Only passkey and cloud unlock methods can be added');
+    }
+    const secret = slot.secret instanceof ArrayBuffer ? new Uint8Array(slot.secret) : slot.secret;
+    try {
+      const record = await ks.createSlot({ type: slot.type, secret, label: slot.label, kdf: slot.kdf }, this.rootKey);
+      await this.writeEncryptionHeader(ks.withSlots(header, [...header.slots, record]));
+      (requestLog || this.log).info('Key slot added', { slotType: slot.type });
+      return { slot: ks.summarizeSlot(record) };
+    } finally {
+      if (secret instanceof Uint8Array) ks.zeroize(secret);
+    }
+  }
+
+  async removeSlot({ slotId }, requestLog) {
+    const ks = await this.getKeySlotsModule();
+    const enc = await this.getEncryptionModule();
+    const header = await this.requireUnlockedHeader();
+    const slot = ks.findSlot(header, slotId);
+    if (!slot) {
+      throw new enc.EncryptionError('SLOT_NOT_FOUND', 'That unlock method does not exist');
+    }
+    if (ks.isMasterSlot(slot)) {
+      throw new enc.EncryptionError('CANNOT_REMOVE_MASTER', 'The password or recovery phrase cannot be removed — replace it instead');
+    }
+    await this.writeEncryptionHeader(ks.withSlots(header, header.slots.filter((candidate) => candidate.slotId !== slotId)));
+    (requestLog || this.log).info('Key slot removed', { slotType: slot.type });
+  }
+
+  async renameSlot({ slotId, label }, requestLog) {
+    const ks = await this.getKeySlotsModule();
+    const enc = await this.getEncryptionModule();
+    const header = await this.requireUnlockedHeader();
+    const slot = ks.findSlot(header, slotId);
+    if (!slot) {
+      throw new enc.EncryptionError('SLOT_NOT_FOUND', 'That unlock method does not exist');
+    }
+    const trimmed = typeof label === 'string' ? label.trim() : '';
+    if (!trimmed) {
+      throw new Error('A label is required');
+    }
+    const slots = header.slots.map((candidate) => (candidate.slotId === slotId ? { ...candidate, label: trimmed } : candidate));
+    await this.writeEncryptionHeader(ks.withSlots(header, slots));
+    (requestLog || this.log).debug('Key slot renamed', { slotType: slot.type });
   }
 
   // ---------------------------------------------------------------------------
@@ -1628,7 +1787,7 @@ class DatabaseWorker {
   // could never be decrypted on another device, breaking cross-device sync.
 
   async readVfsSnapshot() {
-    if (!this.pageKey) {
+    if (!this.rootKey || !this.pageKey) {
       throw new Error('Database is locked — unlock it before exporting');
     }
     const header = await this.requireEncryptionHeader();
@@ -1680,7 +1839,7 @@ class DatabaseWorker {
     if (!snapshot || snapshot.format !== 'wa-sqlite-idb-batch-atomic-v1') {
       throw new Error('Snapshot payload is invalid');
     }
-    if (!this.pageKey) {
+    if (!this.rootKey || !this.pageKey) {
       throw new Error('Database is locked — unlock it before importing');
     }
 
@@ -1924,17 +2083,34 @@ class DatabaseWorker {
         // ----------------------------------------------------------------
 
         case 'create_new_database': {
+          // payload: { master: {type, secret}, label?, restoreFrom?: {keyId, masterSlot}, filename?, options? }
           response = await this.createNewDatabase(
-            payload?.password,
-            payload?.filename,
-            payload?.options,
+            {
+              master: payload?.master,
+              label: payload?.label,
+              restoreFrom: payload?.restoreFrom,
+              filename: payload?.filename,
+              options: payload?.options,
+            },
             log
           );
           break;
         }
 
         case 'unlock_database': {
-          response = await this.unlockDatabase(payload?.password, payload?.filename, log);
+          // payload: { method: {type, slotId?, secret}, filename? }
+          response = await this.unlockDatabase({ method: payload?.method, filename: payload?.filename }, log);
+          break;
+        }
+
+        case 'get_unlock_methods': {
+          response = {
+            type: 'get_unlock_methods_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: await this.getUnlockMethods()
+          };
           break;
         }
 
@@ -1950,14 +2126,54 @@ class DatabaseWorker {
           break;
         }
 
-        case 'change_password': {
-          await this.changePassword(payload?.oldPassword, payload?.newPassword, log);
+        case 'replace_master': {
+          // payload: { current: {type, secret}, next: {type, secret}, label? }
+          const result = await this.replaceMaster(
+            { current: payload?.current, next: payload?.next, label: payload?.label },
+            log
+          );
           response = {
-            type: 'change_password_response',
+            type: 'replace_master_response',
             isSuccessful: true,
             dbStatus: this.isConnected ? 'connected' : 'disconnected',
             version: this.dbVersion,
-            sqlResponse: { message: 'Password changed successfully' }
+            sqlResponse: result
+          };
+          break;
+        }
+
+        case 'add_slot': {
+          const result = await this.addSlot({ slot: payload?.slot }, log);
+          response = {
+            type: 'add_slot_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: result
+          };
+          break;
+        }
+
+        case 'remove_slot': {
+          await this.removeSlot({ slotId: payload?.slotId }, log);
+          response = {
+            type: 'remove_slot_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: { message: 'Unlock method removed' }
+          };
+          break;
+        }
+
+        case 'rename_slot': {
+          await this.renameSlot({ slotId: payload?.slotId, label: payload?.label }, log);
+          response = {
+            type: 'rename_slot_response',
+            isSuccessful: true,
+            dbStatus: this.isConnected ? 'connected' : 'disconnected',
+            version: this.dbVersion,
+            sqlResponse: { message: 'Unlock method renamed' }
           };
           break;
         }
@@ -1973,10 +2189,11 @@ class DatabaseWorker {
           break;
         }
 
-        case 'verify_password': {
-          const isMatch = await this.verifyPassword(payload?.password);
+        case 'verify_master': {
+          // payload: { master: {type, secret} }
+          const isMatch = await this.verifyMaster(payload?.master);
           response = {
-            type: 'verify_password_response',
+            type: 'verify_master_response',
             isSuccessful: true,
             dbStatus: this.isConnected ? 'connected' : 'disconnected',
             version: this.dbVersion,
@@ -2002,8 +2219,12 @@ class DatabaseWorker {
         }
 
         case 'decrypt_archive': {
-          // payload: { encryptedBytes: Uint8Array, password?: string }
-          const plainBytes = await this.decryptArchiveBytes(payload.encryptedBytes, payload.password);
+          // payload: { encryptedBytes: Uint8Array, master?: {type, secret}, adoptMasterSlot?: boolean }
+          const plainBytes = await this.decryptArchiveBytes(
+            payload.encryptedBytes,
+            { master: payload.master, adoptMasterSlot: payload.adoptMasterSlot === true },
+            log
+          );
           response = {
             type: 'decrypt_archive_response',
             isSuccessful: true,
@@ -2039,7 +2260,9 @@ class DatabaseWorker {
         isSuccessful: false,
         dbStatus: this.isConnected ? 'connected' : 'disconnected',
         version: this.dbVersion,
-        sqlResponse: { error: error.message }
+        // `code` is the stable machine-readable id (see EncryptionError); the
+        // page maps it to a translated message and falls back to `error`.
+        sqlResponse: { error: error.message, code: typeof error?.code === 'string' ? error.code : undefined }
       };
     }
 

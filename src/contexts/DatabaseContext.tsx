@@ -13,8 +13,10 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo } fro
 import { DatabaseInitializationGate } from '../components/setup/DatabaseInitializationGate';
 import type { CloudFilePickerState } from './useDatabaseInitialization';
 import type { WorkerStatus } from '../lib/databaseWorkerService';
+import type { MasterSecret, NewConvenienceSlot, SlotSummary, UnlockMethods } from '../lib/encryptionTypes';
 import {
   loadPersistedDatabaseSourceState,
+  markPendingChanges,
   type CloudLinkedFile,
   type CloudProvider,
   type DatabaseSource,
@@ -127,8 +129,20 @@ interface DatabaseLifecycleSlice {
   migrateDatabaseToCloud: (provider: CloudProvider) => Promise<void>;
   saveDatabaseToCurrentCloud: () => Promise<void>;
   switchToLocalSource: () => void;
-  /** Verifies `currentPassword`, then re-encrypts every stored block with `newPassword` and (if cloud-linked) immediately re-syncs. */
-  changePassword: (currentPassword: string, newPassword: string) => Promise<{ syncError: string | null }>;
+  /**
+   * Verifies `current`, then re-wraps the root key under `next` (a new
+   * password, or a switch between password and recovery phrase) and (if
+   * cloud-linked) immediately re-syncs so the cloud copy carries the new
+   * master slot. No stored block is re-encrypted.
+   */
+  changeMaster: (current: MasterSecret, next: MasterSecret) => Promise<{ syncError: string | null }>;
+  /** The key slots registered on this device (readable while locked). */
+  getUnlockMethods: () => Promise<UnlockMethods>;
+  /** Registers a passkey or cloud unlock slot on this device. */
+  addUnlockSlot: (slot: NewConvenienceSlot) => Promise<SlotSummary>;
+  /** Removes a passkey or cloud slot; the master slot cannot be removed. */
+  removeUnlockSlot: (slotId: string) => Promise<void>;
+  renameUnlockSlot: (slotId: string, label: string) => Promise<void>;
   /** Syncs to cloud (if linked), closes the connection, and gates the app until the password is re-entered. Pass `{ skipSync: true }` to lock anyway after a failed sync attempt. */
   lockDatabase: (options?: { skipSync?: boolean }) => Promise<{ locked: boolean; syncError: string | null }>;
   syncNow: () => Promise<void>;
@@ -359,6 +373,10 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     lockDatabaseState,
     handleUnlockSubmitted,
     handleLockedResetRequested,
+    unlockMethods,
+    refreshUnlockMethods,
+    pendingArchiveMasterType,
+    handleLegacyResetRequested,
   } = useDatabaseInitialization({ loadAllData });
 
   const {
@@ -424,24 +442,61 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
   }, [databaseService, setError]);
 
   /**
-   * Re-encrypts every stored block under the new password (verifying the
-   * current one first) and, when cloud-linked, immediately re-syncs so the
-   * cloud copy is re-encrypted under the new key rather than left stale.
+   * Re-wraps the root key under the new master secret (verifying the current
+   * one first) and, when cloud-linked, immediately re-syncs so the cloud
+   * copy carries the new master slot rather than the old one. A re-wrap
+   * writes no SQL, so nothing marks the database dirty by itself — mark it
+   * here, or syncNow would report "no changes" and upload nothing.
    */
-  const changePassword = useCallback(
-    async (currentPassword: string, newPassword: string): Promise<{ syncError: string | null }> => {
+  const changeMaster = useCallback(
+    async (current: MasterSecret, next: MasterSecret): Promise<{ syncError: string | null }> => {
       if (!databaseService) throw new Error('Database service not initialized');
 
-      await databaseService.changePassword(currentPassword, newPassword);
+      await databaseService.replaceMaster(current, next);
+      void refreshUnlockMethods();
 
       if (databaseSource === 'local') {
         return { syncError: null };
       }
 
+      setDatabaseSourceState(markPendingChanges(new Date().toISOString()));
       await syncNow();
       return { syncError: loadPersistedDatabaseSourceState().lastSyncError };
     },
-    [databaseService, databaseSource, syncNow]
+    [databaseService, databaseSource, syncNow, refreshUnlockMethods, setDatabaseSourceState]
+  );
+
+  const getUnlockMethods = useCallback(async (): Promise<UnlockMethods> => {
+    if (!databaseService) throw new Error('Database service not initialized');
+    return databaseService.getUnlockMethods();
+  }, [databaseService]);
+
+  const addUnlockSlot = useCallback(
+    async (slot: NewConvenienceSlot): Promise<SlotSummary> => {
+      if (!databaseService) throw new Error('Database service not initialized');
+      const summary = await databaseService.addSlot(slot);
+      void refreshUnlockMethods();
+      return summary;
+    },
+    [databaseService, refreshUnlockMethods]
+  );
+
+  const removeUnlockSlot = useCallback(
+    async (slotId: string): Promise<void> => {
+      if (!databaseService) throw new Error('Database service not initialized');
+      await databaseService.removeSlot(slotId);
+      void refreshUnlockMethods();
+    },
+    [databaseService, refreshUnlockMethods]
+  );
+
+  const renameUnlockSlot = useCallback(
+    async (slotId: string, label: string): Promise<void> => {
+      if (!databaseService) throw new Error('Database service not initialized');
+      await databaseService.renameSlot(slotId, label);
+      void refreshUnlockMethods();
+    },
+    [databaseService, refreshUnlockMethods]
   );
 
   /**
@@ -594,7 +649,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       migrateDatabaseToCloud,
       saveDatabaseToCurrentCloud,
       switchToLocalSource,
-      changePassword,
+      changeMaster,
+      getUnlockMethods,
+      addUnlockSlot,
+      removeUnlockSlot,
+      renameUnlockSlot,
       lockDatabase,
       syncNow,
       setAutoSyncEnabled,
@@ -615,7 +674,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       migrateDatabaseToCloud,
       saveDatabaseToCurrentCloud,
       switchToLocalSource,
-      changePassword,
+      changeMaster,
+      getUnlockMethods,
+      addUnlockSlot,
+      removeUnlockSlot,
+      renameUnlockSlot,
       lockDatabase,
       syncNow,
       setAutoSyncEnabled,
@@ -666,6 +729,9 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         onStorageChoiceSelected={handleStorageChoiceSelected}
         onUnlockSubmitted={handleUnlockSubmitted}
         onResetApp={isDebugMode() ? handleLockedResetRequested : undefined}
+        unlockMethods={unlockMethods}
+        pendingArchiveMasterType={pendingArchiveMasterType}
+        onLegacyReset={handleLegacyResetRequested}
       />
     );
   }

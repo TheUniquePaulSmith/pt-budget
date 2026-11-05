@@ -95,6 +95,8 @@
     "passwordLabel": "Contraseña de la base de datos",
     "passwordHelp": "Introduzca su contraseña para confirmar el restablecimiento.",
     "failed": "Error al restablecer",
-    "resetting": "Restableciendo…"
+    "resetting": "Restableciendo…",
+    "recoveryLabel": "Frase de recuperación",
+    "recoveryHelp": "Introduce tu frase de recuperación de 12 palabras para confirmar el restablecimiento."
   }
 }

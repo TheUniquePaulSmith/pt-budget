@@ -343,5 +343,6 @@ export function looksLikeEncryptedArchive(bytes: Uint8Array): boolean {
 
   const peekEnd = Math.min(4 + 100, 4 + headerLength);
   const peek = Buffer.from(bytes.slice(4, peekEnd)).toString('utf-8');
-  return peek.includes('budget-tracker-encrypted-v1');
+  // Any archive format version this app has written (currently v2).
+  return peek.includes('budget-tracker-encrypted-v');
 }

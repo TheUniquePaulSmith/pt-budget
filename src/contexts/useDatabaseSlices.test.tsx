@@ -126,7 +126,7 @@ function mockDatabaseHooks() {
       switchToLocalSource: vi.fn(),
       setEncryptionPassword: vi.fn(),
       clearEncryptionPassword: vi.fn(),
-      changePassword: vi.fn(),
+      changeMaster: vi.fn(),
       lockDatabase: vi.fn(),
       unlockDatabase: vi.fn(),
       syncNow: vi.fn(),

@@ -126,7 +126,7 @@
   },
   "security": {
     "title": "Security",
-    "description": "Manage the password that protects your exports and cloud backups.",
+    "description": "Manage the password or recovery phrase that protects your database, exports and cloud backups, and the other ways this device can unlock it.",
     "lockTitle": "Lock Database",
     "lockHelp": "Syncs your database to the cloud (if connected), then locks it — you'll need your password to continue.",
     "locking": "Locking…",
@@ -235,5 +235,46 @@
     "applying": "Applying…",
     "confirmDiscard": "Confirm: Discard Local Changes",
     "useCloud": "Use Cloud Version"
+  },
+  "master": {
+    "title": "Master Secret",
+    "currentPassword": "Your database is protected by a password.",
+    "currentRecovery": "Your database is protected by a 12-word recovery phrase.",
+    "switchToRecovery": "Switch to recovery phrase",
+    "switchToPassword": "Switch to password",
+    "failed": "Could not read the security settings."
+  },
+  "switchMaster": {
+    "toRecoveryTitle": "Switch to a recovery phrase",
+    "toPasswordTitle": "Switch to a password",
+    "enterCurrentPassword": "Enter your current password to continue.",
+    "enterCurrentRecovery": "Enter your current recovery phrase to continue.",
+    "currentPasswordLabel": "Current Password",
+    "chooseNewPassword": "Choose the password that will protect your database from now on. The recovery phrase stops working.",
+    "newPasswordLabel": "New Password",
+    "confirmPasswordLabel": "Confirm New Password",
+    "switching": "Switching…",
+    "submit": "Switch",
+    "doneRecovery": "Your database is now protected by the recovery phrase. The old password no longer works.",
+    "donePassword": "Your database is now protected by the new password. The old recovery phrase no longer works."
+  },
+  "unlockMethods": {
+    "title": "Unlock Methods",
+    "description": "Ways to open this database on this device. The password or recovery phrase always exists; other methods are convenient extras that can be removed at any time.",
+    "master": "Master",
+    "empty": "No additional unlock methods are set up on this device.",
+    "added": "Added {{date}}",
+    "lastUsed": "Last used {{date}}",
+    "typePassword": "Password",
+    "typeRecovery": "Recovery phrase",
+    "typePasskey": "Passkey",
+    "typeCloud": "Cloud account"
+  },
+  "securityErrors": {
+    "INVALID_SECRET": "The current password or recovery phrase is incorrect.",
+    "CANNOT_REMOVE_MASTER": "The password or recovery phrase cannot be removed — replace it instead.",
+    "SLOT_NOT_FOUND": "That unlock method no longer exists.",
+    "LOCKED": "Unlock the database first.",
+    "failed": "Something went wrong. Please try again."
   }
 }

@@ -124,7 +124,7 @@
   },
   "security": {
     "title": "セキュリティ",
-    "description": "エクスポートとクラウドバックアップを保護するパスワードを管理します。",
+    "description": "データベース、エクスポート、クラウドバックアップを保護するパスワードまたはリカバリーフレーズと、この端末でロックを解除するその他の方法を管理します。",
     "lockTitle": "データベースをロック",
     "lockHelp": "データベースをクラウドに同期（接続中の場合）してからロックします。続行するにはパスワードが必要になります。",
     "locking": "ロック中…",
@@ -231,5 +231,46 @@
     "applying": "適用中…",
     "confirmDiscard": "確認：ローカルの変更を破棄",
     "useCloud": "クラウド版を使う"
+  },
+  "master": {
+    "title": "マスターシークレット",
+    "currentPassword": "データベースはパスワードで保護されています。",
+    "currentRecovery": "データベースは12単語のリカバリーフレーズで保護されています。",
+    "switchToRecovery": "リカバリーフレーズに切り替え",
+    "switchToPassword": "パスワードに切り替え",
+    "failed": "セキュリティ設定を読み取れませんでした。"
+  },
+  "switchMaster": {
+    "toRecoveryTitle": "リカバリーフレーズに切り替える",
+    "toPasswordTitle": "パスワードに切り替える",
+    "enterCurrentPassword": "続行するには現在のパスワードを入力してください。",
+    "enterCurrentRecovery": "続行するには現在のリカバリーフレーズを入力してください。",
+    "currentPasswordLabel": "現在のパスワード",
+    "chooseNewPassword": "今後データベースを保護するパスワードを選んでください。リカバリーフレーズは使えなくなります。",
+    "newPasswordLabel": "新しいパスワード",
+    "confirmPasswordLabel": "新しいパスワードの確認",
+    "switching": "切り替え中…",
+    "submit": "切り替える",
+    "doneRecovery": "データベースはリカバリーフレーズで保護されるようになりました。以前のパスワードは使えません。",
+    "donePassword": "データベースは新しいパスワードで保護されるようになりました。以前のリカバリーフレーズは使えません。"
+  },
+  "unlockMethods": {
+    "title": "ロック解除の方法",
+    "description": "この端末でこのデータベースを開く方法です。パスワードまたはリカバリーフレーズは常に存在し、その他の方法はいつでも削除できる便利な追加手段です。",
+    "master": "マスター",
+    "empty": "この端末には追加のロック解除方法が設定されていません。",
+    "added": "追加日: {{date}}",
+    "lastUsed": "最終使用: {{date}}",
+    "typePassword": "パスワード",
+    "typeRecovery": "リカバリーフレーズ",
+    "typePasskey": "パスキー",
+    "typeCloud": "クラウドアカウント"
+  },
+  "securityErrors": {
+    "INVALID_SECRET": "現在のパスワードまたはリカバリーフレーズが正しくありません。",
+    "CANNOT_REMOVE_MASTER": "パスワードまたはリカバリーフレーズは削除できません。代わりに置き換えてください。",
+    "SLOT_NOT_FOUND": "そのロック解除方法はもう存在しません。",
+    "LOCKED": "先にデータベースのロックを解除してください。",
+    "failed": "問題が発生しました。もう一度お試しください。"
   }
 }

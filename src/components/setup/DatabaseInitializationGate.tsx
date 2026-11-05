@@ -22,7 +22,8 @@ import { useFormatters } from '@/contexts/useFormatters';
 import { PasswordSetup } from './PasswordSetup';
 import { PreferencesSetup } from './PreferencesSetup';
 import { InitialAccount } from './InitialAccount';
-import { PasswordEntry } from './PasswordEntry';
+import { UnlockScreen } from './UnlockScreen';
+import { LegacyDatabaseNotice } from './LegacyDatabaseNotice';
 import { StorageChoice } from './StorageChoice';
 import { CloudFilePickerDialog } from './CloudFilePickerDialog';
 import { EncryptionProgress } from './EncryptionProgress';
@@ -35,6 +36,7 @@ import type { SampleDataImportProgress } from '../../lib/sampleDataService';
 import { createCloudProviderClient } from '@/lib/cloudProviderClients';
 import type { SyncStage } from '@/lib/cloudSyncService';
 import type { CloudLinkedFile, CloudProvider, DatabaseSource } from '@/lib/databaseSourceStorage';
+import type { MasterSecret, MasterSlotType, UnlockMethod, UnlockMethods } from '@/lib/encryptionTypes';
 import type { Account } from '@/types/database';
 
 interface DatabaseInitializationGateProps {
@@ -56,8 +58,8 @@ interface DatabaseInitializationGateProps {
   onCloudFileSelected: (file: CloudLinkedFile) => Promise<void>;
   onSwitchToLocalSource: () => void;
   onCancelSampleDataImport: () => void;
-  /** Called when the user confirms a new password on the setup screen. */
-  onPasswordSetupConfirmed: (password: string, primaryUserName: string) => Promise<void>;
+  /** Called when the user confirms the new database's master secret (password or recovery phrase) on the setup screen. */
+  onPasswordSetupConfirmed: (master: MasterSecret, primaryUserName: string) => Promise<void>;
   /** Called when the user confirms the preferences step (default currency). */
   onPreferencesConfirmed: (defaultCurrency: string) => Promise<void>;
   /** Skips the preferences step (keeps English / USD) and continues setup. */
@@ -73,8 +75,8 @@ interface DatabaseInitializationGateProps {
   ) => Promise<void>;
   /** Skips the initial-account screen and continues setup. */
   onSkipInitialAccount: () => Promise<void>;
-  /** Called when the user enters a password to decrypt a loaded archive. */
-  onPasswordEntrySubmitted: (password: string) => Promise<void>;
+  /** Called when the user enters the master secret of a loaded archive to decrypt it. */
+  onPasswordEntrySubmitted: (master: MasterSecret) => Promise<void>;
   /** Cancels the pending password-entry flow. */
   onCancelPasswordEntry: () => void;
   /** Called from the storage-choice screen right after password setup. */
@@ -83,13 +85,19 @@ interface DatabaseInitializationGateProps {
    * Called from the needs-unlock screen — both at first load of a returning
    * device and after Settings → Lock Database.
    */
-  onUnlockSubmitted: (password: string) => Promise<void>;
+  onUnlockSubmitted: (method: UnlockMethod) => Promise<void>;
   /**
    * Debug-only (`?debug`) — when set, the unlock screen shows a "Reset App"
-   * button. It receives the password the user typed to confirm, and rejects
-   * (keeping the app untouched) when it is wrong.
+   * button. It receives the master secret the user typed to confirm, and
+   * rejects (keeping the app untouched) when it is wrong.
    */
-  onResetApp?: (password: string) => void | Promise<void>;
+  onResetApp?: (master: MasterSecret) => void | Promise<void>;
+  /** The key slots on this device, read before the unlock screen is shown (null while unknown). */
+  unlockMethods: UnlockMethods | null;
+  /** While an archive waits for its secret: which kind the archive needs. */
+  pendingArchiveMasterType: MasterSlotType | null;
+  /** Wipes a pre-key-slot (v1) database this version cannot open. */
+  onLegacyReset: () => Promise<void>;
 }
 
 const centeredBoxSx = {
@@ -136,6 +144,9 @@ export function DatabaseInitializationGate({
   onStorageChoiceSelected,
   onUnlockSubmitted,
   onResetApp,
+  unlockMethods,
+  pendingArchiveMasterType,
+  onLegacyReset,
 }: DatabaseInitializationGateProps) {
   const { t } = useTranslation(['setup', 'common']);
   const { number } = useFormatters();
@@ -254,12 +265,19 @@ export function DatabaseInitializationGate({
   }
 
   if (initializationState === 'needs-password-entry') {
+    const archiveMasterType = pendingArchiveMasterType ?? 'password';
     return (
       <>
         <LanguageMenuCorner />
-        <PasswordEntry
-          description={t('gate.importPasswordDescription')}
-          onPasswordSubmitted={onPasswordEntrySubmitted}
+        <UnlockScreen
+          masterType={archiveMasterType}
+          description={archiveMasterType === 'recovery' ? t('gate.importRecoveryDescription') : t('gate.importPasswordDescription')}
+          onUnlock={(method) => {
+            if (method.type !== 'password' && method.type !== 'recovery') {
+              return Promise.reject(new Error('An archive can only be opened with its password or recovery phrase'));
+            }
+            return onPasswordEntrySubmitted(method);
+          }}
           onCancel={onCancelPasswordEntry}
           isLoading={isLoading}
           error={error}
@@ -283,16 +301,27 @@ export function DatabaseInitializationGate({
   }
 
   if (initializationState === 'needs-unlock') {
+    const masterIsRecovery = unlockMethods?.methods.some((slot) => slot.isMaster && slot.type === 'recovery') === true;
     return (
       <>
         <LanguageMenuCorner />
-        <PasswordEntry
-          description={t('gate.unlockDescription')}
-          onPasswordSubmitted={onUnlockSubmitted}
+        <UnlockScreen
+          methods={unlockMethods}
+          description={masterIsRecovery ? t('gate.unlockRecoveryDescription') : t('gate.unlockDescription')}
+          onUnlock={onUnlockSubmitted}
           onResetApp={onResetApp}
           isLoading={isLoading}
           error={error}
         />
+      </>
+    );
+  }
+
+  if (initializationState === 'needs-legacy-reset') {
+    return (
+      <>
+        <LanguageMenuCorner />
+        <LegacyDatabaseNotice onReset={onLegacyReset} />
       </>
     );
   }

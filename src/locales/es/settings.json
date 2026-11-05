@@ -126,7 +126,7 @@
   },
   "security": {
     "title": "Seguridad",
-    "description": "Gestione la contraseña que protege sus exportaciones y copias de seguridad en la nube.",
+    "description": "Gestiona la contraseña o la frase de recuperación que protege tu base de datos, tus exportaciones y tus copias en la nube, y las demás formas en que este dispositivo puede desbloquearla.",
     "lockTitle": "Bloquear base de datos",
     "lockHelp": "Sincroniza su base de datos con la nube (si está conectada) y luego la bloquea; necesitará su contraseña para continuar.",
     "locking": "Bloqueando…",
@@ -235,5 +235,46 @@
     "applying": "Aplicando…",
     "confirmDiscard": "Confirmar: descartar cambios locales",
     "useCloud": "Usar la versión de la nube"
+  },
+  "master": {
+    "title": "Secreto maestro",
+    "currentPassword": "Tu base de datos está protegida por una contraseña.",
+    "currentRecovery": "Tu base de datos está protegida por una frase de recuperación de 12 palabras.",
+    "switchToRecovery": "Cambiar a frase de recuperación",
+    "switchToPassword": "Cambiar a contraseña",
+    "failed": "No se pudo leer la configuración de seguridad."
+  },
+  "switchMaster": {
+    "toRecoveryTitle": "Cambiar a una frase de recuperación",
+    "toPasswordTitle": "Cambiar a una contraseña",
+    "enterCurrentPassword": "Introduce tu contraseña actual para continuar.",
+    "enterCurrentRecovery": "Introduce tu frase de recuperación actual para continuar.",
+    "currentPasswordLabel": "Contraseña actual",
+    "chooseNewPassword": "Elige la contraseña que protegerá tu base de datos a partir de ahora. La frase de recuperación dejará de funcionar.",
+    "newPasswordLabel": "Nueva contraseña",
+    "confirmPasswordLabel": "Confirmar nueva contraseña",
+    "switching": "Cambiando…",
+    "submit": "Cambiar",
+    "doneRecovery": "Tu base de datos ahora está protegida por la frase de recuperación. La contraseña anterior ya no funciona.",
+    "donePassword": "Tu base de datos ahora está protegida por la nueva contraseña. La frase de recuperación anterior ya no funciona."
+  },
+  "unlockMethods": {
+    "title": "Métodos de desbloqueo",
+    "description": "Formas de abrir esta base de datos en este dispositivo. La contraseña o la frase de recuperación siempre existe; los demás métodos son extras cómodos que se pueden eliminar en cualquier momento.",
+    "master": "Maestro",
+    "empty": "No hay métodos de desbloqueo adicionales configurados en este dispositivo.",
+    "added": "Añadido el {{date}}",
+    "lastUsed": "Último uso: {{date}}",
+    "typePassword": "Contraseña",
+    "typeRecovery": "Frase de recuperación",
+    "typePasskey": "Llave de acceso",
+    "typeCloud": "Cuenta en la nube"
+  },
+  "securityErrors": {
+    "INVALID_SECRET": "La contraseña o la frase de recuperación actual es incorrecta.",
+    "CANNOT_REMOVE_MASTER": "La contraseña o la frase de recuperación no se puede eliminar; reemplázala en su lugar.",
+    "SLOT_NOT_FOUND": "Ese método de desbloqueo ya no existe.",
+    "LOCKED": "Primero desbloquea la base de datos.",
+    "failed": "Algo salió mal. Inténtalo de nuevo."
   }
 }

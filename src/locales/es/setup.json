@@ -47,7 +47,9 @@
     "useLocalInstead": "Usar una base de datos local",
     "databaseError": "Error de base de datos",
     "unknownInitError": "Se ha producido un error desconocido al inicializar la base de datos.",
-    "reloadPage": "Recargar página"
+    "reloadPage": "Recargar página",
+    "importRecoveryDescription": "Este archivo de base de datos está protegido por una frase de recuperación. Introduce sus 12 palabras para desbloquearlo e importarlo.",
+    "unlockRecoveryDescription": "Esta base de datos está protegida por una frase de recuperación. Introduce sus 12 palabras para desbloquearla."
   },
   "passwordSetup": {
     "primaryUserNameRequired": "El nombre del usuario principal es obligatorio.",
@@ -63,7 +65,13 @@
     "hidePassword": "Ocultar contraseña",
     "showPassword": "Mostrar contraseña",
     "creating": "Creando base de datos…",
-    "create": "Crear base de datos"
+    "create": "Crear base de datos",
+    "recoveryDescription": "Tu base de datos se cifra en este dispositivo. Una frase de recuperación de 12 palabras, generada para ti, será la única forma de abrirla: no hay otra manera de recuperar tus datos, así que guárdala en un lugar seguro.",
+    "masterTypeLabel": "Proteger la base de datos con",
+    "masterTypePassword": "Contraseña",
+    "masterTypeRecovery": "Frase de recuperación",
+    "recoveryHint": "En lugar de una contraseña que memorizas, recibirás 12 palabras aleatorias para anotar. Cualquiera con las palabras puede abrir la base de datos, y sin ellas nadie puede, ni siquiera tú.",
+    "generateRecovery": "Generar frase de recuperación"
   },
   "passwordEntry": {
     "title": "Introducir contraseña",
@@ -127,5 +135,53 @@
     "title": "Abrir desde {{provider}}",
     "empty": "No se encontraron archivos de copia de seguridad en {{provider}}.",
     "opening": "Abriendo…"
+  },
+  "recoverySetup": {
+    "title": "Tu frase de recuperación",
+    "description": "Estas 12 palabras son la única forma de abrir tu base de datos. Anótalas en orden y guárdalas en un lugar seguro: nunca se almacenan en ningún sitio y no hay otra manera de recuperar tus datos.",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "print": "Imprimir",
+    "regenerate": "Generar nueva frase",
+    "savedCheckbox": "He anotado estas 12 palabras",
+    "confirmTitle": "Confirma tu frase de recuperación",
+    "confirmDescription": "Introduce las palabras solicitadas para confirmar que anotaste la frase correctamente.",
+    "wordLabel": "Palabra n.º {{position}}",
+    "confirmMismatch": "Una o más palabras no coinciden. Revisa la frase que anotaste e inténtalo de nuevo.",
+    "printTitle": "Frase de recuperación de Budget Tracker",
+    "printedOn": "Impreso el {{date}}"
+  },
+  "recoveryEntry": {
+    "title": "Introduce la frase de recuperación",
+    "defaultDescription": "Esta base de datos está protegida por una frase de recuperación. Introduce sus 12 palabras para abrirla.",
+    "label": "Frase de recuperación",
+    "placeholder": "Introduce las 12 palabras separadas por espacios",
+    "wordCount": "{{count}} de 12 palabras",
+    "invalidWords": "No están en la lista de palabras: {{words}}",
+    "badChecksum": "La frase no es válida: una o más palabras son incorrectas.",
+    "valid": "La frase de recuperación parece correcta.",
+    "unlock": "Desbloquear",
+    "decrypting": "Descifrando…",
+    "hide": "Ocultar frase",
+    "show": "Mostrar frase"
+  },
+  "legacy": {
+    "title": "Esta base de datos debe configurarse de nuevo",
+    "description": "La base de datos de este dispositivo fue creada por una versión anterior de la aplicación, que la cifró de una forma que esta versión ya no puede abrir. Restablece la aplicación para empezar de cero o para restaurar una copia de seguridad exportada desde una versión actual.",
+    "reset": "Restablecer y empezar de nuevo",
+    "confirmTitle": "¿Eliminar la base de datos local?",
+    "confirmBody": "Esto elimina permanentemente la base de datos guardada en este navegador junto con la configuración de la aplicación. Las copias de seguridad que exportaste o sincronizaste con la nube no se ven afectadas, pero solo se pueden restaurar copias de una versión actual.",
+    "resetting": "Restableciendo…",
+    "failed": "Error al restablecer"
+  },
+  "unlockErrors": {
+    "INVALID_SECRET": "Contraseña o frase de recuperación incorrecta.",
+    "INVALID_RECOVERY_PHRASE": "Esa no es una frase de recuperación válida.",
+    "LEGACY_HEADER": "Esta base de datos fue creada por una versión anterior de la aplicación y no se puede abrir.",
+    "HEADER_INVALID": "La configuración de cifrado guardada en este dispositivo está dañada.",
+    "NO_DATABASE": "No se encontró ninguna base de datos cifrada en este dispositivo.",
+    "ARCHIVE_KEY_MISMATCH": "Esta copia de seguridad pertenece a otra base de datos. Introduce su contraseña o frase de recuperación para abrirla.",
+    "UNSUPPORTED_ARCHIVE_FORMAT": "Esta copia de seguridad fue creada por una versión anterior de la aplicación y ya no se puede abrir.",
+    "ARCHIVE_CORRUPT": "Este archivo de copia de seguridad está dañado y no se puede leer."
   }
 }

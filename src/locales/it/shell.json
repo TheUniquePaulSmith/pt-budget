@@ -95,6 +95,8 @@
     "passwordLabel": "Password del database",
     "passwordHelp": "Inserisci la password per confermare il ripristino.",
     "failed": "Ripristino non riuscito",
-    "resetting": "Ripristino…"
+    "resetting": "Ripristino…",
+    "recoveryLabel": "Frase di recupero",
+    "recoveryHelp": "Inserisci la tua frase di recupero di 12 parole per confermare il ripristino."
   }
 }

@@ -47,7 +47,9 @@
     "useLocalInstead": "Usar banco de dados local",
     "databaseError": "Erro no banco de dados",
     "unknownInitError": "Ocorreu um erro desconhecido ao inicializar o banco de dados.",
-    "reloadPage": "Recarregar página"
+    "reloadPage": "Recarregar página",
+    "importRecoveryDescription": "Este arquivo de banco de dados está protegido por uma frase de recuperação. Digite suas 12 palavras para desbloqueá-lo e importá-lo.",
+    "unlockRecoveryDescription": "Este banco de dados está protegido por uma frase de recuperação. Digite suas 12 palavras para desbloqueá-lo."
   },
   "passwordSetup": {
     "primaryUserNameRequired": "O nome do usuário principal é obrigatório.",
@@ -63,7 +65,13 @@
     "hidePassword": "Ocultar senha",
     "showPassword": "Mostrar senha",
     "creating": "Criando banco de dados…",
-    "create": "Criar banco de dados"
+    "create": "Criar banco de dados",
+    "recoveryDescription": "Seu banco de dados é criptografado neste dispositivo. Uma frase de recuperação de 12 palavras, gerada para você, será a única forma de abri-lo: não há outra maneira de recuperar seus dados, então guarde-a em um lugar seguro.",
+    "masterTypeLabel": "Proteger o banco de dados com",
+    "masterTypePassword": "Senha",
+    "masterTypeRecovery": "Frase de recuperação",
+    "recoveryHint": "Em vez de uma senha para memorizar, você receberá 12 palavras aleatórias para anotar. Qualquer pessoa com as palavras pode abrir o banco de dados, e sem elas ninguém consegue, nem mesmo você.",
+    "generateRecovery": "Gerar frase de recuperação"
   },
   "passwordEntry": {
     "title": "Digite a senha",
@@ -127,5 +135,53 @@
     "title": "Abrir do {{provider}}",
     "empty": "Nenhum arquivo de backup foi encontrado no {{provider}}.",
     "opening": "Abrindo…"
+  },
+  "recoverySetup": {
+    "title": "Sua frase de recuperação",
+    "description": "Estas 12 palavras são a única forma de abrir seu banco de dados. Anote-as em ordem e guarde-as em um lugar seguro: elas nunca são armazenadas em lugar algum e não há outra maneira de recuperar seus dados.",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "print": "Imprimir",
+    "regenerate": "Gerar nova frase",
+    "savedCheckbox": "Anotei estas 12 palavras",
+    "confirmTitle": "Confirme sua frase de recuperação",
+    "confirmDescription": "Digite as palavras solicitadas para confirmar que anotou a frase corretamente.",
+    "wordLabel": "Palavra nº {{position}}",
+    "confirmMismatch": "Uma ou mais palavras não conferem. Verifique a frase anotada e tente novamente.",
+    "printTitle": "Frase de recuperação do Budget Tracker",
+    "printedOn": "Impresso em {{date}}"
+  },
+  "recoveryEntry": {
+    "title": "Digite a frase de recuperação",
+    "defaultDescription": "Este banco de dados está protegido por uma frase de recuperação. Digite suas 12 palavras para abri-lo.",
+    "label": "Frase de recuperação",
+    "placeholder": "Digite as 12 palavras separadas por espaços",
+    "wordCount": "{{count}} de 12 palavras",
+    "invalidWords": "Não estão na lista de palavras: {{words}}",
+    "badChecksum": "A frase não confere: uma ou mais palavras estão erradas.",
+    "valid": "A frase de recuperação parece correta.",
+    "unlock": "Desbloquear",
+    "decrypting": "Descriptografando…",
+    "hide": "Ocultar frase",
+    "show": "Mostrar frase"
+  },
+  "legacy": {
+    "title": "Este banco de dados precisa ser configurado novamente",
+    "description": "O banco de dados neste dispositivo foi criado por uma versão anterior do aplicativo, que o criptografou de uma forma que esta versão não consegue mais abrir. Redefina o aplicativo para começar do zero ou para restaurar um backup exportado de uma versão atual.",
+    "reset": "Redefinir e começar de novo",
+    "confirmTitle": "Excluir o banco de dados local?",
+    "confirmBody": "Isso exclui permanentemente o banco de dados armazenado neste navegador junto com as configurações do aplicativo. Os backups exportados ou sincronizados na nuvem não são afetados, mas apenas backups de uma versão atual podem ser restaurados.",
+    "resetting": "Redefinindo…",
+    "failed": "Falha ao redefinir"
+  },
+  "unlockErrors": {
+    "INVALID_SECRET": "Senha ou frase de recuperação incorreta.",
+    "INVALID_RECOVERY_PHRASE": "Essa não é uma frase de recuperação válida.",
+    "LEGACY_HEADER": "Este banco de dados foi criado por uma versão anterior do aplicativo e não pode ser aberto.",
+    "HEADER_INVALID": "As configurações de criptografia armazenadas neste dispositivo estão danificadas.",
+    "NO_DATABASE": "Nenhum banco de dados criptografado foi encontrado neste dispositivo.",
+    "ARCHIVE_KEY_MISMATCH": "Este backup pertence a outro banco de dados. Digite a senha ou a frase de recuperação dele para abri-lo.",
+    "UNSUPPORTED_ARCHIVE_FORMAT": "Este backup foi criado por uma versão anterior do aplicativo e não pode mais ser aberto.",
+    "ARCHIVE_CORRUPT": "Este arquivo de backup está danificado e não pode ser lido."
   }
 }

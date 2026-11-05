@@ -27,8 +27,46 @@ export interface BootstrapDatabaseOptions {
   sampleDataTransactionLimit?: number;
   primaryUserName?: string;
   password?: string;
+  /**
+   * Which master secret protects the new database: a password (default) or
+   * a generated 12-word recovery phrase. With 'recovery', bootstrapDatabase
+   * returns the words so the test can unlock with them later.
+   */
+  masterType?: 'password' | 'recovery';
   /** Extra raw query string (e.g. 'syncDebounceMs=1000') appended to the initial navigation. */
   extraQueryParams?: string;
+}
+
+export interface BootstrapDatabaseResult {
+  /** The recovery phrase the database was created with (masterType 'recovery' only). */
+  recoveryWords?: string[];
+}
+
+/**
+ * Drives the recovery-phrase setup step: reads the generated words, confirms
+ * the three requested ones, and continues. Expects the setup screen with the
+ * Primary User Name already filled.
+ */
+export async function completeRecoveryPhraseSetup(page: Page): Promise<string[]> {
+  await page.getByTestId('master-type-recovery').click();
+  await page.getByTestId('generate-recovery-phrase').click();
+
+  const words: string[] = [];
+  for (let i = 1; i <= 12; i += 1) {
+    words.push((await page.getByTestId(`recovery-word-${i}`).innerText()).trim());
+  }
+  await page.getByTestId('recovery-saved-checkbox').check();
+  await page.getByTestId('recovery-continue').click();
+
+  // Three random positions are asked for; fill whichever appear.
+  for (let i = 1; i <= 12; i += 1) {
+    const input = page.getByTestId(`recovery-confirm-input-${i}`);
+    if (await input.isVisible().catch(() => false)) {
+      await input.fill(words[i - 1]);
+    }
+  }
+  await page.getByTestId('recovery-confirm-submit').click();
+  return words;
 }
 
 /**
@@ -58,8 +96,9 @@ export async function fillDatabaseSetupForm(
 export async function bootstrapDatabase(
   page: Page,
   options: BootstrapDatabaseOptions = {}
-) {
-  const { loadSampleData = true, sampleDataTransactionLimit = 500, extraQueryParams } = options;
+): Promise<BootstrapDatabaseResult> {
+  const { loadSampleData = true, sampleDataTransactionLimit = 500, extraQueryParams, masterType = 'password' } = options;
+  const result: BootstrapDatabaseResult = {};
 
   await seedBrowserCompatibility(page);
 
@@ -95,8 +134,13 @@ export async function bootstrapDatabase(
       .catch(() => false);
 
     if (isSetupScreen) {
-      await fillDatabaseSetupForm(page, options);
-      await page.getByRole('button', { name: 'Create Database' }).click();
+      if (masterType === 'recovery') {
+        await primaryUserInput.fill(options.primaryUserName ?? TEST_PRIMARY_USER_NAME);
+        result.recoveryWords = await completeRecoveryPhraseSetup(page);
+      } else {
+        await fillDatabaseSetupForm(page, options);
+        await page.getByRole('button', { name: 'Create Database' }).click();
+      }
 
       // Password setup lands on the preferences screen (language + default
       // currency); default e2e runs keep English / USD by skipping it.
@@ -117,28 +161,36 @@ export async function bootstrapDatabase(
     'Connected',
     { timeout: 120_000 }
   );
+  return result;
 }
 
 /**
  * Reloads the page and, if a SharedWorker with no other connected tabs was
- * torn down as a result, re-enters the password at the needs-unlock screen
- * (the encrypting VFS requires it before the database can be opened again).
- * Safe to call when another page in the same context kept the worker alive
- * too — in that case the app skips straight to Connected.
+ * torn down as a result, re-enters the master secret at the needs-unlock
+ * screen (the encrypting VFS requires it before the database can be opened
+ * again). `secret` is the password, or the 12 recovery words for a
+ * recovery-phrase database. Safe to call when another page in the same
+ * context kept the worker alive too — in that case the app skips straight
+ * to Connected.
  */
-export async function reloadAndUnlock(page: Page, password: string = TEST_PASSWORD) {
+export async function reloadAndUnlock(page: Page, secret: string | string[] = TEST_PASSWORD) {
   await page.reload();
 
   const passwordInput = page.getByLabel('Password', { exact: true });
+  const phraseInput = page.getByTestId('recovery-phrase-input');
   const sqlQueryButton = page.getByRole('button', { name: 'SQL Query' });
 
   await Promise.race([
     passwordInput.waitFor({ state: 'visible', timeout: 120_000 }),
+    phraseInput.waitFor({ state: 'visible', timeout: 120_000 }),
     sqlQueryButton.waitFor({ state: 'visible', timeout: 120_000 }),
   ]);
 
-  if (await passwordInput.isVisible().catch(() => false)) {
-    await passwordInput.fill(password);
+  if (await phraseInput.isVisible().catch(() => false)) {
+    await phraseInput.fill(Array.isArray(secret) ? secret.join(' ') : secret);
+    await page.getByTestId('recovery-unlock').click();
+  } else if (await passwordInput.isVisible().catch(() => false)) {
+    await passwordInput.fill(Array.isArray(secret) ? secret.join(' ') : secret);
     await page.getByRole('button', { name: 'Unlock' }).click();
   }
 

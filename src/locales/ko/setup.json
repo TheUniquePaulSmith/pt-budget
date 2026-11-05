@@ -47,7 +47,9 @@
     "useLocalInstead": "대신 로컬 데이터베이스 사용",
     "databaseError": "데이터베이스 오류",
     "unknownInitError": "데이터베이스를 초기화하는 중 알 수 없는 오류가 발생했어요.",
-    "reloadPage": "페이지 새로고침"
+    "reloadPage": "페이지 새로고침",
+    "importRecoveryDescription": "이 데이터베이스 파일은 복구 문구로 보호됩니다. 12개 단어를 입력하여 잠금을 해제하고 가져오세요.",
+    "unlockRecoveryDescription": "이 데이터베이스는 복구 문구로 보호됩니다. 12개 단어를 입력하여 잠금을 해제하세요."
   },
   "passwordSetup": {
     "primaryUserNameRequired": "기본 사용자 이름은 필수 항목이에요.",
@@ -63,7 +65,13 @@
     "hidePassword": "비밀번호 숨기기",
     "showPassword": "비밀번호 표시",
     "creating": "데이터베이스 만드는 중…",
-    "create": "데이터베이스 만들기"
+    "create": "데이터베이스 만들기",
+    "recoveryDescription": "데이터베이스는 이 기기에서 암호화됩니다. 자동으로 생성되는 12개 단어의 복구 문구가 데이터베이스를 여는 유일한 방법입니다. 다른 방법으로는 데이터를 복구할 수 없으니 안전한 곳에 보관하세요.",
+    "masterTypeLabel": "데이터베이스 보호 방식",
+    "masterTypePassword": "비밀번호",
+    "masterTypeRecovery": "복구 문구",
+    "recoveryHint": "외워야 하는 비밀번호 대신 적어 둘 무작위 단어 12개를 받게 됩니다. 이 단어를 가진 사람은 누구나 데이터베이스를 열 수 있고, 없으면 본인을 포함해 아무도 열 수 없습니다.",
+    "generateRecovery": "복구 문구 생성"
   },
   "passwordEntry": {
     "title": "비밀번호 입력",
@@ -127,5 +135,53 @@
     "title": "{{provider}}에서 열기",
     "empty": "{{provider}}에서 백업 아카이브를 찾지 못했어요.",
     "opening": "여는 중…"
+  },
+  "recoverySetup": {
+    "title": "복구 문구",
+    "description": "이 12개 단어는 데이터베이스를 여는 유일한 방법입니다. 순서대로 적어 안전한 곳에 보관하세요. 단어는 어디에도 저장되지 않으며 다른 방법으로는 데이터를 복구할 수 없습니다.",
+    "copy": "복사",
+    "copied": "복사됨",
+    "print": "인쇄",
+    "regenerate": "새 문구 생성",
+    "savedCheckbox": "이 12개 단어를 적어 두었습니다",
+    "confirmTitle": "복구 문구 확인",
+    "confirmDescription": "문구를 올바르게 적었는지 확인하기 위해 요청된 단어를 입력하세요.",
+    "wordLabel": "{{position}}번째 단어",
+    "confirmMismatch": "일치하지 않는 단어가 있습니다. 적어 둔 문구를 확인하고 다시 시도하세요.",
+    "printTitle": "Budget Tracker 복구 문구",
+    "printedOn": "인쇄일: {{date}}"
+  },
+  "recoveryEntry": {
+    "title": "복구 문구 입력",
+    "defaultDescription": "이 데이터베이스는 복구 문구로 보호됩니다. 12개 단어를 입력하여 여세요.",
+    "label": "복구 문구",
+    "placeholder": "12개 단어를 공백으로 구분하여 입력",
+    "wordCount": "12개 중 {{count}}개 단어",
+    "invalidWords": "단어 목록에 없음: {{words}}",
+    "badChecksum": "문구가 맞지 않습니다. 잘못된 단어가 있습니다.",
+    "valid": "복구 문구가 올바른 것 같습니다.",
+    "unlock": "잠금 해제",
+    "decrypting": "복호화 중…",
+    "hide": "문구 숨기기",
+    "show": "문구 표시"
+  },
+  "legacy": {
+    "title": "이 데이터베이스는 다시 설정해야 합니다",
+    "description": "이 기기의 데이터베이스는 이전 버전의 앱에서 만들어졌으며, 이 버전에서는 열 수 없는 방식으로 암호화되어 있습니다. 앱을 초기화하여 새로 시작하거나 현재 버전에서 내보낸 백업을 복원하세요.",
+    "reset": "초기화하고 다시 시작",
+    "confirmTitle": "로컬 데이터베이스를 삭제할까요?",
+    "confirmBody": "이 브라우저에 저장된 데이터베이스와 앱 설정이 영구적으로 삭제됩니다. 내보내거나 클라우드에 동기화한 백업은 영향을 받지 않지만, 현재 버전의 백업만 복원할 수 있습니다.",
+    "resetting": "초기화 중…",
+    "failed": "초기화 실패"
+  },
+  "unlockErrors": {
+    "INVALID_SECRET": "비밀번호 또는 복구 문구가 올바르지 않습니다.",
+    "INVALID_RECOVERY_PHRASE": "유효한 복구 문구가 아닙니다.",
+    "LEGACY_HEADER": "이 데이터베이스는 이전 버전의 앱에서 만들어져 열 수 없습니다.",
+    "HEADER_INVALID": "이 기기에 저장된 암호화 설정이 손상되었습니다.",
+    "NO_DATABASE": "이 기기에서 암호화된 데이터베이스를 찾을 수 없습니다.",
+    "ARCHIVE_KEY_MISMATCH": "이 백업은 다른 데이터베이스의 것입니다. 해당 데이터베이스의 비밀번호 또는 복구 문구를 입력하여 여세요.",
+    "UNSUPPORTED_ARCHIVE_FORMAT": "이 백업은 이전 버전의 앱에서 만들어져 더 이상 열 수 없습니다.",
+    "ARCHIVE_CORRUPT": "이 백업 파일은 손상되어 읽을 수 없습니다."
   }
 }

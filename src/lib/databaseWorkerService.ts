@@ -3,6 +3,15 @@
 
 import type { DatabaseVfsSnapshot } from './databaseArchive';
 import { getDebugFlags } from './debugMode';
+import {
+  DatabaseWorkerError,
+  type ArchiveRestoreSource,
+  type MasterSecret,
+  type NewConvenienceSlot,
+  type SlotSummary,
+  type UnlockMethod,
+  type UnlockMethods,
+} from './encryptionTypes';
 import { getAmbientLogContext, logger, nextCorrelationId, type LogContext } from './logging';
 
 /**
@@ -238,7 +247,7 @@ export class DatabaseWorkerService {
             sql: response.sqlResponse?.sql,
             error: message,
           });
-          pending.reject(new Error(message));
+          pending.reject(new DatabaseWorkerError(message, response.sqlResponse?.code));
         }
       }
     }
@@ -329,12 +338,16 @@ export class DatabaseWorkerService {
     // the same generous allowance as change_password's full-database walk.
     export_database_snapshot: 600000, // 10min for exports
     import_database_snapshot: 600000, // 10min for archive imports
-    create_new_database: 30000,    // 30s for password derivation + creation
-    unlock_database: 30000,        // 30s for password derivation + verification
+    create_new_database: 30000,    // 30s for key derivation + creation
+    unlock_database: 30000,        // 30s for key derivation + verification
     lock_database: 10000,
-    change_password: 600000,       // 10m — re-encrypts every stored block
+    get_unlock_methods: 5000,
+    verify_master: 30000,          // one PBKDF2 derivation
+    replace_master: 60000,         // two PBKDF2 derivations; the root key is re-wrapped, no blocks are touched
+    add_slot: 30000,
+    remove_slot: 10000,
+    rename_slot: 10000,
     check_encryption_ready: 5000,
-    verify_password: 5000,
     encrypt_archive: 120000,       // 2min for large archive encryption
     decrypt_archive: 120000,       // 2min for large archive decryption
     terminate_worker: 15000,       // 15s to close handles and delete the worker's stores
@@ -346,7 +359,12 @@ export class DatabaseWorkerService {
       || this.OPERATION_TIMEOUTS.default;
   }
 
-  private sendMessage<T = any>(type: string, payload?: any, customTimeoutMs?: number): Promise<DatabaseResponse> {
+  private sendMessage<T = any>(
+    type: string,
+    payload?: any,
+    customTimeoutMs?: number,
+    transfer?: Transferable[]
+  ): Promise<DatabaseResponse> {
     return new Promise((resolve, reject) => {
       // Handle server-side or worker not available
       if (typeof window === 'undefined' || !this.port) {
@@ -379,7 +397,13 @@ export class DatabaseWorkerService {
       this.pendingMessages.set(id, { resolve, reject, timeout, type, startedAt: Date.now() });
 
       try {
-        this.port.postMessage(message);
+        // Secret buffers (PRF outputs, cloud shares) are transferred rather
+        // than copied so this tab's copy is detached the moment it is sent.
+        if (transfer && transfer.length > 0) {
+          this.port.postMessage(message, transfer);
+        } else {
+          this.port.postMessage(message);
+        }
         log.debug('Worker request', {
           correlationId: id,
           operation: type,
@@ -481,25 +505,35 @@ export class DatabaseWorkerService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Creates a brand-new encrypted database: derives a page-encryption key
-   * from `password`, writes the out-of-band encryption header, and opens the
-   * database. Fails if an encrypted database already exists on this device.
+   * Creates a brand-new encrypted database protected by `master` (a password
+   * or a recovery phrase's entropy): mints a random root key, wraps it in the
+   * master key slot, writes the out-of-band encryption header, and opens the
+   * database. With `restoreFrom` (an archive's `keyId` + `masterSlot`) the new
+   * database adopts that archive's root key instead, so the restored copy and
+   * the backup share one master secret. Fails if a database already exists.
    */
   public async createNewDatabase(
-    password: string,
+    input: { master: MasterSecret; label?: string; restoreFrom?: ArchiveRestoreSource },
     filename?: string,
     options: OpenDatabaseOptions = {}
   ): Promise<DatabaseResponse> {
-    return this.sendMessage('create_new_database', { password, filename, options });
+    return this.sendMessage('create_new_database', {
+      master: input.master,
+      label: input.label,
+      restoreFrom: input.restoreFrom,
+      filename,
+      options,
+    });
   }
 
   /**
-   * Unlocks the existing encrypted database on this device with `password`.
-   * Rejects with a clear error on a wrong password without ever opening the
-   * database or touching its stored blocks.
+   * Unlocks the existing encrypted database on this device with one of its
+   * key slots. Rejects (`INVALID_SECRET`) on a wrong secret without ever
+   * opening the database or touching its stored blocks.
    */
-  public async unlockDatabase(password: string, filename?: string): Promise<DatabaseResponse> {
-    return this.sendMessage('unlock_database', { password, filename });
+  public async unlockDatabase(method: UnlockMethod, filename?: string): Promise<DatabaseResponse> {
+    const transfer = method.secret instanceof Uint8Array ? [method.secret.buffer as ArrayBuffer] : undefined;
+    return this.sendMessage('unlock_database', { method, filename }, undefined, transfer);
   }
 
   /** Closes the live connection and forgets the key — nothing is readable again until unlockDatabase succeeds. */
@@ -507,9 +541,36 @@ export class DatabaseWorkerService {
     await this.sendMessage('lock_database');
   }
 
-  /** Re-encrypts every stored block under a newly-derived key. Rejects if `oldPassword` is wrong. */
-  public async changePassword(oldPassword: string, newPassword: string): Promise<void> {
-    await this.sendMessage('change_password', { oldPassword, newPassword });
+  /** Which key slots exist on this device (readable while locked), and whether the worker already holds the key. */
+  public async getUnlockMethods(): Promise<UnlockMethods> {
+    const response = await this.sendMessage('get_unlock_methods');
+    return response.sqlResponse as UnlockMethods;
+  }
+
+  /**
+   * Replaces the master slot (password → recovery phrase, recovery phrase →
+   * password, or a new password). Verifies `current`, then re-wraps the same
+   * root key under `next`; no stored block changes. Rejects with
+   * `INVALID_SECRET` if `current` is wrong.
+   */
+  public async replaceMaster(current: MasterSecret, next: MasterSecret, label?: string): Promise<SlotSummary> {
+    const response = await this.sendMessage('replace_master', { current, next, label });
+    return response.sqlResponse?.masterSlot as SlotSummary;
+  }
+
+  /** Registers a passkey or cloud slot wrapping the live root key. The database must be unlocked. */
+  public async addSlot(slot: NewConvenienceSlot): Promise<SlotSummary> {
+    const response = await this.sendMessage('add_slot', { slot }, undefined, [slot.secret.buffer as ArrayBuffer]);
+    return response.sqlResponse?.slot as SlotSummary;
+  }
+
+  /** Removes a passkey or cloud slot. The master slot cannot be removed (`CANNOT_REMOVE_MASTER`). */
+  public async removeSlot(slotId: string): Promise<void> {
+    await this.sendMessage('remove_slot', { slotId });
+  }
+
+  public async renameSlot(slotId: string, label: string): Promise<void> {
+    await this.sendMessage('rename_slot', { slotId, label });
   }
 
   /** Recreates the schema on the already-unlocked current connection (e.g. after an aborted sample-data import). */
@@ -523,15 +584,15 @@ export class DatabaseWorkerService {
     return response.sqlResponse?.isReady === true;
   }
 
-  /** Returns `true` if `password` matches the encrypted database's stored verifier, without unlocking anything. */
-  public async verifyCurrentPassword(password: string): Promise<boolean> {
-    const response = await this.sendMessage('verify_password', { password });
+  /** Returns `true` if `master` opens the database's master key slot, without unlocking anything. */
+  public async verifyMaster(master: MasterSecret): Promise<boolean> {
+    const response = await this.sendMessage('verify_master', { master });
     return response.sqlResponse?.isMatch === true;
   }
 
   /**
-   * Asks the worker to encrypt `archiveBytes` (an inner ZIP) using the stored
-   * password and returns the encrypted envelope bytes.
+   * Asks the worker to encrypt `archiveBytes` (an inner ZIP) under the
+   * unlocked database's archive key and returns the encrypted envelope bytes.
    */
   public async encryptArchive(
     archiveBytes: Uint8Array,
@@ -549,12 +610,22 @@ export class DatabaseWorkerService {
 
   /**
    * Asks the worker to decrypt `encryptedBytes` and returns the inner ZIP
-   * bytes. Uses `password` if given (e.g. verifying a standalone archive
-   * before any local database exists); otherwise falls back to whatever
-   * password the worker already has cached for the unlocked database.
+   * bytes. With `master`, the archive's embedded master slot is opened with
+   * that secret (a standalone archive before any local database exists, or a
+   * backup of a different database). Without it, the archive must belong to
+   * the unlocked database (same root key id), else `ARCHIVE_KEY_MISMATCH`.
+   * `adoptMasterSlot` lets a cloud pull propagate a master change made on
+   * another device into this device's header.
    */
-  public async decryptArchive(encryptedBytes: Uint8Array, password?: string): Promise<Uint8Array> {
-    const response = await this.sendMessage('decrypt_archive', { encryptedBytes, password });
+  public async decryptArchive(
+    encryptedBytes: Uint8Array,
+    options: { master?: MasterSecret; adoptMasterSlot?: boolean } = {}
+  ): Promise<Uint8Array> {
+    const response = await this.sendMessage('decrypt_archive', {
+      encryptedBytes,
+      master: options.master,
+      adoptMasterSlot: options.adoptMasterSlot === true,
+    });
     if (!response.isSuccessful || !response.sqlResponse?.plainBytes) {
       throw new Error(response.sqlResponse?.error || 'Failed to decrypt archive');
     }

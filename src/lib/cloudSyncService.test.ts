@@ -547,7 +547,7 @@ describe('applyDownloadedArchive', () => {
       bytes,
     });
 
-    expect(databaseService.importDatabaseArchiveData).toHaveBeenCalledWith(bytes);
+    expect(databaseService.importDatabaseArchiveData).toHaveBeenCalledWith(bytes, { adoptMasterSlot: true });
     expect(result.pendingChangesSince).toBeNull();
     expect(result.conflict).toBeNull();
     expect(result.linkedFiles.gdrive).toEqual(file);

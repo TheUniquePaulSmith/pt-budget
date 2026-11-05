@@ -7,7 +7,9 @@ import {
   createDatabaseArchive,
   parseDatabaseArchive,
 } from './databaseArchive';
-import { encryptArchive } from './databaseEncryption';
+// The worker-side modules build real v2 envelopes for the tests below.
+import * as workerEncryption from '../../public/database-encryption.js';
+import * as keySlots from '../../public/database-key-slots.js';
 import {
   ACCOUNT_CARD_QUERIES,
   ACCOUNT_QUERIES,
@@ -236,10 +238,14 @@ function createWorkerTransportStub(
     createNewDatabase: vi.fn().mockResolvedValue(undefined),
     unlockDatabase: vi.fn().mockResolvedValue(undefined),
     lockDatabase: vi.fn().mockResolvedValue(undefined),
-    changePassword: vi.fn().mockResolvedValue(undefined),
+    getUnlockMethods: vi.fn().mockResolvedValue({ exists: true, legacyHeader: false, keyId: 'ab'.repeat(16), blockSize: 8192, isUnlocked: true, methods: [] }),
+    replaceMaster: vi.fn().mockResolvedValue({ slotId: 'cd'.repeat(8), type: 'password', label: 'Password', createdAt: '', lastUsedAt: null, isMaster: true }),
+    addSlot: vi.fn().mockResolvedValue({ slotId: 'ef'.repeat(8), type: 'passkey', label: 'Passkey', createdAt: '', lastUsedAt: null, isMaster: false }),
+    removeSlot: vi.fn().mockResolvedValue(undefined),
+    renameSlot: vi.fn().mockResolvedValue(undefined),
     recreateDatabase: vi.fn().mockResolvedValue(undefined),
     isEncryptionReady: vi.fn().mockResolvedValue(true),
-    verifyCurrentPassword: vi.fn().mockResolvedValue(true),
+    verifyMaster: vi.fn().mockResolvedValue(true),
     encryptArchive: vi.fn().mockResolvedValue(new Uint8Array([0xaa, 0xbb])),
     decryptArchive: vi.fn().mockResolvedValue(new Uint8Array()),
     onStatusChange: vi.fn(() => () => undefined),
@@ -393,21 +399,38 @@ describe('DatabaseService lifecycle helpers', () => {
     const service = new DatabaseService(worker);
     vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
 
-    await service.createNewDatabase('hunter22!', { deferIndexes: true });
+    await service.createNewDatabase({ type: 'password', secret: 'hunter22!' }, { deferIndexes: true });
 
-    expect(worker.createNewDatabase).toHaveBeenCalledWith('hunter22!', undefined, {
-      deferIndexes: true,
-    });
+    expect(worker.createNewDatabase).toHaveBeenCalledWith(
+      { master: { type: 'password', secret: 'hunter22!' }, restoreFrom: undefined },
+      undefined,
+      { deferIndexes: true }
+    );
   });
 
-  it('delegates unlocking to the worker with the password', async () => {
+  it('passes the archive root key and master slot through when restoring', async () => {
+    const worker = createWorkerTransportStub();
+    const service = new DatabaseService(worker);
+    vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
+    const restoreFrom = { keyId: 'ab'.repeat(16), masterSlot: { type: 'recovery' } } as any;
+
+    await service.createNewDatabase({ type: 'recovery', secret: new Uint8Array(16) }, {}, restoreFrom);
+
+    expect(worker.createNewDatabase).toHaveBeenCalledWith(
+      { master: { type: 'recovery', secret: new Uint8Array(16) }, restoreFrom },
+      undefined,
+      {}
+    );
+  });
+
+  it('delegates unlocking to the worker with the unlock method', async () => {
     const worker = createWorkerTransportStub();
     const service = new DatabaseService(worker);
     vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
 
-    await service.unlockDatabase('hunter22!');
+    await service.unlockDatabase({ type: 'password', secret: 'hunter22!' });
 
-    expect(worker.unlockDatabase).toHaveBeenCalledWith('hunter22!');
+    expect(worker.unlockDatabase).toHaveBeenCalledWith({ type: 'password', secret: 'hunter22!' });
   });
 
   it('propagates a wrong-password rejection from unlockDatabase', async () => {
@@ -417,7 +440,7 @@ describe('DatabaseService lifecycle helpers', () => {
     const service = new DatabaseService(worker);
     vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
 
-    await expect(service.unlockDatabase('wrong-password')).rejects.toThrow('Incorrect password');
+    await expect(service.unlockDatabase({ type: 'password', secret: 'wrong-password' })).rejects.toThrow('Incorrect password');
   });
 
   it('delegates ensureIndexes to the worker transport', async () => {
@@ -438,13 +461,47 @@ describe('DatabaseService lifecycle helpers', () => {
     expect(worker.lockDatabase).toHaveBeenCalledTimes(1);
   });
 
-  it('delegates changePassword to the worker transport', async () => {
+  it('delegates replaceMaster to the worker transport', async () => {
     const worker = createWorkerTransportStub();
     const service = new DatabaseService(worker);
+    const current = { type: 'password' as const, secret: 'old-password' };
+    const next = { type: 'password' as const, secret: 'new-password' };
 
-    await service.changePassword('old-password', 'new-password');
+    const summary = await service.replaceMaster(current, next, 'Main');
 
-    expect(worker.changePassword).toHaveBeenCalledWith('old-password', 'new-password');
+    expect(worker.replaceMaster).toHaveBeenCalledWith(current, next, 'Main');
+    expect(summary.isMaster).toBe(true);
+  });
+
+  it('delegates the key-slot management calls to the worker transport', async () => {
+    const worker = createWorkerTransportStub();
+    const service = new DatabaseService(worker);
+    vi.spyOn(service, 'initialize').mockResolvedValue(undefined);
+    const slot = {
+      type: 'passkey' as const,
+      secret: new Uint8Array(32),
+      label: 'Laptop',
+      kdf: { credentialId: 'abc', prfSalt: '00'.repeat(32), rpId: 'localhost' },
+    };
+
+    const methods = await service.getUnlockMethods();
+    const added = await service.addSlot(slot);
+    await service.removeSlot('ef'.repeat(8));
+    await service.renameSlot('ef'.repeat(8), 'Desk');
+
+    expect(methods.exists).toBe(true);
+    expect(worker.addSlot).toHaveBeenCalledWith(slot);
+    expect(added.type).toBe('passkey');
+    expect(worker.removeSlot).toHaveBeenCalledWith('ef'.repeat(8));
+    expect(worker.renameSlot).toHaveBeenCalledWith('ef'.repeat(8), 'Desk');
+  });
+
+  it('verifyMaster reports a worker failure as false', async () => {
+    const worker = createWorkerTransportStub({ verifyMaster: vi.fn().mockRejectedValue(new Error('boom')) });
+    const service = new DatabaseService(worker);
+
+    expect(await service.verifyMaster({ type: 'password', secret: 'x' })).toBe(false);
+    expect(await new DatabaseService(createWorkerTransportStub()).verifyMaster({ type: 'password', secret: 'x' })).toBe(true);
   });
 
   it('delegates clearAndRecreateDatabase to the worker\'s recreateDatabase', async () => {
@@ -493,8 +550,22 @@ describe('DatabaseService file operations', () => {
    * `isEncryptedArchive` returns `true` for the result.
    */
   async function buildEncryptedEnvelope(innerBytes: Uint8Array) {
-    return encryptArchive(innerBytes, 'test-password', '2026-05-27T12:00:00.000Z');
+    const rootKey = keySlots.generateRootKey();
+    const masterSlot = await keySlots.createSlot({ type: 'password', secret: 'test-password', kdf: { iterations: 1000 } }, rootKey);
+    const archiveKey = await keySlots.deriveArchiveKey(rootKey);
+    return workerEncryption.encryptArchive(innerBytes, { archiveKey, keyId: keySlots.generateKeyId(), masterSlot }, '2026-05-27T12:00:00.000Z');
   }
+
+  it('reads the archive header (key id, master slot type) without decrypting', async () => {
+    const encryptedBytes = await buildEncryptedEnvelope(await buildInnerArchive());
+    const service = new DatabaseService(createWorkerTransportStub());
+
+    const meta = service.getEncryptedArchiveMeta(encryptedBytes);
+
+    expect(meta?.format).toBe('budget-tracker-encrypted-v2');
+    expect(meta?.masterSlot.type).toBe('password');
+    expect(service.getEncryptedArchiveMeta(new Uint8Array([1, 2, 3]))).toBeNull();
+  });
 
   it('decrypts and passes the archive snapshot through to the worker', async () => {
     const innerBytes = await buildInnerArchive();

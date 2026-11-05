@@ -82,6 +82,7 @@ The app serves wllama's wasm asset locally from `public/wllama/wllama.wasm`; no 
 ### 🔐 User Control
 
 - **Data stays on the device** unless the user explicitly exports it
+- **Encrypted at rest with envelope encryption**: a random root key encrypts every database page and every backup; it is unlocked with a password or a 12-word recovery phrase (optionally also a passkey or a signed-in cloud account). The full design, formats and threat model are in [docs/Encryption.md](./docs/Encryption.md)
 - **SQLite backup export** keeps data portable
 - **File-based workflows** make ownership and backup strategies explicit
 - **No vendor lock-in** because exported data is in standard SQLite format
@@ -96,7 +97,7 @@ The app serves wllama's wasm asset locally from `public/wllama/wllama.wasm`; no 
 
 ## 📊 Database Schema
 
-For detailed information about the database structure and relationships, see [Database Schema - ER Diagram](./erDiagram.md). This includes:
+For detailed information about the database structure and relationships, see [Database Schema - ER Diagram](./docs/database-schema.md). This includes:
 
 - Complete entity relationship diagram
 - Table structures and constraints

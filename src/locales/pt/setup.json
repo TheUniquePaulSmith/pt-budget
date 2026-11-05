@@ -182,6 +182,18 @@
     "NO_DATABASE": "Nenhum banco de dados criptografado foi encontrado neste dispositivo.",
     "ARCHIVE_KEY_MISMATCH": "Este backup pertence a outro banco de dados. Digite a senha ou a frase de recuperação dele para abri-lo.",
     "UNSUPPORTED_ARCHIVE_FORMAT": "Este backup foi criado por uma versão anterior do aplicativo e não pode mais ser aberto.",
-    "ARCHIVE_CORRUPT": "Este arquivo de backup está danificado e não pode ser lido."
+    "ARCHIVE_CORRUPT": "Este arquivo de backup está danificado e não pode ser lido.",
+    "PASSKEY_CANCELLED": "A solicitação da passkey foi cancelada.",
+    "PASSKEY_PRF_UNSUPPORTED": "Esta passkey ou este navegador não consegue derivar uma chave de criptografia, então não pode desbloquear o banco de dados.",
+    "PASSKEY_FAILED": "Não foi possível usar a passkey. Tente novamente."
+  },
+  "unlock": {
+    "passkeyTitle": "Desbloquear com passkey",
+    "passkeyDescription": "Use uma passkey registrada neste dispositivo para abrir seu banco de dados.",
+    "passkeyButton": "Desbloquear com passkey",
+    "passkeyWaiting": "Aguardando sua passkey…",
+    "passkeyUsePassword": "Usar a senha em vez disso",
+    "passkeyUseRecovery": "Usar a frase de recuperação em vez disso",
+    "passkeyUsePasskey": "Usar uma passkey em vez disso"
   }
 }

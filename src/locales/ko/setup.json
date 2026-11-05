@@ -182,6 +182,18 @@
     "NO_DATABASE": "이 기기에서 암호화된 데이터베이스를 찾을 수 없습니다.",
     "ARCHIVE_KEY_MISMATCH": "이 백업은 다른 데이터베이스의 것입니다. 해당 데이터베이스의 비밀번호 또는 복구 문구를 입력하여 여세요.",
     "UNSUPPORTED_ARCHIVE_FORMAT": "이 백업은 이전 버전의 앱에서 만들어져 더 이상 열 수 없습니다.",
-    "ARCHIVE_CORRUPT": "이 백업 파일은 손상되어 읽을 수 없습니다."
+    "ARCHIVE_CORRUPT": "이 백업 파일은 손상되어 읽을 수 없습니다.",
+    "PASSKEY_CANCELLED": "패스키 요청이 취소되었습니다.",
+    "PASSKEY_PRF_UNSUPPORTED": "이 패스키 또는 브라우저는 암호화 키를 생성할 수 없어 데이터베이스를 잠금 해제할 수 없습니다.",
+    "PASSKEY_FAILED": "패스키를 사용할 수 없습니다. 다시 시도해 주세요."
+  },
+  "unlock": {
+    "passkeyTitle": "패스키로 잠금 해제",
+    "passkeyDescription": "이 기기에 등록된 패스키로 데이터베이스를 엽니다.",
+    "passkeyButton": "패스키로 잠금 해제",
+    "passkeyWaiting": "패스키를 기다리는 중…",
+    "passkeyUsePassword": "대신 비밀번호 사용",
+    "passkeyUseRecovery": "대신 복구 문구 사용",
+    "passkeyUsePasskey": "대신 패스키 사용"
   }
 }

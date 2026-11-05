@@ -6,8 +6,9 @@
  *
  *   - Master secret: which kind protects it (password / recovery phrase),
  *     change the password, or switch to the other kind (SwitchMasterDialog).
- *   - Unlock methods: the slot list. Phase 1 shows the master slot; passkeys
- *     and the cloud-account slot plug in here in later phases.
+ *   - Unlock methods: the slot list (master + cloud), then the passkey
+ *     subsection (PasskeySlotsSection: add / rename / remove). The
+ *     cloud-account slot plugs in here in a later phase.
  *
  * Owns the one `getUnlockMethods` read so the two parts stay in step.
  */
@@ -35,8 +36,9 @@ import { useFormatters } from '@/contexts/useFormatters';
 import type { SyncStage } from '@/lib/cloudSyncService';
 import type { DatabaseSource } from '@/lib/databaseSourceStorage';
 import { logger } from '@/lib/logging';
-import type { MasterSecret, MasterSlotType, SlotSummary, UnlockMethods } from '@/lib/encryptionTypes';
+import type { MasterSecret, MasterSlotType, NewConvenienceSlot, SlotSummary, UnlockMethods } from '@/lib/encryptionTypes';
 import { ChangePasswordSection } from './ChangePasswordSection';
+import { PasskeySlotsSection } from './PasskeySlotsSection';
 import { SwitchMasterDialog } from './SwitchMasterDialog';
 
 const log = logger.child({ component: 'SecurityKeySlotsSection' });
@@ -44,11 +46,25 @@ const log = logger.child({ component: 'SecurityKeySlotsSection' });
 interface SecurityKeySlotsSectionProps {
   getUnlockMethods: () => Promise<UnlockMethods>;
   changeMaster: (current: MasterSecret, next: MasterSecret) => Promise<{ syncError: string | null }>;
+  addUnlockSlot: (slot: NewConvenienceSlot) => Promise<SlotSummary>;
+  removeUnlockSlot: (slotId: string) => Promise<void>;
+  renameUnlockSlot: (slotId: string, label: string) => Promise<void>;
+  /** Account name the OS passkey picker shows for a new passkey. */
+  userName: string;
   databaseSource: DatabaseSource;
   syncStage: SyncStage | null;
 }
 
-export function SecurityKeySlotsSection({ getUnlockMethods, changeMaster, databaseSource, syncStage }: SecurityKeySlotsSectionProps) {
+export function SecurityKeySlotsSection({
+  getUnlockMethods,
+  changeMaster,
+  addUnlockSlot,
+  removeUnlockSlot,
+  renameUnlockSlot,
+  userName,
+  databaseSource,
+  syncStage,
+}: SecurityKeySlotsSectionProps) {
   const { t } = useTranslation('settings');
   const { dateTime } = useFormatters();
   const [methods, setMethods] = useState<UnlockMethods | null>(null);
@@ -154,7 +170,7 @@ export function SecurityKeySlotsSection({ getUnlockMethods, changeMaster, databa
         </Typography>
         {methods && (
           <List dense disablePadding data-testid="unlock-methods-list">
-            {methods.methods.map((slot) => (
+            {methods.methods.filter((slot) => slot.type !== 'passkey').map((slot) => (
               <ListItem key={slot.slotId} disableGutters data-testid={`unlock-method-${slot.type}`}>
                 <ListItemIcon sx={{ minWidth: 36 }}>
                   <KeyOutlined fontSize="small" />
@@ -182,6 +198,18 @@ export function SecurityKeySlotsSection({ getUnlockMethods, changeMaster, databa
           </Typography>
         )}
       </Box>
+
+      {methods && (
+        <PasskeySlotsSection
+          keyId={methods.keyId}
+          passkeys={methods.methods.filter((slot) => slot.type === 'passkey')}
+          userName={userName}
+          addUnlockSlot={addUnlockSlot}
+          removeUnlockSlot={removeUnlockSlot}
+          renameUnlockSlot={renameUnlockSlot}
+          onChanged={reload}
+        />
+      )}
     </Stack>
   );
 }

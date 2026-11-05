@@ -327,8 +327,11 @@ export function useSettingsSlice() {
   const lifecycle = useDatabaseLifecycle();
   const status = useDatabaseStatus();
   const subscriptions = useDatabaseSubscriptions();
+  const collections = useDatabaseCollections();
 
   return {
+    /** The primary user names a new passkey in the OS picker. */
+    users: collections.users,
     exportDatabase: lifecycle.exportDatabase,
     reseedCommunityRules: subscriptions.reseedCommunityRules,
     getMerchantRuleCounts: subscriptions.getMerchantRuleCounts,

@@ -182,6 +182,18 @@
     "NO_DATABASE": "Aucune base de données chiffrée n'a été trouvée sur cet appareil.",
     "ARCHIVE_KEY_MISMATCH": "Cette sauvegarde appartient à une autre base de données. Saisissez son mot de passe ou sa phrase de récupération pour l'ouvrir.",
     "UNSUPPORTED_ARCHIVE_FORMAT": "Cette sauvegarde a été créée par une ancienne version de l'application et ne peut plus être ouverte.",
-    "ARCHIVE_CORRUPT": "Ce fichier de sauvegarde est endommagé et ne peut pas être lu."
+    "ARCHIVE_CORRUPT": "Ce fichier de sauvegarde est endommagé et ne peut pas être lu.",
+    "PASSKEY_CANCELLED": "La demande de passkey a été annulée.",
+    "PASSKEY_PRF_UNSUPPORTED": "Cette passkey ou ce navigateur ne peut pas dériver de clé de chiffrement et ne peut donc pas déverrouiller la base de données.",
+    "PASSKEY_FAILED": "La passkey n’a pas pu être utilisée. Veuillez réessayer."
+  },
+  "unlock": {
+    "passkeyTitle": "Déverrouiller avec une passkey",
+    "passkeyDescription": "Utilisez une passkey enregistrée sur cet appareil pour ouvrir votre base de données.",
+    "passkeyButton": "Déverrouiller avec une passkey",
+    "passkeyWaiting": "En attente de votre passkey…",
+    "passkeyUsePassword": "Utiliser le mot de passe à la place",
+    "passkeyUseRecovery": "Utiliser la phrase de récupération à la place",
+    "passkeyUsePasskey": "Utiliser une passkey à la place"
   }
 }

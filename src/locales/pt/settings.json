@@ -268,7 +268,19 @@
     "typePassword": "Senha",
     "typeRecovery": "Frase de recuperação",
     "typePasskey": "Chave de acesso",
-    "typeCloud": "Conta na nuvem"
+    "typeCloud": "Conta na nuvem",
+    "passkeys": "Passkeys",
+    "passkeysDescription": "Desbloqueie com Windows Hello, Touch ID, seu celular ou uma chave de segurança em vez de digitar sua senha ou frase de recuperação. As passkeys ficam armazenadas apenas neste dispositivo e nunca são incluídas nos backups.",
+    "addPasskey": "Adicionar passkey",
+    "addingPasskey": "Aguardando sua passkey…",
+    "passkeyAdded": "Passkey adicionada. Agora você pode usá-la para desbloquear este banco de dados neste dispositivo.",
+    "passkeyDefaultLabel": "Passkey adicionada em {{date}}",
+    "removePasskeyTitle": "Remover esta passkey?",
+    "removePasskeyBody": "“{{label}}” não desbloqueará mais este banco de dados. Sua senha ou frase de recuperação continua funcionando.",
+    "passkeyUnavailable": "Passkeys não estão disponíveis neste navegador, então as passkeys abaixo não podem ser usadas aqui. Você ainda pode removê-las.",
+    "rename": "Renomear",
+    "remove": "Remover",
+    "renameLabel": "Nome"
   },
   "securityErrors": {
     "INVALID_SECRET": "A senha ou a frase de recuperação atual está incorreta.",

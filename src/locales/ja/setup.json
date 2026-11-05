@@ -182,6 +182,18 @@
     "NO_DATABASE": "この端末に暗号化されたデータベースが見つかりません。",
     "ARCHIVE_KEY_MISMATCH": "このバックアップは別のデータベースのものです。そのパスワードまたはリカバリーフレーズを入力して開いてください。",
     "UNSUPPORTED_ARCHIVE_FORMAT": "このバックアップは旧バージョンのアプリで作成されたため、開くことができません。",
-    "ARCHIVE_CORRUPT": "このバックアップファイルは破損しており読み取れません。"
+    "ARCHIVE_CORRUPT": "このバックアップファイルは破損しており読み取れません。",
+    "PASSKEY_CANCELLED": "パスキーの要求はキャンセルされました。",
+    "PASSKEY_PRF_UNSUPPORTED": "このパスキーまたはブラウザーは暗号化キーを導出できないため、データベースをロック解除できません。",
+    "PASSKEY_FAILED": "パスキーを使用できませんでした。もう一度お試しください。"
+  },
+  "unlock": {
+    "passkeyTitle": "パスキーでロック解除",
+    "passkeyDescription": "このデバイスに登録されたパスキーを使ってデータベースを開きます。",
+    "passkeyButton": "パスキーでロック解除",
+    "passkeyWaiting": "パスキーを待っています…",
+    "passkeyUsePassword": "代わりにパスワードを使う",
+    "passkeyUseRecovery": "代わりにリカバリーフレーズを使う",
+    "passkeyUsePasskey": "代わりにパスキーを使う"
   }
 }

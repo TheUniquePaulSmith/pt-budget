@@ -268,7 +268,19 @@
     "typePassword": "Password",
     "typeRecovery": "Recovery phrase",
     "typePasskey": "Passkey",
-    "typeCloud": "Cloud account"
+    "typeCloud": "Cloud account",
+    "passkeys": "Passkeys",
+    "passkeysDescription": "Unlock with Windows Hello, Touch ID, your phone or a security key instead of typing your password or recovery phrase. Passkeys are stored on this device only and are never included in backups.",
+    "addPasskey": "Add passkey",
+    "addingPasskey": "Waiting for your passkey…",
+    "passkeyAdded": "Passkey added. You can now use it to unlock this database on this device.",
+    "passkeyDefaultLabel": "Passkey added {{date}}",
+    "removePasskeyTitle": "Remove this passkey?",
+    "removePasskeyBody": "“{{label}}” will no longer unlock this database. Your password or recovery phrase keeps working.",
+    "passkeyUnavailable": "Passkeys are not available in this browser, so the passkeys below cannot be used here. You can still remove them.",
+    "rename": "Rename",
+    "remove": "Remove",
+    "renameLabel": "Name"
   },
   "securityErrors": {
     "INVALID_SECRET": "The current password or recovery phrase is incorrect.",

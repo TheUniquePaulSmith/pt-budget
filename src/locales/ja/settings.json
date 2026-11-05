@@ -264,7 +264,19 @@
     "typePassword": "パスワード",
     "typeRecovery": "リカバリーフレーズ",
     "typePasskey": "パスキー",
-    "typeCloud": "クラウドアカウント"
+    "typeCloud": "クラウドアカウント",
+    "passkeys": "パスキー",
+    "passkeysDescription": "パスワードやリカバリーフレーズを入力する代わりに、Windows Hello、Touch ID、スマートフォン、またはセキュリティキーでロック解除できます。パスキーはこのデバイスにのみ保存され、バックアップには含まれません。",
+    "addPasskey": "パスキーを追加",
+    "addingPasskey": "パスキーを待っています…",
+    "passkeyAdded": "パスキーを追加しました。このデバイスでこのデータベースのロック解除に使えます。",
+    "passkeyDefaultLabel": "{{date}} に追加したパスキー",
+    "removePasskeyTitle": "このパスキーを削除しますか？",
+    "removePasskeyBody": "「{{label}}」ではこのデータベースをロック解除できなくなります。パスワードまたはリカバリーフレーズは引き続き使えます。",
+    "passkeyUnavailable": "このブラウザーではパスキーを利用できないため、以下のパスキーはここでは使えません。削除することはできます。",
+    "rename": "名前を変更",
+    "remove": "削除",
+    "renameLabel": "名前"
   },
   "securityErrors": {
     "INVALID_SECRET": "現在のパスワードまたはリカバリーフレーズが正しくありません。",

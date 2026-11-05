@@ -264,7 +264,19 @@
     "typePassword": "密码",
     "typeRecovery": "恢复短语",
     "typePasskey": "通行密钥",
-    "typeCloud": "云账户"
+    "typeCloud": "云账户",
+    "passkeys": "通行密钥",
+    "passkeysDescription": "使用 Windows Hello、Touch ID、手机或安全密钥解锁，而无需输入密码或恢复短语。通行密钥仅保存在此设备上，绝不会包含在备份中。",
+    "addPasskey": "添加通行密钥",
+    "addingPasskey": "正在等待你的通行密钥…",
+    "passkeyAdded": "通行密钥已添加。现在可以用它在此设备上解锁该数据库。",
+    "passkeyDefaultLabel": "通行密钥添加于 {{date}}",
+    "removePasskeyTitle": "移除此通行密钥？",
+    "removePasskeyBody": "“{{label}}”将无法再解锁此数据库。你的密码或恢复短语仍然有效。",
+    "passkeyUnavailable": "此浏览器不支持通行密钥，因此下面的通行密钥无法在此使用。你仍然可以移除它们。",
+    "rename": "重命名",
+    "remove": "移除",
+    "renameLabel": "名称"
   },
   "securityErrors": {
     "INVALID_SECRET": "当前密码或恢复短语不正确。",

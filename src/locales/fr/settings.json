@@ -268,7 +268,19 @@
     "typePassword": "Mot de passe",
     "typeRecovery": "Phrase de récupération",
     "typePasskey": "Clé d'accès",
-    "typeCloud": "Compte cloud"
+    "typeCloud": "Compte cloud",
+    "passkeys": "Passkeys",
+    "passkeysDescription": "Déverrouillez avec Windows Hello, Touch ID, votre téléphone ou une clé de sécurité au lieu de saisir votre mot de passe ou votre phrase de récupération. Les passkeys sont stockées uniquement sur cet appareil et ne figurent jamais dans les sauvegardes.",
+    "addPasskey": "Ajouter une passkey",
+    "addingPasskey": "En attente de votre passkey…",
+    "passkeyAdded": "Passkey ajoutée. Vous pouvez maintenant l’utiliser pour déverrouiller cette base de données sur cet appareil.",
+    "passkeyDefaultLabel": "Passkey ajoutée le {{date}}",
+    "removePasskeyTitle": "Supprimer cette passkey ?",
+    "removePasskeyBody": "« {{label}} » ne déverrouillera plus cette base de données. Votre mot de passe ou votre phrase de récupération continue de fonctionner.",
+    "passkeyUnavailable": "Les passkeys ne sont pas disponibles dans ce navigateur ; celles listées ci-dessous ne peuvent donc pas être utilisées ici. Vous pouvez toujours les supprimer.",
+    "rename": "Renommer",
+    "remove": "Supprimer",
+    "renameLabel": "Nom"
   },
   "securityErrors": {
     "INVALID_SECRET": "Le mot de passe ou la phrase de récupération actuel est incorrect.",

@@ -262,16 +262,67 @@ All HKDF steps use SHA-256, the slot's `hkdfSalt` and the `info` label `budget-t
 
 ## 6. Passkeys (WebAuthn PRF)
 
-*Planned (Phase 2); the key-slot format already defines the `passkey` type.*
+*Built in Phase 2: `src/lib/passkeyUnlock.ts` (page-side ceremony), `src/lib/lastUnlockMethod.ts`, `UnlockScreen` (passkey view), `PasskeySlotsSection` (Settings → Security), `tests/e2e/passkey-unlock.spec.ts`.*
 
-A plain WebAuthn assertion cannot protect data in a client-only app: checking a signature in JavaScript and then releasing a stored key would be a UI gate, not encryption, and signatures cannot be turned into stable keys. The **PRF extension** (CTAP2 `hmac-secret`) can: for a registered credential and a salt the authenticator returns `HMAC(credentialSecret, salt)`, 32 bytes that are the same every time and never leave the authenticator without user verification. That output is the passkey slot's IKM.
+A plain WebAuthn assertion cannot protect data in a client-only app: checking a signature in JavaScript and then releasing a stored key would be a UI gate, not encryption, and signatures cannot be turned into stable keys. The **PRF extension** (CTAP2 `hmac-secret`) can: for a registered credential and a salt the authenticator returns `HMAC(credentialSecret, salt)`, 32 bytes that are the same every time and never leave the authenticator without user verification. That output is the passkey slot's IKM. WebAuthn is unavailable inside a SharedWorker, so the page runs the ceremony and hands the 32 bytes to the worker (transferred, then zeroed there); the page never sees any other key material.
 
-- Registration: `navigator.credentials.create` with `residentKey: 'required'`, `userVerification: 'required'`, `extensions.prf.eval.first = prfSalt`. If the platform reports `prf.enabled !== true` the passkey cannot be used (`PASSKEY_PRF_UNSUPPORTED`); if it reports enabled but returns no output at creation, an immediate `get()` supplies it.
-- Unlock: `navigator.credentials.get` with `allowCredentials` from the slot summaries and `prf.evalByCredential`; the page transfers the 32-byte output to the worker, which derives the KEK and unwraps the root key.
-- **User verification is always required**: `hmac-secret` returns different outputs with and without UV, so mixing them would make unlock fail silently.
-- Passkeys are bound to the origin (RP id `localhost` in development, the deployed host in production); moving between origins means registering again. Backups never contain passkey slots, so a lost authenticator is never a lost database as long as the master secret is known.
-- Platform support (PRF): Chrome with security keys, Google Password Manager and hybrid (phone) passkeys; Safari 18+ with iCloud Keychain; recent Firefox. The UI hides the option where `PublicKeyCredential` or PRF is unavailable.
-- Testing: Chromium's DevTools protocol virtual authenticator (`WebAuthn.addVirtualAuthenticator` with `hasPrf: true`) lets Playwright cover registration and unlock without hardware.
+### Registration (Settings → Security → Passkeys → *Add passkey*)
+
+`registerPasskey({ keyId, userName, existingCredentialIds, label })` calls `navigator.credentials.create` with:
+
+| Option | Value | Why |
+|---|---|---|
+| `rp` | `{ name: 'Budget Tracker', id: location.hostname }` | Origin-bound: `localhost` in development, the deployed host in production. |
+| `user.id` | the header's 16-byte `keyId` | Every passkey of one database shares a user handle, so the OS picker groups them and a second registration for the same database replaces nothing by accident. |
+| `user.name` / `displayName` | the primary user's name / the slot label (`Passkey added <date>`) | What the picker shows. |
+| `authenticatorSelection` | `residentKey: 'required'`, `userVerification: 'required'` | Discoverable, and UV is mandatory (below). |
+| `excludeCredentials` | the database's existing passkey credential ids | The same authenticator cannot hold two passkeys for one database (`InvalidStateError` → `PASSKEY_FAILED`). |
+| `pubKeyCredParams` | EdDSA (-8), ES256 (-7), RS256 (-257) | The signature is never verified by the app; the list only has to be acceptable to authenticators. |
+| `attestation` | `'none'` | Nothing is verified server-side; there is no server. |
+| `extensions.prf.eval.first` | 32 random bytes | Becomes the slot's `prfSalt`. |
+
+The result is checked before anything is written: `prf.enabled !== true` → `PASSKEY_PRF_UNSUPPORTED`, no slot is created (the credential stays on the authenticator as an orphan the user can delete in the OS; it unlocks nothing). If the platform reports `enabled` but returns no `results.first` at creation, one immediate `credentials.get` for the new credential evaluates the PRF. The 32-byte output then goes to `databaseService.addSlot` → worker `add_slot` as a transferred buffer with the public kdf block `{ name: 'webauthn-prf', credentialId (base64url rawId), prfSalt (base64url), rpId, transports, userHandle (base64url keyId) }`. Adding a passkey while unlocked needs no master secret: being unlocked is the authorisation (a user decision; see §1).
+
+### Unlock
+
+The locked page reads `SlotSummary.passkey` (credential id, salt, transports) for every passkey slot from `get_unlock_methods`. `getPrfOutput(slots)` runs one `navigator.credentials.get` with `allowCredentials` = all of them, `userVerification: 'required'` and `prf.evalByCredential` keyed by credential id, so whichever passkey the user picks is evaluated against its own salt. The assertion's `rawId` selects the slot; the PRF output is copied out of the extension result and transferred with `unlock_database { method: { type: 'passkey', slotId, secret } }`. The worker derives the KEK, unwraps the root key and stamps the slot's `lastUsedAt`; a wrong output is a failed unwrap (`INVALID_SECRET`), exactly like a wrong password.
+
+- **User verification is always required** on both ceremonies: `hmac-secret` returns different outputs with and without UV, so a mixed policy would make unlock fail silently. A refused or failed verification surfaces as `NotAllowedError` → `PASSKEY_CANCELLED`.
+- The PRF output is a function of (credential, salt): a passkey registered for another database, or the same credential with another salt, yields unrelated bytes. Removing the slot (`remove_slot`) is enough to revoke it; the credential left on the authenticator wraps nothing.
+- Passkey slots are device-local and **never embedded in archives** (§3), so a lost authenticator is never a lost database as long as the master secret is known, and a restore on a new device starts without passkeys.
+
+### Lock screen and settings behaviour
+
+- `isPasskeyUnlockAvailable()` = secure context + `PublicKeyCredential` + `isUserVerifyingPlatformAuthenticatorAvailable()` + (when `getClientCapabilities()` exists) `extension:prf` not reported `false`. When it is false, no passkey control is shown; the Settings subsection still lists registered passkeys behind a notice so they can be removed.
+- When passkey slots exist and the browser can use them, the lock screen leads with **Unlock with passkey** (`unlock-method-passkey`) and offers *Use password / recovery phrase instead* (`unlock-method-master`); the master form links back (`unlock-method-passkey-switch`). The master form is always reachable.
+- `localStorage['budgetTracker_lastUnlockMethod']` (`src/lib/lastUnlockMethod.ts`) remembers the slot type that last opened the database on this device: it decides which view leads next time. Right after Settings → Lock Database, and only then, the passkey prompt starts by itself when a passkey was the last method; a page load never opens a system prompt unasked (`unlockOrigin` in `useDatabaseInitialization`).
+- Settings → Security → Passkeys lists each passkey (label, added / last used), renames inline (`rename_slot`) and removes after a confirmation (`remove_slot`). The default label is `Passkey added <date>` in the active locale.
+- Error codes: `PASSKEY_CANCELLED` (`NotAllowedError` / `AbortError`, including a failed UV), `PASSKEY_PRF_UNSUPPORTED` (no PRF at registration or no output at assertion, `NotSupportedError`), `PASSKEY_FAILED` (duplicate credential, unknown `rawId`, anything else). They are page-side codes carried by `PasskeyError.code` and translated through `describeEncryptionError` with `setup:unlockErrors.*`.
+- Logging: `passkeyUnlock.ts` logs operation names, error codes, `rpId`, transports and slot ids, never the salt or the PRF output; the e2e asserts that none of the hex / base64 forms of the output ever appear in the console echo of the log stream.
+
+### Platform support
+
+Chrome / Edge with Windows Hello (Windows 11), Google Password Manager, hybrid (phone) passkeys and security keys with `hmac-secret`; Safari 18+ with iCloud Keychain (Safari needs a user gesture for WebAuthn, so the post-lock auto-trigger may be refused there and the button simply stays); recent Firefox on platforms where PRF is implemented. Where PRF is missing the registration fails with `PASSKEY_PRF_UNSUPPORTED` and nothing is written.
+
+### Testing
+
+Chromium's DevTools virtual authenticator covers registration and unlock without hardware — verified against Playwright 1.59's bundled Chromium (1217): `hasPrf` is accepted, `isUserVerifyingPlatformAuthenticatorAvailable()` reports true for an `internal` authenticator, the PRF output is returned at creation and is stable across assertions.
+
+```ts
+const cdp = await page.context().newCDPSession(page);
+await cdp.send('WebAuthn.enable', { enableUI: false });
+const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+  options: {
+    protocol: 'ctap2', ctap2Version: 'ctap2_1', transport: 'internal',
+    hasResidentKey: true, hasUserVerification: true, isUserVerified: true,
+    hasPrf: true, automaticPresenceSimulation: true,
+  },
+});
+// A failed user verification: NotAllowedError → PASSKEY_CANCELLED
+await cdp.send('WebAuthn.setUserVerified', { authenticatorId, isUserVerified: false });
+```
+
+`src/lib/passkeyUnlock.test.ts` covers the option shapes, the PRF-at-create vs. `get()` fallback, the error mapping and the `rawId` → slot mapping against a mocked `navigator.credentials`.
 
 ## 7. Cloud-account slot
 
@@ -334,11 +385,13 @@ The vendored wordlist's SHA-256 is `2f5eed53a4727b4bf8880d8f3f199efc90e58503646d
 | `src/lib/encryptionTypes.ts` | Page-side contracts (`MasterSecret`, `UnlockMethod`, `SlotSummary`, error codes) |
 | `src/lib/databaseEncryption.ts` | Page-side archive header reader (parity-tested against the worker module) |
 | `src/lib/recoveryPhrase/` | BIP-0039 wordlist and 12-word encode / decode / validate |
-| `src/lib/passkeyUnlock.ts` *(Phase 2)* | WebAuthn PRF registration and assertion |
+| `src/lib/passkeyUnlock.ts` | WebAuthn PRF registration and assertion on the page (`registerPasskey`, `getPrfOutput`, availability, error codes) |
+| `src/lib/lastUnlockMethod.ts` | Device preference: the slot type that last opened the database (which lock-screen view leads; post-lock auto-trigger) |
 | `src/lib/cloudKeyShare.ts` *(Phase 3)* | Cloud app-folder key share |
 | `src/components/setup/` | `PasswordSetup`, `RecoveryPhraseSetup`, `RecoveryPhraseField`, `UnlockScreen`, `LegacyDatabaseNotice` |
-| `src/components/settings/` | `SecurityKeySlotsSection`, `SwitchMasterDialog`, `ChangePasswordSection` |
+| `src/components/settings/` | `SecurityKeySlotsSection`, `PasskeySlotsSection`, `SwitchMasterDialog`, `ChangePasswordSection` |
 | `scripts/convert-archive-v1-to-v2.mjs` | Re-wraps a v1 archive as v2 (fixtures) |
+| `tests/e2e/passkey-unlock.spec.ts` | Passkey registration / unlock / fallback / removal through Chromium's virtual authenticator |
 
 ## Glossary
 

@@ -182,6 +182,18 @@
     "NO_DATABASE": "在此设备上未找到加密数据库。",
     "ARCHIVE_KEY_MISMATCH": "此备份属于另一个数据库。请输入该数据库的密码或恢复短语以打开。",
     "UNSUPPORTED_ARCHIVE_FORMAT": "此备份由旧版本应用创建，已无法打开。",
-    "ARCHIVE_CORRUPT": "此备份文件已损坏，无法读取。"
+    "ARCHIVE_CORRUPT": "此备份文件已损坏，无法读取。",
+    "PASSKEY_CANCELLED": "通行密钥请求已取消。",
+    "PASSKEY_PRF_UNSUPPORTED": "此通行密钥或浏览器无法派生加密密钥，因此无法解锁数据库。",
+    "PASSKEY_FAILED": "无法使用该通行密钥，请重试。"
+  },
+  "unlock": {
+    "passkeyTitle": "使用通行密钥解锁",
+    "passkeyDescription": "使用在此设备上注册的通行密钥打开你的数据库。",
+    "passkeyButton": "使用通行密钥解锁",
+    "passkeyWaiting": "正在等待你的通行密钥…",
+    "passkeyUsePassword": "改用密码",
+    "passkeyUseRecovery": "改用恢复短语",
+    "passkeyUsePasskey": "改用通行密钥"
   }
 }

@@ -182,6 +182,18 @@
     "NO_DATABASE": "No encrypted database was found on this device.",
     "ARCHIVE_KEY_MISMATCH": "This backup belongs to a different database. Enter its password or recovery phrase to open it.",
     "UNSUPPORTED_ARCHIVE_FORMAT": "This backup was created by an older version of the app and can no longer be opened.",
-    "ARCHIVE_CORRUPT": "This backup file is damaged and cannot be read."
+    "ARCHIVE_CORRUPT": "This backup file is damaged and cannot be read.",
+    "PASSKEY_CANCELLED": "The passkey request was cancelled.",
+    "PASSKEY_PRF_UNSUPPORTED": "This passkey or browser cannot derive an encryption key, so it cannot unlock the database.",
+    "PASSKEY_FAILED": "The passkey could not be used. Please try again."
+  },
+  "unlock": {
+    "passkeyTitle": "Unlock with passkey",
+    "passkeyDescription": "Use a passkey registered on this device to open your database.",
+    "passkeyButton": "Unlock with passkey",
+    "passkeyWaiting": "Waiting for your passkey…",
+    "passkeyUsePassword": "Use password instead",
+    "passkeyUseRecovery": "Use recovery phrase instead",
+    "passkeyUsePasskey": "Use a passkey instead"
   }
 }

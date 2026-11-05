@@ -268,7 +268,19 @@
     "typePassword": "Passwort",
     "typeRecovery": "Wiederherstellungsphrase",
     "typePasskey": "Passkey",
-    "typeCloud": "Cloud-Konto"
+    "typeCloud": "Cloud-Konto",
+    "passkeys": "Passkeys",
+    "passkeysDescription": "Entsperre mit Windows Hello, Touch ID, deinem Telefon oder einem Sicherheitsschlüssel, statt dein Passwort oder deine Wiederherstellungsphrase einzugeben. Passkeys werden nur auf diesem Gerät gespeichert und sind nie Teil von Sicherungen.",
+    "addPasskey": "Passkey hinzufügen",
+    "addingPasskey": "Warte auf deinen Passkey…",
+    "passkeyAdded": "Passkey hinzugefügt. Du kannst ihn jetzt verwenden, um diese Datenbank auf diesem Gerät zu entsperren.",
+    "passkeyDefaultLabel": "Passkey hinzugefügt am {{date}}",
+    "removePasskeyTitle": "Diesen Passkey entfernen?",
+    "removePasskeyBody": "„{{label}}“ entsperrt diese Datenbank dann nicht mehr. Dein Passwort oder deine Wiederherstellungsphrase funktioniert weiterhin.",
+    "passkeyUnavailable": "Passkeys sind in diesem Browser nicht verfügbar, daher können die unten aufgeführten Passkeys hier nicht verwendet werden. Du kannst sie weiterhin entfernen.",
+    "rename": "Umbenennen",
+    "remove": "Entfernen",
+    "renameLabel": "Name"
   },
   "securityErrors": {
     "INVALID_SECRET": "Das aktuelle Passwort oder die aktuelle Wiederherstellungsphrase ist falsch.",

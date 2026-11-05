@@ -182,6 +182,18 @@
     "NO_DATABASE": "Nessun database cifrato trovato su questo dispositivo.",
     "ARCHIVE_KEY_MISMATCH": "Questo backup appartiene a un altro database. Inserisci la sua password o frase di recupero per aprirlo.",
     "UNSUPPORTED_ARCHIVE_FORMAT": "Questo backup è stato creato da una versione precedente dell'app e non può più essere aperto.",
-    "ARCHIVE_CORRUPT": "Questo file di backup è danneggiato e non può essere letto."
+    "ARCHIVE_CORRUPT": "Questo file di backup è danneggiato e non può essere letto.",
+    "PASSKEY_CANCELLED": "La richiesta della passkey è stata annullata.",
+    "PASSKEY_PRF_UNSUPPORTED": "Questa passkey o questo browser non può derivare una chiave di cifratura, quindi non può sbloccare il database.",
+    "PASSKEY_FAILED": "Impossibile usare la passkey. Riprova."
+  },
+  "unlock": {
+    "passkeyTitle": "Sblocca con passkey",
+    "passkeyDescription": "Usa una passkey registrata su questo dispositivo per aprire il tuo database.",
+    "passkeyButton": "Sblocca con passkey",
+    "passkeyWaiting": "In attesa della tua passkey…",
+    "passkeyUsePassword": "Usa invece la password",
+    "passkeyUseRecovery": "Usa invece la frase di recupero",
+    "passkeyUsePasskey": "Usa invece una passkey"
   }
 }

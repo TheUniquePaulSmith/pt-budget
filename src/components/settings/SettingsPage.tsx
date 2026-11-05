@@ -150,6 +150,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     switchToLocalSource,
     changeMaster,
     getUnlockMethods,
+    addUnlockSlot,
+    removeUnlockSlot,
+    renameUnlockSlot,
+    users,
     lockDatabase,
     syncNow,
     setAutoSyncEnabled,
@@ -780,6 +784,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
               <SecurityKeySlotsSection
                 getUnlockMethods={getUnlockMethods}
                 changeMaster={changeMaster}
+                addUnlockSlot={addUnlockSlot}
+                removeUnlockSlot={removeUnlockSlot}
+                renameUnlockSlot={renameUnlockSlot}
+                userName={users.find((user) => user.is_primary)?.display_name ?? users[0]?.display_name ?? 'Budget Tracker'}
                 databaseSource={databaseSource}
                 syncStage={syncStage}
               />

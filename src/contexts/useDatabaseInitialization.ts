@@ -19,6 +19,7 @@ import {
 import { createCloudProviderClient } from '@/lib/cloudProviderClients';
 import { isEncryptedArchive } from '@/lib/databaseEncryption';
 import { getErrorCode, type MasterSecret, type MasterSlotType, type UnlockMethod, type UnlockMethods } from '@/lib/encryptionTypes';
+import { rememberLastUnlockMethod } from '@/lib/lastUnlockMethod';
 import {
   getLinkedCloudFile,
   loadPersistedDatabaseSourceState,
@@ -35,6 +36,8 @@ import { DEFAULT_CURRENCY, normalizeCurrencyCode } from '@/lib/currencies';
 import { logger } from '@/lib/logging';
 
 const log = logger.child({ component: 'DatabaseInitialization' });
+
+export type UnlockOrigin = 'startup' | 'lock';
 
 export type InitializationState =
   | 'checking'
@@ -121,6 +124,12 @@ interface UseDatabaseInitializationResult {
   unlockMethods: UnlockMethods | null;
   /** Refreshes `unlockMethods` from the worker (e.g. after a slot was added while unlocked). */
   refreshUnlockMethods: () => Promise<void>;
+  /**
+   * How the needs-unlock gate was reached: at page load ('startup') or from
+   * Settings → Lock Database ('lock'). The lock screen only starts a passkey
+   * prompt on its own after a lock, never on first load.
+   */
+  unlockOrigin: UnlockOrigin;
   /** While an encrypted archive waits for its master secret: which kind of secret it needs. */
   pendingArchiveMasterType: MasterSlotType | null;
   /** Wipes a pre-key-slot (v1) database this version cannot open and starts over. */
@@ -209,6 +218,7 @@ export function useDatabaseInitialization({
     CLOSED_CLOUD_FILE_PICKER
   );
   const [unlockMethods, setUnlockMethods] = useState<UnlockMethods | null>(null);
+  const [unlockOrigin, setUnlockOrigin] = useState<UnlockOrigin>('startup');
   const [pendingArchiveMasterType, setPendingArchiveMasterType] = useState<MasterSlotType | null>(null);
 
   // Bytes of an encrypted archive that is waiting to be decrypted (e.g. after
@@ -946,6 +956,7 @@ export function useDatabaseInitialization({
     // lock screen, so re-read the header rather than trusting the copy taken
     // at startup.
     void refreshUnlockMethods();
+    setUnlockOrigin('lock');
     setInitializationState('needs-unlock');
   }, [refreshUnlockMethods]);
 
@@ -963,6 +974,7 @@ export function useDatabaseInitialization({
         // fails), so once this succeeds there's nothing left to separately
         // verify against the cloud copy.
         await databaseService.unlockDatabase(method);
+        rememberLastUnlockMethod(method.type);
 
         if (databaseSourceState.source !== 'local') {
           const provider = databaseSourceState.source;
@@ -1079,6 +1091,7 @@ export function useDatabaseInitialization({
     handleLockedResetRequested,
     unlockMethods,
     refreshUnlockMethods,
+    unlockOrigin,
     pendingArchiveMasterType,
     handleLegacyResetRequested,
   };

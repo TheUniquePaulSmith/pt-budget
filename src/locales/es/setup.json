@@ -182,6 +182,18 @@
     "NO_DATABASE": "No se encontró ninguna base de datos cifrada en este dispositivo.",
     "ARCHIVE_KEY_MISMATCH": "Esta copia de seguridad pertenece a otra base de datos. Introduce su contraseña o frase de recuperación para abrirla.",
     "UNSUPPORTED_ARCHIVE_FORMAT": "Esta copia de seguridad fue creada por una versión anterior de la aplicación y ya no se puede abrir.",
-    "ARCHIVE_CORRUPT": "Este archivo de copia de seguridad está dañado y no se puede leer."
+    "ARCHIVE_CORRUPT": "Este archivo de copia de seguridad está dañado y no se puede leer.",
+    "PASSKEY_CANCELLED": "La solicitud de passkey se canceló.",
+    "PASSKEY_PRF_UNSUPPORTED": "Esta passkey o este navegador no puede derivar una clave de cifrado, así que no puede desbloquear la base de datos.",
+    "PASSKEY_FAILED": "No se pudo usar la passkey. Inténtalo de nuevo."
+  },
+  "unlock": {
+    "passkeyTitle": "Desbloquear con passkey",
+    "passkeyDescription": "Usa una passkey registrada en este dispositivo para abrir tu base de datos.",
+    "passkeyButton": "Desbloquear con passkey",
+    "passkeyWaiting": "Esperando tu passkey…",
+    "passkeyUsePassword": "Usar la contraseña en su lugar",
+    "passkeyUseRecovery": "Usar la frase de recuperación en su lugar",
+    "passkeyUsePasskey": "Usar una passkey en su lugar"
   }
 }

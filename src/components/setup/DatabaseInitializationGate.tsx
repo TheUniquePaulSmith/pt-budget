@@ -31,6 +31,7 @@ import { TestBrowser, type TestResults } from './TestBrowser';
 import type {
   CloudFilePickerState,
   InitializationState,
+  UnlockOrigin,
 } from '../../contexts/useDatabaseInitialization';
 import type { SampleDataImportProgress } from '../../lib/sampleDataService';
 import { createCloudProviderClient } from '@/lib/cloudProviderClients';
@@ -94,6 +95,8 @@ interface DatabaseInitializationGateProps {
   onResetApp?: (master: MasterSecret) => void | Promise<void>;
   /** The key slots on this device, read before the unlock screen is shown (null while unknown). */
   unlockMethods: UnlockMethods | null;
+  /** Whether the unlock screen follows a page load or Settings → Lock; only the latter may start a passkey prompt by itself. */
+  unlockOrigin?: UnlockOrigin;
   /** While an archive waits for its secret: which kind the archive needs. */
   pendingArchiveMasterType: MasterSlotType | null;
   /** Wipes a pre-key-slot (v1) database this version cannot open. */
@@ -145,6 +148,7 @@ export function DatabaseInitializationGate({
   onUnlockSubmitted,
   onResetApp,
   unlockMethods,
+  unlockOrigin = 'startup',
   pendingArchiveMasterType,
   onLegacyReset,
 }: DatabaseInitializationGateProps) {
@@ -308,6 +312,7 @@ export function DatabaseInitializationGate({
         <UnlockScreen
           methods={unlockMethods}
           description={masterIsRecovery ? t('gate.unlockRecoveryDescription') : t('gate.unlockDescription')}
+          autoTriggerPasskey={unlockOrigin === 'lock'}
           onUnlock={onUnlockSubmitted}
           onResetApp={onResetApp}
           isLoading={isLoading}

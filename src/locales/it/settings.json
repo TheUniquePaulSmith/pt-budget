@@ -268,7 +268,19 @@
     "typePassword": "Password",
     "typeRecovery": "Frase di recupero",
     "typePasskey": "Passkey",
-    "typeCloud": "Account cloud"
+    "typeCloud": "Account cloud",
+    "passkeys": "Passkey",
+    "passkeysDescription": "Sblocca con Windows Hello, Touch ID, il tuo telefono o una chiave di sicurezza invece di digitare la password o la frase di recupero. Le passkey sono salvate solo su questo dispositivo e non vengono mai incluse nei backup.",
+    "addPasskey": "Aggiungi passkey",
+    "addingPasskey": "In attesa della tua passkey…",
+    "passkeyAdded": "Passkey aggiunta. Ora puoi usarla per sbloccare questo database su questo dispositivo.",
+    "passkeyDefaultLabel": "Passkey aggiunta il {{date}}",
+    "removePasskeyTitle": "Rimuovere questa passkey?",
+    "removePasskeyBody": "“{{label}}” non sbloccherà più questo database. La password o la frase di recupero continua a funzionare.",
+    "passkeyUnavailable": "Le passkey non sono disponibili in questo browser, quindi quelle elencate qui sotto non possono essere usate. Puoi comunque rimuoverle.",
+    "rename": "Rinomina",
+    "remove": "Rimuovi",
+    "renameLabel": "Nome"
   },
   "securityErrors": {
     "INVALID_SECRET": "La password o la frase di recupero attuale non è corretta.",

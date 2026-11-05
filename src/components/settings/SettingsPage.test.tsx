@@ -117,6 +117,7 @@ describe('SettingsPage theme presets', () => {
         ],
       }),
       addUnlockSlot: vi.fn(),
+      users: [],
       removeUnlockSlot: vi.fn().mockResolvedValue(undefined),
       renameUnlockSlot: vi.fn().mockResolvedValue(undefined),
       lockDatabase: vi.fn().mockResolvedValue({ locked: true, syncError: null }),

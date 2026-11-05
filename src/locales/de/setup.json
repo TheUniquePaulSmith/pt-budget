@@ -182,6 +182,18 @@
     "NO_DATABASE": "Auf diesem Gerät wurde keine verschlüsselte Datenbank gefunden.",
     "ARCHIVE_KEY_MISMATCH": "Diese Sicherung gehört zu einer anderen Datenbank. Gib deren Passwort oder Wiederherstellungsphrase ein, um sie zu öffnen.",
     "UNSUPPORTED_ARCHIVE_FORMAT": "Diese Sicherung wurde von einer älteren Version der App erstellt und kann nicht mehr geöffnet werden.",
-    "ARCHIVE_CORRUPT": "Diese Sicherungsdatei ist beschädigt und kann nicht gelesen werden."
+    "ARCHIVE_CORRUPT": "Diese Sicherungsdatei ist beschädigt und kann nicht gelesen werden.",
+    "PASSKEY_CANCELLED": "Die Passkey-Anfrage wurde abgebrochen.",
+    "PASSKEY_PRF_UNSUPPORTED": "Dieser Passkey oder Browser kann keinen Verschlüsselungsschlüssel ableiten und kann die Datenbank daher nicht entsperren.",
+    "PASSKEY_FAILED": "Der Passkey konnte nicht verwendet werden. Bitte versuche es erneut."
+  },
+  "unlock": {
+    "passkeyTitle": "Mit Passkey entsperren",
+    "passkeyDescription": "Verwende einen auf diesem Gerät registrierten Passkey, um deine Datenbank zu öffnen.",
+    "passkeyButton": "Mit Passkey entsperren",
+    "passkeyWaiting": "Warte auf deinen Passkey…",
+    "passkeyUsePassword": "Stattdessen Passwort verwenden",
+    "passkeyUseRecovery": "Stattdessen Wiederherstellungsphrase verwenden",
+    "passkeyUsePasskey": "Stattdessen einen Passkey verwenden"
   }
 }

@@ -375,6 +375,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     handleLockedResetRequested,
     unlockMethods,
     refreshUnlockMethods,
+    unlockOrigin,
     pendingArchiveMasterType,
     handleLegacyResetRequested,
   } = useDatabaseInitialization({ loadAllData });
@@ -730,6 +731,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
         onUnlockSubmitted={handleUnlockSubmitted}
         onResetApp={isDebugMode() ? handleLockedResetRequested : undefined}
         unlockMethods={unlockMethods}
+        unlockOrigin={unlockOrigin}
         pendingArchiveMasterType={pendingArchiveMasterType}
         onLegacyReset={handleLegacyResetRequested}
       />

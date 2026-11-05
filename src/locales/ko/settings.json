@@ -264,7 +264,19 @@
     "typePassword": "비밀번호",
     "typeRecovery": "복구 문구",
     "typePasskey": "패스키",
-    "typeCloud": "클라우드 계정"
+    "typeCloud": "클라우드 계정",
+    "passkeys": "패스키",
+    "passkeysDescription": "비밀번호나 복구 문구를 입력하는 대신 Windows Hello, Touch ID, 휴대폰 또는 보안 키로 잠금 해제하세요. 패스키는 이 기기에만 저장되며 백업에는 절대 포함되지 않습니다.",
+    "addPasskey": "패스키 추가",
+    "addingPasskey": "패스키를 기다리는 중…",
+    "passkeyAdded": "패스키가 추가되었습니다. 이제 이 기기에서 이 데이터베이스를 잠금 해제하는 데 사용할 수 있습니다.",
+    "passkeyDefaultLabel": "{{date}}에 추가된 패스키",
+    "removePasskeyTitle": "이 패스키를 제거할까요?",
+    "removePasskeyBody": "“{{label}}”(으)로는 더 이상 이 데이터베이스를 잠금 해제할 수 없습니다. 비밀번호나 복구 문구는 계속 사용할 수 있습니다.",
+    "passkeyUnavailable": "이 브라우저에서는 패스키를 사용할 수 없으므로 아래 패스키는 여기서 사용할 수 없습니다. 제거는 가능합니다.",
+    "rename": "이름 변경",
+    "remove": "제거",
+    "renameLabel": "이름"
   },
   "securityErrors": {
     "INVALID_SECRET": "현재 비밀번호 또는 복구 문구가 올바르지 않습니다.",

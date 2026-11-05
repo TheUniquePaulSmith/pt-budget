@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 
 import { LockOpenOutlined, Visibility, VisibilityOff } from '@mui/icons-material';
 import {
@@ -31,6 +31,8 @@ interface PasswordEntryProps {
    * the callback must reject (e.g. "Incorrect password") to refuse the reset.
    */
   onResetApp?: (password: string) => void | Promise<void>;
+  /** Rendered under the Unlock button, e.g. a link to another unlock method (passkey). */
+  secondaryAction?: ReactNode;
   isLoading: boolean;
   error: string | null;
 }
@@ -40,6 +42,7 @@ export function PasswordEntry({
   onPasswordSubmitted,
   onCancel,
   onResetApp,
+  secondaryAction,
   isLoading,
   error,
 }: PasswordEntryProps) {
@@ -135,6 +138,8 @@ export function PasswordEntry({
             {isLoading ? t('passwordEntry.decrypting') : t('passwordEntry.unlock')}
           </Button>
         </Box>
+
+        {secondaryAction && <Box sx={{ mt: 2 }}>{secondaryAction}</Box>}
 
         {onResetApp && (
           <Box sx={{ mt: 3 }}>

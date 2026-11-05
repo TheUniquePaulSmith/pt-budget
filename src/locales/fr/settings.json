@@ -126,7 +126,7 @@
   },
   "security": {
     "title": "Sécurité",
-    "description": "Gérez le mot de passe qui protège vos exports et vos sauvegardes cloud.",
+    "description": "Gérez le mot de passe ou la phrase de récupération qui protège votre base de données, vos exports et vos sauvegardes cloud, ainsi que les autres façons dont cet appareil peut la déverrouiller.",
     "lockTitle": "Verrouiller la base de données",
     "lockHelp": "Synchronise votre base de données avec le cloud (si connecté), puis la verrouille — votre mot de passe sera nécessaire pour continuer.",
     "locking": "Verrouillage…",
@@ -235,5 +235,46 @@
     "applying": "Application…",
     "confirmDiscard": "Confirmer : abandonner les modifications locales",
     "useCloud": "Utiliser la version cloud"
+  },
+  "master": {
+    "title": "Secret principal",
+    "currentPassword": "Votre base de données est protégée par un mot de passe.",
+    "currentRecovery": "Votre base de données est protégée par une phrase de récupération de 12 mots.",
+    "switchToRecovery": "Passer à une phrase de récupération",
+    "switchToPassword": "Passer à un mot de passe",
+    "failed": "Impossible de lire les paramètres de sécurité."
+  },
+  "switchMaster": {
+    "toRecoveryTitle": "Passer à une phrase de récupération",
+    "toPasswordTitle": "Passer à un mot de passe",
+    "enterCurrentPassword": "Saisissez votre mot de passe actuel pour continuer.",
+    "enterCurrentRecovery": "Saisissez votre phrase de récupération actuelle pour continuer.",
+    "currentPasswordLabel": "Mot de passe actuel",
+    "chooseNewPassword": "Choisissez le mot de passe qui protégera désormais votre base de données. La phrase de récupération cessera de fonctionner.",
+    "newPasswordLabel": "Nouveau mot de passe",
+    "confirmPasswordLabel": "Confirmer le nouveau mot de passe",
+    "switching": "Changement…",
+    "submit": "Changer",
+    "doneRecovery": "Votre base de données est désormais protégée par la phrase de récupération. L'ancien mot de passe ne fonctionne plus.",
+    "donePassword": "Votre base de données est désormais protégée par le nouveau mot de passe. L'ancienne phrase de récupération ne fonctionne plus."
+  },
+  "unlockMethods": {
+    "title": "Méthodes de déverrouillage",
+    "description": "Façons d'ouvrir cette base de données sur cet appareil. Le mot de passe ou la phrase de récupération existe toujours ; les autres méthodes sont des compléments pratiques que vous pouvez supprimer à tout moment.",
+    "master": "Principal",
+    "empty": "Aucune méthode de déverrouillage supplémentaire n'est configurée sur cet appareil.",
+    "added": "Ajouté le {{date}}",
+    "lastUsed": "Dernière utilisation : {{date}}",
+    "typePassword": "Mot de passe",
+    "typeRecovery": "Phrase de récupération",
+    "typePasskey": "Clé d'accès",
+    "typeCloud": "Compte cloud"
+  },
+  "securityErrors": {
+    "INVALID_SECRET": "Le mot de passe ou la phrase de récupération actuel est incorrect.",
+    "CANNOT_REMOVE_MASTER": "Le mot de passe ou la phrase de récupération ne peut pas être supprimé ; remplacez-le plutôt.",
+    "SLOT_NOT_FOUND": "Cette méthode de déverrouillage n'existe plus.",
+    "LOCKED": "Déverrouillez d'abord la base de données.",
+    "failed": "Une erreur s'est produite. Veuillez réessayer."
   }
 }

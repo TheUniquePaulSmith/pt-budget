@@ -47,7 +47,9 @@
     "useLocalInstead": "Use Local Database Instead",
     "databaseError": "Database Error",
     "unknownInitError": "An unknown error occurred while initializing the database.",
-    "reloadPage": "Reload Page"
+    "reloadPage": "Reload Page",
+    "importRecoveryDescription": "This database file is protected by a recovery phrase. Enter its 12 words to unlock and import it.",
+    "unlockRecoveryDescription": "This database is protected by a recovery phrase. Enter its 12 words to unlock it."
   },
   "passwordSetup": {
     "primaryUserNameRequired": "Primary user name is required.",
@@ -63,7 +65,13 @@
     "hidePassword": "Hide password",
     "showPassword": "Show password",
     "creating": "Creating Database…",
-    "create": "Create Database"
+    "create": "Create Database",
+    "recoveryDescription": "Your database is encrypted on this device. A 12-word recovery phrase, generated for you, will be the only way to open it — there is no other way to recover your data, so keep it somewhere safe.",
+    "masterTypeLabel": "Protect your database with",
+    "masterTypePassword": "Password",
+    "masterTypeRecovery": "Recovery phrase",
+    "recoveryHint": "Instead of a password you memorise, you will get 12 random words to write down. Anyone with the words can open the database, and without them nobody can — including you.",
+    "generateRecovery": "Generate Recovery Phrase"
   },
   "passwordEntry": {
     "title": "Enter Password",
@@ -127,5 +135,53 @@
     "title": "Open from {{provider}}",
     "empty": "No backup archives were found in {{provider}}.",
     "opening": "Opening…"
+  },
+  "recoverySetup": {
+    "title": "Your Recovery Phrase",
+    "description": "These 12 words are the only way to open your database. Write them down in order and keep them somewhere safe — they are never stored anywhere, and there is no other way to recover your data.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "print": "Print",
+    "regenerate": "Generate new phrase",
+    "savedCheckbox": "I have written down these 12 words",
+    "confirmTitle": "Confirm Your Recovery Phrase",
+    "confirmDescription": "Enter the requested words to confirm you wrote the phrase down correctly.",
+    "wordLabel": "Word #{{position}}",
+    "confirmMismatch": "One or more words do not match. Check your written phrase and try again.",
+    "printTitle": "Budget Tracker recovery phrase",
+    "printedOn": "Printed on {{date}}"
+  },
+  "recoveryEntry": {
+    "title": "Enter Recovery Phrase",
+    "defaultDescription": "This database is protected by a recovery phrase. Enter its 12 words to open it.",
+    "label": "Recovery phrase",
+    "placeholder": "Enter the 12 words separated by spaces",
+    "wordCount": "{{count}} of 12 words",
+    "invalidWords": "Not in the wordlist: {{words}}",
+    "badChecksum": "The phrase doesn't check out — one or more words are wrong.",
+    "valid": "Recovery phrase looks good.",
+    "unlock": "Unlock",
+    "decrypting": "Decrypting…",
+    "hide": "Hide phrase",
+    "show": "Show phrase"
+  },
+  "legacy": {
+    "title": "This database needs to be set up again",
+    "description": "The database on this device was created by an older version of the app, which encrypted it in a way this version can no longer open. Reset the app to start fresh or to restore a backup exported from a current version.",
+    "reset": "Reset and start over",
+    "confirmTitle": "Delete the local database?",
+    "confirmBody": "This permanently deletes the database stored in this browser along with the app's settings. Backups you exported or synced to the cloud are not affected, but only backups from a current version can be restored.",
+    "resetting": "Resetting…",
+    "failed": "Reset failed"
+  },
+  "unlockErrors": {
+    "INVALID_SECRET": "Incorrect password or recovery phrase.",
+    "INVALID_RECOVERY_PHRASE": "That is not a valid recovery phrase.",
+    "LEGACY_HEADER": "This database was created by an older version of the app and cannot be opened.",
+    "HEADER_INVALID": "The encryption settings stored on this device are damaged.",
+    "NO_DATABASE": "No encrypted database was found on this device.",
+    "ARCHIVE_KEY_MISMATCH": "This backup belongs to a different database. Enter its password or recovery phrase to open it.",
+    "UNSUPPORTED_ARCHIVE_FORMAT": "This backup was created by an older version of the app and can no longer be opened.",
+    "ARCHIVE_CORRUPT": "This backup file is damaged and cannot be read."
   }
 }

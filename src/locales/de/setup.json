@@ -47,7 +47,9 @@
     "useLocalInstead": "Stattdessen lokale Datenbank verwenden",
     "databaseError": "Datenbankfehler",
     "unknownInitError": "Beim Initialisieren der Datenbank ist ein unbekannter Fehler aufgetreten.",
-    "reloadPage": "Seite neu laden"
+    "reloadPage": "Seite neu laden",
+    "importRecoveryDescription": "Diese Datenbankdatei ist durch eine Wiederherstellungsphrase geschützt. Gib ihre 12 Wörter ein, um sie zu entsperren und zu importieren.",
+    "unlockRecoveryDescription": "Diese Datenbank ist durch eine Wiederherstellungsphrase geschützt. Gib ihre 12 Wörter ein, um sie zu entsperren."
   },
   "passwordSetup": {
     "primaryUserNameRequired": "Der Name des Hauptbenutzers ist erforderlich.",
@@ -63,7 +65,13 @@
     "hidePassword": "Passwort ausblenden",
     "showPassword": "Passwort anzeigen",
     "creating": "Datenbank wird erstellt…",
-    "create": "Datenbank erstellen"
+    "create": "Datenbank erstellen",
+    "recoveryDescription": "Deine Datenbank wird auf diesem Gerät verschlüsselt. Eine für dich erzeugte Wiederherstellungsphrase aus 12 Wörtern ist der einzige Weg, sie zu öffnen – es gibt keine andere Möglichkeit, deine Daten wiederherzustellen, also bewahre sie sicher auf.",
+    "masterTypeLabel": "Datenbank schützen mit",
+    "masterTypePassword": "Passwort",
+    "masterTypeRecovery": "Wiederherstellungsphrase",
+    "recoveryHint": "Statt eines Passworts, das du dir merkst, erhältst du 12 zufällige Wörter zum Aufschreiben. Wer die Wörter hat, kann die Datenbank öffnen – ohne sie kann es niemand, auch du nicht.",
+    "generateRecovery": "Wiederherstellungsphrase erzeugen"
   },
   "passwordEntry": {
     "title": "Passwort eingeben",
@@ -127,5 +135,53 @@
     "title": "Aus {{provider}} öffnen",
     "empty": "In {{provider}} wurden keine Backup-Archive gefunden.",
     "opening": "Wird geöffnet…"
+  },
+  "recoverySetup": {
+    "title": "Deine Wiederherstellungsphrase",
+    "description": "Diese 12 Wörter sind der einzige Weg, deine Datenbank zu öffnen. Schreibe sie der Reihe nach auf und bewahre sie sicher auf – sie werden nirgends gespeichert, und es gibt keine andere Möglichkeit, deine Daten wiederherzustellen.",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "print": "Drucken",
+    "regenerate": "Neue Phrase erzeugen",
+    "savedCheckbox": "Ich habe diese 12 Wörter aufgeschrieben",
+    "confirmTitle": "Wiederherstellungsphrase bestätigen",
+    "confirmDescription": "Gib die abgefragten Wörter ein, um zu bestätigen, dass du die Phrase richtig notiert hast.",
+    "wordLabel": "Wort Nr. {{position}}",
+    "confirmMismatch": "Ein oder mehrere Wörter stimmen nicht überein. Prüfe deine notierte Phrase und versuche es erneut.",
+    "printTitle": "Budget Tracker Wiederherstellungsphrase",
+    "printedOn": "Gedruckt am {{date}}"
+  },
+  "recoveryEntry": {
+    "title": "Wiederherstellungsphrase eingeben",
+    "defaultDescription": "Diese Datenbank ist durch eine Wiederherstellungsphrase geschützt. Gib ihre 12 Wörter ein, um sie zu öffnen.",
+    "label": "Wiederherstellungsphrase",
+    "placeholder": "Gib die 12 Wörter durch Leerzeichen getrennt ein",
+    "wordCount": "{{count}} von 12 Wörtern",
+    "invalidWords": "Nicht in der Wortliste: {{words}}",
+    "badChecksum": "Die Phrase stimmt nicht – ein oder mehrere Wörter sind falsch.",
+    "valid": "Die Wiederherstellungsphrase sieht gut aus.",
+    "unlock": "Entsperren",
+    "decrypting": "Entschlüsseln…",
+    "hide": "Phrase verbergen",
+    "show": "Phrase anzeigen"
+  },
+  "legacy": {
+    "title": "Diese Datenbank muss neu eingerichtet werden",
+    "description": "Die Datenbank auf diesem Gerät wurde von einer älteren Version der App erstellt, die sie so verschlüsselt hat, dass diese Version sie nicht mehr öffnen kann. Setze die App zurück, um neu zu beginnen oder eine mit einer aktuellen Version exportierte Sicherung wiederherzustellen.",
+    "reset": "Zurücksetzen und neu beginnen",
+    "confirmTitle": "Lokale Datenbank löschen?",
+    "confirmBody": "Dadurch werden die in diesem Browser gespeicherte Datenbank und die App-Einstellungen dauerhaft gelöscht. Exportierte oder in die Cloud synchronisierte Sicherungen bleiben erhalten, es lassen sich aber nur Sicherungen einer aktuellen Version wiederherstellen.",
+    "resetting": "Wird zurückgesetzt…",
+    "failed": "Zurücksetzen fehlgeschlagen"
+  },
+  "unlockErrors": {
+    "INVALID_SECRET": "Falsches Passwort oder falsche Wiederherstellungsphrase.",
+    "INVALID_RECOVERY_PHRASE": "Das ist keine gültige Wiederherstellungsphrase.",
+    "LEGACY_HEADER": "Diese Datenbank wurde von einer älteren Version der App erstellt und kann nicht geöffnet werden.",
+    "HEADER_INVALID": "Die auf diesem Gerät gespeicherten Verschlüsselungseinstellungen sind beschädigt.",
+    "NO_DATABASE": "Auf diesem Gerät wurde keine verschlüsselte Datenbank gefunden.",
+    "ARCHIVE_KEY_MISMATCH": "Diese Sicherung gehört zu einer anderen Datenbank. Gib deren Passwort oder Wiederherstellungsphrase ein, um sie zu öffnen.",
+    "UNSUPPORTED_ARCHIVE_FORMAT": "Diese Sicherung wurde von einer älteren Version der App erstellt und kann nicht mehr geöffnet werden.",
+    "ARCHIVE_CORRUPT": "Diese Sicherungsdatei ist beschädigt und kann nicht gelesen werden."
   }
 }

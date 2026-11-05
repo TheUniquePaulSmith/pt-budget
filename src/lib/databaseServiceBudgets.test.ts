@@ -734,12 +734,16 @@ describe('DatabaseService delegate wrappers', () => {
     } as unknown as DatabaseWorkerTransport;
     const service = new DatabaseService(transport);
 
-    await service.createNewDatabase('hunter22!', { deferIndexes: true });
-    await service.unlockDatabase('hunter22!');
+    await service.createNewDatabase({ type: 'password', secret: 'hunter22!' }, { deferIndexes: true });
+    await service.unlockDatabase({ type: 'password', secret: 'hunter22!' });
     await service.lockDatabase();
 
-    expect(transport.createNewDatabase).toHaveBeenCalledWith('hunter22!', undefined, { deferIndexes: true });
-    expect(transport.unlockDatabase).toHaveBeenCalledWith('hunter22!');
+    expect(transport.createNewDatabase).toHaveBeenCalledWith(
+      { master: { type: 'password', secret: 'hunter22!' }, restoreFrom: undefined },
+      undefined,
+      { deferIndexes: true }
+    );
+    expect(transport.unlockDatabase).toHaveBeenCalledWith({ type: 'password', secret: 'hunter22!' });
     expect(transport.lockDatabase).toHaveBeenCalled();
     await expect(service.isEncryptionReady()).resolves.toBe(true);
   });

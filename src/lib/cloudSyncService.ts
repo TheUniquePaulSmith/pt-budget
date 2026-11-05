@@ -254,7 +254,9 @@ export function persistCloudLink({
 /**
  * Imports previously-downloaded archive bytes and persists the cloud link.
  * The caller is responsible for the worker already holding the decryption
- * key (import will fail otherwise).
+ * key (import will fail otherwise). A master secret changed on another
+ * device travels inside the archive header; adopting it here keeps every
+ * device asking for the same, current secret.
  */
 export async function applyDownloadedArchive({
   databaseService,
@@ -267,7 +269,7 @@ export async function applyDownloadedArchive({
   file: CloudLinkedFile;
   bytes: Uint8Array;
 }): Promise<PersistedDatabaseSourceState> {
-  await databaseService.importDatabaseArchiveData(bytes);
+  await databaseService.importDatabaseArchiveData(bytes, { adoptMasterSlot: true });
 
   const cloudTimestamp = databaseService.getEncryptedArchiveTimestamp(bytes);
   return persistCloudLink({ provider, file, cloudTimestamp });

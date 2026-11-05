@@ -47,7 +47,9 @@
     "useLocalInstead": "改用本地数据库",
     "databaseError": "数据库错误",
     "unknownInitError": "初始化数据库时发生未知错误。",
-    "reloadPage": "重新加载页面"
+    "reloadPage": "重新加载页面",
+    "importRecoveryDescription": "此数据库文件受恢复短语保护。输入其 12 个单词以解锁并导入。",
+    "unlockRecoveryDescription": "此数据库受恢复短语保护。输入其 12 个单词以解锁。"
   },
   "passwordSetup": {
     "primaryUserNameRequired": "主用户名称为必填项。",
@@ -63,7 +65,13 @@
     "hidePassword": "隐藏密码",
     "showPassword": "显示密码",
     "creating": "正在创建数据库…",
-    "create": "创建数据库"
+    "create": "创建数据库",
+    "recoveryDescription": "你的数据库在此设备上加密。系统将为你生成一个 12 个单词的恢复短语，它是打开数据库的唯一方式——没有其他办法找回你的数据，请务必妥善保管。",
+    "masterTypeLabel": "保护数据库的方式",
+    "masterTypePassword": "密码",
+    "masterTypeRecovery": "恢复短语",
+    "recoveryHint": "你将得到 12 个随机单词并需要抄写下来，而不是记一个密码。拥有这些单词的任何人都能打开数据库；没有它们，任何人（包括你）都无法打开。",
+    "generateRecovery": "生成恢复短语"
   },
   "passwordEntry": {
     "title": "输入密码",
@@ -127,5 +135,53 @@
     "title": "从{{provider}}打开",
     "empty": "在{{provider}}中未找到备份归档。",
     "opening": "正在打开…"
+  },
+  "recoverySetup": {
+    "title": "你的恢复短语",
+    "description": "这 12 个单词是打开数据库的唯一方式。请按顺序抄写并妥善保管——它们不会保存在任何地方，也没有其他办法找回你的数据。",
+    "copy": "复制",
+    "copied": "已复制",
+    "print": "打印",
+    "regenerate": "生成新短语",
+    "savedCheckbox": "我已抄写这 12 个单词",
+    "confirmTitle": "确认你的恢复短语",
+    "confirmDescription": "输入所要求的单词，以确认你正确抄写了短语。",
+    "wordLabel": "第 {{position}} 个单词",
+    "confirmMismatch": "有一个或多个单词不匹配。请核对你抄写的短语后重试。",
+    "printTitle": "Budget Tracker 恢复短语",
+    "printedOn": "打印于 {{date}}"
+  },
+  "recoveryEntry": {
+    "title": "输入恢复短语",
+    "defaultDescription": "此数据库受恢复短语保护。输入其 12 个单词以打开。",
+    "label": "恢复短语",
+    "placeholder": "输入 12 个单词，以空格分隔",
+    "wordCount": "已输入 {{count}} / 12 个单词",
+    "invalidWords": "不在单词表中：{{words}}",
+    "badChecksum": "短语校验失败——有一个或多个单词不正确。",
+    "valid": "恢复短语看起来正确。",
+    "unlock": "解锁",
+    "decrypting": "正在解密…",
+    "hide": "隐藏短语",
+    "show": "显示短语"
+  },
+  "legacy": {
+    "title": "此数据库需要重新设置",
+    "description": "此设备上的数据库由旧版本应用创建，其加密方式本版本已无法打开。请重置应用以重新开始，或恢复由当前版本导出的备份。",
+    "reset": "重置并重新开始",
+    "confirmTitle": "删除本地数据库？",
+    "confirmBody": "这将永久删除存储在此浏览器中的数据库以及应用设置。你导出或同步到云端的备份不受影响，但只能恢复当前版本导出的备份。",
+    "resetting": "正在重置…",
+    "failed": "重置失败"
+  },
+  "unlockErrors": {
+    "INVALID_SECRET": "密码或恢复短语不正确。",
+    "INVALID_RECOVERY_PHRASE": "这不是有效的恢复短语。",
+    "LEGACY_HEADER": "此数据库由旧版本应用创建，无法打开。",
+    "HEADER_INVALID": "此设备上存储的加密设置已损坏。",
+    "NO_DATABASE": "在此设备上未找到加密数据库。",
+    "ARCHIVE_KEY_MISMATCH": "此备份属于另一个数据库。请输入该数据库的密码或恢复短语以打开。",
+    "UNSUPPORTED_ARCHIVE_FORMAT": "此备份由旧版本应用创建，已无法打开。",
+    "ARCHIVE_CORRUPT": "此备份文件已损坏，无法读取。"
   }
 }

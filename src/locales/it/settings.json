@@ -126,7 +126,7 @@
   },
   "security": {
     "title": "Sicurezza",
-    "description": "Gestisci la password che protegge le esportazioni e i backup cloud.",
+    "description": "Gestisci la password o la frase di recupero che protegge il tuo database, le esportazioni e i backup nel cloud, e gli altri modi in cui questo dispositivo può sbloccarlo.",
     "lockTitle": "Blocca database",
     "lockHelp": "Sincronizza il database con il cloud (se connesso) e poi lo blocca: servirà la password per continuare.",
     "locking": "Blocco in corso…",
@@ -235,5 +235,46 @@
     "applying": "Applicazione…",
     "confirmDiscard": "Conferma: scarta le modifiche locali",
     "useCloud": "Usa la versione cloud"
+  },
+  "master": {
+    "title": "Segreto principale",
+    "currentPassword": "Il tuo database è protetto da una password.",
+    "currentRecovery": "Il tuo database è protetto da una frase di recupero di 12 parole.",
+    "switchToRecovery": "Passa alla frase di recupero",
+    "switchToPassword": "Passa alla password",
+    "failed": "Impossibile leggere le impostazioni di sicurezza."
+  },
+  "switchMaster": {
+    "toRecoveryTitle": "Passa a una frase di recupero",
+    "toPasswordTitle": "Passa a una password",
+    "enterCurrentPassword": "Inserisci la password attuale per continuare.",
+    "enterCurrentRecovery": "Inserisci la frase di recupero attuale per continuare.",
+    "currentPasswordLabel": "Password attuale",
+    "chooseNewPassword": "Scegli la password che proteggerà il tuo database d'ora in poi. La frase di recupero smetterà di funzionare.",
+    "newPasswordLabel": "Nuova password",
+    "confirmPasswordLabel": "Conferma nuova password",
+    "switching": "Passaggio in corso…",
+    "submit": "Passa",
+    "doneRecovery": "Il tuo database è ora protetto dalla frase di recupero. La vecchia password non funziona più.",
+    "donePassword": "Il tuo database è ora protetto dalla nuova password. La vecchia frase di recupero non funziona più."
+  },
+  "unlockMethods": {
+    "title": "Metodi di sblocco",
+    "description": "Modi per aprire questo database su questo dispositivo. La password o la frase di recupero esiste sempre; gli altri metodi sono comodi extra che puoi rimuovere in qualsiasi momento.",
+    "master": "Principale",
+    "empty": "Nessun metodo di sblocco aggiuntivo è configurato su questo dispositivo.",
+    "added": "Aggiunto il {{date}}",
+    "lastUsed": "Ultimo utilizzo: {{date}}",
+    "typePassword": "Password",
+    "typeRecovery": "Frase di recupero",
+    "typePasskey": "Passkey",
+    "typeCloud": "Account cloud"
+  },
+  "securityErrors": {
+    "INVALID_SECRET": "La password o la frase di recupero attuale non è corretta.",
+    "CANNOT_REMOVE_MASTER": "La password o la frase di recupero non può essere rimossa: sostituiscila invece.",
+    "SLOT_NOT_FOUND": "Questo metodo di sblocco non esiste più.",
+    "LOCKED": "Sblocca prima il database.",
+    "failed": "Qualcosa è andato storto. Riprova."
   }
 }

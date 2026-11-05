@@ -10,12 +10,16 @@ import {
 } from './helpers/bootstrap';
 
 // An encrypted export taken from the schema-version-1 build (sample data plus a
-// completed subscription scan), password TEST_PASSWORD. Regenerate with a
-// one-off Playwright run against the pre-migration build whenever a new
-// baseline is needed; do not edit by hand.
+// completed subscription scan), password TEST_PASSWORD. Captured with a
+// one-off Playwright run against the pre-migration build (see
+// tests/e2e-tools/export-v1-fixture.spec.ts); do not edit by hand. The file
+// was later re-wrapped into archive format v2 (random root key + password key
+// slot) with scripts/convert-archive-v1-to-v2.mjs — the inner ZIP, and so the
+// schema-v1 database inside, is unchanged.
 const V1_ARCHIVE_PATH = path.join(__dirname, 'fixtures', 'v1-budget-tracker.zip');
 // Same procedure from the schema-version-2 build (devel/latest at 75f6835):
-// sample data plus a completed subscription scan, password TEST_PASSWORD.
+// sample data plus a completed subscription scan, password TEST_PASSWORD,
+// re-wrapped the same way.
 const V2_ARCHIVE_PATH = path.join(__dirname, 'fixtures', 'v2-budget-tracker.zip');
 
 async function loadArchiveAndUnlock(page: Page, archivePath: string = V1_ARCHIVE_PATH) {

@@ -47,7 +47,9 @@
     "useLocalInstead": "Usa invece un database locale",
     "databaseError": "Errore del database",
     "unknownInitError": "Si è verificato un errore sconosciuto durante l'inizializzazione del database.",
-    "reloadPage": "Ricarica pagina"
+    "reloadPage": "Ricarica pagina",
+    "importRecoveryDescription": "Questo file di database è protetto da una frase di recupero. Inserisci le sue 12 parole per sbloccarlo e importarlo.",
+    "unlockRecoveryDescription": "Questo database è protetto da una frase di recupero. Inserisci le sue 12 parole per sbloccarlo."
   },
   "passwordSetup": {
     "primaryUserNameRequired": "Il nome dell'utente principale è obbligatorio.",
@@ -63,7 +65,13 @@
     "hidePassword": "Nascondi password",
     "showPassword": "Mostra password",
     "creating": "Creazione del database…",
-    "create": "Crea database"
+    "create": "Crea database",
+    "recoveryDescription": "Il tuo database è cifrato su questo dispositivo. Una frase di recupero di 12 parole, generata per te, sarà l'unico modo per aprirlo: non esiste altro modo per recuperare i tuoi dati, quindi conservala in un luogo sicuro.",
+    "masterTypeLabel": "Proteggi il database con",
+    "masterTypePassword": "Password",
+    "masterTypeRecovery": "Frase di recupero",
+    "recoveryHint": "Invece di una password da memorizzare, riceverai 12 parole casuali da annotare. Chiunque abbia le parole può aprire il database, e senza di esse nessuno può farlo, nemmeno tu.",
+    "generateRecovery": "Genera frase di recupero"
   },
   "passwordEntry": {
     "title": "Inserisci la password",
@@ -127,5 +135,53 @@
     "title": "Apri da {{provider}}",
     "empty": "Nessun archivio di backup trovato in {{provider}}.",
     "opening": "Apertura…"
+  },
+  "recoverySetup": {
+    "title": "La tua frase di recupero",
+    "description": "Queste 12 parole sono l'unico modo per aprire il tuo database. Annotale in ordine e conservale in un luogo sicuro: non vengono mai salvate da nessuna parte e non esiste altro modo per recuperare i tuoi dati.",
+    "copy": "Copia",
+    "copied": "Copiato",
+    "print": "Stampa",
+    "regenerate": "Genera nuova frase",
+    "savedCheckbox": "Ho annotato queste 12 parole",
+    "confirmTitle": "Conferma la tua frase di recupero",
+    "confirmDescription": "Inserisci le parole richieste per confermare di aver annotato correttamente la frase.",
+    "wordLabel": "Parola n. {{position}}",
+    "confirmMismatch": "Una o più parole non corrispondono. Controlla la frase annotata e riprova.",
+    "printTitle": "Frase di recupero di Budget Tracker",
+    "printedOn": "Stampato il {{date}}"
+  },
+  "recoveryEntry": {
+    "title": "Inserisci la frase di recupero",
+    "defaultDescription": "Questo database è protetto da una frase di recupero. Inserisci le sue 12 parole per aprirlo.",
+    "label": "Frase di recupero",
+    "placeholder": "Inserisci le 12 parole separate da spazi",
+    "wordCount": "{{count}} parole su 12",
+    "invalidWords": "Non presenti nella lista di parole: {{words}}",
+    "badChecksum": "La frase non è valida: una o più parole sono errate.",
+    "valid": "La frase di recupero sembra corretta.",
+    "unlock": "Sblocca",
+    "decrypting": "Decifratura…",
+    "hide": "Nascondi frase",
+    "show": "Mostra frase"
+  },
+  "legacy": {
+    "title": "Questo database deve essere configurato di nuovo",
+    "description": "Il database su questo dispositivo è stato creato da una versione precedente dell'app, che lo ha cifrato in un modo che questa versione non può più aprire. Ripristina l'app per ricominciare da capo o per ripristinare un backup esportato da una versione attuale.",
+    "reset": "Ripristina e ricomincia",
+    "confirmTitle": "Eliminare il database locale?",
+    "confirmBody": "Questa operazione elimina definitivamente il database salvato in questo browser insieme alle impostazioni dell'app. I backup esportati o sincronizzati nel cloud non vengono toccati, ma si possono ripristinare solo backup di una versione attuale.",
+    "resetting": "Ripristino in corso…",
+    "failed": "Ripristino non riuscito"
+  },
+  "unlockErrors": {
+    "INVALID_SECRET": "Password o frase di recupero errata.",
+    "INVALID_RECOVERY_PHRASE": "Questa non è una frase di recupero valida.",
+    "LEGACY_HEADER": "Questo database è stato creato da una versione precedente dell'app e non può essere aperto.",
+    "HEADER_INVALID": "Le impostazioni di cifratura salvate su questo dispositivo sono danneggiate.",
+    "NO_DATABASE": "Nessun database cifrato trovato su questo dispositivo.",
+    "ARCHIVE_KEY_MISMATCH": "Questo backup appartiene a un altro database. Inserisci la sua password o frase di recupero per aprirlo.",
+    "UNSUPPORTED_ARCHIVE_FORMAT": "Questo backup è stato creato da una versione precedente dell'app e non può più essere aperto.",
+    "ARCHIVE_CORRUPT": "Questo file di backup è danneggiato e non può essere letto."
   }
 }

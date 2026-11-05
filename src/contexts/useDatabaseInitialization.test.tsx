@@ -70,7 +70,9 @@ type MockService = {
   loadDatabaseFromFile: ReturnType<typeof vi.fn>;
   getWorkerService: ReturnType<typeof vi.fn>;
   isEncryptionReady: ReturnType<typeof vi.fn>;
-  verifyCurrentPassword: ReturnType<typeof vi.fn>;
+  verifyMaster: ReturnType<typeof vi.fn>;
+  getUnlockMethods: ReturnType<typeof vi.fn>;
+  getEncryptedArchiveMeta: ReturnType<typeof vi.fn>;
   importDatabaseArchiveData: ReturnType<typeof vi.fn>;
   getEncryptedArchiveTimestamp: ReturnType<typeof vi.fn>;
   canDecryptArchive: ReturnType<typeof vi.fn>;
@@ -147,7 +149,27 @@ function createServiceMock(overrides: Partial<MockService> = {}): MockService {
     loadDatabaseFromFile: vi.fn().mockResolvedValue(undefined),
     getWorkerService: vi.fn(() => workerService),
     isEncryptionReady: vi.fn().mockResolvedValue(true),
-    verifyCurrentPassword: vi.fn().mockResolvedValue(true),
+    verifyMaster: vi.fn().mockResolvedValue(true),
+    getUnlockMethods: vi.fn().mockResolvedValue({
+      exists: true,
+      legacyHeader: false,
+      keyId: 'ab'.repeat(16),
+      blockSize: 8192,
+      isUnlocked: false,
+      methods: [
+        { slotId: 'cd'.repeat(8), type: 'password', label: 'Password', createdAt: '2026-01-01T00:00:00.000Z', lastUsedAt: null, isMaster: true },
+      ],
+    }),
+    getEncryptedArchiveMeta: vi.fn().mockReturnValue({
+      format: 'budget-tracker-encrypted-v2',
+      lastSaveTimestamp: '2026-07-14T00:00:00.000Z',
+      keyId: 'ab'.repeat(16),
+      iv: '00'.repeat(12),
+      algorithm: 'AES-GCM',
+      keyLength: 256,
+      kdf: { name: 'HKDF-SHA256', info: 'budget-tracker/archive/v1' },
+      masterSlot: { slotId: 'cd'.repeat(8), type: 'password', label: 'Password', createdAt: '2026-01-01T00:00:00.000Z', lastUsedAt: null, hkdfSalt: '00'.repeat(32), wrap: { alg: 'A256GCM', iv: '00'.repeat(12), ciphertext: '00'.repeat(48) }, kdf: { name: 'PBKDF2-HMAC-SHA256', salt: '00'.repeat(32), iterations: 600000, normalization: 'NFKC' } },
+    }),
     importDatabaseArchiveData: vi.fn().mockResolvedValue(undefined),
     getEncryptedArchiveTimestamp: vi.fn().mockReturnValue(null),
     canDecryptArchive: vi.fn().mockResolvedValue(true),
@@ -238,10 +260,10 @@ describe('useDatabaseInitialization', () => {
 
     // The SQLite engine itself enforces the password via the encrypting VFS.
     await act(async () => {
-      await result.current.handleUnlockSubmitted('correcthorsebatterystaple');
+      await result.current.handleUnlockSubmitted({ type: 'password', secret: 'correcthorsebatterystaple' });
     });
 
-    expect(service.unlockDatabase).toHaveBeenCalledWith('correcthorsebatterystaple');
+    expect(service.unlockDatabase).toHaveBeenCalledWith({ type: 'password', secret: 'correcthorsebatterystaple' });
     expect(loadAllData).toHaveBeenCalledWith(service);
     expect(result.current.initializationState).toBe('initialized');
   });
@@ -348,10 +370,10 @@ describe('useDatabaseInitialization', () => {
       const { result, service } = await renderLocked();
 
       await act(async () => {
-        await result.current.handleLockedResetRequested('correcthorsebatterystaple');
+        await result.current.handleLockedResetRequested({ type: 'password', secret: 'correcthorsebatterystaple' });
       });
 
-      expect(service.verifyCurrentPassword).toHaveBeenCalledWith('correcthorsebatterystaple');
+      expect(service.verifyMaster).toHaveBeenCalledWith({ type: 'password', secret: 'correcthorsebatterystaple' });
       expect(resetApp).toHaveBeenCalledTimes(1);
       // The unlock itself is never attempted: verifying must not open the database.
       expect(service.unlockDatabase).not.toHaveBeenCalled();
@@ -359,11 +381,11 @@ describe('useDatabaseInitialization', () => {
 
     it('refuses a wrong password and leaves the worker and storage untouched', async () => {
       const { result, terminate } = await renderLocked({
-        verifyCurrentPassword: vi.fn().mockResolvedValue(false),
+        verifyMaster: vi.fn().mockResolvedValue(false),
       });
 
       await act(async () => {
-        await expect(result.current.handleLockedResetRequested('wrong-password')).rejects.toThrow(
+        await expect(result.current.handleLockedResetRequested({ type: 'password', secret: 'wrong-password' })).rejects.toThrow(
           'Incorrect password'
         );
       });
@@ -399,7 +421,7 @@ describe('useDatabaseInitialization', () => {
     });
 
     await act(async () => {
-      await result.current.handleUnlockSubmitted('wrong-password');
+      await result.current.handleUnlockSubmitted({ type: 'password', secret: 'wrong-password' });
     });
 
     expect(loadAllData).not.toHaveBeenCalled();
@@ -454,10 +476,10 @@ describe('useDatabaseInitialization', () => {
     });
 
     await act(async () => {
-      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+      await result.current.handlePasswordSetupConfirmed({ type: 'password', secret: 'correcthorsebatterystaple' }, 'Pat');
     });
 
-    expect(service.createNewDatabase).toHaveBeenCalledWith('correcthorsebatterystaple', {
+    expect(service.createNewDatabase).toHaveBeenCalledWith({ type: 'password', secret: 'correcthorsebatterystaple' }, {
       deferIndexes: true,
     });
     expect(service.ensureIndexes).toHaveBeenCalledTimes(1);
@@ -516,7 +538,7 @@ describe('useDatabaseInitialization', () => {
 
     let confirmPromise!: Promise<void>;
     await act(async () => {
-      confirmPromise = result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+      confirmPromise = result.current.handlePasswordSetupConfirmed({ type: 'password', secret: 'correcthorsebatterystaple' }, 'Pat');
     });
 
     await waitFor(() => {
@@ -530,7 +552,7 @@ describe('useDatabaseInitialization', () => {
       await confirmPromise;
     });
 
-    expect(service.createNewDatabase).toHaveBeenCalledWith('correcthorsebatterystaple', {
+    expect(service.createNewDatabase).toHaveBeenCalledWith({ type: 'password', secret: 'correcthorsebatterystaple' }, {
       deferIndexes: true,
     });
     expect(service.clearAndRecreateDatabase).toHaveBeenCalledTimes(1);
@@ -590,10 +612,10 @@ describe('useDatabaseInitialization', () => {
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
 
     await act(async () => {
-      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+      await result.current.handlePasswordSetupConfirmed({ type: 'password', secret: 'correcthorsebatterystaple' }, 'Pat');
     });
 
-    expect(service.createNewDatabase).toHaveBeenCalledWith('correcthorsebatterystaple', {
+    expect(service.createNewDatabase).toHaveBeenCalledWith({ type: 'password', secret: 'correcthorsebatterystaple' }, {
       deferIndexes: false,
     });
     expect(result.current.initializationState).toBe('needs-preferences');
@@ -613,7 +635,7 @@ describe('useDatabaseInitialization', () => {
     await completeBrowserTest(result);
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
-      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+      await result.current.handlePasswordSetupConfirmed({ type: 'password', secret: 'correcthorsebatterystaple' }, 'Pat');
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
     await act(async () => {
@@ -647,7 +669,7 @@ describe('useDatabaseInitialization', () => {
     await completeBrowserTest(result);
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
-      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+      await result.current.handlePasswordSetupConfirmed({ type: 'password', secret: 'correcthorsebatterystaple' }, 'Pat');
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
     expect(result.current.setupDefaultCurrency).toBe('USD');
@@ -688,7 +710,7 @@ describe('useDatabaseInitialization', () => {
     await completeBrowserTest(result);
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
-      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+      await result.current.handlePasswordSetupConfirmed({ type: 'password', secret: 'correcthorsebatterystaple' }, 'Pat');
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
 
@@ -715,7 +737,7 @@ describe('useDatabaseInitialization', () => {
     await completeBrowserTest(result);
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
-      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+      await result.current.handlePasswordSetupConfirmed({ type: 'password', secret: 'correcthorsebatterystaple' }, 'Pat');
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
     await act(async () => {
@@ -745,7 +767,7 @@ describe('useDatabaseInitialization', () => {
     await completeBrowserTest(result);
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
-      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+      await result.current.handlePasswordSetupConfirmed({ type: 'password', secret: 'correcthorsebatterystaple' }, 'Pat');
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
     await act(async () => {
@@ -783,7 +805,7 @@ describe('useDatabaseInitialization', () => {
     await completeBrowserTest(result);
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
-      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+      await result.current.handlePasswordSetupConfirmed({ type: 'password', secret: 'correcthorsebatterystaple' }, 'Pat');
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
     await act(async () => {
@@ -823,7 +845,7 @@ describe('useDatabaseInitialization', () => {
     await completeBrowserTest(result);
     await waitFor(() => expect(result.current.initializationState).toBe('needs-setup'));
     await act(async () => {
-      await result.current.handlePasswordSetupConfirmed('correcthorsebatterystaple', 'Pat');
+      await result.current.handlePasswordSetupConfirmed({ type: 'password', secret: 'correcthorsebatterystaple' }, 'Pat');
     });
     await waitFor(() => expect(result.current.initializationState).toBe('needs-preferences'));
     await act(async () => {
@@ -988,13 +1010,15 @@ describe('useDatabaseInitialization', () => {
     service.getEncryptedArchiveTimestamp = vi.fn().mockReturnValue('2026-07-14T00:00:00.000Z');
 
     await act(async () => {
-      await result.current.handlePasswordEntrySubmitted('correcthorsebatterystaple');
+      await result.current.handlePasswordEntrySubmitted({ type: 'password', secret: 'correcthorsebatterystaple' });
     });
 
-    expect(service.canDecryptArchive).toHaveBeenCalledWith(archiveBytes, 'correcthorsebatterystaple');
-    expect(service.createNewDatabase).toHaveBeenCalledWith('correcthorsebatterystaple', {
-      deferIndexes: true,
-    });
+    expect(service.canDecryptArchive).toHaveBeenCalledWith(archiveBytes, { type: 'password', secret: 'correcthorsebatterystaple' });
+    expect(service.createNewDatabase).toHaveBeenCalledWith(
+      { type: 'password', secret: 'correcthorsebatterystaple' },
+      { deferIndexes: true },
+      expect.objectContaining({ keyId: 'ab'.repeat(16), masterSlot: expect.objectContaining({ type: 'password' }) })
+    );
     expect(service.importDatabaseArchiveData).toHaveBeenCalledWith(archiveBytes);
     expect(mockedPersistCloudLink).toHaveBeenCalledWith({
       provider: 'gdrive',
@@ -1036,10 +1060,10 @@ describe('useDatabaseInitialization', () => {
     });
 
     await act(async () => {
-      await result.current.handleUnlockSubmitted('wrong-password');
+      await result.current.handleUnlockSubmitted({ type: 'password', secret: 'wrong-password' });
     });
 
-    expect(service.unlockDatabase).toHaveBeenCalledWith('wrong-password');
+    expect(service.unlockDatabase).toHaveBeenCalledWith({ type: 'password', secret: 'wrong-password' });
     expect(mockedReconcileOnOpen).not.toHaveBeenCalled();
     expect(result.current.error).toBe('Incorrect password');
     expect(result.current.initializationState).toBe('needs-unlock');
@@ -1077,10 +1101,10 @@ describe('useDatabaseInitialization', () => {
     });
 
     await act(async () => {
-      await result.current.handleUnlockSubmitted('correcthorsebatterystaple');
+      await result.current.handleUnlockSubmitted({ type: 'password', secret: 'correcthorsebatterystaple' });
     });
 
-    expect(service.unlockDatabase).toHaveBeenCalledWith('correcthorsebatterystaple');
+    expect(service.unlockDatabase).toHaveBeenCalledWith({ type: 'password', secret: 'correcthorsebatterystaple' });
     expect(mockedReconcileOnOpen).toHaveBeenCalledWith(
       expect.objectContaining({ provider: 'gdrive' })
     );

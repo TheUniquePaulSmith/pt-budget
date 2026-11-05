@@ -95,6 +95,8 @@
     "passwordLabel": "Datenbankpasswort",
     "passwordHelp": "Geben Sie Ihr Passwort ein, um das Zurücksetzen zu bestätigen.",
     "failed": "Zurücksetzen fehlgeschlagen",
-    "resetting": "Wird zurückgesetzt…"
+    "resetting": "Wird zurückgesetzt…",
+    "recoveryLabel": "Wiederherstellungsphrase",
+    "recoveryHelp": "Gib deine Wiederherstellungsphrase aus 12 Wörtern ein, um das Zurücksetzen zu bestätigen."
   }
 }

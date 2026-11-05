@@ -95,6 +95,8 @@
     "passwordLabel": "데이터베이스 비밀번호",
     "passwordHelp": "초기화를 확인하려면 비밀번호를 입력하세요.",
     "failed": "초기화 실패",
-    "resetting": "초기화 중…"
+    "resetting": "초기화 중…",
+    "recoveryLabel": "복구 문구",
+    "recoveryHelp": "초기화를 확인하려면 12개 단어의 복구 문구를 입력하세요."
   }
 }

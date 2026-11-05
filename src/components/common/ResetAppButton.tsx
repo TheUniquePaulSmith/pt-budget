@@ -17,16 +17,19 @@ import {
 import { useTranslation } from 'react-i18next';
 
 interface ResetAppButtonProps {
-  /** Receives the confirmation password when `requirePassword` is set. Reject to refuse the reset. */
-  onReset: (password: string) => void | Promise<void>;
+  /** Receives the typed confirmation secret (password, or recovery phrase text) when one is required. Reject to refuse the reset. */
+  onReset: (secret: string) => void | Promise<void>;
   fullWidth?: boolean;
   variant?: 'text' | 'outlined' | 'contained';
   /**
    * Make the user type the database password to confirm. Used while the app is
    * locked, where nothing else proves who is at the keyboard. A rejection from
    * `onReset` is then shown in the dialog, which stays open for another try.
+   * Shorthand for `confirmWith="password"`.
    */
   requirePassword?: boolean;
+  /** Which master secret confirms the reset: the password or the 12-word recovery phrase. */
+  confirmWith?: 'password' | 'recovery';
 }
 
 /** Debug-only control that wipes all locally saved app data after confirmation. */
@@ -35,16 +38,19 @@ export function ResetAppButton({
   fullWidth,
   variant = 'outlined',
   requirePassword = false,
+  confirmWith,
 }: ResetAppButtonProps) {
   const { t } = useTranslation(['shell', 'common']);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
-  const [password, setPassword] = useState('');
+  const [secret, setSecret] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const confirmation = confirmWith ?? (requirePassword ? 'password' : null);
 
   const closeDialog = () => {
     setIsDialogOpen(false);
-    setPassword('');
+    setSecret('');
     setError(null);
   };
 
@@ -52,13 +58,13 @@ export function ResetAppButton({
     setIsResetting(true);
     setError(null);
     try {
-      await onReset(password);
+      await onReset(secret);
     } catch (err) {
       // onReset navigates away on success; only reachable here on failure.
       setIsResetting(false);
-      if (requirePassword) {
+      if (confirmation) {
         setError(err instanceof Error ? err.message : t('resetApp.failed'));
-        setPassword('');
+        setSecret('');
       } else {
         closeDialog();
       }
@@ -83,7 +89,7 @@ export function ResetAppButton({
           <DialogContentText>
             {t('resetApp.body')}
           </DialogContentText>
-          {requirePassword && (
+          {confirmation && (
             <>
               {error && (
                 <Alert severity="error" sx={{ mt: 2 }}>
@@ -91,14 +97,22 @@ export function ResetAppButton({
                 </Alert>
               )}
               <TextField
-                label={t('resetApp.passwordLabel')}
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                label={confirmation === 'password' ? t('resetApp.passwordLabel') : t('resetApp.recoveryLabel')}
+                type={confirmation === 'password' ? 'password' : 'text'}
+                multiline={confirmation === 'recovery'}
+                minRows={confirmation === 'recovery' ? 2 : undefined}
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && password && !isResetting) void handleConfirm();
+                  if (e.key === 'Enter' && secret && !isResetting) {
+                    e.preventDefault();
+                    void handleConfirm();
+                  }
                 }}
-                helperText={t('resetApp.passwordHelp')}
+                helperText={confirmation === 'password' ? t('resetApp.passwordHelp') : t('resetApp.recoveryHelp')}
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
                 fullWidth
                 autoFocus
                 disabled={isResetting}
@@ -115,7 +129,7 @@ export function ResetAppButton({
             color="error"
             variant="contained"
             onClick={() => void handleConfirm()}
-            disabled={isResetting || (requirePassword && !password)}
+            disabled={isResetting || (confirmation !== null && !secret)}
             startIcon={isResetting ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
             {isResetting ? t('resetApp.resetting') : t('resetApp.button')}

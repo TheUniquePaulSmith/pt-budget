@@ -126,7 +126,7 @@
   },
   "security": {
     "title": "Segurança",
-    "description": "Gerencie a senha que protege suas exportações e backups na nuvem.",
+    "description": "Gerencie a senha ou a frase de recuperação que protege seu banco de dados, exportações e backups na nuvem, e as outras formas pelas quais este dispositivo pode desbloqueá-lo.",
     "lockTitle": "Bloquear banco de dados",
     "lockHelp": "Sincroniza seu banco de dados com a nuvem (se conectado) e depois o bloqueia — você precisará da senha para continuar.",
     "locking": "Bloqueando…",
@@ -235,5 +235,46 @@
     "applying": "Aplicando…",
     "confirmDiscard": "Confirmar: descartar alterações locais",
     "useCloud": "Usar versão da nuvem"
+  },
+  "master": {
+    "title": "Segredo principal",
+    "currentPassword": "Seu banco de dados está protegido por uma senha.",
+    "currentRecovery": "Seu banco de dados está protegido por uma frase de recuperação de 12 palavras.",
+    "switchToRecovery": "Mudar para frase de recuperação",
+    "switchToPassword": "Mudar para senha",
+    "failed": "Não foi possível ler as configurações de segurança."
+  },
+  "switchMaster": {
+    "toRecoveryTitle": "Mudar para uma frase de recuperação",
+    "toPasswordTitle": "Mudar para uma senha",
+    "enterCurrentPassword": "Digite sua senha atual para continuar.",
+    "enterCurrentRecovery": "Digite sua frase de recuperação atual para continuar.",
+    "currentPasswordLabel": "Senha atual",
+    "chooseNewPassword": "Escolha a senha que protegerá seu banco de dados a partir de agora. A frase de recuperação deixará de funcionar.",
+    "newPasswordLabel": "Nova senha",
+    "confirmPasswordLabel": "Confirmar nova senha",
+    "switching": "Mudando…",
+    "submit": "Mudar",
+    "doneRecovery": "Seu banco de dados agora está protegido pela frase de recuperação. A senha antiga não funciona mais.",
+    "donePassword": "Seu banco de dados agora está protegido pela nova senha. A frase de recuperação antiga não funciona mais."
+  },
+  "unlockMethods": {
+    "title": "Métodos de desbloqueio",
+    "description": "Formas de abrir este banco de dados neste dispositivo. A senha ou a frase de recuperação sempre existe; os outros métodos são extras convenientes que podem ser removidos a qualquer momento.",
+    "master": "Principal",
+    "empty": "Nenhum método de desbloqueio adicional está configurado neste dispositivo.",
+    "added": "Adicionado em {{date}}",
+    "lastUsed": "Último uso: {{date}}",
+    "typePassword": "Senha",
+    "typeRecovery": "Frase de recuperação",
+    "typePasskey": "Chave de acesso",
+    "typeCloud": "Conta na nuvem"
+  },
+  "securityErrors": {
+    "INVALID_SECRET": "A senha ou a frase de recuperação atual está incorreta.",
+    "CANNOT_REMOVE_MASTER": "A senha ou a frase de recuperação não pode ser removida; substitua-a em vez disso.",
+    "SLOT_NOT_FOUND": "Esse método de desbloqueio não existe mais.",
+    "LOCKED": "Desbloqueie o banco de dados primeiro.",
+    "failed": "Algo deu errado. Tente novamente."
   }
 }

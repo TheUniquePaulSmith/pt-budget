@@ -95,6 +95,8 @@
     "passwordLabel": "Database password",
     "passwordHelp": "Enter your password to confirm the reset.",
     "failed": "Reset failed",
-    "resetting": "Resetting…"
+    "resetting": "Resetting…",
+    "recoveryLabel": "Recovery phrase",
+    "recoveryHelp": "Enter your 12-word recovery phrase to confirm the reset."
   }
 }

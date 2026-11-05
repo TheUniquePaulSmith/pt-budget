@@ -47,7 +47,9 @@
     "useLocalInstead": "Utiliser plutôt une base de données locale",
     "databaseError": "Erreur de base de données",
     "unknownInitError": "Une erreur inconnue s'est produite lors de l'initialisation de la base de données.",
-    "reloadPage": "Recharger la page"
+    "reloadPage": "Recharger la page",
+    "importRecoveryDescription": "Ce fichier de base de données est protégé par une phrase de récupération. Saisissez ses 12 mots pour le déverrouiller et l'importer.",
+    "unlockRecoveryDescription": "Cette base de données est protégée par une phrase de récupération. Saisissez ses 12 mots pour la déverrouiller."
   },
   "passwordSetup": {
     "primaryUserNameRequired": "Le nom de l'utilisateur principal est obligatoire.",
@@ -63,7 +65,13 @@
     "hidePassword": "Masquer le mot de passe",
     "showPassword": "Afficher le mot de passe",
     "creating": "Création de la base de données…",
-    "create": "Créer la base de données"
+    "create": "Créer la base de données",
+    "recoveryDescription": "Votre base de données est chiffrée sur cet appareil. Une phrase de récupération de 12 mots, générée pour vous, sera le seul moyen de l'ouvrir : il n'existe aucune autre façon de récupérer vos données, alors conservez-la en lieu sûr.",
+    "masterTypeLabel": "Protéger la base de données avec",
+    "masterTypePassword": "Mot de passe",
+    "masterTypeRecovery": "Phrase de récupération",
+    "recoveryHint": "Au lieu d'un mot de passe à mémoriser, vous recevrez 12 mots aléatoires à noter. Quiconque possède ces mots peut ouvrir la base de données, et sans eux personne ne le peut, vous y compris.",
+    "generateRecovery": "Générer la phrase de récupération"
   },
   "passwordEntry": {
     "title": "Saisir le mot de passe",
@@ -127,5 +135,53 @@
     "title": "Ouvrir depuis {{provider}}",
     "empty": "Aucune archive de sauvegarde trouvée dans {{provider}}.",
     "opening": "Ouverture…"
+  },
+  "recoverySetup": {
+    "title": "Votre phrase de récupération",
+    "description": "Ces 12 mots sont le seul moyen d'ouvrir votre base de données. Notez-les dans l'ordre et conservez-les en lieu sûr : ils ne sont stockés nulle part et il n'existe aucune autre façon de récupérer vos données.",
+    "copy": "Copier",
+    "copied": "Copié",
+    "print": "Imprimer",
+    "regenerate": "Générer une nouvelle phrase",
+    "savedCheckbox": "J'ai noté ces 12 mots",
+    "confirmTitle": "Confirmez votre phrase de récupération",
+    "confirmDescription": "Saisissez les mots demandés pour confirmer que vous avez bien noté la phrase.",
+    "wordLabel": "Mot n° {{position}}",
+    "confirmMismatch": "Un ou plusieurs mots ne correspondent pas. Vérifiez la phrase que vous avez notée et réessayez.",
+    "printTitle": "Phrase de récupération Budget Tracker",
+    "printedOn": "Imprimé le {{date}}"
+  },
+  "recoveryEntry": {
+    "title": "Saisir la phrase de récupération",
+    "defaultDescription": "Cette base de données est protégée par une phrase de récupération. Saisissez ses 12 mots pour l'ouvrir.",
+    "label": "Phrase de récupération",
+    "placeholder": "Saisissez les 12 mots séparés par des espaces",
+    "wordCount": "{{count}} mots sur 12",
+    "invalidWords": "Absents de la liste de mots : {{words}}",
+    "badChecksum": "La phrase n'est pas valide : un ou plusieurs mots sont incorrects.",
+    "valid": "La phrase de récupération semble correcte.",
+    "unlock": "Déverrouiller",
+    "decrypting": "Déchiffrement…",
+    "hide": "Masquer la phrase",
+    "show": "Afficher la phrase"
+  },
+  "legacy": {
+    "title": "Cette base de données doit être reconfigurée",
+    "description": "La base de données de cet appareil a été créée par une ancienne version de l'application, qui l'a chiffrée d'une manière que cette version ne peut plus ouvrir. Réinitialisez l'application pour repartir de zéro ou pour restaurer une sauvegarde exportée depuis une version actuelle.",
+    "reset": "Réinitialiser et recommencer",
+    "confirmTitle": "Supprimer la base de données locale ?",
+    "confirmBody": "Cette action supprime définitivement la base de données stockée dans ce navigateur ainsi que les réglages de l'application. Les sauvegardes exportées ou synchronisées dans le cloud ne sont pas affectées, mais seules les sauvegardes d'une version actuelle peuvent être restaurées.",
+    "resetting": "Réinitialisation…",
+    "failed": "Échec de la réinitialisation"
+  },
+  "unlockErrors": {
+    "INVALID_SECRET": "Mot de passe ou phrase de récupération incorrect.",
+    "INVALID_RECOVERY_PHRASE": "Ce n'est pas une phrase de récupération valide.",
+    "LEGACY_HEADER": "Cette base de données a été créée par une ancienne version de l'application et ne peut pas être ouverte.",
+    "HEADER_INVALID": "Les paramètres de chiffrement enregistrés sur cet appareil sont endommagés.",
+    "NO_DATABASE": "Aucune base de données chiffrée n'a été trouvée sur cet appareil.",
+    "ARCHIVE_KEY_MISMATCH": "Cette sauvegarde appartient à une autre base de données. Saisissez son mot de passe ou sa phrase de récupération pour l'ouvrir.",
+    "UNSUPPORTED_ARCHIVE_FORMAT": "Cette sauvegarde a été créée par une ancienne version de l'application et ne peut plus être ouverte.",
+    "ARCHIVE_CORRUPT": "Ce fichier de sauvegarde est endommagé et ne peut pas être lu."
   }
 }

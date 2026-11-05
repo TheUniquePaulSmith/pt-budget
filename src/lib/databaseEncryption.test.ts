@@ -1,20 +1,37 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ArchiveFormatError,
   bytesToHex,
-  checkPageKeyVerifier,
-  createPageKeyVerifier,
-  decryptArchive,
-  derivePageKey,
   ENCRYPTED_ARCHIVE_FORMAT,
-  encryptArchive,
   hexToBytes,
   isEncryptedArchive,
-  PBKDF2_ITERATIONS,
-  readEncryptedArchiveMeta,
-  SALT_BYTE_LENGTH,
   IV_BYTE_LENGTH,
+  LEGACY_ENCRYPTED_ARCHIVE_FORMAT,
+  readEncryptedArchiveMeta,
 } from './databaseEncryption';
+// The worker writes the envelopes this page-side reader parses; the two
+// implementations must agree, so the fixtures here come from the real
+// worker modules.
+import * as workerEncryption from '../../public/database-encryption.js';
+import * as keySlots from '../../public/database-key-slots.js';
+
+async function buildEnvelope(plain: Uint8Array, lastSaveTimestamp = '2026-01-01T00:00:00.000Z') {
+  const rootKey = keySlots.generateRootKey();
+  const masterSlot = await keySlots.createSlot({ type: 'password', secret: 'test-password', kdf: { iterations: 1000 } }, rootKey);
+  const keyId = keySlots.generateKeyId();
+  const archiveKey = await keySlots.deriveArchiveKey(rootKey);
+  const bytes = await workerEncryption.encryptArchive(plain, { archiveKey, keyId, masterSlot }, lastSaveTimestamp);
+  return { bytes, rootKey, keyId, masterSlot };
+}
+
+function frame(header: object | string, payloadLength = 1): Uint8Array {
+  const headerBytes = new TextEncoder().encode(typeof header === 'string' ? header : JSON.stringify(header));
+  const buf = new Uint8Array(4 + headerBytes.length + payloadLength);
+  new DataView(buf.buffer).setUint32(0, headerBytes.length, true);
+  buf.set(headerBytes, 4);
+  return buf;
+}
 
 // ---------------------------------------------------------------------------
 // Helper utilities
@@ -31,6 +48,11 @@ describe('bytesToHex / hexToBytes', () => {
   it('round-trips random bytes', () => {
     const original = crypto.getRandomValues(new Uint8Array(32));
     expect(hexToBytes(bytesToHex(original))).toEqual(original);
+  });
+
+  it('rejects odd-length or non-hex input', () => {
+    expect(() => hexToBytes('abc')).toThrow('Invalid hex');
+    expect(() => hexToBytes('zz')).toThrow('Invalid hex');
   });
 });
 
@@ -50,14 +72,17 @@ describe('isEncryptedArchive', () => {
 
   it('returns false when header length field points past end of buffer', () => {
     const buf = new Uint8Array(8);
-    new DataView(buf.buffer).setUint32(0, 9999, true); // way past end
+    new DataView(buf.buffer).setUint32(0, 9999, true);
     expect(isEncryptedArchive(buf)).toBe(false);
   });
 
-  it('returns true for an archive produced by encryptArchive', async () => {
-    const plainBytes = new Uint8Array([1, 2, 3, 4, 5]);
-    const encrypted = await encryptArchive(plainBytes, 'test-password', '2025-01-01T00:00:00.000Z');
-    expect(isEncryptedArchive(encrypted)).toBe(true);
+  it('returns true for a v2 archive produced by the worker', async () => {
+    const { bytes } = await buildEnvelope(new Uint8Array([1, 2, 3, 4, 5]));
+    expect(isEncryptedArchive(bytes)).toBe(true);
+  });
+
+  it('recognises a v1 archive as an (unsupported) encrypted archive', () => {
+    expect(isEncryptedArchive(frame({ format: LEGACY_ENCRYPTED_ARCHIVE_FORMAT, salt: '00', iv: '00' }))).toBe(true);
   });
 });
 
@@ -66,10 +91,14 @@ describe('isEncryptedArchive', () => {
 // ---------------------------------------------------------------------------
 
 describe('readEncryptedArchiveMeta', () => {
-  it('throws on a buffer that is too short', () => {
-    expect(() => readEncryptedArchiveMeta(new Uint8Array(4))).toThrow(
-      'too short'
-    );
+  it('throws ARCHIVE_CORRUPT on a buffer that is too short', () => {
+    expect(() => readEncryptedArchiveMeta(new Uint8Array(4))).toThrow('too short');
+    try {
+      readEncryptedArchiveMeta(new Uint8Array(4));
+    } catch (error) {
+      expect(error).toBeInstanceOf(ArchiveFormatError);
+      expect((error as ArchiveFormatError).code).toBe('ARCHIVE_CORRUPT');
+    }
   });
 
   it('throws when header length is out of bounds', () => {
@@ -79,187 +108,87 @@ describe('readEncryptedArchiveMeta', () => {
   });
 
   it('throws when the header JSON is not valid', () => {
-    const header = new TextEncoder().encode('NOT JSON');
-    const buf = new Uint8Array(4 + header.length);
-    new DataView(buf.buffer).setUint32(0, header.length, true);
-    buf.set(header, 4);
-    expect(() => readEncryptedArchiveMeta(buf)).toThrow('not valid JSON');
+    expect(() => readEncryptedArchiveMeta(frame('NOT JSON'))).toThrow('not valid JSON');
+  });
+
+  it('throws UNSUPPORTED_ARCHIVE_FORMAT for a v1 archive', () => {
+    const v1 = frame({ format: LEGACY_ENCRYPTED_ARCHIVE_FORMAT, salt: '00', iv: '00', pbkdf2Iterations: 600000 });
+    expect(() => readEncryptedArchiveMeta(v1)).toThrow(ArchiveFormatError);
+    try {
+      readEncryptedArchiveMeta(v1);
+    } catch (error) {
+      expect((error as ArchiveFormatError).code).toBe('UNSUPPORTED_ARCHIVE_FORMAT');
+      expect((error as Error).message).toMatch(/older version/);
+    }
   });
 
   it('throws when the format field is unrecognised', () => {
-    const header = new TextEncoder().encode(JSON.stringify({ format: 'unknown-format-v1' }));
-    const buf = new Uint8Array(4 + header.length + 1); // +1 so payload exists
-    new DataView(buf.buffer).setUint32(0, header.length, true);
-    buf.set(header, 4);
-    expect(() => readEncryptedArchiveMeta(buf)).toThrow('unsupported format');
+    expect(() => readEncryptedArchiveMeta(frame({ format: 'unknown-format-v1' }))).toThrow('unsupported format');
+  });
+
+  it('throws ARCHIVE_CORRUPT when a v2 header is missing its master slot', () => {
+    expect(() => readEncryptedArchiveMeta(frame({ format: ENCRYPTED_ARCHIVE_FORMAT, keyId: 'ab', iv: '00' }))).toThrow('incomplete');
   });
 
   it('returns valid metadata from a real encrypted archive', async () => {
     const timestamp = '2025-06-15T12:00:00.000Z';
-    const encrypted = await encryptArchive(
-      new Uint8Array([10, 20, 30]),
-      'my-password',
-      timestamp
-    );
+    const { bytes, keyId, masterSlot } = await buildEnvelope(new Uint8Array([10, 20, 30]), timestamp);
 
-    const meta = readEncryptedArchiveMeta(encrypted);
+    const meta = readEncryptedArchiveMeta(bytes);
 
     expect(meta.format).toBe(ENCRYPTED_ARCHIVE_FORMAT);
     expect(meta.lastSaveTimestamp).toBe(timestamp);
     expect(meta.algorithm).toBe('AES-GCM');
     expect(meta.keyLength).toBe(256);
-    expect(meta.pbkdf2Iterations).toBe(PBKDF2_ITERATIONS);
-    expect(meta.salt).toHaveLength(SALT_BYTE_LENGTH * 2); // hex encoding doubles length
+    expect(meta.keyId).toBe(keyId);
     expect(meta.iv).toHaveLength(IV_BYTE_LENGTH * 2);
+    expect(meta.kdf).toEqual({ name: 'HKDF-SHA256', info: 'budget-tracker/archive/v1' });
+    // The master slot travels verbatim, so a new device can open the archive from the master secret alone.
+    expect(meta.masterSlot).toEqual(masterSlot);
   });
 });
 
 // ---------------------------------------------------------------------------
-// encryptArchive
+// Parity with the worker implementation
 // ---------------------------------------------------------------------------
 
-describe('encryptArchive', () => {
-  it('returns a Uint8Array larger than the input', async () => {
-    const plain = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
-    const encrypted = await encryptArchive(plain, 'pw', '2025-01-01T00:00:00.000Z');
-
-    expect(encrypted).toBeInstanceOf(Uint8Array);
-    expect(encrypted.byteLength).toBeGreaterThan(plain.byteLength);
+describe('parity with public/database-encryption.js', () => {
+  it('agrees on format detection and header parsing for a real envelope', async () => {
+    const { bytes } = await buildEnvelope(new Uint8Array(64));
+    expect(isEncryptedArchive(bytes)).toBe(workerEncryption.isEncryptedArchive(bytes));
+    expect(readEncryptedArchiveMeta(bytes)).toEqual(workerEncryption.readEncryptedArchiveMeta(bytes));
   });
 
-  it('produces different ciphertext each call (random salt + IV)', async () => {
-    const plain = new Uint8Array(64).fill(42);
-    const enc1 = await encryptArchive(plain, 'pw', '2025-01-01T00:00:00.000Z');
-    const enc2 = await encryptArchive(plain, 'pw', '2025-01-01T00:00:00.000Z');
+  it('agrees on rejecting a truncated buffer and a v1 archive', () => {
+    const truncated = new Uint8Array(6);
+    expect(isEncryptedArchive(truncated)).toBe(workerEncryption.isEncryptedArchive(truncated));
+    expect(() => readEncryptedArchiveMeta(truncated)).toThrow();
+    expect(() => workerEncryption.readEncryptedArchiveMeta(truncated)).toThrow();
 
-    // The headers will have different salts / IVs
-    expect(bytesToHex(enc1)).not.toBe(bytesToHex(enc2));
+    const v1 = frame({ format: LEGACY_ENCRYPTED_ARCHIVE_FORMAT, salt: '00', iv: '00' });
+    const pageError = (() => {
+      try {
+        readEncryptedArchiveMeta(v1);
+        return null;
+      } catch (error) {
+        return error as ArchiveFormatError;
+      }
+    })();
+    const workerError = (() => {
+      try {
+        workerEncryption.readEncryptedArchiveMeta(v1);
+        return null;
+      } catch (error) {
+        return error as { code?: string };
+      }
+    })();
+    expect(pageError?.code).toBe('UNSUPPORTED_ARCHIVE_FORMAT');
+    expect(workerError?.code).toBe('UNSUPPORTED_ARCHIVE_FORMAT');
   });
 
-  it('stores the timestamp in the unencrypted header', async () => {
-    const timestamp = '2025-12-31T23:59:59.000Z';
-    const encrypted = await encryptArchive(new Uint8Array(8), 'pw', timestamp);
-    const meta = readEncryptedArchiveMeta(encrypted);
-    expect(meta.lastSaveTimestamp).toBe(timestamp);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// decryptArchive – round-trip tests
-// ---------------------------------------------------------------------------
-
-describe('decryptArchive', () => {
-  it('round-trips small plaintext', async () => {
-    const original = new Uint8Array([10, 20, 30, 40, 50]);
-    const password = 'correct-horse-battery-staple';
-    const timestamp = '2025-06-01T00:00:00.000Z';
-
-    const encrypted = await encryptArchive(original, password, timestamp);
-    const decrypted = await decryptArchive(encrypted, password);
-
-    expect(decrypted).toEqual(original);
-  });
-
-  it('round-trips a 1 KiB binary blob', async () => {
-    const original = crypto.getRandomValues(new Uint8Array(1024));
-    const password = 'secure-passphrase-1234';
-    const timestamp = '2025-06-01T00:00:00.000Z';
-
-    const encrypted = await encryptArchive(original, password, timestamp);
-    const decrypted = await decryptArchive(encrypted, password);
-
-    expect(decrypted).toEqual(original);
-  });
-
-  it('throws when the password is wrong', async () => {
-    const original = new Uint8Array([1, 2, 3]);
-    const encrypted = await encryptArchive(original, 'correct-password', '2025-01-01T00:00:00.000Z');
-
-    await expect(decryptArchive(encrypted, 'wrong-password')).rejects.toThrow(
-      'Decryption failed'
-    );
-  });
-
-  it('throws when the encrypted payload is truncated', async () => {
-    const original = new Uint8Array(256).fill(7);
-    const encrypted = await encryptArchive(original, 'pw', '2025-01-01T00:00:00.000Z');
-
-    // Trim 10 bytes from the end to corrupt the AES-GCM tag
-    const corrupted = encrypted.slice(0, encrypted.byteLength - 10);
-
-    await expect(decryptArchive(corrupted, 'pw')).rejects.toThrow(
-      'Decryption failed'
-    );
-  });
-
-  it('throws when the header is missing from a raw buffer', async () => {
-    await expect(
-      decryptArchive(new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0]), 'pw')
-    ).rejects.toThrow();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// derivePageKey / createPageKeyVerifier / checkPageKeyVerifier
-// ---------------------------------------------------------------------------
-
-describe('derivePageKey', () => {
-  it('derives a different key than the archive path would for the same password (independent salts)', async () => {
-    const password = 'correct-horse-battery-staple';
-    const pageSalt = crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
-
-    const pageKey = await derivePageKey(password, pageSalt);
-    const verifier = await createPageKeyVerifier(pageKey);
-
-    // A key derived from the archive path's own (different, random) salt
-    // must not satisfy the page key's verifier.
-    const archiveEncrypted = await encryptArchive(new Uint8Array([1]), password, '2025-01-01T00:00:00.000Z');
-    const archiveMeta = readEncryptedArchiveMeta(archiveEncrypted);
-    const archiveKey = await derivePageKey(password, hexToBytes(archiveMeta.salt));
-
-    expect(await checkPageKeyVerifier(archiveKey, verifier.verifierIv, verifier.verifierCiphertext)).toBe(false);
-    expect(await checkPageKeyVerifier(pageKey, verifier.verifierIv, verifier.verifierCiphertext)).toBe(true);
-  });
-
-  it('is deterministic for the same password and salt', async () => {
-    const password = 'my-password';
-    const pageSalt = crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
-
-    const key1 = await derivePageKey(password, pageSalt);
-    const key2 = await derivePageKey(password, pageSalt);
-    const verifier = await createPageKeyVerifier(key1);
-
-    expect(await checkPageKeyVerifier(key2, verifier.verifierIv, verifier.verifierCiphertext)).toBe(true);
-  });
-});
-
-describe('createPageKeyVerifier / checkPageKeyVerifier', () => {
-  it('accepts the correct key', async () => {
-    const pageKey = await derivePageKey('pw', crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH)));
-    const { verifierIv, verifierCiphertext } = await createPageKeyVerifier(pageKey);
-
-    expect(await checkPageKeyVerifier(pageKey, verifierIv, verifierCiphertext)).toBe(true);
-  });
-
-  it('rejects a key derived from the wrong password', async () => {
-    const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
-    const correctKey = await derivePageKey('correct-password', salt);
-    const wrongKey = await derivePageKey('wrong-password', salt);
-
-    const { verifierIv, verifierCiphertext } = await createPageKeyVerifier(correctKey);
-
-    expect(await checkPageKeyVerifier(wrongKey, verifierIv, verifierCiphertext)).toBe(false);
-  });
-
-  it('rejects a tampered verifier ciphertext instead of throwing', async () => {
-    const pageKey = await derivePageKey('pw', crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH)));
-    const { verifierIv, verifierCiphertext } = await createPageKeyVerifier(pageKey);
-
-    const tamperedBytes = hexToBytes(verifierCiphertext);
-    tamperedBytes[tamperedBytes.length - 1] ^= 0xff;
-
-    await expect(
-      checkPageKeyVerifier(pageKey, verifierIv, bytesToHex(tamperedBytes))
-    ).resolves.toBe(false);
+  it('shares the format constants', () => {
+    expect(ENCRYPTED_ARCHIVE_FORMAT).toBe(workerEncryption.ENCRYPTED_ARCHIVE_FORMAT);
+    expect(LEGACY_ENCRYPTED_ARCHIVE_FORMAT).toBe(workerEncryption.LEGACY_ENCRYPTED_ARCHIVE_FORMAT);
+    expect(IV_BYTE_LENGTH).toBe(workerEncryption.IV_BYTE_LENGTH);
   });
 });

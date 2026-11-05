@@ -95,6 +95,8 @@
     "passwordLabel": "数据库密码",
     "passwordHelp": "输入您的密码以确认重置。",
     "failed": "重置失败",
-    "resetting": "正在重置…"
+    "resetting": "正在重置…",
+    "recoveryLabel": "恢复短语",
+    "recoveryHelp": "输入你的 12 个单词恢复短语以确认重置。"
   }
 }

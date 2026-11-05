@@ -95,6 +95,8 @@
     "passwordLabel": "Mot de passe de la base de données",
     "passwordHelp": "Saisissez votre mot de passe pour confirmer la réinitialisation.",
     "failed": "Échec de la réinitialisation",
-    "resetting": "Réinitialisation…"
+    "resetting": "Réinitialisation…",
+    "recoveryLabel": "Phrase de récupération",
+    "recoveryHelp": "Saisissez votre phrase de récupération de 12 mots pour confirmer la réinitialisation."
   }
 }

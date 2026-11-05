@@ -18,6 +18,15 @@ import {
   isEncryptedArchive,
   readEncryptedArchiveMeta,
 } from './databaseEncryption';
+import type {
+  ArchiveMetaV2,
+  ArchiveRestoreSource,
+  MasterSecret,
+  NewConvenienceSlot,
+  SlotSummary,
+  UnlockMethod,
+  UnlockMethods,
+} from './encryptionTypes';
 import { advanceByCadence } from './recurringCadence';
 import { addMonthsISO, todayLocalISO } from './dateOnly';
 import { computeTransactionHash } from './transactionHash';
@@ -131,16 +140,27 @@ export interface DatabaseWorkerTransport {
     isSuccessful: boolean;
     sqlResponse?: { error?: string };
   }>;
-  // Database create / unlock / lock (VFS-level page encryption)
-  createNewDatabase(password: string, filename?: string, options?: OpenDatabaseOptions): Promise<unknown>;
-  unlockDatabase(password: string, filename?: string): Promise<unknown>;
+  // Database create / unlock / lock (VFS-level page encryption, key slots)
+  createNewDatabase(
+    input: { master: MasterSecret; label?: string; restoreFrom?: ArchiveRestoreSource },
+    filename?: string,
+    options?: OpenDatabaseOptions
+  ): Promise<unknown>;
+  unlockDatabase(method: UnlockMethod, filename?: string): Promise<unknown>;
   lockDatabase(): Promise<void>;
-  changePassword(oldPassword: string, newPassword: string): Promise<void>;
+  getUnlockMethods(): Promise<UnlockMethods>;
+  replaceMaster(current: MasterSecret, next: MasterSecret, label?: string): Promise<SlotSummary>;
+  addSlot(slot: NewConvenienceSlot): Promise<SlotSummary>;
+  removeSlot(slotId: string): Promise<void>;
+  renameSlot(slotId: string, label: string): Promise<void>;
   recreateDatabase(options?: OpenDatabaseOptions): Promise<unknown>;
   isEncryptionReady(): Promise<boolean>;
-  verifyCurrentPassword(password: string): Promise<boolean>;
+  verifyMaster(master: MasterSecret): Promise<boolean>;
   encryptArchive(archiveBytes: Uint8Array, lastSaveTimestamp: string): Promise<Uint8Array>;
-  decryptArchive(encryptedBytes: Uint8Array, password?: string): Promise<Uint8Array>;
+  decryptArchive(
+    encryptedBytes: Uint8Array,
+    options?: { master?: MasterSecret; adoptMasterSlot?: boolean }
+  ): Promise<Uint8Array>;
   onStatusChange(callback: (status: WorkerStatus) => void): () => void;
   destroy?(): void;
   terminate?(options?: { includeLogs?: boolean }): Promise<void>;
@@ -222,15 +242,24 @@ export class DatabaseService {
     }
   }
 
-  /** Creates a brand-new encrypted database. Fails if one already exists on this device. */
-  async createNewDatabase(password: string, options: OpenDatabaseOptions = {}): Promise<void> {
+  /**
+   * Creates a brand-new encrypted database protected by `master`. Fails if one
+   * already exists on this device. With `restoreFrom` (from an archive's
+   * header) the database adopts that archive's root key, so the backup and
+   * the restored copy share one master secret.
+   */
+  async createNewDatabase(
+    master: MasterSecret,
+    options: OpenDatabaseOptions = {},
+    restoreFrom?: ArchiveRestoreSource
+  ): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
     try {
-      log.debug('Creating new encrypted database', { operation: 'createNewDatabase' });
-      await this.workerService.createNewDatabase(password, undefined, options);
+      log.debug('Creating new encrypted database', { operation: 'createNewDatabase', masterType: master.type, restored: Boolean(restoreFrom) });
+      await this.workerService.createNewDatabase({ master, restoreFrom }, undefined, options);
       log.debug('Database created successfully', { operation: 'createNewDatabase' });
     } catch (error) {
       log.error('Failed to create database', { operation: 'createNewDatabase', error });
@@ -238,15 +267,15 @@ export class DatabaseService {
     }
   }
 
-  /** Unlocks the existing encrypted database on this device with `password`. Throws with a clear message on a wrong password. */
-  async unlockDatabase(password: string): Promise<void> {
+  /** Unlocks the existing encrypted database on this device with one of its key slots. Throws `INVALID_SECRET` on a wrong secret. */
+  async unlockDatabase(method: UnlockMethod): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
     try {
-      log.debug('Unlocking database', { operation: 'unlockDatabase' });
-      await this.workerService.unlockDatabase(password);
+      log.debug('Unlocking database', { operation: 'unlockDatabase', slotType: method.type });
+      await this.workerService.unlockDatabase(method);
       log.debug('Database unlocked successfully', { operation: 'unlockDatabase' });
     } catch (error) {
       log.error('Failed to unlock database', { operation: 'unlockDatabase', error });
@@ -259,9 +288,35 @@ export class DatabaseService {
     await this.workerService.lockDatabase();
   }
 
-  /** Re-encrypts every stored block under a newly-derived key. Throws if `oldPassword` is wrong. */
-  async changePassword(oldPassword: string, newPassword: string): Promise<void> {
-    await this.workerService.changePassword(oldPassword, newPassword);
+  /** The key slots registered on this device; readable while locked. */
+  async getUnlockMethods(): Promise<UnlockMethods> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    return this.workerService.getUnlockMethods();
+  }
+
+  /**
+   * Replaces the master slot (new password, or a switch between password and
+   * recovery phrase). Verifies `current` first; the root key is re-wrapped,
+   * no stored block changes. Throws `INVALID_SECRET` if `current` is wrong.
+   */
+  async replaceMaster(current: MasterSecret, next: MasterSecret, label?: string): Promise<SlotSummary> {
+    return this.workerService.replaceMaster(current, next, label);
+  }
+
+  /** Registers a passkey or cloud unlock slot on this device (the database must be unlocked). */
+  async addSlot(slot: NewConvenienceSlot): Promise<SlotSummary> {
+    return this.workerService.addSlot(slot);
+  }
+
+  /** Removes a passkey or cloud slot. The master slot cannot be removed. */
+  async removeSlot(slotId: string): Promise<void> {
+    await this.workerService.removeSlot(slotId);
+  }
+
+  async renameSlot(slotId: string, label: string): Promise<void> {
+    await this.workerService.renameSlot(slotId, label);
   }
 
   async loadDatabaseFromFile(file: File): Promise<void> {
@@ -337,12 +392,22 @@ export class DatabaseService {
     }
   }
 
-  async importDatabaseArchiveData(archiveBytes: Uint8Array): Promise<void> {
+  /**
+   * Decrypts and imports an archive into the unlocked database. Without
+   * `master`, the archive must belong to this database (same root key id);
+   * pass the archive's own master secret to import a backup of a different
+   * database. `adoptMasterSlot` is for cloud pulls: a master change made on
+   * another device is adopted into this device's header.
+   */
+  async importDatabaseArchiveData(
+    archiveBytes: Uint8Array,
+    options: { master?: MasterSecret; adoptMasterSlot?: boolean } = {}
+  ): Promise<void> {
     let plainArchiveBytes: Uint8Array;
 
     if (isEncryptedArchive(archiveBytes)) {
       log.info('Detected encrypted archive — decrypting', { operation: 'importDatabaseArchiveData' });
-      plainArchiveBytes = await this.workerService.decryptArchive(archiveBytes);
+      plainArchiveBytes = await this.workerService.decryptArchive(archiveBytes, options);
     } else {
       throw new Error(
         'Unencrypted archives are no longer supported. ' +
@@ -384,12 +449,12 @@ export class DatabaseService {
    * establishing a local encryption header under it — a wrong password must
    * never leave behind a header that blocks a clean retry.
    */
-  async canDecryptArchive(archiveBytes: Uint8Array, password: string): Promise<boolean> {
+  async canDecryptArchive(archiveBytes: Uint8Array, master: MasterSecret): Promise<boolean> {
     if (!isEncryptedArchive(archiveBytes)) {
       return false;
     }
     try {
-      await this.workerService.decryptArchive(archiveBytes, password);
+      await this.workerService.decryptArchive(archiveBytes, { master });
       return true;
     } catch {
       return false;
@@ -397,15 +462,29 @@ export class DatabaseService {
   }
 
   /**
-   * Checks `password` against the encrypted database's stored verifier,
-   * without unlocking anything. Used to confirm a "current password" before
-   * accepting a password change.
+   * Checks `master` against the encrypted database's master key slot,
+   * without unlocking anything. Used to confirm the current secret before a
+   * destructive action while the app is locked.
    */
-  async verifyCurrentPassword(password: string): Promise<boolean> {
+  async verifyMaster(master: MasterSecret): Promise<boolean> {
     try {
-      return await this.workerService.verifyCurrentPassword(password);
+      return await this.workerService.verifyMaster(master);
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Reads an encrypted archive's unencrypted header (root key id, master slot
+   * type, timestamp) WITHOUT decrypting the payload. Returns null for bytes
+   * that are not a readable v2 archive.
+   */
+  getEncryptedArchiveMeta(archiveBytes: Uint8Array): ArchiveMetaV2 | null {
+    if (!isEncryptedArchive(archiveBytes)) return null;
+    try {
+      return readEncryptedArchiveMeta(archiveBytes);
+    } catch {
+      return null;
     }
   }
 

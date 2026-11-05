@@ -53,7 +53,7 @@ import type { TFunction } from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
 import StorageQuota from '@/components/common/Storage/StorageQuota';
 import { CloudConflictDialog } from './CloudConflictDialog';
-import { ChangePasswordSection } from './ChangePasswordSection';
+import { SecurityKeySlotsSection } from './SecurityKeySlotsSection';
 import { CloudFilePickerDialog } from '@/components/setup/CloudFilePickerDialog';
 import { EncryptionProgress } from '@/components/setup/EncryptionProgress';
 import NotificationsSettingsTab from '@/components/notifications/NotificationsSettingsTab';
@@ -148,7 +148,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     migrateDatabaseToCloud,
     saveDatabaseToCurrentCloud,
     switchToLocalSource,
-    changePassword,
+    changeMaster,
+    getUnlockMethods,
     lockDatabase,
     syncNow,
     setAutoSyncEnabled,
@@ -776,8 +777,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
               <Divider />
 
-              <ChangePasswordSection
-                changePassword={changePassword}
+              <SecurityKeySlotsSection
+                getUnlockMethods={getUnlockMethods}
+                changeMaster={changeMaster}
                 databaseSource={databaseSource}
                 syncStage={syncStage}
               />

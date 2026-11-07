@@ -10,7 +10,7 @@
 //   1. checkout   — this is the real app (not the stale `main` prototype)
 //   2. deps       — node_modules exists (`npm ci` when it does not)
 //   3. branch     — ahead/behind origin/devel/latest (never rebases or merges)
-//   4. fixtures   — the six gitignored sample-data files exist, are current-dated
+//   4. fixtures   — the generated sample-data fixtures exist and reach the current month
 //                   and validate against public/database-schema.js
 //   5. port       — a free, per-worktree Playwright port and an untracked
 //                   playwright.local.config.ts with reuseExistingServer: false,
@@ -27,17 +27,26 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+// Every date-dependent fixture: generated, gitignored, relative to "today".
+// (users, account_cards, categories and companies are static and committed.)
 const GENERATED_FIXTURES = [
   'transactions',
+  'accounts',
   'projects',
   'trips',
   'budget_plans',
   'budget_plan_categories',
   'income_sources',
+  'loans',
+  'loan_match_rules',
+  'classification_rules',
+  'account_balance_snapshots',
+  'expectations',
 ];
-// Same flags as .github/workflows/ci.yml: ~130 natural rows over 12 months,
-// which keeps recurring series detectable and stays under every e2e import cap.
-const GENERATOR_FLAGS = ['--months=12', '--count=130', '--seed=review'];
+// Same flags as .github/workflows/ci.yml: twelve months of natural rows (one per
+// household event, about 60 a month) so the expectations manifest applies.
+// Rows are written newest-first, so the e2e import caps keep the recent months.
+const GENERATOR_FLAGS = ['--months=12', '--seed=review'];
 const STALE_AFTER_DAYS = 31;
 const LOCAL_CONFIG = 'playwright.local.config.ts';
 const PORT_RANGE = { start: 3100, size: 900 };
@@ -188,14 +197,17 @@ const FIXTURE_DIR = path.join(ROOT, 'public', 'sample-data');
 function newestTransactionDate() {
   const file = path.join(FIXTURE_DIR, 'transactions.json');
   if (!fs.existsSync(file)) return null;
-  // Rows are written oldest-first; scan the tail for the latest ISO date.
-  const size = fs.statSync(file).size;
+  // The envelope's meta (first in the file) records the window, and the rows
+  // follow newest-first, so the head of the file is enough.
   const fd = fs.openSync(file, 'r');
-  const length = Math.min(size, 64 * 1024);
+  const length = Math.min(fs.statSync(file).size, 64 * 1024);
   const buffer = Buffer.alloc(length);
-  fs.readSync(fd, buffer, 0, length, size - length);
+  fs.readSync(fd, buffer, 0, length, 0);
   fs.closeSync(fd);
-  const dates = buffer.toString('utf8').match(/\d{4}-\d{2}-\d{2}/g) ?? [];
+  const head = buffer.toString('utf8');
+  const endDate = head.match(/"endDate":\s*"(\d{4}-\d{2}-\d{2})"/);
+  if (endDate) return endDate[1];
+  const dates = head.match(/\d{4}-\d{2}-\d{2}/g) ?? [];
   return dates.sort().at(-1) ?? null;
 }
 
@@ -230,8 +242,12 @@ function validateFixtures() {
 function checkFixtures() {
   const missing = GENERATED_FIXTURES.filter((name) => !fs.existsSync(path.join(FIXTURE_DIR, `${name}.json`)));
   const newest = newestTransactionDate();
+  // Stale once the newest row is older than the limit or outside the current
+  // calendar month: dashboards default to "This Month" and the e2e suite
+  // expects it to have rows.
   const ageDays = newest ? (Date.now() - Date.parse(`${newest}T00:00:00Z`)) / 86_400_000 : Infinity;
-  const stale = ageDays > STALE_AFTER_DAYS;
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const stale = ageDays > STALE_AFTER_DAYS || (newest !== null && newest.slice(0, 7) !== currentMonth);
 
   let problem = null;
   if (missing.length > 0) problem = `missing ${missing.map((n) => `${n}.json`).join(', ')}`;
@@ -274,7 +290,7 @@ function checkFixtures() {
     report('fixtures', 'FAIL', 'fixtures do not validate against public/database-schema.js', 'node scripts/prepare-worktree.mjs --regenerate-fixtures');
     return;
   }
-  report('fixtures', 'OK', `all six generated fixtures present, newest transaction ${newest}, schema-valid`);
+  report('fixtures', 'OK', `all ${GENERATED_FIXTURES.length} generated fixtures present, newest transaction ${newest}, schema-valid`);
 }
 
 // ---------------------------------------------------------------------------

@@ -37,7 +37,7 @@ jobs:
       # time-stale, so generate a current-dated set (same flags the e2e docs
       # prescribe) before anything loads sample data.
       - name: Generate sample-data fixtures
-        run: node scripts/generate-sample-data.mjs --months=12 --count=130 --seed=review
+        run: node scripts/generate-sample-data.mjs --months=12 --seed=review
 
       - name: Validate fixtures against the schema
         run: npm run sample-data:validate

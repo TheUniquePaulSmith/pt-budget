@@ -924,16 +924,22 @@ export const UTILITY_QUERIES = {
 export const SAMPLE_DATA_QUERIES = {
   // Insert with explicit ID using REPLACE to handle conflicts (SQLite allows this when AUTOINCREMENT is used)
   INSERT_USER: `INSERT OR REPLACE INTO users (id, display_name, is_primary, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-  INSERT_ACCOUNT: `INSERT OR REPLACE INTO accounts (id, name, type, ownership, owner_user_id, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_ACCOUNT: `INSERT OR REPLACE INTO accounts (id, name, type, ownership, owner_user_id, institution, opening_balance, opening_balance_date, credit_limit, is_active, include_in_net_worth, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   INSERT_ACCOUNT_CARD: `INSERT OR REPLACE INTO account_cards (id, account_id, last_four, full_number, nickname, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   INSERT_CATEGORY: `INSERT OR REPLACE INTO categories (id, name, color, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
   INSERT_COMPANY: `INSERT OR REPLACE INTO companies (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
   INSERT_TRANSACTION: `INSERT OR REPLACE INTO transactions (id, date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  INSERT_PROJECT: `INSERT OR REPLACE INTO projects (id, name, company_name, contact_details, project_category, status, start_date, end_date, estimated_cost, actual_cost, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  INSERT_TRIP: `INSERT OR REPLACE INTO trips (id, name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_PROJECT: `INSERT OR REPLACE INTO projects (id, name, company_name, contact_details, project_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_TRIP: `INSERT OR REPLACE INTO trips (id, name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   INSERT_BUDGET_PLAN: `INSERT OR REPLACE INTO budget_plans (id, effective_month, total_amount, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-  INSERT_BUDGET_PLAN_CATEGORY: `INSERT OR REPLACE INTO budget_plan_categories (id, plan_id, category_id, amount, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-  INSERT_INCOME_SOURCE: `INSERT OR REPLACE INTO income_sources (id, name, kind, user_id, account_id, amount, frequency, start_date, end_date, is_active, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_BUDGET_PLAN_CATEGORY: `INSERT OR REPLACE INTO budget_plan_categories (id, plan_id, category_id, amount, carry_mode, carry_reset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_INCOME_SOURCE: `INSERT OR REPLACE INTO income_sources (id, name, kind, user_id, account_id, amount, frequency, start_date, end_date, is_active, notes, deposit_account_id, match_pattern, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  // Schema v4/v5 feature tables: the scans derive the rest (loan_payments,
+  // recurring_series, transfer pairing) from these seeds and the transactions.
+  INSERT_LOAN: `INSERT OR REPLACE INTO loans (id, name, loan_type, status, owner_user_id, project_id, account_id, lender, opened_date, original_principal, interest_rate, term_months, expected_payment, payment_due_day, first_payment_date, allows_full_payoff, prepayment_terms, promo_end_date, deferred_interest_rate, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_LOAN_MATCH_RULE: `INSERT OR REPLACE INTO loan_match_rules (id, loan_id, pattern, match_type, account_id, enabled, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_CLASSIFICATION_RULE: `INSERT OR REPLACE INTO classification_rules (id, rule_key, source, pattern, match_type, priority, type, account_id, counterpart_account_id, enabled, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_ACCOUNT_BALANCE_SNAPSHOT: `INSERT OR REPLACE INTO account_balance_snapshots (id, account_id, as_of_date, balance, note, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
   
   // Reset auto-increment sequences after bulk insert
   RESET_SEQUENCE: `UPDATE sqlite_sequence SET seq = ? WHERE name = ?`,

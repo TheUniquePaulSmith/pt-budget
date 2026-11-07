@@ -91,8 +91,22 @@ export class SampleDataService {
     'budget_plans.json',
     'budget_plan_categories.json',
     'income_sources.json',
+    'loans.json',
+    'loan_match_rules.json',
+    'classification_rules.json',
+    'account_balance_snapshots.json',
     'transactions.json',
   ];
+
+  /** Number of fixture files an import walks (progress totals). */
+  static get sampleDataFileCount(): number {
+    return this.SAMPLE_DATA_FILES.length;
+  }
+
+  /** The fixture files, in import (foreign-key) order. */
+  static get sampleDataFiles(): readonly string[] {
+    return [...this.SAMPLE_DATA_FILES];
+  }
 
   /**
    * Load all sample data from public/sample-data/ folder
@@ -431,7 +445,12 @@ export class SampleDataService {
     });
   }
 
-  private static getImportDefinition(tableName: string): TableImportDefinition {
+  /**
+   * Insert query and row-to-parameters mapping for a fixture table. Public so
+   * the Node-side sample-data validation can load fixtures through the exact
+   * same path the browser import uses.
+   */
+  static getImportDefinition(tableName: string): TableImportDefinition {
     switch (tableName) {
       case 'users':
         return {
@@ -457,6 +476,12 @@ export class SampleDataService {
             row.type,
             row.ownership ?? 'individual',
             row.owner_user_id,
+            row.institution ?? null,
+            row.opening_balance ?? 0,
+            row.opening_balance_date ?? null,
+            row.credit_limit ?? null,
+            row.is_active ?? 1,
+            row.include_in_net_worth ?? 1,
             row.currency ?? 'USD',
             row.created_at,
             row.updated_at,
@@ -544,6 +569,9 @@ export class SampleDataService {
             row.estimated_cost || 0,
             row.actual_cost || 0,
             row.notes || null,
+            row.budget_category_id ?? null,
+            row.monthly_contribution ?? null,
+            row.contribution_start_month ?? null,
             row.created_at,
             row.updated_at,
           ],
@@ -565,6 +593,9 @@ export class SampleDataService {
             row.estimated_cost || 0,
             row.actual_cost || 0,
             row.notes || null,
+            row.budget_category_id ?? null,
+            row.monthly_contribution ?? null,
+            row.contribution_start_month ?? null,
             row.created_at,
             row.updated_at,
           ],
@@ -593,6 +624,8 @@ export class SampleDataService {
             row.plan_id,
             row.category_id,
             row.amount,
+            row.carry_mode ?? 'none',
+            row.carry_reset ?? 0,
             row.created_at,
             row.updated_at,
           ],
@@ -614,8 +647,92 @@ export class SampleDataService {
             row.end_date ?? null,
             row.is_active ?? 1,
             row.notes || null,
+            row.deposit_account_id ?? null,
+            row.match_pattern ?? null,
             row.created_at,
             row.updated_at,
+          ],
+        };
+      case 'loans':
+        return {
+          insertQuery: SAMPLE_DATA_QUERIES.INSERT_LOAN,
+          batchSize: DEFAULT_BATCH_SIZE,
+          progressLogInterval: DEFAULT_PROGRESS_LOG_INTERVAL,
+          toParameters: (row) => [
+            row.id,
+            row.name,
+            row.loan_type ?? 'installment',
+            row.status ?? 'active',
+            row.owner_user_id,
+            row.project_id ?? null,
+            row.account_id ?? null,
+            row.lender ?? null,
+            row.opened_date ?? null,
+            row.original_principal ?? 0,
+            row.interest_rate ?? null,
+            row.term_months ?? null,
+            row.expected_payment ?? null,
+            row.payment_due_day ?? null,
+            row.first_payment_date ?? null,
+            row.allows_full_payoff ?? 1,
+            row.prepayment_terms ?? null,
+            row.promo_end_date ?? null,
+            row.deferred_interest_rate ?? null,
+            row.notes ?? null,
+            row.created_at,
+            row.updated_at,
+          ],
+        };
+      case 'loan_match_rules':
+        return {
+          insertQuery: SAMPLE_DATA_QUERIES.INSERT_LOAN_MATCH_RULE,
+          batchSize: DEFAULT_BATCH_SIZE,
+          progressLogInterval: DEFAULT_PROGRESS_LOG_INTERVAL,
+          toParameters: (row) => [
+            row.id,
+            row.loan_id,
+            row.pattern,
+            row.match_type ?? 'contains',
+            row.account_id ?? null,
+            row.enabled ?? 1,
+            row.notes ?? null,
+            row.created_at,
+            row.updated_at,
+          ],
+        };
+      case 'classification_rules':
+        return {
+          insertQuery: SAMPLE_DATA_QUERIES.INSERT_CLASSIFICATION_RULE,
+          batchSize: DEFAULT_BATCH_SIZE,
+          progressLogInterval: DEFAULT_PROGRESS_LOG_INTERVAL,
+          toParameters: (row) => [
+            row.id,
+            row.rule_key,
+            row.source ?? 'user',
+            row.pattern,
+            row.match_type ?? 'contains',
+            row.priority ?? 100,
+            row.type,
+            row.account_id ?? null,
+            row.counterpart_account_id ?? null,
+            row.enabled ?? 1,
+            row.notes ?? null,
+            row.created_at,
+            row.updated_at,
+          ],
+        };
+      case 'account_balance_snapshots':
+        return {
+          insertQuery: SAMPLE_DATA_QUERIES.INSERT_ACCOUNT_BALANCE_SNAPSHOT,
+          batchSize: DEFAULT_BATCH_SIZE,
+          progressLogInterval: DEFAULT_PROGRESS_LOG_INTERVAL,
+          toParameters: (row) => [
+            row.id,
+            row.account_id,
+            row.as_of_date,
+            row.balance,
+            row.note ?? null,
+            row.created_at,
           ],
         };
       default:

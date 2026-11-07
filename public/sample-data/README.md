@@ -1,51 +1,66 @@
 # Sample Data for Budget Tracker
 
-This directory contains sample data files that can be automatically loaded into the database for development and testing purposes.
+This directory holds the fixture files that `?loadSampleData` imports when a new database is created,
+for development, demos and the e2e suite.
 
-The default runtime-compatible fixture set models a suburban family household and can range from a few hundred to a very large number of generated transactions depending on the last sample-data generation run. Check `transactions.json` metadata for the current transaction count.
+The set models one household (the Parkers: two adults, a teen with a debit card, a younger child with
+a custodial savings account) in US dollars: payroll on different cadences, transfers between their own
+accounts, credit-card statements paid in full, merchant refunds, a mortgage, an auto loan and a
+deferred-interest financing plan, fixed monthly charges the subscription scan can detect, home projects,
+family trips, budget plans and savings funds. Every date is relative to the generation day, so the data
+always reaches into the current month. Transactions are emitted the way a bank export arrives (typed by
+sign only); the app's own scans pair the transfers, infer the refunds, link loan payments and detect
+series after import. The scenario lives in `scripts/lib/sample-data-household.mjs`; the `sample-data`
+skill in `.claude/skills/` documents it and how to validate or extend it.
 
-The repo now includes schema-aware commands to validate and regenerate these files from the live database schema in `public/database-schema.js`.
-
-## Schema-Aware Workflow
-
-Validate the current sample-data set against the live schema and the runtime sample-data queries:
-
-```bash
-npm run sample-data:validate
-```
-
-Generate the default runtime-compatible fixture set:
-
-```bash
-npm run sample-data:generate
-npm run sample-data:generate -- --months 60 --amount 6000
-npm run sample-data:generate -- --months 120 --amount 100000000 --dry-run
-```
-
-Generate the broader schema-only fixture set, including tables that are currently out of sync with the runtime sample-data queries:
+## Generating
 
 ```bash
-npm run sample-data:generate -- --full-schema
+npm run sample-data:generate -- --months=12 --seed=review   # what CI and worktree:prepare run
+npm run sample-data:validate                                # schema + insert-query check, JSON report
 ```
 
-The validation command writes a JSON report to `dist/sample-data/schema-validation-report.json`.
+Fully non-interactive. Flags: `--months`, `--seed`, `--reference-date`, `--dry-run`, `--full-schema`,
+and `--count` (aliases `--transactions`, `--amount`) for volume fixtures only: it splits or merges rows
+to land near the requested total and the expectations manifest no longer applies.
 
-By default, the generator now prompts for two inputs:
+Without `--count` the generator runs in **natural mode**: one row per household event, about sixty a
+month. Rows are written **newest month first** (ids still ascend), so `?loadSampleData&sampleDataTransactionLimit=N`
+keeps the most recent N rows.
 
-1. How many months back from today the generated data should cover.
-2. Roughly how many transactions should be produced over that full period.
+Very large counts stream to disk and, above the single-file threshold, split `transactions.json` into a
+manifest plus `transactions.part-*.json` chunks that the runtime loader follows automatically.
 
-For non-interactive or repeatable runs, pass the values directly:
+## Files
+
+Generated and gitignored (date-dependent, regenerate rather than edit):
+
+| File | Table | Notes |
+|---|---|---|
+| `accounts.json` | accounts | Eleven USD accounts with opening balances as of the window start |
+| `projects.json`, `trips.json` | projects, trips | Dated relative to today; two carry savings funds |
+| `budget_plans.json`, `budget_plan_categories.json` | budgets | Baseline plan at the window start, adjusted plan three months ago |
+| `income_sources.json` | income_sources | Two salaries, a teen job, a linked account |
+| `loans.json`, `loan_match_rules.json` | loans | Mortgage and furnace financing have rules; the auto loan has none on purpose |
+| `classification_rules.json` | classification_rules | Four user transfer rules (savings sweep, card autopay, allowance, 529) |
+| `account_balance_snapshots.json` | account_balance_snapshots | Monthly 401(k) and 529 statements, opening loan balances |
+| `transactions.json` | transactions | Newest first; `meta` records the window, seed and `natural` flag |
+| `expectations.json` | (manifest) | What the app should show for this set: per-month income/expenses, transfer pairs, refunds, loan payments, detectable series, balances, linked project/trip spend |
+
+Committed and static: `users.json`, `account_cards.json`, `categories.json`, `companies.json`. The
+generator rewrites them too; restore them with `git checkout -- public/sample-data/` unless the schema
+changed on purpose.
+
+## Validating
 
 ```bash
-npm run sample-data:generate -- --months 60 --amount 6000
+npx vitest run src/lib/sampleDataExpectations.test.ts                                      # seconds: real DatabaseService on Node's SQLite
+npx playwright test --config playwright.local.config.ts tests/e2e/sample-data-validation.spec.ts   # minutes: the browser app
 ```
 
-Add `--dry-run` to print the planned date window, output mode, chunk count, approximate disk usage, and estimated runtime import work without modifying any fixture files.
-
-The requested transaction count is approximate. The generator preserves the modeled monthly income and expense ranges and changes transaction granularity to land near the requested total. Very large requests can be clipped if the chosen date window does not have enough non-zero cent precision to split the modeled budgets further.
-
-When a generated transaction set exceeds the single-file threshold, the generator writes `transactions.json` as a manifest and emits `transactions.part-*.json` chunk files alongside it. The runtime sample-data loader reads that manifest automatically.
+Both load the fixtures, run the classification, loan-rule and subscription scans, and compare the
+app's own queries with `expectations.json`. They skip (with a reason) when the manifest is missing or
+the fixtures were generated with `--count`.
 
 ## Source Of Truth
 
@@ -53,55 +68,30 @@ When a generated transaction set exceeds the single-file threshold, the generato
 - Runtime compatibility check: `src/lib/sqlQueries.ts` (`SAMPLE_DATA_QUERIES`)
 - Runtime loader: `src/lib/sampleDataService.ts`
 
-By default, generation only writes tables that are currently compatible with both the live schema and the runtime sample-data insert queries.
+Generation only writes tables whose insert queries match the live schema; `--full-schema` emits
+schema-only placeholder fixtures for every managed table regardless.
 
 ## Usage
 
-To load sample data when creating a new database:
+1. Open the app with `http://localhost:3000?loadSampleData`.
+2. Click "Create New Database".
+3. The fixtures load after the database is created, in the order below.
 
-1. Navigate to the app with the query parameter: `http://localhost:3000?loadSampleData`
-2. Click "Create New Database"
-3. Sample data will automatically be loaded
-
-If the current transactions fixture is very large and you only need a smaller subset for testing, append `&sampleDataTransactionLimit=1000` to import just the first 1,000 transaction rows.
+Append `&sampleDataTransactionLimit=1000` to import only the newest 1,000 transactions.
 
 ## File Format
-
-Each JSON file should follow this structure:
 
 ```json
 {
   "table": "table_name",
-  "data": [
-    {
-      "id": 1,
-      "field1": "value1",
-      "field2": "value2",
-      ...
-    }
-  ]
+  "meta": { "...": "transactions only" },
+  "data": [{ "id": 1, "field1": "value1" }]
 }
 ```
 
-## Available Files
-
-- **users.json** - User accounts
-- **accounts.json** - Bank accounts, credit cards, etc.
-- **account_cards.json** - Card records linked to accounts
-- **categories.json** - Transaction categories (income/expense)
-- **companies.json** - Company/merchant names
-- **transactions.json** - Sample transactions
-
-Additional schema-aware outputs are available in `--full-schema` mode:
-
-- **projects.json** - Project planning fixtures
-- **trips.json** - Trip planning fixtures
-
-Tables such as `budgets` and `temp_import_transactions` exist in the schema but are not currently managed by the sample-data workflow.
-
 ## Loading Order
 
-Files are loaded in dependency order to maintain foreign key relationships:
+Files load in dependency order so foreign keys resolve:
 
 1. users
 2. accounts
@@ -110,34 +100,24 @@ Files are loaded in dependency order to maintain foreign key relationships:
 5. companies
 6. projects
 7. trips
-8. transactions (last, as it depends on all other tables)
+8. budget_plans
+9. budget_plan_categories
+10. income_sources
+11. loans
+12. loan_match_rules
+13. classification_rules
+14. account_balance_snapshots
+15. transactions (last, it references most of the above)
 
-The default generator currently writes only the runtime-compatible subset: `users`, `accounts`, `account_cards`, `categories`, `companies`, and `transactions`. Use `--full-schema` only when you explicitly want schema-only fixture files for currently incompatible tables.
-
-## Primary Keys
-
-The sample data loader preserves primary key IDs, so you can create relationships between tables. After loading, the auto-increment sequence is reset to the maximum ID to prevent conflicts.
-
-## Creating Sample Data
-
-### Option 0: Generate From The Live Schema
-
-1. Run `npm run sample-data:validate` to see what is missing or out of sync.
-2. Run `npm run sample-data:generate` to refresh the runtime-compatible fixture set, or pass `--months` and `--amount` to make the run repeatable without prompts.
-3. If you intentionally need schema-only fixtures for currently incompatible tables, run `npm run sample-data:generate -- --full-schema`.
-
-You can export existing database tables to create sample data files:
-
-1. Use the Developer Console (when implemented)
-2. Click "Export [table_name]" button
-3. Save the JSON file to this directory
-4. Edit as needed to create sample data
+Primary keys are preserved; after each table the auto-increment sequence is reset to the maximum id.
+Tables not listed (`merchant_rules`, `recurring_series`, `transaction_series_links`, `loan_payments`,
+`notifications`, `app_metadata`, ...) are filled by the app itself: community rules are seeded on
+open, the rest by the scans.
 
 ## Notes
 
-- Missing files are silently skipped (no error)
-- Invalid JSON or missing foreign keys will cause errors
-- Sample data only loads when `?loadSampleData` is in the URL
-- Sample data loads after database initialization, before data refresh
-- `npm run sample-data:validate` will warn when schema tables are unmanaged or when runtime sample-data queries have drifted from the schema
-- Full-schema generation can create files for tables that the current runtime sample-data queries cannot yet import; use the validation report before relying on `?loadSampleData`
+- Missing files are skipped silently; invalid JSON or a dangling foreign key fails the import.
+- Sample data loads only with `?loadSampleData` in the URL, after database initialization and before
+  the first data refresh.
+- `npm run sample-data:validate` warns about schema tables outside the managed workflow and about
+  insert queries that drifted from the schema.

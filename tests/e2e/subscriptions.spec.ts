@@ -46,7 +46,8 @@ test('runs a subscription scan and persists a user-created merchant rule', async
   await expect(page.getByText(/Scan complete/)).toBeVisible({ timeout: 120_000 });
 
   // Create a user rule via the rule editor
-  await page.getByRole('button', { name: 'Add Rule' }).click();
+  // The page header's Add Rule (the seeded loans each carry one too).
+  await page.getByRole('button', { name: 'Add Rule' }).first().click();
   const ruleDialog = page.getByRole('dialog', { name: 'Create Merchant Rule' });
   await ruleDialog.getByLabel('Pattern').fill('PLAYWRIGHTFLIX');
   await ruleDialog.getByLabel('Merchant').fill('Playwrightflix');

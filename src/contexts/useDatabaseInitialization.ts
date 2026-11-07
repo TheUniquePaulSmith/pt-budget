@@ -196,7 +196,7 @@ interface UseDatabaseInitializationResult {
 }
 
 const BROWSER_TEST_STORAGE_KEY = 'budgetApp_browserTestPassed';
-const SAMPLE_DATA_IMPORT_FILE_COUNT = 11;
+const SAMPLE_DATA_IMPORT_FILE_COUNT = SampleDataService.sampleDataFileCount;
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';

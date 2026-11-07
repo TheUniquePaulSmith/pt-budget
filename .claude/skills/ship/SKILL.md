@@ -47,7 +47,7 @@ Run each step and stop at the first failure. Use the local Playwright config so 
 worktree's server. The suites take minutes, so run them in the background and wait for the completion notice.
 
 ```bash
-node scripts/generate-sample-data.mjs --months=12 --count=130 --seed=review && npm run sample-data:validate
+node scripts/generate-sample-data.mjs --months=12 --seed=review && npm run sample-data:validate
 git checkout -- public/sample-data/              # unless the schema changed on purpose
 npm run lint
 npm run test:unit:coverage                       # gate: databaseService.ts 80/60/95/80

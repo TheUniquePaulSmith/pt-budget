@@ -149,5 +149,33 @@
   "dialog": {
     "confirmDeleteTitle": "삭제 확인",
     "unsavedChanges": "저장하지 않은 변경 사항이 있어요."
+  },
+  "periodFilter": {
+    "filterButton": "필터: {{summary}}",
+    "timePeriod": "기간",
+    "thisRow": "이번",
+    "pastRow": "지난",
+    "week": "주",
+    "allTime": "전체 기간",
+    "customRange": "사용자 지정 범위",
+    "startDate": "시작일",
+    "endDate": "종료일",
+    "label": {
+      "thisWeek": "이번 주",
+      "thisMonth": "이번 달",
+      "thisYear": "올해",
+      "pastWeek": "지난 1주",
+      "pastMonth": "지난 1개월",
+      "pastYear": "지난 1년",
+      "custom": "{{start}} - {{end}}"
+    }
+  },
+  "scopeFilter": {
+    "heading": "계좌 및 사용자",
+    "accounts": "계좌",
+    "users": "사용자",
+    "selectedCount": "{{count}}개 선택됨",
+    "accountsChip": "계좌: {{count}}개 선택됨",
+    "usersChip": "사용자: {{count}}개 선택됨"
   }
 }

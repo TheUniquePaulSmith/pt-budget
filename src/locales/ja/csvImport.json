@@ -39,6 +39,7 @@
     "rejectedLine": "{{row}} 行目：{{reason}}",
     "rejectedMore": "…ほか {{count}} 件",
     "internalDuplicates": "• CSV 内の重複：{{count}}",
+    "internalDuplicatesKept": "すべてのコピーがインポートされます。一部を除外するには重複を解決してください。",
     "resolveDuplicates": "→ CSV 内の重複を解決",
     "alreadyInDatabase": "• データベースに登録済み：{{count}}",
     "uniqueToImport": "• インポートする一意の取引：{{count}}",

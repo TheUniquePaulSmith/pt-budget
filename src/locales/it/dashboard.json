@@ -5,12 +5,6 @@
     "action": "Imposta i tassi"
   },
   "totalsIn": "Totali in {{code}}",
-  "timeRangeLabel": {
-    "week": "Questa settimana",
-    "month": "Questo mese",
-    "year": "Quest'anno",
-    "customRange": "{{start}} - {{end}}"
-  },
   "summary": {
     "totalIncome": "Entrate totali",
     "totalExpenses": "Spese totali",
@@ -35,16 +29,7 @@
   },
   "dateRangeSelector": {
     "title": "Analisi del budget",
-    "timePeriod": "Periodo:",
-    "week": "Settimana",
-    "custom": "Personalizzato",
-    "customRange": "Intervallo personalizzato",
-    "accounts": "Conti",
-    "users": "Utenti",
-    "selectedCount": "{{count}} selezionati",
-    "dialogTitle": "Seleziona un intervallo di date personalizzato",
-    "startDate": "Data di inizio",
-    "endDate": "Data di fine"
+    "filterTitle": "Filtri della dashboard"
   },
   "recentTransactions": {
     "title": "Transazioni recenti",

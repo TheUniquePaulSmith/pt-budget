@@ -15,6 +15,7 @@ import type {
   RecurringSeriesStatus,
   SubscriptionScanSummary,
   Transaction,
+  TransactionScopeFilters,
   UnmatchedCluster,
 } from '../types/database';
 
@@ -69,10 +70,13 @@ export interface DatabaseSubscriptionsSlice {
   updateRecurringSeriesStatus: (id: number, status: RecurringSeriesStatus) => Promise<void>;
   setRecurringSeriesCompany: (id: number, input: RecurringSeriesCompanyInput) => Promise<void>;
   deleteRecurringSeries: (id: number) => Promise<void>;
-  getRecurringSeriesWithStats: (range?: { startDate?: string; endDate?: string }) => Promise<RecurringSeries[]>;
+  getRecurringSeriesWithStats: (
+    range?: { startDate?: string; endDate?: string },
+    filters?: TransactionScopeFilters
+  ) => Promise<RecurringSeries[]>;
   getTransactionsByIds: (ids: number[]) => Promise<Transaction[]>;
   getSeriesTransactions: (seriesId: number) => Promise<Transaction[]>;
-  getUnmatchedRecurringClusters: (minOccurrences?: number) => Promise<UnmatchedCluster[]>;
+  getUnmatchedRecurringClusters: (minOccurrences?: number, filters?: TransactionScopeFilters) => Promise<UnmatchedCluster[]>;
   reseedCommunityRules: () => Promise<SeedMerchantRulesResult>;
   getMerchantRuleCounts: () => Promise<{ community: number; user: number }>;
   getMerchantRulesSeedVersion: () => Promise<number>;
@@ -197,8 +201,8 @@ export function useDatabaseSubscriptionsSlice({
   );
 
   const getRecurringSeriesWithStats = useCallback(
-    async (range?: { startDate?: string; endDate?: string }): Promise<RecurringSeries[]> =>
-      requireService().getRecurringSeriesWithStats(range),
+    async (range?: { startDate?: string; endDate?: string }, filters?: TransactionScopeFilters): Promise<RecurringSeries[]> =>
+      requireService().getRecurringSeriesWithStats(range, filters),
     [requireService]
   );
 
@@ -214,8 +218,8 @@ export function useDatabaseSubscriptionsSlice({
   );
 
   const getUnmatchedRecurringClusters = useCallback(
-    async (minOccurrences?: number): Promise<UnmatchedCluster[]> =>
-      requireService().getUnmatchedRecurringClusters(minOccurrences),
+    async (minOccurrences?: number, filters?: TransactionScopeFilters): Promise<UnmatchedCluster[]> =>
+      requireService().getUnmatchedRecurringClusters(minOccurrences, filters),
     [requireService]
   );
 

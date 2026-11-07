@@ -39,12 +39,6 @@
     "noCard": "Aucune carte"
   },
   "page": {
-    "rangeAll": "Depuis le début",
-    "rangeLast30": "30 derniers jours",
-    "rangeLast90": "90 derniers jours",
-    "rangeLast12": "12 derniers mois",
-    "rangeCustom": "Personnalisée",
-    "customRange": "Du {{start}} au {{end}}",
     "loadRangeFailed": "Échec du chargement de la période des séries récurrentes",
     "loadUnmatchedFailed": "Échec du chargement des transactions non reconnues",
     "scanFailed": "Échec de l'analyse des abonnements",
@@ -82,7 +76,6 @@
     "emptyTitle": "Aucun prélèvement récurrent détecté pour l'instant",
     "emptyBody": "Analysez votre historique de transactions pour trouver vos abonnements et factures récurrentes.",
     "scanTransactions": "Analyser les transactions",
-    "totalSpent": "Total dépensé :",
     "needsReview": "À vérifier ({{count}})",
     "subscriptionsCount": "Abonnements ({{count}})",
     "noActiveSubscriptions": "Aucun abonnement actif pour l'instant — confirmez les candidats ci-dessus ou lancez une analyse.",
@@ -92,16 +85,15 @@
     "unmatched": "Prélèvements récurrents non reconnus ({{count}})",
     "suggestNames": "Suggérer des noms avec l'IA",
     "unmatchedHelp": "Ces libellés se répètent mais ne correspondent encore à aucune règle de commerçant. Créez une règle pour nommer le commerçant et suivre le prélèvement.",
-    "selectRange": "Choisir la période du total dépensé",
-    "startDate": "Date de début",
-    "endDate": "Date de fin",
     "cancel": "Annuler",
     "apply": "Appliquer",
     "merchantRules": "Règles de commerçants",
     "close": "Fermer",
     "unmatchedTransactions": "Transactions non reconnues",
     "noClusterTransactions": "Aucune transaction trouvée pour ce prélèvement récurrent.",
-    "scanComplete": "Analyse terminée : {{merchants}} commerçants attribués, {{series}} nouveaux prélèvements récurrents, {{transactions}} transactions liées"
+    "scanComplete": "Analyse terminée : {{merchants}} commerçants attribués, {{series}} nouveaux prélèvements récurrents, {{transactions}} transactions liées",
+    "filterTitle": "Filtres des abonnements",
+    "totalSpentPeriod": "Total dépensé : {{period}}"
   },
   "seriesTable": {
     "variesAmount": "~{{amount}} (variable)",

@@ -4,12 +4,6 @@
     "action": "设置汇率"
   },
   "totalsIn": "合计以{{code}}计",
-  "timeRangeLabel": {
-    "week": "本周",
-    "month": "本月",
-    "year": "本年",
-    "customRange": "{{start}} - {{end}}"
-  },
   "summary": {
     "totalIncome": "总收入",
     "totalExpenses": "总支出",
@@ -33,16 +27,7 @@
   },
   "dateRangeSelector": {
     "title": "预算洞察",
-    "timePeriod": "时间段：",
-    "week": "周",
-    "custom": "自定义",
-    "customRange": "自定义范围",
-    "accounts": "账户",
-    "users": "用户",
-    "selectedCount": "已选{{count}}项",
-    "dialogTitle": "选择自定义日期范围",
-    "startDate": "开始日期",
-    "endDate": "结束日期"
+    "filterTitle": "仪表盘筛选"
   },
   "recentTransactions": {
     "title": "最近交易",

@@ -785,6 +785,7 @@ describe('DatabaseService batch and import helpers', () => {
         ...baseTransaction,
         description: 'Imported airfare',
         transaction_hash: 'airfare-123',
+        hash_variation_seed: 1,
       },
     ]);
 
@@ -808,6 +809,7 @@ describe('DatabaseService batch and import helpers', () => {
           baseTransaction.type,
           null,
           null,
+          0,
         ],
         [
           baseTransaction.date,
@@ -823,6 +825,7 @@ describe('DatabaseService batch and import helpers', () => {
           baseTransaction.type,
           'airfare-123',
           null,
+          1,
         ],
       ]
     );

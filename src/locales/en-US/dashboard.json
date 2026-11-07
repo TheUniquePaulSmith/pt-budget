@@ -5,12 +5,6 @@
     "action": "Set rates"
   },
   "totalsIn": "Totals in {{code}}",
-  "timeRangeLabel": {
-    "week": "This Week",
-    "month": "This Month",
-    "year": "This Year",
-    "customRange": "{{start}} - {{end}}"
-  },
   "summary": {
     "totalIncome": "Total Income",
     "totalExpenses": "Total Expenses",
@@ -35,16 +29,7 @@
   },
   "dateRangeSelector": {
     "title": "Budget Insights",
-    "timePeriod": "Time Period:",
-    "week": "Week",
-    "custom": "Custom",
-    "customRange": "Custom Range",
-    "accounts": "Accounts",
-    "users": "Users",
-    "selectedCount": "{{count}} selected",
-    "dialogTitle": "Select Custom Date Range",
-    "startDate": "Start Date",
-    "endDate": "End Date"
+    "filterTitle": "Dashboard filters"
   },
   "recentTransactions": {
     "title": "Recent Transactions",

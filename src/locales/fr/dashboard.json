@@ -5,12 +5,6 @@
     "action": "Définir les taux"
   },
   "totalsIn": "Totaux en {{code}}",
-  "timeRangeLabel": {
-    "week": "Cette semaine",
-    "month": "Ce mois-ci",
-    "year": "Cette année",
-    "customRange": "{{start}} - {{end}}"
-  },
   "summary": {
     "totalIncome": "Total des revenus",
     "totalExpenses": "Total des dépenses",
@@ -35,16 +29,7 @@
   },
   "dateRangeSelector": {
     "title": "Analyse du budget",
-    "timePeriod": "Période :",
-    "week": "Semaine",
-    "custom": "Personnalisée",
-    "customRange": "Période personnalisée",
-    "accounts": "Comptes",
-    "users": "Utilisateurs",
-    "selectedCount": "{{count}} sélectionné(s)",
-    "dialogTitle": "Choisir une période personnalisée",
-    "startDate": "Date de début",
-    "endDate": "Date de fin"
+    "filterTitle": "Filtres du tableau de bord"
   },
   "recentTransactions": {
     "title": "Transactions récentes",

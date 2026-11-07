@@ -42,6 +42,7 @@
     "rejectedLine": "Zeile {{row}}: {{reason}}",
     "rejectedMore": "…und {{count}} weitere",
     "internalDuplicates": "• Interne Duplikate in der CSV: {{count}}",
+    "internalDuplicatesKept": "Alle Kopien werden importiert. Lösen Sie sie auf, um einige auszuschließen.",
     "resolveDuplicates": "→ Interne Duplikate auflösen",
     "alreadyInDatabase": "• Bereits in der Datenbank: {{count}}",
     "uniqueToImport": "• Eindeutige Transaktionen zum Import: {{count}}",

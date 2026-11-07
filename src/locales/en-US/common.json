@@ -155,5 +155,33 @@
   "dialog": {
     "confirmDeleteTitle": "Confirm delete",
     "unsavedChanges": "You have unsaved changes."
+  },
+  "periodFilter": {
+    "filterButton": "Filter: {{summary}}",
+    "timePeriod": "Time period",
+    "thisRow": "This",
+    "pastRow": "Past",
+    "week": "Week",
+    "allTime": "All time",
+    "customRange": "Custom Range",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "label": {
+      "thisWeek": "This Week",
+      "thisMonth": "This Month",
+      "thisYear": "This Year",
+      "pastWeek": "Past Week",
+      "pastMonth": "Past Month",
+      "pastYear": "Past Year",
+      "custom": "{{start}} - {{end}}"
+    }
+  },
+  "scopeFilter": {
+    "heading": "Accounts and users",
+    "accounts": "Accounts",
+    "users": "Users",
+    "selectedCount": "{{count}} selected",
+    "accountsChip": "Accounts: {{count}} selected",
+    "usersChip": "Users: {{count}} selected"
   }
 }

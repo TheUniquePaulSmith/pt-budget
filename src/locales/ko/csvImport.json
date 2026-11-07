@@ -39,6 +39,7 @@
     "rejectedLine": "{{row}}행: {{reason}}",
     "rejectedMore": "…외 {{count}}건",
     "internalDuplicates": "• CSV 내부 중복: {{count}}",
+    "internalDuplicatesKept": "모든 사본을 가져옵니다. 일부를 제외하려면 중복을 해결하세요.",
     "resolveDuplicates": "→ 내부 중복 해결",
     "alreadyInDatabase": "• 이미 데이터베이스에 있음: {{count}}",
     "uniqueToImport": "• 가져올 고유 거래: {{count}}",

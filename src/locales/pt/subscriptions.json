@@ -39,12 +39,6 @@
     "noCard": "Sem cartão"
   },
   "page": {
-    "rangeAll": "Todo o período",
-    "rangeLast30": "Últimos 30 dias",
-    "rangeLast90": "Últimos 90 dias",
-    "rangeLast12": "Últimos 12 meses",
-    "rangeCustom": "Personalizado",
-    "customRange": "{{start}} a {{end}}",
     "loadRangeFailed": "Falha ao carregar o período das séries recorrentes",
     "loadUnmatchedFailed": "Falha ao carregar transações sem correspondência",
     "scanFailed": "Falha na varredura de assinaturas",
@@ -82,7 +76,6 @@
     "emptyTitle": "Nenhuma cobrança recorrente detectada ainda",
     "emptyBody": "Verifique seu histórico de transações para encontrar assinaturas e contas recorrentes.",
     "scanTransactions": "Verificar transações",
-    "totalSpent": "Total gasto:",
     "needsReview": "A revisar ({{count}})",
     "subscriptionsCount": "Assinaturas ({{count}})",
     "noActiveSubscriptions": "Nenhuma assinatura ativa ainda — confirme as candidatas acima ou execute uma verificação.",
@@ -92,16 +85,15 @@
     "unmatched": "Cobranças recorrentes sem correspondência ({{count}})",
     "suggestNames": "Sugerir nomes com IA",
     "unmatchedHelp": "Estas descrições se repetem, mas ainda não correspondem a nenhuma regra de estabelecimento. Crie uma regra para nomear o estabelecimento e acompanhar a cobrança.",
-    "selectRange": "Selecionar período do total gasto",
-    "startDate": "Data inicial",
-    "endDate": "Data final",
     "cancel": "Cancelar",
     "apply": "Aplicar",
     "merchantRules": "Regras de estabelecimento",
     "close": "Fechar",
     "unmatchedTransactions": "Transações sem correspondência",
     "noClusterTransactions": "Nenhuma transação encontrada para esta cobrança recorrente.",
-    "scanComplete": "Verificação concluída: {{merchants}} estabelecimentos atribuídos, {{series}} novas cobranças recorrentes, {{transactions}} transações vinculadas"
+    "scanComplete": "Verificação concluída: {{merchants}} estabelecimentos atribuídos, {{series}} novas cobranças recorrentes, {{transactions}} transações vinculadas",
+    "filterTitle": "Filtros de assinaturas",
+    "totalSpentPeriod": "Total gasto: {{period}}"
   },
   "seriesTable": {
     "variesAmount": "~{{amount}} (varia)",

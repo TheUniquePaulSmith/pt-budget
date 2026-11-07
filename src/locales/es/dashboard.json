@@ -5,12 +5,6 @@
     "action": "Definir tipos de cambio"
   },
   "totalsIn": "Totales en {{code}}",
-  "timeRangeLabel": {
-    "week": "Esta semana",
-    "month": "Este mes",
-    "year": "Este año",
-    "customRange": "{{start}} - {{end}}"
-  },
   "summary": {
     "totalIncome": "Ingresos totales",
     "totalExpenses": "Gastos totales",
@@ -35,16 +29,7 @@
   },
   "dateRangeSelector": {
     "title": "Análisis del presupuesto",
-    "timePeriod": "Periodo:",
-    "week": "Semana",
-    "custom": "Personalizado",
-    "customRange": "Rango personalizado",
-    "accounts": "Cuentas",
-    "users": "Usuarios",
-    "selectedCount": "{{count}} seleccionados",
-    "dialogTitle": "Seleccionar rango de fechas personalizado",
-    "startDate": "Fecha de inicio",
-    "endDate": "Fecha de fin"
+    "filterTitle": "Filtros del panel"
   },
   "recentTransactions": {
     "title": "Transacciones recientes",

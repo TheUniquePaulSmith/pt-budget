@@ -155,5 +155,33 @@
   "dialog": {
     "confirmDeleteTitle": "Confirmar exclusão",
     "unsavedChanges": "Você tem alterações não salvas."
+  },
+  "periodFilter": {
+    "filterButton": "Filtrar: {{summary}}",
+    "timePeriod": "Período",
+    "thisRow": "Atual",
+    "pastRow": "Últimos",
+    "week": "Semana",
+    "allTime": "Todo o período",
+    "customRange": "Período personalizado",
+    "startDate": "Data inicial",
+    "endDate": "Data final",
+    "label": {
+      "thisWeek": "Esta semana",
+      "thisMonth": "Este mês",
+      "thisYear": "Este ano",
+      "pastWeek": "Última semana",
+      "pastMonth": "Último mês",
+      "pastYear": "Último ano",
+      "custom": "{{start}} - {{end}}"
+    }
+  },
+  "scopeFilter": {
+    "heading": "Contas e usuários",
+    "accounts": "Contas",
+    "users": "Usuários",
+    "selectedCount": "{{count}} selecionados",
+    "accountsChip": "Contas: {{count}} selecionadas",
+    "usersChip": "Usuários: {{count}} selecionados"
   }
 }

@@ -39,12 +39,6 @@
     "noCard": "Sin tarjeta"
   },
   "page": {
-    "rangeAll": "Todo el periodo",
-    "rangeLast30": "Últimos 30 días",
-    "rangeLast90": "Últimos 90 días",
-    "rangeLast12": "Últimos 12 meses",
-    "rangeCustom": "Personalizado",
-    "customRange": "Del {{start}} al {{end}}",
     "loadRangeFailed": "No se pudo cargar el rango de las series recurrentes",
     "loadUnmatchedFailed": "No se pudieron cargar las transacciones sin emparejar",
     "scanFailed": "El análisis de suscripciones falló",
@@ -82,7 +76,6 @@
     "emptyTitle": "Aún no se han detectado cargos recurrentes",
     "emptyBody": "Analice su historial de transacciones para encontrar suscripciones y facturas recurrentes.",
     "scanTransactions": "Analizar transacciones",
-    "totalSpent": "Total gastado:",
     "needsReview": "Por revisar ({{count}})",
     "subscriptionsCount": "Suscripciones ({{count}})",
     "noActiveSubscriptions": "Aún no hay suscripciones activas: confirme las candidatas de arriba o ejecute un análisis.",
@@ -92,16 +85,15 @@
     "unmatched": "Cargos recurrentes sin emparejar ({{count}})",
     "suggestNames": "Sugerir nombres con IA",
     "unmatchedHelp": "Estas descripciones se repiten pero aún no coinciden con ninguna regla de comercio. Cree una regla para nombrar el comercio y hacer seguimiento del cargo.",
-    "selectRange": "Seleccionar el rango del total gastado",
-    "startDate": "Fecha de inicio",
-    "endDate": "Fecha de fin",
     "cancel": "Cancelar",
     "apply": "Aplicar",
     "merchantRules": "Reglas de comercio",
     "close": "Cerrar",
     "unmatchedTransactions": "Transacciones sin emparejar",
     "noClusterTransactions": "No se encontraron transacciones para este cargo recurrente.",
-    "scanComplete": "Análisis completado: {{merchants}} comercios asignados, {{series}} cargos recurrentes nuevos, {{transactions}} transacciones vinculadas"
+    "scanComplete": "Análisis completado: {{merchants}} comercios asignados, {{series}} cargos recurrentes nuevos, {{transactions}} transacciones vinculadas",
+    "filterTitle": "Filtros de suscripciones",
+    "totalSpentPeriod": "Total gastado: {{period}}"
   },
   "seriesTable": {
     "variesAmount": "~{{amount}} (varía)",

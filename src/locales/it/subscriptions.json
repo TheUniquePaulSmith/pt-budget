@@ -39,12 +39,6 @@
     "noCard": "Nessuna carta"
   },
   "page": {
-    "rangeAll": "Sempre",
-    "rangeLast30": "Ultimi 30 giorni",
-    "rangeLast90": "Ultimi 90 giorni",
-    "rangeLast12": "Ultimi 12 mesi",
-    "rangeCustom": "Personalizzato",
-    "customRange": "Da {{start}} a {{end}}",
     "loadRangeFailed": "Impossibile caricare l'intervallo delle serie ricorrenti",
     "loadUnmatchedFailed": "Impossibile caricare le transazioni senza corrispondenza",
     "scanFailed": "Scansione degli abbonamenti non riuscita",
@@ -82,7 +76,6 @@
     "emptyTitle": "Nessun addebito ricorrente rilevato ancora",
     "emptyBody": "Analizza lo storico delle transazioni per trovare abbonamenti e bollette ricorrenti.",
     "scanTransactions": "Analizza transazioni",
-    "totalSpent": "Totale speso:",
     "needsReview": "Da verificare ({{count}})",
     "subscriptionsCount": "Abbonamenti ({{count}})",
     "noActiveSubscriptions": "Nessun abbonamento attivo ancora: conferma i candidati qui sopra o esegui una scansione.",
@@ -92,16 +85,15 @@
     "unmatched": "Addebiti ricorrenti senza corrispondenza ({{count}})",
     "suggestNames": "Suggerisci nomi con l'IA",
     "unmatchedHelp": "Queste descrizioni si ripetono ma non corrispondono ancora ad alcuna regola esercente. Crea una regola per dare un nome all'esercente e seguire l'addebito.",
-    "selectRange": "Seleziona l'intervallo del totale speso",
-    "startDate": "Data di inizio",
-    "endDate": "Data di fine",
     "cancel": "Annulla",
     "apply": "Applica",
     "merchantRules": "Regole esercenti",
     "close": "Chiudi",
     "unmatchedTransactions": "Transazioni senza corrispondenza",
     "noClusterTransactions": "Nessuna transazione trovata per questo addebito ricorrente.",
-    "scanComplete": "Scansione completata: {{merchants}} esercenti assegnati, {{series}} nuovi addebiti ricorrenti, {{transactions}} transazioni collegate"
+    "scanComplete": "Scansione completata: {{merchants}} esercenti assegnati, {{series}} nuovi addebiti ricorrenti, {{transactions}} transazioni collegate",
+    "filterTitle": "Filtri degli abbonamenti",
+    "totalSpentPeriod": "Totale speso: {{period}}"
   },
   "seriesTable": {
     "variesAmount": "~{{amount}} (variabile)",

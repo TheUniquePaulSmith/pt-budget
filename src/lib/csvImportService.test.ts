@@ -477,6 +477,107 @@ describe('csvImportService row parsing', () => {
     expect(detectUniqueIdentifierColumn(['Date', 'ID', 'Description'])).toBe('ID');
     expect(detectUniqueIdentifierColumn(['Paid', 'Valid', 'Card Holder ID', 'Member ID'])).toBe('');
   });
+
+  it('skips a reference column whose values are placeholders or repeat', () => {
+    const headers = ['Date', 'Reference Number', 'Transaction ID', 'Amount'];
+    // Huntington: "Reference Number" is "0" on most rows.
+    const huntington = [
+      { 'Reference Number': '0', 'Transaction ID': 'T-1' },
+      { 'Reference Number': '0', 'Transaction ID': 'T-2' },
+      { 'Reference Number': '400681', 'Transaction ID': 'T-3' },
+    ];
+    expect(detectUniqueIdentifierColumn(headers, huntington)).toBe('Transaction ID');
+    expect(autoDetectColumnMapping(headers, huntington).uniqueIdentifierColumn).toBe('Transaction ID');
+
+    const repeating = [
+      { 'Reference Number': 'R-1', 'Transaction ID': '' },
+      { 'Reference Number': 'R-1', 'Transaction ID': 'N/A' },
+    ];
+    expect(detectUniqueIdentifierColumn(headers, repeating)).toBe('');
+
+    const unique = [{ 'Reference Number': 'R-1' }, { 'Reference Number': 'R-2' }];
+    expect(detectUniqueIdentifierColumn(headers, unique)).toBe('Reference Number');
+  });
+
+  it('stages identical rows with their own variation seeds so every copy imports', async () => {
+    const mapping: CSVImportColumnMapping = {
+      accountColumn: 'DIRECT_ACCOUNT:4',
+      dateColumn: 'date',
+      amountColumn: 'amount',
+      descriptionColumn: 'description',
+      uniqueIdentifierColumn: '',
+    };
+    const accountMatches: CSVAccountMatch[] = [
+      { csvAccountValue: 'ALL_TRANSACTIONS', lastFourValue: '', matchingAccounts: [], hintedAccounts: [], selectedAccountId: 4 },
+    ];
+    const cashout = { date: '2026-05-18', amount: '100', description: 'VENMO CASHOUT 260515' };
+    const { mapped } = await mapTransactionsFromCSV(
+      [cashout, { date: '2026-05-19', amount: '-5', description: 'Coffee' }, cashout, cashout],
+      mapping,
+      accountMatches,
+      DatabaseService.generateTransactionHashFromFields
+    );
+
+    const seeded = (seed: number) =>
+      DatabaseService.generateTransactionHashFromFields(4, '2026-05-18', 100, 'VENMO CASHOUT 260515', seed);
+    const repeats = [mapped[0], mapped[2], mapped[3]];
+    // `hash` stays the content hash that groups the copies...
+    expect(new Set(repeats.map((entry) => entry.hash))).toEqual(new Set([await seeded(0)]));
+    // ...while each copy is staged under its own seed, as "keep all" in the resolver would.
+    expect(repeats.map((entry) => entry.transaction.transaction_hash)).toEqual([await seeded(0), await seeded(1), await seeded(2)]);
+    expect(repeats.map((entry) => entry.transaction.hash_variation_seed)).toEqual([undefined, 1, 2]);
+    expect(mapped[1].transaction.hash_variation_seed).toBeUndefined();
+
+    const { duplicateGroups, internalDuplicateCount } = buildDuplicateGroups(mapped, [10, 11, 12, 13]);
+    expect(internalDuplicateCount).toBe(2);
+
+    // Keeping every copy needs no re-hash.
+    await expect(createHashUpdatesForSelectedDuplicates(duplicateGroups, new Set([0, 2, 3]))).resolves.toEqual({
+      hashUpdates: [],
+      tempIdsToDelete: [],
+    });
+
+    // Leaving out the first copy moves the others down to seeds 0 and 1.
+    await expect(createHashUpdatesForSelectedDuplicates(duplicateGroups, new Set([2, 3]))).resolves.toEqual({
+      hashUpdates: [
+        { tempId: 12, newHash: await seeded(0), variationSeed: 0 },
+        { tempId: 13, newHash: await seeded(1), variationSeed: 1 },
+      ],
+      tempIdsToDelete: [10],
+    });
+  });
+
+  it('keeps no reference that is a placeholder or repeats within an account', async () => {
+    const mapping: CSVImportColumnMapping = {
+      accountColumn: 'account',
+      dateColumn: 'date',
+      amountColumn: 'amount',
+      descriptionColumn: 'description',
+      uniqueIdentifierColumn: 'reference',
+    };
+    const accountMatches: CSVAccountMatch[] = [
+      { csvAccountValue: 'A', lastFourValue: '', matchingAccounts: [], hintedAccounts: [], selectedAccountId: 7 },
+      { csvAccountValue: 'B', lastFourValue: '', matchingAccounts: [], hintedAccounts: [], selectedAccountId: 8 },
+    ];
+    let hashSeq = 0;
+    const { mapped } = await mapTransactionsFromCSV(
+      [
+        { account: 'A', date: '2026-09-30', amount: '-250', description: 'TFR 0930', reference: '0' },
+        { account: 'A', date: '2026-10-01', amount: '-5', description: 'Coffee', reference: 'N/A' },
+        { account: 'A', date: '2026-10-02', amount: '-6', description: 'Lunch', reference: 'DUP' },
+        { account: 'A', date: '2026-10-03', amount: '-7', description: 'Dinner', reference: 'DUP' },
+        { account: 'A', date: '2026-10-04', amount: '-8', description: 'Fuel', reference: 'R-9' },
+        // The same reference on another account is still unique per account.
+        { account: 'B', date: '2026-10-04', amount: '-8', description: 'Fuel', reference: 'R-9' },
+      ],
+      mapping,
+      accountMatches,
+      async () => `hash-${++hashSeq}`
+    );
+
+    expect(mapped.map((entry) => entry.transaction.external_id)).toEqual([null, null, null, null, 'R-9', 'R-9']);
+    expect(mapped.map((entry) => entry.uniqueIdentifier)).toEqual([undefined, undefined, undefined, undefined, 'R-9', 'R-9']);
+  });
 });
 
 describe('csvImportService inline account creation', () => {

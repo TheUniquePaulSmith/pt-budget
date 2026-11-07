@@ -4,12 +4,6 @@
     "action": "レートを設定"
   },
   "totalsIn": "合計は {{code}} 建て",
-  "timeRangeLabel": {
-    "week": "今週",
-    "month": "今月",
-    "year": "今年",
-    "customRange": "{{start}} - {{end}}"
-  },
   "summary": {
     "totalIncome": "収入合計",
     "totalExpenses": "支出合計",
@@ -33,16 +27,7 @@
   },
   "dateRangeSelector": {
     "title": "予算インサイト",
-    "timePeriod": "期間：",
-    "week": "週",
-    "custom": "カスタム",
-    "customRange": "カスタム期間",
-    "accounts": "口座",
-    "users": "ユーザー",
-    "selectedCount": "{{count}} 件選択中",
-    "dialogTitle": "カスタム期間を選択",
-    "startDate": "開始日",
-    "endDate": "終了日"
+    "filterTitle": "ダッシュボードのフィルター"
   },
   "recentTransactions": {
     "title": "最近の取引",

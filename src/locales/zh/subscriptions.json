@@ -39,12 +39,6 @@
     "noCard": "无卡"
   },
   "page": {
-    "rangeAll": "全部时间",
-    "rangeLast30": "最近 30 天",
-    "rangeLast90": "最近 90 天",
-    "rangeLast12": "最近 12 个月",
-    "rangeCustom": "自定义",
-    "customRange": "{{start}}至{{end}}",
     "loadRangeFailed": "加载定期系列范围失败",
     "loadUnmatchedFailed": "加载未匹配交易失败",
     "scanFailed": "订阅扫描失败",
@@ -82,7 +76,6 @@
     "emptyTitle": "尚未检测到定期扣款",
     "emptyBody": "扫描您的交易历史以查找订阅和周期性账单。",
     "scanTransactions": "扫描交易",
-    "totalSpent": "总花费：",
     "needsReview": "待确认（{{count}}）",
     "subscriptionsCount": "订阅（{{count}}）",
     "noActiveSubscriptions": "还没有活跃的订阅——请确认上方的待确认项或运行扫描。",
@@ -92,16 +85,15 @@
     "unmatched": "未匹配的定期扣款（{{count}}）",
     "suggestNames": "用 AI 建议名称",
     "unmatchedHelp": "这些描述反复出现，但尚未匹配任何商家规则。创建规则以命名商家并跟踪该扣款。",
-    "selectRange": "选择总花费的时间范围",
-    "startDate": "开始日期",
-    "endDate": "结束日期",
     "cancel": "取消",
     "apply": "应用",
     "merchantRules": "商家规则",
     "close": "关闭",
     "unmatchedTransactions": "未匹配的交易",
     "noClusterTransactions": "未找到此定期扣款的交易。",
-    "scanComplete": "扫描完成：已分配{{merchants}}个商家，新增{{series}}个定期扣款，关联{{transactions}}笔交易"
+    "scanComplete": "扫描完成：已分配{{merchants}}个商家，新增{{series}}个定期扣款，关联{{transactions}}笔交易",
+    "filterTitle": "订阅筛选",
+    "totalSpentPeriod": "总花费：{{period}}"
   },
   "seriesTable": {
     "variesAmount": "~{{amount}}（不固定）",

@@ -65,16 +65,11 @@ export default function InternalDuplicatesResolver({
   const { t } = useTranslation(['csvImport', 'common']);
   const { money, date } = useFormatters();
 
-  // Track which transaction indices should be included (by default, keep first of each group)
-  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(() => {
-    const initial = new Set<number>();
-    duplicateGroups.forEach(group => {
-      if (group.transactions.length > 0) {
-        initial.add(group.transactions[0].index);
-      }
-    });
-    return initial;
-  });
+  // Track which transaction indices should be included. Every copy starts
+  // included, matching the analysis (repeats are staged with their own seeds).
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(
+    () => new Set(duplicateGroups.flatMap(group => group.transactions.map(item => item.index)))
+  );
 
   // When on, every row in every set is imported (each gets its own variation seed).
   // The manual selection is kept untouched underneath so turning this off restores it.

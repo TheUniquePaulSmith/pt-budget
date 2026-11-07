@@ -61,14 +61,26 @@ const renderResolver = (onResolve = vi.fn()) => {
 };
 
 describe('InternalDuplicatesResolver', () => {
-  it('keeps only the first record of each set by default', () => {
+  it('keeps every record of every set by default, as the analysis counts them', () => {
     const onResolve = renderResolver();
 
     expect(screen.getByRole('checkbox', { name: 'Include all duplicates' })).not.toBeChecked();
+    expect(screen.getByText('5 Selected')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Continue with 2 Transactions' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with 5 Transactions' }));
 
-    expect(onResolve).toHaveBeenCalledWith(new Set([0, 3]));
+    expect(onResolve).toHaveBeenCalledWith(new Set([0, 1, 2, 3, 4]));
+  });
+
+  it('leaves out a record the user excludes', () => {
+    const onResolve = renderResolver();
+
+    const firstSet = screen.getByText('Duplicate Set 1 (3 records)').parentElement as HTMLElement;
+    fireEvent.click(within(firstSet).getAllByTitle('Exclude from import')[1]);
+    expect(screen.getByText('4 Selected')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with 4 Transactions' }));
+    expect(onResolve).toHaveBeenCalledWith(new Set([0, 2, 3, 4]));
   });
 
   it('includes every record in every set when "Include all duplicates" is on', () => {
@@ -97,9 +109,10 @@ describe('InternalDuplicatesResolver', () => {
   it('restores the manual selection when the toggle is turned back off', () => {
     const onResolve = renderResolver();
 
-    // Also include the second record of the first set by hand.
+    // Leave out the last two records of the first set by hand.
     const firstSet = screen.getByText('Duplicate Set 1 (3 records)').parentElement as HTMLElement;
-    fireEvent.click(within(firstSet).getAllByTitle('Include in import')[0]);
+    fireEvent.click(within(firstSet).getAllByTitle('Exclude from import')[2]);
+    fireEvent.click(within(firstSet).getAllByTitle('Exclude from import')[1]);
     expect(screen.getByText('3 Selected')).toBeInTheDocument();
 
     const toggle = screen.getByRole('checkbox', { name: 'Include all duplicates' });
@@ -110,6 +123,6 @@ describe('InternalDuplicatesResolver', () => {
     expect(screen.getByText('3 Selected')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue with 3 Transactions' }));
-    expect(onResolve).toHaveBeenCalledWith(new Set([0, 1, 3]));
+    expect(onResolve).toHaveBeenCalledWith(new Set([0, 3, 4]));
   });
 });

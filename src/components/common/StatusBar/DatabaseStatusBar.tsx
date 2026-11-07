@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { PageActionsOutlet } from '@/components/common/Layout/slots/PageActionsSlot';
 import {
   Box,
   Typography,
@@ -194,9 +195,8 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({
         justifyContent: 'space-between',
         minHeight: 32
       }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* Empty box to align status bar to right */}
-        </Box>
+        {/* The current page's footer items (Dashboard: active-filter chips), portalled in by <PageActions slot="statusBar">. */}
+        <PageActionsOutlet slot="statusBar" sx={{ gap: 1, flex: 1, overflow: 'hidden', mr: 1 }} />
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {syncChipConfig && (

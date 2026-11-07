@@ -39,12 +39,6 @@
     "noCard": "No card"
   },
   "page": {
-    "rangeAll": "All time",
-    "rangeLast30": "Last 30 days",
-    "rangeLast90": "Last 90 days",
-    "rangeLast12": "Last 12 months",
-    "rangeCustom": "Custom",
-    "customRange": "{{start}} to {{end}}",
     "loadRangeFailed": "Failed to load recurring series range",
     "loadUnmatchedFailed": "Failed to load unmatched transactions",
     "scanFailed": "Subscription scan failed",
@@ -82,7 +76,6 @@
     "emptyTitle": "No recurring charges detected yet",
     "emptyBody": "Scan your transaction history to find subscriptions and recurring bills.",
     "scanTransactions": "Scan Transactions",
-    "totalSpent": "Total Spent:",
     "needsReview": "Needs Review ({{count}})",
     "subscriptionsCount": "Subscriptions ({{count}})",
     "noActiveSubscriptions": "No active subscriptions yet — confirm candidates above or run a scan.",
@@ -92,16 +85,15 @@
     "unmatched": "Unmatched Recurring Charges ({{count}})",
     "suggestNames": "Suggest names with AI",
     "unmatchedHelp": "These descriptions repeat but do not match any merchant rule yet. Create a rule to name the merchant and track the charge.",
-    "selectRange": "Select Total Spent Range",
-    "startDate": "Start Date",
-    "endDate": "End Date",
     "cancel": "Cancel",
     "apply": "Apply",
     "merchantRules": "Merchant Rules",
     "close": "Close",
     "unmatchedTransactions": "Unmatched Transactions",
     "noClusterTransactions": "No transactions found for this recurring charge.",
-    "scanComplete": "Scan complete: {{merchants}} merchants assigned, {{series}} new recurring charges, {{transactions}} transactions linked"
+    "scanComplete": "Scan complete: {{merchants}} merchants assigned, {{series}} new recurring charges, {{transactions}} transactions linked",
+    "filterTitle": "Subscription filters",
+    "totalSpentPeriod": "Total Spent: {{period}}"
   },
   "seriesTable": {
     "variesAmount": "~{{amount}} (varies)",

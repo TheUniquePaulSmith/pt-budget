@@ -42,6 +42,7 @@
     "rejectedLine": "Riga {{row}}: {{reason}}",
     "rejectedMore": "…e altre {{count}}",
     "internalDuplicates": "• Duplicati interni al CSV: {{count}}",
+    "internalDuplicatesKept": "Tutte le copie verranno importate. Risolvile per escluderne alcune.",
     "resolveDuplicates": "→ Risolvi i duplicati interni",
     "alreadyInDatabase": "• Già nel database: {{count}}",
     "uniqueToImport": "• Transazioni univoche da importare: {{count}}",

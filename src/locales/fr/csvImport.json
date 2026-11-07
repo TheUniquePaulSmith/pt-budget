@@ -42,6 +42,7 @@
     "rejectedLine": "Ligne {{row}} : {{reason}}",
     "rejectedMore": "…et {{count}} de plus",
     "internalDuplicates": "• Doublons internes au CSV : {{count}}",
+    "internalDuplicatesKept": "Toutes les copies seront importées. Résolvez-les pour en exclure certaines.",
     "resolveDuplicates": "→ Résoudre les doublons internes",
     "alreadyInDatabase": "• Déjà dans la base de données : {{count}}",
     "uniqueToImport": "• Transactions uniques à importer : {{count}}",

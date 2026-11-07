@@ -5,12 +5,6 @@
     "action": "Kurse festlegen"
   },
   "totalsIn": "Summen in {{code}}",
-  "timeRangeLabel": {
-    "week": "Diese Woche",
-    "month": "Dieser Monat",
-    "year": "Dieses Jahr",
-    "customRange": "{{start}} - {{end}}"
-  },
   "summary": {
     "totalIncome": "Einnahmen gesamt",
     "totalExpenses": "Ausgaben gesamt",
@@ -35,16 +29,7 @@
   },
   "dateRangeSelector": {
     "title": "Budget-Einblicke",
-    "timePeriod": "Zeitraum:",
-    "week": "Woche",
-    "custom": "Benutzerdefiniert",
-    "customRange": "Benutzerdefinierter Zeitraum",
-    "accounts": "Konten",
-    "users": "Benutzer",
-    "selectedCount": "{{count}} ausgewählt",
-    "dialogTitle": "Benutzerdefinierten Zeitraum wählen",
-    "startDate": "Startdatum",
-    "endDate": "Enddatum"
+    "filterTitle": "Dashboard-Filter"
   },
   "recentTransactions": {
     "title": "Letzte Transaktionen",

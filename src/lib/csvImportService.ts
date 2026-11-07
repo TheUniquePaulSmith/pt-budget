@@ -114,7 +114,8 @@ export type HashGenerator = (
 ) => Promise<string>;
 
 export function autoDetectColumnMapping(
-  headers: string[]
+  headers: string[],
+  rows?: Array<Record<string, unknown>>
 ): CSVImportColumnMapping {
   return {
     accountColumn:
@@ -142,7 +143,7 @@ export function autoDetectColumnMapping(
           header.toLowerCase().includes('description') ||
           header.toLowerCase().includes('memo')
       ) || '',
-    uniqueIdentifierColumn: detectUniqueIdentifierColumn(headers),
+    uniqueIdentifierColumn: detectUniqueIdentifierColumn(headers, rows),
   };
 }
 
@@ -153,14 +154,26 @@ const UNIQUE_ID_STRONG_RE = /reference|\btrans(?:action)?\s*(?:id|number|#|no\.?
 const UNIQUE_ID_WEAK_RE = /\bid\b/i;
 const UNIQUE_ID_EXCLUDE_RE = /holder|customer|member|account|card|user|category|merchant|payee/i;
 
-export function detectUniqueIdentifierColumn(headers: string[]): string {
-  const strong = headers.find((header) => UNIQUE_ID_STRONG_RE.test(header));
-  if (strong) return strong;
-  return (
-    headers.find(
-      (header) => UNIQUE_ID_WEAK_RE.test(header) && !UNIQUE_ID_EXCLUDE_RE.test(header)
-    ) || ''
+/**
+ * Picks the bank-reference column by header name. With the parsed rows it also
+ * checks the values: a column that is mostly placeholders ("0", blank) or
+ * repeats a value is not an identifier, whatever its header says.
+ */
+export function detectUniqueIdentifierColumn(headers: string[], rows?: Array<Record<string, unknown>>): string {
+  const usable = (header: string) => !rows || hasUniqueReferenceValues(rows, header);
+  const strong = headers.filter((header) => UNIQUE_ID_STRONG_RE.test(header));
+  const weak = headers.filter(
+    (header) => UNIQUE_ID_WEAK_RE.test(header) && !UNIQUE_ID_EXCLUDE_RE.test(header) && !strong.includes(header)
   );
+  return [...strong, ...weak].find(usable) || '';
+}
+
+function hasUniqueReferenceValues(rows: Array<Record<string, unknown>>, header: string): boolean {
+  const values = rows
+    .map((row) => String(row[header] ?? '').trim())
+    .filter((value) => !isPlaceholderReference(value));
+  // Most rows must carry a real value, and no value may repeat.
+  return values.length > 0 && values.length * 2 >= rows.length && new Set(values).size === values.length;
 }
 
 /**
@@ -466,6 +479,7 @@ export async function mapTransactionsFromCSV(
 
   const mapped: MappedCsvTransaction[] = [];
   const rejected: CsvRejectedRow[] = [];
+  const seenHashes = new Map<string, number>();
 
   for (const [index, row] of data.entries()) {
     let csvAccountValue: string;
@@ -494,7 +508,7 @@ export async function mapTransactionsFromCSV(
     const rawUniqueIdentifier = columnMapping.uniqueIdentifierColumn
       ? String(row[columnMapping.uniqueIdentifierColumn] ?? '').trim()
       : '';
-    const uniqueIdentifier = rawUniqueIdentifier || undefined;
+    const uniqueIdentifier = isPlaceholderReference(rawUniqueIdentifier) ? undefined : rawUniqueIdentifier;
 
     const date = parseCsvDate(rawDate, { order: parseOptions.dateOrder });
     if (!date) {
@@ -527,6 +541,17 @@ export async function mapTransactionsFromCSV(
       signedAmount,
       description
     );
+    // Identical rows in one file (two same-day $100 cash-outs) are all kept by
+    // default: the n-th repeat of a content hash is staged with variation seed
+    // n, as the internal-duplicates resolver assigns when every copy is
+    // included. They never collide on the UNIQUE hash in the bulk insert, and
+    // an overlapping re-import matches each stored copy by its seed. `hash`
+    // stays the unseeded content hash, which groups the copies for the resolver.
+    const variationSeed = seenHashes.get(hash) ?? 0;
+    seenHashes.set(hash, variationSeed + 1);
+    const stagedHash = variationSeed === 0
+      ? hash
+      : await generateTransactionHash(accountMapping.selectedAccountId, date, signedAmount, description, variationSeed);
 
     const transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'> = {
       date,
@@ -540,8 +565,9 @@ export async function mapTransactionsFromCSV(
       project_id: null,
       trip_id: null,
       type,
-      transaction_hash: hash,
+      transaction_hash: stagedHash,
       external_id: uniqueIdentifier ?? null,
+      ...(variationSeed > 0 ? { hash_variation_seed: variationSeed } : {}),
     };
 
     mapped.push({
@@ -553,7 +579,37 @@ export async function mapTransactionsFromCSV(
     });
   }
 
+  dropRepeatedReferences(mapped);
   return { mapped, rejected };
+}
+
+/**
+ * Blank, all-zero or "N/A"-style cells are what banks print when a row has no
+ * reference. As a dedup key they would match every stored row of the same
+ * account and amount, silently dropping new transactions (Huntington's
+ * "Reference Number" is "0" on most rows).
+ */
+export function isPlaceholderReference(value: string): boolean {
+  return /^[\s0.#-]*$/.test(value) || /^(n\/?a|none|null|undefined)$/i.test(value.trim());
+}
+
+/**
+ * A reference that repeats within one account in the same file does not
+ * identify a transaction, so none of those rows carries it: they dedupe on the
+ * hash (account, date, amount, description) alone.
+ */
+function dropRepeatedReferences(mapped: MappedCsvTransaction[]): void {
+  const keyOf = (entry: MappedCsvTransaction) => `${entry.transaction.account_id}\u0000${entry.uniqueIdentifier}`;
+  const counts = new Map<string, number>();
+  for (const entry of mapped) {
+    if (entry.uniqueIdentifier === undefined) continue;
+    counts.set(keyOf(entry), (counts.get(keyOf(entry)) ?? 0) + 1);
+  }
+  for (const entry of mapped) {
+    if (entry.uniqueIdentifier === undefined || (counts.get(keyOf(entry)) ?? 0) < 2) continue;
+    entry.uniqueIdentifier = undefined;
+    entry.transaction.external_id = null;
+  }
 }
 
 export function buildDuplicateGroups(
@@ -619,8 +675,11 @@ export async function createHashUpdatesForSelectedDuplicates(
       selectedIndices.has(item.index)
     );
 
+    // The kept copies take seeds 0, 1, 2… in order. Rows arrive pre-seeded by
+    // occurrence, so only a row whose position among the kept copies changed
+    // (an earlier copy was left out) needs a new hash.
     for (const [variationIndex, item] of selectedInGroup.entries()) {
-      if (variationIndex === 0) {
+      if ((item.transaction.hash_variation_seed ?? 0) === variationIndex) {
         continue;
       }
 

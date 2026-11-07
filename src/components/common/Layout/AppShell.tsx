@@ -22,6 +22,8 @@ import NotificationsRuntime from '@/components/notifications/NotificationsRuntim
 import { useAppShellSlice } from '@/contexts/useDatabaseSlices';
 import AiLauncherSlot from './slots/AiLauncherSlot';
 import NotificationBellSlot from './slots/NotificationBellSlot';
+import { PageActionsOutlet, PageActionsProvider } from './slots/PageActionsSlot';
+import { ScopeFiltersProvider } from '@/components/common/Filters/ScopeFilters';
 import MobileBottomNav, { MOBILE_BOTTOM_NAV_SLOTS } from './MobileBottomNav';
 import PageFallback from './PageFallback';
 import SidebarRail from './SidebarRail';
@@ -121,7 +123,9 @@ export default function AppShell() {
   // tree, outside both page branches, so navigating to a full-screen page
   // (settings, developer console) never remounts it and re-runs its scans.
   return (
-    <>
+    <PageActionsProvider>
+    {/* Account/user filters shared by the report pages, so they carry over between them. */}
+    <ScopeFiltersProvider>
       <NotificationsRuntime />
       {page.fullScreen ? (
         pageContent
@@ -165,6 +169,8 @@ export default function AppShell() {
                 >
                   {getPageLabel(page, t)}
                 </Typography>
+                {/* The current page's own controls (Dashboard: Filter), portalled in by <PageActions>. */}
+                <PageActionsOutlet slot="appBar" sx={{ flexShrink: 0, '&:empty': { display: 'none' } }} />
                 <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                   <NotificationBellSlot variant="header" onNavigate={() => navigate('notifications')} />
                   <AiLauncherSlot variant="header" />
@@ -254,6 +260,7 @@ export default function AppShell() {
           </Box>
         </Box>
       )}
-    </>
+    </ScopeFiltersProvider>
+    </PageActionsProvider>
   );
 }

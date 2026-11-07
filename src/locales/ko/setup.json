@@ -51,6 +51,10 @@
     "importRecoveryDescription": "이 데이터베이스 파일은 복구 문구로 보호됩니다. 12개 단어를 입력하여 잠금을 해제하고 가져오세요.",
     "unlockRecoveryDescription": "이 데이터베이스는 복구 문구로 보호됩니다. 12개 단어를 입력하여 잠금을 해제하세요."
   },
+  "loadingScreen": {
+    "loadingApp": "Budget Tracker를 불러오는 중…",
+    "verifyingCompatibility": "브라우저 호환성을 확인하는 중…"
+  },
   "passwordSetup": {
     "primaryUserNameRequired": "기본 사용자 이름은 필수 항목이에요.",
     "passwordTooShort": "비밀번호는 {{count}}자 이상이어야 해요.",

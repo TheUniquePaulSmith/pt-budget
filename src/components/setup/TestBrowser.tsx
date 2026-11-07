@@ -3,6 +3,10 @@
  *
  * Performs browser compatibility testing for WA-SQLite functionality
  * using a dedicated shared worker to test basic database operations.
+ *
+ * The per-check panel is a developer surface: it is shown only under `?debug`
+ * or when a check fails. Otherwise the user sees the quiet AppLoadingScreen
+ * (logo plus one status line) while the test runs and the worker starts.
  */
 
 "use client";
@@ -35,6 +39,10 @@ import {
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 
+import { isDebugMode } from "@/lib/debugMode";
+
+import AppLoadingScreen from "./AppLoadingScreen";
+
 export interface TestResults {
   sharedWorkerSupport: boolean | null;
   wasmSupport: boolean | null;
@@ -54,6 +62,17 @@ interface TestBrowserProps {
 
 const STORAGE_KEY = "budgetApp_browserTestPassed";
 
+/** How long the debug-mode panel keeps a passing result on screen before the app moves on. */
+const DEBUG_RESULT_REVIEW_DELAY_MS = 5000;
+
+const centeredBoxSx = {
+  minHeight: "100vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  p: 2,
+} as const;
+
 function hasSuccessfulTestResults(
   results: Partial<TestResults> | null | undefined
 ): results is Required<TestResults> {
@@ -69,6 +88,8 @@ function hasSuccessfulTestResults(
 
 export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
   const { t } = useTranslation("setup");
+  // Read once: the panel must not flip between views if the URL changes mid-run.
+  const [debugMode] = useState(() => isDebugMode());
   const [isTestingInProgress, setIsTestingInProgress] = useState(true);
   const [testResults, setTestResults] = useState<TestResults | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -177,10 +198,15 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
               }
             }
             
-            // Add a 2-second delay to let users see the test results
-            setTimeout(() => {
+            // In debug mode the panel stays up so the results can be read;
+            // otherwise nothing is shown, so move on at once.
+            if (debugMode) {
+              setTimeout(() => {
+                onTestComplete(results.overallCompatible ?? false, results);
+              }, DEBUG_RESULT_REVIEW_DELAY_MS);
+            } else {
               onTestComplete(results.overallCompatible ?? false, results);
-            }, 5000);
+            }
           } else if (type === "error") {
             console.error("[TestBrowser] Worker error:", workerError);
             setError(workerError);
@@ -250,7 +276,7 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
     //   }
     // };
     // `t` changes with the language; the hasStartedTest guard keeps the test from re-running.
-  }, [onTestComplete, t]);
+  }, [debugMode, onTestComplete, t]);
 
   const getTestIcon = (passed: boolean, inProgress: boolean, hasResults: boolean) => {
     if (inProgress) {
@@ -307,127 +333,145 @@ export const TestBrowser: React.FC<TestBrowserProps> = ({ onTestComplete }) => {
 
   const errorDetailsText = testResults?.errorDetails ?? error;
 
+  // A check failed (or the worker errored) once testing has stopped without an
+  // overall pass. Unsupported WebAssembly / SharedWorker leave overallCompatible
+  // null, so "not true" is the right test rather than "=== false".
+  const hasFailed =
+    error !== null ||
+    (!isTestingInProgress && testResults !== null && testResults.overallCompatible !== true);
+
+  if (!debugMode && !hasFailed) {
+    const passed = !isTestingInProgress && testResults?.overallCompatible === true;
+    return (
+      <AppLoadingScreen
+        message={passed ? t("gate.initializing") : t("loadingScreen.verifyingCompatibility")}
+      />
+    );
+  }
+
   return (
-    <Box sx={{ width: "100%", maxWidth: 600 }}>
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
-          {isTestingInProgress && <CircularProgress size={24} sx={{ mr: 2 }} />}
-          <Typography variant="h6">{t("testBrowser.title")}</Typography>
-        </Box>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
-
-        <List>
-          {testItems.map((item) => {
-            const testValue = testResults?.[item.key as keyof TestResults];
-            const inProgress = isTestingInProgress && testValue === null;
-            const hasResults = testResults !== null && testValue !== null && testValue !== undefined;
-
-            return (
-              <ListItem key={item.key} sx={{ px: 0 }}>
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  secondary={item.description}
-                />
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Chip
-                    size="small"
-                    label={getTestStatus(testValue === true, inProgress, hasResults)}
-                    color={
-                      inProgress
-                        ? "default"
-                        : hasResults
-                        ? testValue
-                          ? "success"
-                          : "error"
-                        : "default"
-                    }
-                    variant={inProgress || !hasResults ? "outlined" : "filled"}
-                  />
-                  {getTestIcon(testValue === true, inProgress, hasResults)}
-                </Box>
-              </ListItem>
-            );
-          })}
-        </List>
-
-        {testResults && !isTestingInProgress && (
-          <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: "divider" }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Typography variant="subtitle1" fontWeight="bold">
-                {t("testBrowser.overallResult")}
-              </Typography>
-              <Chip
-                label={
-                  testResults.overallCompatible ? t("testBrowser.compatible") : t("testBrowser.incompatible")
-                }
-                color={testResults.overallCompatible ? "success" : "error"}
-                icon={
-                  testResults.overallCompatible ? <CheckCircle /> : <Warning />
-                }
-              />
-            </Box>
-
-            {!testResults.overallCompatible && (
-              <Alert severity="warning" sx={{ mt: 2 }}>
-                {t("testBrowser.incompatibleWarning")}
-              </Alert>
-            )}
+    <Box sx={centeredBoxSx}>
+      <Box sx={{ width: "100%", maxWidth: 600 }} data-testid="browser-compatibility-panel">
+        <Paper sx={{ p: 3 }}>
+          <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
+            {isTestingInProgress && <CircularProgress size={24} sx={{ mr: 2 }} />}
+            <Typography variant="h6">{t("testBrowser.title")}</Typography>
           </Box>
-        )}
 
-        {errorDetailsText && !isTestingInProgress && (
-          <Box sx={{ mt: 2 }}>
-            <Box
-              onClick={() => setDetailsExpanded((prev) => !prev)}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                cursor: "pointer",
-                userSelect: "none",
-              }}
-            >
-              <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
-                {t("testBrowser.errorDetails")}
-              </Typography>
-              <IconButton
-                size="small"
-                aria-label={detailsExpanded ? t("testBrowser.hideErrorDetails") : t("testBrowser.showErrorDetails")}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          <List>
+            {testItems.map((item) => {
+              const testValue = testResults?.[item.key as keyof TestResults];
+              const inProgress = isTestingInProgress && testValue === null;
+              const hasResults = testResults !== null && testValue !== null && testValue !== undefined;
+
+              return (
+                <ListItem key={item.key} sx={{ px: 0 }}>
+                  <ListItemIcon>{item.icon}</ListItemIcon>
+                  <ListItemText
+                    primary={item.label}
+                    secondary={item.description}
+                  />
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Chip
+                      size="small"
+                      label={getTestStatus(testValue === true, inProgress, hasResults)}
+                      color={
+                        inProgress
+                          ? "default"
+                          : hasResults
+                          ? testValue
+                            ? "success"
+                            : "error"
+                          : "default"
+                      }
+                      variant={inProgress || !hasResults ? "outlined" : "filled"}
+                    />
+                    {getTestIcon(testValue === true, inProgress, hasResults)}
+                  </Box>
+                </ListItem>
+              );
+            })}
+          </List>
+
+          {testResults && !isTestingInProgress && (
+            <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: "divider" }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Typography variant="subtitle1" fontWeight="bold">
+                  {t("testBrowser.overallResult")}
+                </Typography>
+                <Chip
+                  label={
+                    testResults.overallCompatible ? t("testBrowser.compatible") : t("testBrowser.incompatible")
+                  }
+                  color={testResults.overallCompatible ? "success" : "error"}
+                  icon={
+                    testResults.overallCompatible ? <CheckCircle /> : <Warning />
+                  }
+                />
+              </Box>
+
+              {!testResults.overallCompatible && (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  {t("testBrowser.incompatibleWarning")}
+                </Alert>
+              )}
+            </Box>
+          )}
+
+          {errorDetailsText && !isTestingInProgress && (
+            <Box sx={{ mt: 2 }}>
+              <Box
+                onClick={() => setDetailsExpanded((prev) => !prev)}
                 sx={{
-                  transform: detailsExpanded ? "rotate(180deg)" : "none",
-                  transition: "transform 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  cursor: "pointer",
+                  userSelect: "none",
                 }}
               >
-                <ExpandMore fontSize="small" />
-              </IconButton>
-            </Box>
-            <Collapse in={detailsExpanded}>
-              <Paper
-                variant="outlined"
-                sx={{ p: 2, mt: 1, maxHeight: 240, overflow: "auto" }}
-              >
-                <Typography
-                  component="pre"
-                  variant="caption"
+                <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
+                  {t("testBrowser.errorDetails")}
+                </Typography>
+                <IconButton
+                  size="small"
+                  aria-label={detailsExpanded ? t("testBrowser.hideErrorDetails") : t("testBrowser.showErrorDetails")}
                   sx={{
-                    m: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    fontFamily: "monospace",
+                    transform: detailsExpanded ? "rotate(180deg)" : "none",
+                    transition: "transform 0.2s",
                   }}
                 >
-                  {errorDetailsText}
-                </Typography>
-              </Paper>
-            </Collapse>
-          </Box>
-        )}
-      </Paper>
+                  <ExpandMore fontSize="small" />
+                </IconButton>
+              </Box>
+              <Collapse in={detailsExpanded}>
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 2, mt: 1, maxHeight: 240, overflow: "auto" }}
+                >
+                  <Typography
+                    component="pre"
+                    variant="caption"
+                    sx={{
+                      m: 0,
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {errorDetailsText}
+                  </Typography>
+                </Paper>
+              </Collapse>
+            </Box>
+          )}
+        </Paper>
+      </Box>
     </Box>
   );
 };

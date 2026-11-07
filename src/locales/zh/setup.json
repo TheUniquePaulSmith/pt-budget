@@ -51,6 +51,10 @@
     "importRecoveryDescription": "此数据库文件受恢复短语保护。输入其 12 个单词以解锁并导入。",
     "unlockRecoveryDescription": "此数据库受恢复短语保护。输入其 12 个单词以解锁。"
   },
+  "loadingScreen": {
+    "loadingApp": "正在加载 Budget Tracker…",
+    "verifyingCompatibility": "正在验证浏览器兼容性…"
+  },
   "passwordSetup": {
     "primaryUserNameRequired": "主用户名称为必填项。",
     "passwordTooShort": "密码至少需要{{count}}个字符。",

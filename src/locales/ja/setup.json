@@ -51,6 +51,10 @@
     "importRecoveryDescription": "このデータベースファイルはリカバリーフレーズで保護されています。12単語を入力してロックを解除し、インポートしてください。",
     "unlockRecoveryDescription": "このデータベースはリカバリーフレーズで保護されています。12単語を入力してロックを解除してください。"
   },
+  "loadingScreen": {
+    "loadingApp": "Budget Tracker を読み込んでいます…",
+    "verifyingCompatibility": "ブラウザーの互換性を確認しています…"
+  },
   "passwordSetup": {
     "primaryUserNameRequired": "メインユーザー名は必須です。",
     "passwordTooShort": "パスワードは {{count}} 文字以上で入力してください。",

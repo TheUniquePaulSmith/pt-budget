@@ -51,6 +51,10 @@
     "importRecoveryDescription": "Diese Datenbankdatei ist durch eine Wiederherstellungsphrase geschützt. Gib ihre 12 Wörter ein, um sie zu entsperren und zu importieren.",
     "unlockRecoveryDescription": "Diese Datenbank ist durch eine Wiederherstellungsphrase geschützt. Gib ihre 12 Wörter ein, um sie zu entsperren."
   },
+  "loadingScreen": {
+    "loadingApp": "Budget Tracker wird geladen…",
+    "verifyingCompatibility": "Browser-Kompatibilität wird geprüft…"
+  },
   "passwordSetup": {
     "primaryUserNameRequired": "Der Name des Hauptbenutzers ist erforderlich.",
     "passwordTooShort": "Das Passwort muss mindestens {{count}} Zeichen lang sein.",

@@ -19,6 +19,7 @@ import {
 import AppLogo from '@/components/common/AppLogo';
 import LanguageMenu from '@/components/common/LanguageMenu';
 import { useFormatters } from '@/contexts/useFormatters';
+import AppLoadingScreen from './AppLoadingScreen';
 import { PasswordSetup } from './PasswordSetup';
 import { PreferencesSetup } from './PreferencesSetup';
 import { InitialAccount } from './InitialAccount';
@@ -210,25 +211,20 @@ export function DatabaseInitializationGate({
   }
 
   if (initializationState === 'checking') {
-    return (
-      <Box sx={centeredBoxSx}>
-        <Box sx={{ textAlign: 'center' }}>
-          <CircularProgress size={60} sx={{ mb: 2 }} />
-          <Typography variant="h6">{t('gate.initializing')}</Typography>
-        </Box>
-      </Box>
-    );
+    // Same screen and wording as the shell chunk's loading fallback, so the
+    // hand-over from one to the other is invisible.
+    return <AppLoadingScreen message={t('loadingScreen.loadingApp')} />;
   }
 
   if (initializationState === 'testing-browser') {
+    // TestBrowser lays itself out: the quiet loading screen, or (in `?debug`
+    // or after a failed check) the centered per-check panel.
     return (
-      <Box sx={centeredBoxSx}>
-        <TestBrowser
-          onTestComplete={(isCompatible, results) => {
-            void onBrowserTestComplete(isCompatible, results);
-          }}
-        />
-      </Box>
+      <TestBrowser
+        onTestComplete={(isCompatible, results) => {
+          void onBrowserTestComplete(isCompatible, results);
+        }}
+      />
     );
   }
 

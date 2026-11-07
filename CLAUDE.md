@@ -122,3 +122,4 @@ Shared entity contracts live in `src/types/database.ts`. The `@/` import alias m
 ## GitHub Strategy
 - **Branches**: `main` is the production branch; `devel/latest` is the latest integration branch for feature work and the GitHub default. Feature branches are named `feature/<short-description>`.
 - All PR merges must be squashed and rebased onto `devel/latest` (or `main` for hotfixes). Do not merge `main` into feature branches; rebase instead.
+- **Do not offer Auto-fix** (the desktop app's PR monitor) after `/ship` or opening a PR, until the owner says the app is live. Bind the PR and report CI as usual; leave Auto-fix and auto-merge off.

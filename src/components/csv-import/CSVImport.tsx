@@ -351,7 +351,7 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       // Auto-detect common column mappings
       if (result.length > 0) {
         const headers = Object.keys(result[0]);
-        setMapping(autoDetectColumnMapping(headers));
+        setMapping(autoDetectColumnMapping(headers, result));
         // Don't automatically analyze account column - let user select it first
       }
     } catch (err) {
@@ -572,7 +572,9 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
       // Check for duplicates against existing database transactions
       const existingHashes = await checkDuplicateTransactions();
       const duplicateCount = existingHashes.length;
-      const uniqueCount = mappableRows - internalDuplicateCount - duplicateCount;
+      // Repeated rows are staged with their own variation seeds, so every copy
+      // imports unless the user leaves some out in the resolver.
+      const uniqueCount = mappableRows - duplicateCount;
 
       setAnalysisResult({
         totalRows,
@@ -1158,6 +1160,9 @@ export default function CSVImport({ open, onClose, onSuccess }: CSVImportProps) 
                   <Box>
                     <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', color: 'warning.main' }}>
                       {t('import.internalDuplicates', { count: analysisResult.internalDuplicates })}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
+                      {t('import.internalDuplicatesKept')}
                     </Typography>
                     <Typography
                       variant="body2"

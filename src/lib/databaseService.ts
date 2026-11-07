@@ -723,6 +723,7 @@ export class DatabaseService {
         transaction.type,
         transaction.transaction_hash || null,
         transaction.external_id ?? null,
+        transaction.hash_variation_seed ?? 0,
       ]);
 
       const rows = await this.workerService.batchQueryReturning(
@@ -3908,20 +3909,57 @@ export class DatabaseService {
 
   // --- Recurring series ---
 
-  async getRecurringSeriesWithStats(range?: {
-    startDate?: string;
-    endDate?: string;
-  }): Promise<RecurringSeries[]> {
+  /**
+   * Account/user scope as conditions on a transactions alias, for queries with a
+   * `/*__SCOPE__*\/` marker. Same rule as the dashboard analytics: a row belongs
+   * to its account's owner unless its card names another user. Correlated
+   * subqueries keep it valid inside a JOIN's ON clause.
+   */
+  private transactionScopeSql(filters?: TransactionScopeFilters, alias = 't'): { sql: string; params: number[] } {
+    const conditions: string[] = [];
+    const params: number[] = [];
+    if (filters?.accountIds && filters.accountIds.length > 0) {
+      conditions.push(`${alias}.account_id IN (${filters.accountIds.map(() => '?').join(',')})`);
+      params.push(...filters.accountIds);
+    }
+    if (filters?.userIds && filters.userIds.length > 0) {
+      conditions.push(
+        `COALESCE((SELECT sc.user_id FROM account_cards sc WHERE sc.id = ${alias}.card_id), ` +
+          `(SELECT sa.owner_user_id FROM accounts sa WHERE sa.id = ${alias}.account_id)) ` +
+          `IN (${filters.userIds.map(() => '?').join(',')})`
+      );
+      params.push(...filters.userIds);
+    }
+    return { sql: conditions.map((condition) => `AND ${condition}`).join(' '), params };
+  }
+
+  /**
+   * Series with their transaction count and spend for an optional date range.
+   * With an account/user scope, only series that have charged those accounts or
+   * users (on any date) are returned, and their stats count only those charges.
+   */
+  async getRecurringSeriesWithStats(
+    range?: { startDate?: string; endDate?: string },
+    filters?: TransactionScopeFilters
+  ): Promise<RecurringSeries[]> {
     try {
       const startDate = range?.startDate ?? null;
       const endDate = range?.endDate ?? null;
-      const rows = await this.workerService.query(SUBSCRIPTION_QUERIES.GET_SERIES_WITH_STATS, [
-        startDate,
-        startDate,
-        endDate,
-        endDate,
-      ]);
-      return rows.map(this.mapToRecurringSeries);
+      const scope = this.transactionScopeSql(filters);
+      // Unscoped calls send the query text unchanged (the marker is a comment).
+      const sql = scope.sql
+        ? SUBSCRIPTION_QUERIES.GET_SERIES_WITH_STATS.replace('/*__SCOPE__*/', scope.sql)
+        : SUBSCRIPTION_QUERIES.GET_SERIES_WITH_STATS;
+      const rows = await this.workerService.query(sql, [startDate, startDate, endDate, endDate, ...scope.params]);
+      const series = rows.map(this.mapToRecurringSeries);
+      if (!scope.sql) return series;
+
+      const inScope = await this.workerService.query(
+        SUBSCRIPTION_QUERIES.GET_SERIES_IDS_IN_SCOPE.replace('/*__SCOPE__*/', scope.sql),
+        scope.params
+      );
+      const ids = new Set(inScope.map((row: any) => Number(row.series_id)));
+      return series.filter((item) => ids.has(item.id));
     } catch (error) {
       log.error('Failed to get recurring series', { operation: 'getRecurringSeriesWithStats', error });
       throw error;
@@ -4046,11 +4084,19 @@ export class DatabaseService {
    * series — the "Unmatched recurring charges" section of the page and the
    * input for AI rule suggestions.
    */
-  async getUnmatchedRecurringClusters(minOccurrences = 3): Promise<UnmatchedCluster[]> {
+  /** Repeating unlinked expenses; with an account/user scope, only those charges count. */
+  async getUnmatchedRecurringClusters(
+    minOccurrences = 3,
+    filters?: TransactionScopeFilters
+  ): Promise<UnmatchedCluster[]> {
     const rules = await this.getEnabledSortedRules();
-    const expenseRows = await this.workerService.query(
-      SUBSCRIPTION_QUERIES.GET_EXPENSE_TRANSACTIONS_FOR_SCAN
-    );
+    const scope = this.transactionScopeSql(filters);
+    const expenseRows = scope.sql
+      ? await this.workerService.query(
+          SUBSCRIPTION_QUERIES.GET_EXPENSE_TRANSACTIONS_FOR_SCAN.replace('/*__SCOPE__*/', scope.sql),
+          scope.params
+        )
+      : await this.workerService.query(SUBSCRIPTION_QUERIES.GET_EXPENSE_TRANSACTIONS_FOR_SCAN);
     const linkedRows = await this.workerService.query(
       SUBSCRIPTION_QUERIES.GET_ALL_LINKED_TRANSACTION_IDS
     );

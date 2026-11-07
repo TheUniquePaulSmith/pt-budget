@@ -42,6 +42,7 @@
     "rejectedLine": "Row {{row}}: {{reason}}",
     "rejectedMore": "…and {{count}} more",
     "internalDuplicates": "• Internal duplicates in CSV: {{count}}",
+    "internalDuplicatesKept": "All copies will be imported. Resolve them to leave some out.",
     "resolveDuplicates": "→ Resolve internal duplicates",
     "alreadyInDatabase": "• Already in database: {{count}}",
     "uniqueToImport": "• Unique transactions to import: {{count}}",

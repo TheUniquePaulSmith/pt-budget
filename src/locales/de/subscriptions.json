@@ -39,12 +39,6 @@
     "noCard": "Keine Karte"
   },
   "page": {
-    "rangeAll": "Gesamter Zeitraum",
-    "rangeLast30": "Letzte 30 Tage",
-    "rangeLast90": "Letzte 90 Tage",
-    "rangeLast12": "Letzte 12 Monate",
-    "rangeCustom": "Benutzerdefiniert",
-    "customRange": "{{start}} bis {{end}}",
     "loadRangeFailed": "Zeitraum der wiederkehrenden Serien konnte nicht geladen werden",
     "loadUnmatchedFailed": "Nicht zugeordnete Transaktionen konnten nicht geladen werden",
     "scanFailed": "Abonnement-Scan fehlgeschlagen",
@@ -82,7 +76,6 @@
     "emptyTitle": "Noch keine wiederkehrenden Abbuchungen erkannt",
     "emptyBody": "Durchsuchen Sie Ihren Transaktionsverlauf nach Abonnements und wiederkehrenden Rechnungen.",
     "scanTransactions": "Transaktionen scannen",
-    "totalSpent": "Gesamtausgaben:",
     "needsReview": "Zu prüfen ({{count}})",
     "subscriptionsCount": "Abonnements ({{count}})",
     "noActiveSubscriptions": "Noch keine aktiven Abonnements – bestätigen Sie oben Kandidaten oder starten Sie einen Scan.",
@@ -92,16 +85,15 @@
     "unmatched": "Nicht zugeordnete wiederkehrende Abbuchungen ({{count}})",
     "suggestNames": "Namen mit KI vorschlagen",
     "unmatchedHelp": "Diese Beschreibungen wiederholen sich, passen aber noch zu keiner Händlerregel. Erstellen Sie eine Regel, um den Händler zu benennen und die Abbuchung zu verfolgen.",
-    "selectRange": "Zeitraum für Gesamtausgaben wählen",
-    "startDate": "Startdatum",
-    "endDate": "Enddatum",
     "cancel": "Abbrechen",
     "apply": "Anwenden",
     "merchantRules": "Händlerregeln",
     "close": "Schließen",
     "unmatchedTransactions": "Nicht zugeordnete Transaktionen",
     "noClusterTransactions": "Keine Transaktionen für diese wiederkehrende Abbuchung gefunden.",
-    "scanComplete": "Scan abgeschlossen: {{merchants}} Händler zugewiesen, {{series}} neue wiederkehrende Abbuchungen, {{transactions}} Transaktionen verknüpft"
+    "scanComplete": "Scan abgeschlossen: {{merchants}} Händler zugewiesen, {{series}} neue wiederkehrende Abbuchungen, {{transactions}} Transaktionen verknüpft",
+    "filterTitle": "Abonnement-Filter",
+    "totalSpentPeriod": "Gesamtausgaben: {{period}}"
   },
   "seriesTable": {
     "variesAmount": "~{{amount}} (variiert)",

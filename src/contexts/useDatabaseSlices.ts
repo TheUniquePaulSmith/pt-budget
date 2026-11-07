@@ -225,6 +225,9 @@ export function useSubscriptionsSlice() {
 
   return {
     transactionVersion: collections.transactionVersion,
+    // For the shared account/user filter (same scope as the Dashboard).
+    accounts: collections.accounts,
+    users: collections.users,
     companies: collections.companies,
     merchantRules: collections.merchantRules,
     recurringSeries: collections.recurringSeries,

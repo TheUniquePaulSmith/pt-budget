@@ -39,6 +39,7 @@
     "rejectedLine": "第{{row}}行：{{reason}}",
     "rejectedMore": "…还有{{count}}行",
     "internalDuplicates": "• CSV 内部重复项：{{count}}",
+    "internalDuplicatesKept": "所有副本都将被导入。处理重复项可排除其中一部分。",
     "resolveDuplicates": "→ 处理内部重复项",
     "alreadyInDatabase": "• 数据库中已存在：{{count}}",
     "uniqueToImport": "• 待导入的唯一交易：{{count}}",

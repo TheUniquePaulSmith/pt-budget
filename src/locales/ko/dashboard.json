@@ -4,12 +4,6 @@
     "action": "환율 설정"
   },
   "totalsIn": "{{code}} 기준 합계",
-  "timeRangeLabel": {
-    "week": "이번 주",
-    "month": "이번 달",
-    "year": "올해",
-    "customRange": "{{start}} - {{end}}"
-  },
   "summary": {
     "totalIncome": "총 수입",
     "totalExpenses": "총 지출",
@@ -33,16 +27,7 @@
   },
   "dateRangeSelector": {
     "title": "예산 인사이트",
-    "timePeriod": "기간:",
-    "week": "주",
-    "custom": "사용자 지정",
-    "customRange": "사용자 지정 범위",
-    "accounts": "계좌",
-    "users": "사용자",
-    "selectedCount": "{{count}}개 선택됨",
-    "dialogTitle": "사용자 지정 기간 선택",
-    "startDate": "시작일",
-    "endDate": "종료일"
+    "filterTitle": "대시보드 필터"
   },
   "recentTransactions": {
     "title": "최근 거래",

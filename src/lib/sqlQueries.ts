@@ -230,22 +230,31 @@ export const TRANSACTION_QUERIES = {
   // aligned with the input rows. Classification columns start at their
   // defaults and are filled by the import's detection step.
   INSERT_TEMP_TRANSACTION_RETURNING_ID: `
-    INSERT INTO temp_import_transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, external_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO temp_import_transactions (date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, external_id, hash_variation_seed)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     RETURNING id
   `,
 
   // A staged row is a duplicate when its content hash already exists, or when
   // the bank's own reference number already exists for the same account and
   // amount (a second dedup key that survives description reformatting).
+  // Returns one row per staged row BULK_INSERT_FROM_TEMP would skip (same two
+  // tests). Counted from the staged side: one CSV row can match many stored
+  // rows, so counting stored rows made "unique to import" negative. Staged
+  // hashes are distinct (repeats in a file carry their own variation seed).
   CHECK_DUPLICATES_IN_TEMP: `
-    SELECT t.transaction_hash
-    FROM transactions t
+    SELECT tmp.transaction_hash
+    FROM temp_import_transactions tmp
     WHERE EXISTS (
-      SELECT 1 FROM temp_import_transactions tmp
-      WHERE tmp.transaction_hash = t.transaction_hash
-         OR (tmp.external_id IS NOT NULL AND tmp.external_id = t.external_id
-             AND tmp.account_id = t.account_id AND tmp.amount = t.amount)
+      SELECT 1 FROM transactions t WHERE t.transaction_hash = tmp.transaction_hash
+    )
+    OR (
+      tmp.external_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM transactions t
+        WHERE t.external_id = tmp.external_id
+          AND t.account_id = tmp.account_id
+          AND t.amount = tmp.amount
+      )
     )
   `,
 
@@ -818,6 +827,7 @@ export const SUBSCRIPTION_QUERIES = {
     LEFT JOIN transactions t ON t.id = tsl.transaction_id
       AND (? IS NULL OR t.date >= ?)
       AND (? IS NULL OR t.date <= ?)
+      /*__SCOPE__*/
     LEFT JOIN account_cards latest_card ON latest_card.id = (
       -- Card of the most recent transaction linked to this series, regardless of the
       -- stats date range above: the card column reflects "what charges it today", not the filter.
@@ -830,6 +840,15 @@ export const SUBSCRIPTION_QUERIES = {
     )
     GROUP BY rs.id
     ORDER BY rs.status, rs.kind, rs.name
+  `,
+  // Series with at least one linked transaction (any date) in the account/user
+  // scope; /*__SCOPE__*/ takes the same conditions as GET_SERIES_WITH_STATS.
+  GET_SERIES_IDS_IN_SCOPE: `
+    SELECT DISTINCT tsl.series_id
+    FROM transaction_series_links tsl
+    JOIN transactions t ON t.id = tsl.transaction_id
+    WHERE 1 = 1
+      /*__SCOPE__*/
   `,
   // Lightweight active-series read for the upcoming-commitments forecast. Deliberately
   // avoids the transaction joins in GET_SERIES_WITH_STATS — the forecast only needs cadence.
@@ -898,6 +917,7 @@ export const SUBSCRIPTION_QUERIES = {
     SELECT t.id, t.date, t.amount, t.description, t.company_id
     FROM transactions t
     WHERE t.type = 'expense' AND t.is_excluded = 0
+      /*__SCOPE__*/
     ORDER BY t.date ASC
   `,
   UPDATE_TRANSACTION_COMPANY: `

@@ -5,12 +5,6 @@
     "action": "Definir taxas"
   },
   "totalsIn": "Totais em {{code}}",
-  "timeRangeLabel": {
-    "week": "Esta semana",
-    "month": "Este mês",
-    "year": "Este ano",
-    "customRange": "{{start}} - {{end}}"
-  },
   "summary": {
     "totalIncome": "Receitas totais",
     "totalExpenses": "Despesas totais",
@@ -35,16 +29,7 @@
   },
   "dateRangeSelector": {
     "title": "Análise do orçamento",
-    "timePeriod": "Período:",
-    "week": "Semana",
-    "custom": "Personalizado",
-    "customRange": "Período personalizado",
-    "accounts": "Contas",
-    "users": "Usuários",
-    "selectedCount": "{{count}} selecionados",
-    "dialogTitle": "Selecionar período personalizado",
-    "startDate": "Data inicial",
-    "endDate": "Data final"
+    "filterTitle": "Filtros do painel"
   },
   "recentTransactions": {
     "title": "Transações recentes",

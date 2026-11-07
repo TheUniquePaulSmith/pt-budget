@@ -155,5 +155,33 @@
   "dialog": {
     "confirmDeleteTitle": "Löschen bestätigen",
     "unsavedChanges": "Sie haben ungespeicherte Änderungen."
+  },
+  "periodFilter": {
+    "filterButton": "Filtern: {{summary}}",
+    "timePeriod": "Zeitraum",
+    "thisRow": "Aktuell",
+    "pastRow": "Letzte",
+    "week": "Woche",
+    "allTime": "Gesamter Zeitraum",
+    "customRange": "Benutzerdefinierter Zeitraum",
+    "startDate": "Startdatum",
+    "endDate": "Enddatum",
+    "label": {
+      "thisWeek": "Diese Woche",
+      "thisMonth": "Dieser Monat",
+      "thisYear": "Dieses Jahr",
+      "pastWeek": "Letzte Woche",
+      "pastMonth": "Letzter Monat",
+      "pastYear": "Letztes Jahr",
+      "custom": "{{start}} - {{end}}"
+    }
+  },
+  "scopeFilter": {
+    "heading": "Konten und Benutzer",
+    "accounts": "Konten",
+    "users": "Benutzer",
+    "selectedCount": "{{count}} ausgewählt",
+    "accountsChip": "Konten: {{count}} ausgewählt",
+    "usersChip": "Benutzer: {{count}} ausgewählt"
   }
 }

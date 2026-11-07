@@ -39,12 +39,6 @@
     "noCard": "카드 없음"
   },
   "page": {
-    "rangeAll": "전체 기간",
-    "rangeLast30": "최근 30일",
-    "rangeLast90": "최근 90일",
-    "rangeLast12": "최근 12개월",
-    "rangeCustom": "사용자 지정",
-    "customRange": "{{start}} ~ {{end}}",
     "loadRangeFailed": "정기 결제 시리즈 범위를 불러오지 못했어요",
     "loadUnmatchedFailed": "미매칭 거래를 불러오지 못했어요",
     "scanFailed": "구독 스캔에 실패했어요",
@@ -82,7 +76,6 @@
     "emptyTitle": "아직 감지된 정기 청구가 없어요",
     "emptyBody": "거래 내역을 스캔해 구독과 정기 청구를 찾아보세요.",
     "scanTransactions": "거래 스캔",
-    "totalSpent": "총 지출:",
     "needsReview": "검토 필요 ({{count}})",
     "subscriptionsCount": "구독 ({{count}})",
     "noActiveSubscriptions": "아직 활성 구독이 없어요. 위의 후보를 확인하거나 스캔을 실행하세요.",
@@ -92,16 +85,15 @@
     "unmatched": "미매칭 정기 청구 ({{count}})",
     "suggestNames": "AI로 이름 제안받기",
     "unmatchedHelp": "이 설명들은 반복되지만 아직 어떤 가맹점 규칙과도 일치하지 않아요. 규칙을 만들어 가맹점 이름을 지정하고 청구를 추적하세요.",
-    "selectRange": "총 지출 기간 선택",
-    "startDate": "시작일",
-    "endDate": "종료일",
     "cancel": "취소",
     "apply": "적용",
     "merchantRules": "가맹점 규칙",
     "close": "닫기",
     "unmatchedTransactions": "미매칭 거래",
     "noClusterTransactions": "이 정기 청구에 해당하는 거래가 없어요.",
-    "scanComplete": "스캔 완료: 가맹점 {{merchants}}개 지정, 새 정기 청구 {{series}}건, 거래 {{transactions}}건 연결"
+    "scanComplete": "스캔 완료: 가맹점 {{merchants}}개 지정, 새 정기 청구 {{series}}건, 거래 {{transactions}}건 연결",
+    "filterTitle": "구독 필터",
+    "totalSpentPeriod": "총 지출: {{period}}"
   },
   "seriesTable": {
     "variesAmount": "~{{amount}} (변동)",

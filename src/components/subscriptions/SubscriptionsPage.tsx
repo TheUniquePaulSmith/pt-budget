@@ -15,12 +15,10 @@ import {
   Paper,
   Snackbar,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material';
 import {
   Add as AddIcon,
-  DateRange as DateRangeIcon,
   ExpandLess as ExpandLessIcon,
   ExpandMore as ExpandMoreIcon,
   Radar as ScanIcon,
@@ -29,10 +27,17 @@ import {
   SmartToy as AiIcon,
 } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
-import { format, subDays, subMonths } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
+import PeriodFilter, { useCurrentPeriodLabel } from '@/components/common/Filters/PeriodFilter';
+import {
+  ScopeFilterChips,
+  ScopeFilterSection,
+  hasActiveScopeFilters,
+  useScopeFilters,
+} from '@/components/common/Filters/ScopeFilters';
+import { periodDateRange, weekStartsOnFor, type Period } from '@/lib/periodRange';
 import { accountColumn, cardColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useSubscriptionsSlice } from '@/contexts/useDatabaseSlices';
 import { useFormatters } from '@/contexts/useFormatters';
@@ -49,23 +54,8 @@ import SeriesDetailDialog from './SeriesDetailDialog';
 import RuleEditorDialog, { type RuleEditorPrefill } from './RuleEditorDialog';
 import LoansSubscriptionsSection, { type LoansSubscriptionsSectionHandle } from '@/components/loans/LoansSubscriptionsSection';
 
-type TotalSpentRange = 'all' | 'last30' | 'last90' | 'last12' | 'custom';
-
-/** Range options in display order; labels resolve through `subscriptions:page.range<Key>`. */
-const TOTAL_SPENT_RANGES: ReadonlyArray<{ value: TotalSpentRange; labelKey: 'page.rangeAll' | 'page.rangeLast30' | 'page.rangeLast90' | 'page.rangeLast12' | 'page.rangeCustom' }> = [
-  { value: 'all', labelKey: 'page.rangeAll' },
-  { value: 'last30', labelKey: 'page.rangeLast30' },
-  { value: 'last90', labelKey: 'page.rangeLast90' },
-  { value: 'last12', labelKey: 'page.rangeLast12' },
-  { value: 'custom', labelKey: 'page.rangeCustom' },
-];
-
-function getRelativeRange(range: Exclude<TotalSpentRange, 'all' | 'custom'>) {
-  const now = new Date();
-  const endDate = format(now, 'yyyy-MM-dd');
-  const startDate = format(range === 'last12' ? subMonths(now, 12) : subDays(now, range === 'last30' ? 30 : 90), 'yyyy-MM-dd');
-  return { startDate, endDate };
-}
+/** The page opens on every transaction a series has ever had. */
+const DEFAULT_TOTAL_SPENT_PERIOD: Period = 'all';
 
 function titleCase(text: string): string {
   return text
@@ -81,10 +71,12 @@ interface SubscriptionsPageProps {
 }
 
 export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: SubscriptionsPageProps) {
-  const { t } = useTranslation('subscriptions');
+  const { t, i18n } = useTranslation('subscriptions');
   const { money } = useFormatters();
   const {
     transactionVersion,
+    accounts,
+    users,
     companies,
     merchantRules,
     recurringSeries,
@@ -108,12 +100,12 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
   const [loadingRange, setLoadingRange] = useState(false);
   const [scanSummary, setScanSummary] = useState<SubscriptionScanSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [totalSpentRange, setTotalSpentRange] = useState<TotalSpentRange>('all');
+  const [totalSpentRange, setTotalSpentRange] = useState<Period>(DEFAULT_TOTAL_SPENT_PERIOD);
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [customRangeDialogOpen, setCustomRangeDialogOpen] = useState(false);
-  const [tempCustomStartDate, setTempCustomStartDate] = useState('');
-  const [tempCustomEndDate, setTempCustomEndDate] = useState('');
+  // Shared with the Dashboard through the shell, so the selection carries over.
+  const { scopeFilters, setScopeFilters } = useScopeFilters();
+  const scopeActive = hasActiveScopeFilters(scopeFilters);
   const [unmatchedExpanded, setUnmatchedExpanded] = useState(true);
   const [rulesDialogOpen, setRulesDialogOpen] = useState(false);
 
@@ -128,21 +120,26 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
   // lets an unmatched cluster be tracked as a loan payment instead of a rule.
   const [loansHandle, setLoansHandle] = useState<LoansSubscriptionsSectionHandle | null>(null);
 
+  const weekStartsOn = useMemo(() => weekStartsOnFor(i18n.language), [i18n.language]);
   const totalSpentDateRange = useMemo(() => {
     if (totalSpentRange === 'all') return null;
-    if (totalSpentRange === 'custom') {
-      return customStartDate && customEndDate
-        ? { startDate: customStartDate, endDate: customEndDate }
-        : null;
-    }
-    return getRelativeRange(totalSpentRange);
-  }, [customEndDate, customStartDate, totalSpentRange]);
+    if (totalSpentRange === 'custom' && !(customStartDate && customEndDate)) return null;
+    const { start, end } = periodDateRange(totalSpentRange, new Date(), {
+      weekStartsOn,
+      customStart: customStartDate,
+      customEnd: customEndDate,
+    });
+    return { startDate: start, endDate: end };
+  }, [customEndDate, customStartDate, totalSpentRange, weekStartsOn]);
+  const totalSpentLabel = useCurrentPeriodLabel(totalSpentRange, customStartDate, customEndDate);
 
-  const visibleRecurringSeries = totalSpentRange === 'all' ? recurringSeries : rangedRecurringSeries;
+  // The cached collection is all-time and unscoped; any filter reads a filtered copy.
+  const unfiltered = totalSpentDateRange === null && !scopeActive;
+  const visibleRecurringSeries = unfiltered ? recurringSeries : rangedRecurringSeries;
 
   useEffect(() => {
     let cancelled = false;
-    getUnmatchedRecurringClusters()
+    getUnmatchedRecurringClusters(undefined, scopeFilters)
       .then((data) => {
         if (!cancelled) setClusters(data);
       })
@@ -152,22 +149,18 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
     return () => {
       cancelled = true;
     };
-  }, [getUnmatchedRecurringClusters, transactionVersion]);
+  }, [getUnmatchedRecurringClusters, scopeFilters, transactionVersion]);
 
   useEffect(() => {
-    if (totalSpentRange === 'all') {
+    if (unfiltered) {
       setRangedRecurringSeries([]);
       setLoadingRange(false);
-      return;
-    }
-    if (!totalSpentDateRange) {
-      setRangedRecurringSeries(recurringSeries);
       return;
     }
 
     let cancelled = false;
     setLoadingRange(true);
-    getRecurringSeriesWithStats(totalSpentDateRange)
+    getRecurringSeriesWithStats(totalSpentDateRange ?? undefined, scopeFilters)
       .then((data) => {
         if (!cancelled) setRangedRecurringSeries(data);
       })
@@ -182,7 +175,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
     return () => {
       cancelled = true;
     };
-  }, [getRecurringSeriesWithStats, recurringSeries, t, totalSpentDateRange, totalSpentRange, transactionVersion]);
+  }, [getRecurringSeriesWithStats, recurringSeries, scopeFilters, t, totalSpentDateRange, transactionVersion, unfiltered]);
 
   useEffect(() => {
     if (!detailCluster) {
@@ -226,25 +219,13 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
     [visibleRecurringSeries]
   );
 
-  const hasAnyData = recurringSeries.length > 0 || clusters.length > 0;
+  // An account/user filter that matches nothing must not hide the Filter that clears it.
+  const hasAnyData = recurringSeries.length > 0 || clusters.length > 0 || scopeActive;
 
-  const handleTotalSpentRangeChange = useCallback((range: TotalSpentRange) => {
-    if (range === 'custom') {
-      setTempCustomStartDate(customStartDate);
-      setTempCustomEndDate(customEndDate);
-      setCustomRangeDialogOpen(true);
-      return;
-    }
-    setTotalSpentRange(range);
-  }, [customEndDate, customStartDate]);
-
-  const applyCustomRange = useCallback(() => {
-    if (!tempCustomStartDate || !tempCustomEndDate) return;
-    setCustomStartDate(tempCustomStartDate);
-    setCustomEndDate(tempCustomEndDate);
-    setTotalSpentRange('custom');
-    setCustomRangeDialogOpen(false);
-  }, [tempCustomEndDate, tempCustomStartDate]);
+  const handleCustomDateChange = useCallback((start: string, end: string) => {
+    setCustomStartDate(start);
+    setCustomEndDate(end);
+  }, []);
 
   const handleScan = useCallback(async () => {
     setScanning(true);
@@ -526,31 +507,35 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
 
       {hasAnyData && (
         <>
-          <SubscriptionSummaryTiles series={visibleRecurringSeries} />
+          {/* Renders its Filter button into the app bar (page-actions slot). */}
+          <PeriodFilter
+            period={totalSpentRange}
+            onPeriodChange={setTotalSpentRange}
+            customStart={customStartDate}
+            customEnd={customEndDate}
+            onCustomDateChange={handleCustomDateChange}
+            title={t('page.filterTitle')}
+            includeAllTime
+            defaultPeriod={DEFAULT_TOTAL_SPENT_PERIOD}
+            hasOtherActiveFilters={scopeActive}
+            onResetOther={() => setScopeFilters({})}
+            testIdPrefix="subscriptions-filter"
+          >
+            <ScopeFilterSection accounts={accounts} users={users} scopeFilters={scopeFilters} onChange={setScopeFilters} />
+          </PeriodFilter>
 
-          <Box display="flex" alignItems="center" flexWrap="wrap" gap={1} mb={3}>
-            <Box display="flex" alignItems="center" gap={1} mr={1}>
-              <DateRangeIcon color="action" fontSize="small" />
-              <Typography variant="body2" color="text.secondary">
-                {t('page.totalSpent')}
-              </Typography>
-            </Box>
-            {TOTAL_SPENT_RANGES.map(({ value: range, labelKey }) => (
-              <Chip
-                key={range}
-                label={
-                  range === 'custom' && customStartDate && customEndDate
-                    ? t('page.customRange', { start: customStartDate, end: customEndDate })
-                    : t(labelKey)
-                }
-                variant={totalSpentRange === range ? 'filled' : 'outlined'}
-                color={totalSpentRange === range ? 'primary' : 'default'}
-                onClick={() => handleTotalSpentRangeChange(range)}
-                size="small"
-              />
-            ))}
-            {loadingRange && <CircularProgress size={18} />}
+          {/* While active, the account/user filters stay visible and removable in the status bar. */}
+          <ScopeFilterChips scopeFilters={scopeFilters} onChange={setScopeFilters} />
+
+          {/* The period the totals cover (the Filter button is icon-only on phones). */}
+          <Box display="flex" alignItems="center" gap={1} mb={1.5} data-testid="subscriptions-period">
+            <Typography variant="body2" color="text.secondary">
+              {t('page.totalSpentPeriod', { period: totalSpentLabel })}
+            </Typography>
+            {loadingRange && <CircularProgress size={16} />}
           </Box>
+
+          <SubscriptionSummaryTiles series={visibleRecurringSeries} />
 
           {candidates.length > 0 && (
             <SeriesTable
@@ -631,36 +616,6 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
           )}
         </>
       )}
-
-      <Dialog open={customRangeDialogOpen} onClose={() => setCustomRangeDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('page.selectRange')}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} pt={1}>
-            <TextField
-              label={t('page.startDate')}
-              type="date"
-              value={tempCustomStartDate}
-              onChange={(event) => setTempCustomStartDate(event.target.value)}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-            <TextField
-              label={t('page.endDate')}
-              type="date"
-              value={tempCustomEndDate}
-              onChange={(event) => setTempCustomEndDate(event.target.value)}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCustomRangeDialogOpen(false)}>{t('page.cancel')}</Button>
-          <Button variant="contained" onClick={applyCustomRange} disabled={!tempCustomStartDate || !tempCustomEndDate}>
-            {t('page.apply')}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <Dialog open={rulesDialogOpen} onClose={() => setRulesDialogOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle>{t('page.merchantRules')}</DialogTitle>

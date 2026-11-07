@@ -4,18 +4,39 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useDashboardSlice } from '@/contexts/useDatabaseSlices';
-import { useFormatters } from '@/contexts/useFormatters';
-import { format, parseISO, subDays, subMonths, startOfMonth, endOfMonth, differenceInCalendarDays } from 'date-fns';
+import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { accountCurrencies } from '@/lib/currencies';
 import { todayLocalISO } from '@/lib/dateOnly';
 import NotificationsDashboardCard from '@/components/notifications/NotificationsDashboardCard';
-import DateRangeSelector from './DateRangeSelector';
+import PeriodFilter, { useCurrentPeriodLabel } from '@/components/common/Filters/PeriodFilter';
+import {
+  ScopeFilterChips,
+  ScopeFilterSection,
+  hasActiveScopeFilters,
+  useScopeFilters,
+} from '@/components/common/Filters/ScopeFilters';
+import { periodDateRange, weekStartsOnFor, type BoundedPeriod, type Period } from '@/lib/periodRange';
 import SummaryStats from './SummaryStats';
 import ChartsSection from './ChartsSection';
 import RecentTransactions from './RecentTransactions';
 import { BudgetStatusCard } from './BudgetStatusCard';
 import MissingRatesNotice from './MissingRatesNotice';
-import type { Transaction, DashboardSummary, ChartData, BudgetStatus, TransactionScopeFilters } from '@/types/database';
+import type { Transaction, DashboardSummary, ChartData, BudgetStatus } from '@/types/database';
+
+const DEFAULT_DASHBOARD_PERIOD: BoundedPeriod = 'thisMonth';
+
+// Explicit px: in `sx`, a bare 1 means 100%.
+const visuallyHidden = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  margin: '-1px',
+  padding: 0,
+  border: 0,
+} as const;
 
 interface DashboardProps {
   onNavigateToBudget?: () => void;
@@ -23,8 +44,7 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget, onNavigateToSettings }) => {
-  const { t } = useTranslation('dashboard');
-  const { date } = useFormatters();
+  const { t, i18n } = useTranslation('dashboard');
   const {
     transactionVersion,
     budgetVersion,
@@ -38,47 +58,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget, onNavigateToS
     getBudgetStatus,
   } = useDashboardSlice();
 
-  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year' | 'custom'>('month');
+  const [timeRange, setTimeRange] = useState<BoundedPeriod>(DEFAULT_DASHBOARD_PERIOD);
   const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [scopeFilters, setScopeFilters] = useState<TransactionScopeFilters>({});
+  const { scopeFilters, setScopeFilters } = useScopeFilters();
 
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [chartData, setChartData] = useState<ChartData | null>(null);
   const [budgetStatus, setBudgetStatus] = useState<BudgetStatus | null>(null);
 
-  const dateRanges = useMemo(() => {
-    const now = new Date();
-    switch (timeRange) {
-      case 'week':
-        return {
-          start: format(subDays(now, 7), 'yyyy-MM-dd'),
-          end: format(now, 'yyyy-MM-dd'),
-        };
-      case 'month':
-        return {
-          start: format(startOfMonth(now), 'yyyy-MM-dd'),
-          end: format(endOfMonth(now), 'yyyy-MM-dd'),
-        };
-      case 'year':
-        return {
-          start: format(subMonths(now, 12), 'yyyy-MM-dd'),
-          end: format(now, 'yyyy-MM-dd'),
-        };
-      case 'custom':
-        return {
-          start: customStartDate || format(startOfMonth(now), 'yyyy-MM-dd'),
-          end: customEndDate || format(now, 'yyyy-MM-dd'),
-        };
-      default:
-        return {
-          start: format(startOfMonth(now), 'yyyy-MM-dd'),
-          end: format(endOfMonth(now), 'yyyy-MM-dd'),
-        };
-    }
-  }, [timeRange, customStartDate, customEndDate]);
+  const weekStartsOn = useMemo(() => weekStartsOnFor(i18n.language), [i18n.language]);
+  const dateRanges = useMemo(
+    () => periodDateRange(timeRange, new Date(), { weekStartsOn, customStart: customStartDate, customEnd: customEndDate }),
+    [timeRange, weekStartsOn, customStartDate, customEndDate]
+  );
 
   // Days of the selected range that have actually elapsed. The Month range runs
   // to month end, and dividing spend by days that have not happened yet would
@@ -122,15 +117,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget, onNavigateToS
     return () => { cancelled = true; };
   }, [budgetVersion, transactionVersion, getBudgetStatus]);
 
-  const getTimeRangeLabel = () => {
-    switch (timeRange) {
-      case 'week': return t('timeRangeLabel.week');
-      case 'month': return t('timeRangeLabel.month');
-      case 'year': return t('timeRangeLabel.year');
-      case 'custom': return t('timeRangeLabel.customRange', { start: date(dateRanges.start), end: date(dateRanges.end) });
-      default: return t('timeRangeLabel.month');
-    }
-  };
+  const periodLabel = useCurrentPeriodLabel(timeRange, customStartDate, customEndDate);
 
   // More than one account currency means the summary figures were converted
   // into the default currency; say so once above the stat cards.
@@ -150,17 +137,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget, onNavigateToS
 
   return (
     <Box sx={{ flexGrow: 1, p: { xs: 1.5, sm: 2, md: 2.5 } }}>
-      <DateRangeSelector
-        timeRange={timeRange}
-        onTimeRangeChange={setTimeRange}
-        customStartDate={customStartDate}
-        customEndDate={customEndDate}
+      {/* The app bar shows the page name; this heading stays for screen readers only. */}
+      <Typography component="h1" sx={visuallyHidden}>
+        {t('dateRangeSelector.title')}
+      </Typography>
+
+      {/* Renders its Filter button into the app bar (page-actions slot). The
+          account/user scope is shared with Subscriptions through the shell. */}
+      <PeriodFilter
+        period={timeRange}
+        // The Dashboard offers no "All time", so only bounded periods come back.
+        onPeriodChange={(next: Period) => setTimeRange(next === 'all' ? DEFAULT_DASHBOARD_PERIOD : next)}
+        customStart={customStartDate}
+        customEnd={customEndDate}
         onCustomDateChange={handleCustomDateChange}
-        accounts={accounts}
-        users={users}
-        scopeFilters={scopeFilters}
-        onScopeFiltersChange={setScopeFilters}
-      />
+        title={t('dateRangeSelector.filterTitle')}
+        defaultPeriod={DEFAULT_DASHBOARD_PERIOD}
+        hasOtherActiveFilters={hasActiveScopeFilters(scopeFilters)}
+        onResetOther={() => setScopeFilters({})}
+        testIdPrefix="dashboard-filter"
+      >
+        <ScopeFilterSection accounts={accounts} users={users} scopeFilters={scopeFilters} onChange={setScopeFilters} />
+      </PeriodFilter>
+
+      {/* While active, the account/user filters stay visible and removable in the status bar. */}
+      <ScopeFilterChips scopeFilters={scopeFilters} onChange={setScopeFilters} />
 
       <MissingRatesNotice onOpenPreferences={onNavigateToSettings} />
 
@@ -173,7 +174,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget, onNavigateToS
       <SummaryStats
         summary={dashboardSummary}
         chartData={chartData}
-        timeRangeLabel={getTimeRangeLabel()}
+        timeRangeLabel={periodLabel}
         dayCount={elapsedDayCount}
       />
 
@@ -191,7 +192,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget, onNavigateToS
         chartData={chartData}
         accounts={accounts}
         users={users}
-        timeRangeLabel={getTimeRangeLabel()}
+        timeRangeLabel={periodLabel}
         budgetStatus={budgetStatus}
         onManageBudget={() => onNavigateToBudget?.()}
       />

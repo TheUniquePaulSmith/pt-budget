@@ -39,12 +39,6 @@
     "noCard": "カードなし"
   },
   "page": {
-    "rangeAll": "全期間",
-    "rangeLast30": "過去 30 日",
-    "rangeLast90": "過去 90 日",
-    "rangeLast12": "過去 12 か月",
-    "rangeCustom": "カスタム",
-    "customRange": "{{start}} ～ {{end}}",
     "loadRangeFailed": "定期シリーズの期間の読み込みに失敗しました",
     "loadUnmatchedFailed": "未照合の取引の読み込みに失敗しました",
     "scanFailed": "サブスクリプションのスキャンに失敗しました",
@@ -82,7 +76,6 @@
     "emptyTitle": "定期的な請求はまだ検出されていません",
     "emptyBody": "取引履歴をスキャンして、サブスクリプションや定期請求を見つけましょう。",
     "scanTransactions": "取引をスキャン",
-    "totalSpent": "支出合計：",
     "needsReview": "要確認（{{count}}）",
     "subscriptionsCount": "サブスクリプション（{{count}}）",
     "noActiveSubscriptions": "有効なサブスクリプションはまだありません。上の候補を確定するか、スキャンを実行してください。",
@@ -92,16 +85,15 @@
     "unmatched": "未照合の定期的な請求（{{count}}）",
     "suggestNames": "AI で名前を提案",
     "unmatchedHelp": "これらの摘要は繰り返し出現しますが、まだどの取引先ルールにも一致しません。ルールを作成して取引先に名前を付け、請求を追跡しましょう。",
-    "selectRange": "支出合計の期間を選択",
-    "startDate": "開始日",
-    "endDate": "終了日",
     "cancel": "キャンセル",
     "apply": "適用",
     "merchantRules": "取引先ルール",
     "close": "閉じる",
     "unmatchedTransactions": "未照合の取引",
     "noClusterTransactions": "この定期的な請求に該当する取引が見つかりません。",
-    "scanComplete": "スキャン完了：取引先の割り当て {{merchants}} 件、新しい定期請求 {{series}} 件、リンクした取引 {{transactions}} 件"
+    "scanComplete": "スキャン完了：取引先の割り当て {{merchants}} 件、新しい定期請求 {{series}} 件、リンクした取引 {{transactions}} 件",
+    "filterTitle": "サブスクリプションのフィルター",
+    "totalSpentPeriod": "支出合計：{{period}}"
   },
   "seriesTable": {
     "variesAmount": "約 {{amount}}（変動）",

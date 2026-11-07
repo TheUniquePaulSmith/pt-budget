@@ -51,6 +51,10 @@
     "importRecoveryDescription": "This database file is protected by a recovery phrase. Enter its 12 words to unlock and import it.",
     "unlockRecoveryDescription": "This database is protected by a recovery phrase. Enter its 12 words to unlock it."
   },
+  "loadingScreen": {
+    "loadingApp": "Loading Budget Tracker…",
+    "verifyingCompatibility": "Verifying browser compatibility…"
+  },
   "passwordSetup": {
     "primaryUserNameRequired": "Primary user name is required.",
     "passwordTooShort": "Password must be at least {{count}} characters.",

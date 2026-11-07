@@ -51,6 +51,10 @@
     "importRecoveryDescription": "Este arquivo de banco de dados está protegido por uma frase de recuperação. Digite suas 12 palavras para desbloqueá-lo e importá-lo.",
     "unlockRecoveryDescription": "Este banco de dados está protegido por uma frase de recuperação. Digite suas 12 palavras para desbloqueá-lo."
   },
+  "loadingScreen": {
+    "loadingApp": "Carregando o Budget Tracker…",
+    "verifyingCompatibility": "Verificando a compatibilidade do navegador…"
+  },
   "passwordSetup": {
     "primaryUserNameRequired": "O nome do usuário principal é obrigatório.",
     "passwordTooShort": "A senha deve ter pelo menos {{count}} caracteres.",

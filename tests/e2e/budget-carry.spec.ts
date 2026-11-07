@@ -133,6 +133,22 @@ test('a trip linked to a budget category builds a fund that its spend draws down
   await navigateToPage(page, 'trips');
   await expect(tripCard.getByTestId('fund-summary-balance')).toHaveText(`balance ${currency(334.5)}`, { timeout: 60_000 });
 
+  // The sample data seeds its own Travel fund (the Spring Break trip); the
+  // contributions total below adds this trip's 100 to whatever it contributes this month.
+  const seededTravelContributions = Number(
+    await runQueryAndReadFirstCell(
+      page,
+      `SELECT COALESCE(SUM(monthly_contribution), 0) FROM (
+         SELECT monthly_contribution, contribution_start_month, end_date, budget_category_id FROM trips WHERE name != 'Fund Trip'
+         UNION ALL
+         SELECT monthly_contribution, contribution_start_month, end_date, budget_category_id FROM projects
+       ) WHERE budget_category_id = (SELECT id FROM categories WHERE name = 'Travel')
+         AND monthly_contribution > 0
+         AND contribution_start_month <= '${monthKey(0)}'
+         AND (end_date IS NULL OR substr(end_date, 1, 7) >= '${monthKey(0)}');`
+    )
+  );
+
   // The Budget page's Funds card agrees, and Travel shows the contribution as planned spend.
   await openBudgetPage(page);
   const fundCard = page.getByTestId('budget-funds-card').locator('[data-testid^="budget-fund-trip-"]').first();
@@ -152,7 +168,7 @@ test('a trip linked to a budget category builds a fund that its spend draws down
 
   const travelRow = page.getByTestId('budget-category-table').getByRole('row').filter({ hasText: 'Travel' });
   await expect(travelRow.getByTestId('budget-category-fund-badge')).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId('budget-fund-contributions-total')).toContainText(currency(100));
+  await expect(page.getByTestId('budget-fund-contributions-total')).toContainText(currency(100 + seededTravelContributions));
 
   const linked = await runQueryAndReadFirstCell(
     page,

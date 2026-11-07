@@ -47,7 +47,7 @@ Work through the loop below in order. Jumping straight to edits is how this code
 | Never reaches `Connected` | Worker failed to start or migrate. Read `error` level logs where `context.source` is `worker`. A syntax error in `public/*.js` only appears in the worker's own console (not the page's), so check the logs and the `Failed to` entries. |
 | Change to `public/database-worker.js` (or `database-schema.js`, `database-encryption.js`, key slots, VFS) has no effect | The SharedWorker survives reloads while **any** tab on that origin is open. Close every app tab (or navigate them all away), then reopen. In real Chrome, `chrome://inspect/#workers` → terminate. With `?debug`, Settings → Developer → Reset App terminates it too (and wipes data). |
 | Behaves like old code / UI not on this branch | Another worktree's dev server owns the port. |
-| Dashboard "This Month" empty, pies missing | Sample data dated in the past, or truncated by `sampleDataTransactionLimit` (rows are oldest-first). Regenerate with `prepare-worktree --regenerate-fixtures`. |
+| Dashboard "This Month" empty, pies missing | Sample data dated before the current month (regenerate with `prepare-worktree --regenerate-fixtures`), or a `sampleDataTransactionLimit` so small that even the newest rows (fixtures are newest-first) miss the month. |
 | Google Drive / OneDrive buttons disabled | No `NEXT_PUBLIC_*_CLIENT_ID` in the dev server env. |
 | Cloud auth popup hangs for 5 minutes | Popup → opener messaging broke. See `src/lib/cloudAuthPopup.ts`; COOP is deliberately not set. |
 | Wrong totals with several currencies | A missing exchange rate makes that row NULL, so `SUM` skips it (by design; the dashboard shows `MissingRatesNotice`). Check `exchange_rates`. |

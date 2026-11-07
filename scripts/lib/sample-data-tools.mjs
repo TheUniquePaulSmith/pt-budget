@@ -2,6 +2,13 @@ import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {
+  buildHouseholdScenario,
+  buildHouseholdTransactionEntries,
+  buildSampleDataExpectations as buildHouseholdExpectations,
+  getCardIdForAccount,
+  getHouseholdBaseRows,
+} from './sample-data-household.mjs';
 
 const CREATE_TABLES_BLOCK_PATTERN =
   /export const CREATE_TABLES\s*=\s*\{([\s\S]*?)\n\};/;
@@ -30,119 +37,15 @@ const BASE_TIMESTAMP = '2024-01-01T00:00:00.000Z';
 const BASE_DATE = '2024-01-01';
 const DEFAULT_TRANSACTION_REFERENCE_DATE = '2026-04-30';
 const DEFAULT_TRANSACTION_MONTHS_BACK = 60;
-const DEFAULT_TRANSACTION_TARGET_COUNT = 585;
+// null = "natural": one row per scheduled household event, no splitting or
+// merging. The validation layers only accept natural fixtures.
+const DEFAULT_TRANSACTION_TARGET_COUNT = null;
+// Row count the pre-household generator produced for its 60-month default;
+// still the basis of estimateDefaultTransactionCount() for perf-style requests.
+const LEGACY_TRANSACTION_TARGET_COUNT = 585;
 export const MAX_IN_MEMORY_TRANSACTION_COUNT = 250000;
 export const MAX_TRANSACTION_ROWS_PER_FILE = 1000000;
 const TRANSACTION_CHUNK_FILE_PATTERN = /^transactions\.part-\d+\.json$/;
-const FAMILY_ACCOUNT_IDS = {
-  HOUSEHOLD_CHECKING: 1,
-  RAINY_DAY_SAVINGS: 2,
-  REWARDS_VISA: 3,
-  HOUSEHOLD_JOINT: 4,
-};
-const FAMILY_ACCOUNT_CARD_IDS = {
-  HOUSEHOLD_CHECKING: 1,
-  RAINY_DAY_SAVINGS: 2,
-  REWARDS_VISA: 3,
-  HOUSEHOLD_JOINT: 4,
-};
-const FAMILY_CATEGORY_IDS = {
-  HOUSING: 1,
-  GROCERIES: 2,
-  UTILITIES: 3,
-  TRANSPORTATION: 4,
-  HEALTHCARE: 5,
-  CHILDCARE_AND_SCHOOL: 6,
-  DINING_OUT: 7,
-  SHOPPING: 8,
-  ENTERTAINMENT: 9,
-  INSURANCE: 10,
-  TRAVEL: 11,
-  HOME_IMPROVEMENT: 12,
-  SALARY: 13,
-  SIDE_INCOME: 14,
-  TAX_REFUND: 15,
-};
-const FAMILY_COMPANY_IDS = {
-  PRIMARY_PAYROLL: 1,
-  SECONDARY_PAYROLL: 2,
-  MORTGAGE_SERVICER: 3,
-  FRESH_MARKET: 4,
-  WAREHOUSE_CLUB: 5,
-  ELECTRIC_AND_GAS: 6,
-  WATER_AND_SEWER: 7,
-  HIGHWAY_FUEL: 8,
-  CORNER_BISTRO: 9,
-  STREAMHOUSE_MEDIA: 10,
-  FAMILY_SHIELD_INSURANCE: 11,
-  BRIGHTPATH_PEDIATRICS: 12,
-  LITTLE_OAKS_LEARNING: 13,
-  MAPLE_HARDWARE: 14,
-  UPTOWN_OUTFITTERS: 15,
-  SUNTRAIL_AIRLINES: 16,
-  HARBOR_DUNES_RESORT: 17,
-  RIVER_COUNTY_SCHOOLS: 18,
-  FREELANCE_COLLECTIVE: 19,
-  STATE_REVENUE: 20,
-  MAIN_STREET_PHARMACY: 21,
-  FIBERLINK_HOME: 22,
-  GREENFIELD_LAWN: 23,
-  COMMUNITY_SOCCER_CLUB: 24,
-};
-const FAMILY_TRAVEL_DESTINATIONS = [
-  'Outer Banks',
-  'San Diego',
-  'Yellowstone',
-  'Charleston',
-  'Maine Coast',
-];
-const FLEX_EXPENSE_BUILDERS = [
-  {
-    categoryId: FAMILY_CATEGORY_IDS.DINING_OUT,
-    companyId: FAMILY_COMPANY_IDS.CORNER_BISTRO,
-    accountId: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
-    amount: (yearOffset, monthOffset, monthNumber) =>
-      -roundCurrency(
-        118 + yearOffset * 5 + (monthOffset % 4) * 9 + (monthNumber === 11 ? 24 : 0)
-      ),
-    description: (monthNumber) =>
-      [
-        'Family takeout and pizza night',
-        'Friday dinner out',
-        'Birthday dinner and dessert',
-      ][monthNumber % 3],
-  },
-  {
-    categoryId: FAMILY_CATEGORY_IDS.SHOPPING,
-    companyId: FAMILY_COMPANY_IDS.UPTOWN_OUTFITTERS,
-    accountId: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
-    amount: (yearOffset, monthOffset, monthNumber) =>
-      -roundCurrency(
-        146 + yearOffset * 6 + (monthOffset % 5) * 11 + (monthNumber === 10 ? 92 : 0)
-      ),
-    description: (monthNumber) =>
-      [
-        'Clothing and household essentials',
-        'Seasonal clothes and shoes',
-        'Home organization and family shopping',
-      ][monthNumber % 3],
-  },
-  {
-    categoryId: FAMILY_CATEGORY_IDS.ENTERTAINMENT,
-    companyId: FAMILY_COMPANY_IDS.STREAMHOUSE_MEDIA,
-    accountId: FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT,
-    amount: (yearOffset, monthOffset, monthNumber) =>
-      -roundCurrency(
-        62 + yearOffset * 3 + (monthOffset % 4) * 6 + (monthNumber === 6 ? 28 : 0)
-      ),
-    description: (monthNumber) =>
-      [
-        'Streaming bundle and family movie night',
-        'Zoo, museum, and streaming subscriptions',
-        'Weekend entertainment and subscriptions',
-      ][monthNumber % 3],
-  },
-];
 
 export const DEFAULT_SCHEMA_FILE = path.join(
   'public',
@@ -166,8 +69,14 @@ export const MANAGED_SAMPLE_TABLES = [
   'budget_plans',
   'budget_plan_categories',
   'income_sources',
+  'loans',
+  'loan_match_rules',
+  'classification_rules',
+  'account_balance_snapshots',
   'transactions',
 ];
+/** File next to the fixtures that records what the app should show for them. */
+export const EXPECTATIONS_FILE_NAME = 'expectations.json';
 export const SAMPLE_DATA_GENERATION_MODES = {
   FULL_SCHEMA: 'full-schema',
   RUNTIME_COMPATIBLE: 'runtime-compatible',
@@ -182,7 +91,7 @@ export function estimateDefaultTransactionCount(monthsBack) {
   return Math.max(
     1,
     Math.round(
-      (DEFAULT_TRANSACTION_TARGET_COUNT / DEFAULT_TRANSACTION_MONTHS_BACK) *
+      (LEGACY_TRANSACTION_TARGET_COUNT / DEFAULT_TRANSACTION_MONTHS_BACK) *
         monthsBack
     )
   );
@@ -196,16 +105,19 @@ export function resolveTransactionGenerationOptions(options = {}) {
     options.monthsBack ?? DEFAULT_TRANSACTION_GENERATION.monthsBack,
     'monthsBack'
   );
-  const targetTransactionCount = parsePositiveInteger(
+  const rawTargetCount =
     options.targetTransactionCount ??
-      options.amount ??
-      DEFAULT_TRANSACTION_GENERATION.targetTransactionCount,
-    'targetTransactionCount'
-  );
+    options.amount ??
+    DEFAULT_TRANSACTION_GENERATION.targetTransactionCount;
+  // null / 'natural' keeps every baseline row (see DEFAULT_TRANSACTION_TARGET_COUNT).
+  const targetTransactionCount =
+    rawTargetCount === null || rawTargetCount === undefined || rawTargetCount === 'natural'
+      ? null
+      : parsePositiveInteger(rawTargetCount, 'targetTransactionCount');
   const startDate = subtractUtcMonths(referenceDate, monthsBack);
   const seed = normalizeSeed(
     options.seed ??
-      `${formatDate(referenceDate)}:${monthsBack}:${targetTransactionCount}`
+      `${formatDate(referenceDate)}:${monthsBack}:${targetTransactionCount ?? 'natural'}`
   );
 
   return {
@@ -404,6 +316,19 @@ export function buildFixtureEnvelopes(
   runtimeCompatibility,
   options = {}
 ) {
+  return buildSampleDataBundle(schemaTables, runtimeCompatibility, options).fixtureEnvelopes;
+}
+
+/**
+ * Builds every fixture envelope plus the expectations manifest that describes
+ * them. `fixtureEnvelopes` is what buildFixtureEnvelopes() returns;
+ * `expectations` is written to EXPECTATIONS_FILE_NAME next to the fixtures.
+ */
+export function buildSampleDataBundle(
+  schemaTables,
+  runtimeCompatibility,
+  options = {}
+) {
   const mode =
     options.mode ?? SAMPLE_DATA_GENERATION_MODES.RUNTIME_COMPATIBLE;
   const tableNames =
@@ -412,13 +337,16 @@ export function buildFixtureEnvelopes(
   const transactionGeneration = resolveTransactionGenerationOptions(
     options.transactionGeneration
   );
+  const scenario = buildHouseholdScenario(transactionGeneration);
   const context = {
     activeTables: new Set(tableNames),
     idsByTable: new Map(),
     transactionGeneration,
+    scenario,
   };
+  let transactionBundle = null;
 
-  return tableNames.map((tableName) => {
+  const fixtureEnvelopes = tableNames.map((tableName) => {
     const schemaTable = schemaIndex.get(tableName);
 
     if (!schemaTable) {
@@ -426,13 +354,19 @@ export function buildFixtureEnvelopes(
     }
 
     if (tableName === 'transactions') {
-      const transactionEnvelope = buildTransactionFixtureEnvelope(
+      transactionBundle = buildTransactionFixtureBundle(
         mode,
-        context.transactionGeneration
+        context.transactionGeneration,
+        scenario
       );
+      const transactionEnvelope = transactionBundle.envelope;
       const rows = transactionEnvelope.data.map((baseRow, rowIndex) =>
         normalizeRowForTable(schemaTable, baseRow, rowIndex, context)
       );
+      transactionBundle.rowsWithEntries = transactionBundle.rowsWithEntries.map((item, index) => ({
+        ...item,
+        row: rows[index],
+      }));
 
       context.idsByTable.set(
         tableName,
@@ -465,6 +399,67 @@ export function buildFixtureEnvelopes(
       data: rows,
     };
   });
+
+  const expectations = buildSampleDataExpectations({
+    scenario,
+    transactionBundle,
+    mode,
+  });
+
+  return { fixtureEnvelopes, expectations, scenario, transactionGeneration };
+}
+
+/**
+ * The expectations manifest for a generated set. Natural mode gets the full
+ * manifest (per-month totals, transfer pairs, loan payments, series, ...);
+ * split / merge mode only records that the manifest does not apply.
+ */
+export function buildSampleDataExpectations({ scenario, transactionBundle, mode }) {
+  const meta = transactionBundle?.envelope?.meta ?? null;
+
+  if (!transactionBundle || !transactionBundle.plan.natural) {
+    return {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      natural: false,
+      generationMode: mode,
+      reason: transactionBundle
+        ? 'Fixtures were generated with a target transaction count (split / merge mode); per-row expectations only hold for natural fixtures. Regenerate without --count to validate.'
+        : 'Transactions were not generated in memory (streaming mode), so no expectations were derived.',
+      window: {
+        referenceDate: scenario.rangeEnd,
+        startDate: scenario.rangeStart,
+        monthsBack: scenario.config.monthsBack,
+        seed: scenario.config.seed,
+      },
+    };
+  }
+
+  return {
+    ...buildHouseholdExpectations({
+      rowsWithEntries: transactionBundle.rowsWithEntries,
+      scenario,
+      meta,
+    }),
+    generationMode: mode,
+  };
+}
+
+export async function writeExpectationsFile(
+  repoRoot,
+  expectations,
+  outputDir = DEFAULT_SAMPLE_DATA_DIR
+) {
+  const absoluteOutputDir = path.join(repoRoot, outputDir);
+  await fs.mkdir(absoluteOutputDir, { recursive: true });
+  const outputPath = path.join(absoluteOutputDir, EXPECTATIONS_FILE_NAME);
+  await fs.writeFile(outputPath, `${JSON.stringify(expectations, null, 2)}\n`, 'utf8');
+  return path.join(outputDir, EXPECTATIONS_FILE_NAME);
+}
+
+export async function readExpectationsFile(repoRoot, outputDir = DEFAULT_SAMPLE_DATA_DIR) {
+  const content = await fs.readFile(path.join(repoRoot, outputDir, EXPECTATIONS_FILE_NAME), 'utf8');
+  return JSON.parse(content);
 }
 
 export async function writeFixtureEnvelopes(
@@ -984,277 +979,17 @@ function parseTableSql(constantName, sql) {
 }
 
 function getBaseRowsForTable(tableName, context) {
-  switch (tableName) {
-    case 'users':
-      return [
-        { id: 1, display_name: 'Avery Parker', is_primary: 1 },
-        { id: 2, display_name: 'Jordan Parker', is_primary: 0 },
-      ];
-    case 'accounts':
-      return [
-        {
-          id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
-          name: 'Household Checking',
-          type: 'checking',
-          ownership: 'individual',
-          owner_user_id: 1,
-          currency: 'USD',
-        },
-        {
-          id: FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS,
-          name: 'Rainy Day Savings',
-          type: 'savings',
-          ownership: 'individual',
-          owner_user_id: 1,
-          currency: 'USD',
-        },
-        {
-          id: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
-          name: 'Rewards Visa',
-          type: 'credit',
-          ownership: 'individual',
-          owner_user_id: 1,
-          currency: 'USD',
-        },
-        {
-          id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT,
-          name: 'Household Joint',
-          type: 'checking',
-          ownership: 'joint',
-          owner_user_id: 2,
-          currency: 'USD',
-        },
-      ];
-    case 'account_cards':
-      return [
-        {
-          id: 1,
-          account_id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
-          last_four: '4821',
-          full_number: '400000000004821',
-          nickname: 'Main Debit',
-          user_id: 1,
-        },
-        {
-          id: 2,
-          account_id: FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS,
-          last_four: '6502',
-          nickname: 'Savings ATM',
-          user_id: 1,
-        },
-        {
-          id: 3,
-          account_id: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
-          last_four: '9034',
-          nickname: 'Rewards Card',
-          user_id: 1,
-        },
-        {
-          id: 4,
-          account_id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT,
-          last_four: '1176',
-          nickname: 'Joint Debit',
-          user_id: 2,
-        },
-        // Deliberately shares last_four with card 1 but on a different
-        // account, distinguished by full_number — exercises CSV-import
-        // disambiguation between cards that share their last four digits.
-        {
-          id: 5,
-          account_id: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
-          last_four: '4821',
-          full_number: '550000000004821',
-          nickname: 'Backup Card',
-          user_id: 1,
-        },
-      ];
-    case 'categories':
-      return [
-        { id: FAMILY_CATEGORY_IDS.HOUSING, name: 'Housing', color: '#8D6E63', type: 'expense' },
-        { id: FAMILY_CATEGORY_IDS.GROCERIES, name: 'Groceries', color: '#43A047', type: 'expense' },
-        { id: FAMILY_CATEGORY_IDS.UTILITIES, name: 'Utilities', color: '#FB8C00', type: 'expense' },
-        {
-          id: FAMILY_CATEGORY_IDS.TRANSPORTATION,
-          name: 'Transportation',
-          color: '#1E88E5',
-          type: 'expense',
-        },
-        { id: FAMILY_CATEGORY_IDS.HEALTHCARE, name: 'Healthcare', color: '#E53935', type: 'expense' },
-        {
-          id: FAMILY_CATEGORY_IDS.CHILDCARE_AND_SCHOOL,
-          name: 'Childcare & School',
-          color: '#5E35B1',
-          type: 'expense',
-        },
-        { id: FAMILY_CATEGORY_IDS.DINING_OUT, name: 'Dining Out', color: '#F4511E', type: 'expense' },
-        { id: FAMILY_CATEGORY_IDS.SHOPPING, name: 'Shopping', color: '#6D4C41', type: 'expense' },
-        {
-          id: FAMILY_CATEGORY_IDS.ENTERTAINMENT,
-          name: 'Entertainment',
-          color: '#8E24AA',
-          type: 'expense',
-        },
-        { id: FAMILY_CATEGORY_IDS.INSURANCE, name: 'Insurance', color: '#546E7A', type: 'expense' },
-        { id: FAMILY_CATEGORY_IDS.TRAVEL, name: 'Travel', color: '#00ACC1', type: 'expense' },
-        {
-          id: FAMILY_CATEGORY_IDS.HOME_IMPROVEMENT,
-          name: 'Home Improvement',
-          color: '#7CB342',
-          type: 'expense',
-        },
-        { id: FAMILY_CATEGORY_IDS.SALARY, name: 'Salary', color: '#2E7D32', type: 'income' },
-        { id: FAMILY_CATEGORY_IDS.SIDE_INCOME, name: 'Side Income', color: '#C0CA33', type: 'income' },
-        { id: FAMILY_CATEGORY_IDS.TAX_REFUND, name: 'Tax Refund', color: '#FDD835', type: 'income' },
-      ];
-    case 'companies':
-      return [
-        { id: FAMILY_COMPANY_IDS.PRIMARY_PAYROLL, name: 'Cedar Valley Payroll' },
-        { id: FAMILY_COMPANY_IDS.SECONDARY_PAYROLL, name: 'Pine Ridge Health Network' },
-        { id: FAMILY_COMPANY_IDS.MORTGAGE_SERVICER, name: 'Meadowbrook Mortgage' },
-        { id: FAMILY_COMPANY_IDS.FRESH_MARKET, name: 'Fresh Market' },
-        { id: FAMILY_COMPANY_IDS.WAREHOUSE_CLUB, name: 'Warehouse Club' },
-        { id: FAMILY_COMPANY_IDS.ELECTRIC_AND_GAS, name: 'Suburban Gas & Electric' },
-        { id: FAMILY_COMPANY_IDS.WATER_AND_SEWER, name: 'Metro Water & Sewer' },
-        { id: FAMILY_COMPANY_IDS.HIGHWAY_FUEL, name: 'Highway Fuel Stop' },
-        { id: FAMILY_COMPANY_IDS.CORNER_BISTRO, name: 'Corner Table Bistro' },
-        { id: FAMILY_COMPANY_IDS.STREAMHOUSE_MEDIA, name: 'StreamHouse Media' },
-        {
-          id: FAMILY_COMPANY_IDS.FAMILY_SHIELD_INSURANCE,
-          name: 'Family Shield Insurance',
-        },
-        { id: FAMILY_COMPANY_IDS.BRIGHTPATH_PEDIATRICS, name: 'BrightPath Pediatrics' },
-        { id: FAMILY_COMPANY_IDS.LITTLE_OAKS_LEARNING, name: 'Little Oaks Learning Center' },
-        { id: FAMILY_COMPANY_IDS.MAPLE_HARDWARE, name: 'Maple Hardware' },
-        { id: FAMILY_COMPANY_IDS.UPTOWN_OUTFITTERS, name: 'Uptown Outfitters' },
-        { id: FAMILY_COMPANY_IDS.SUNTRAIL_AIRLINES, name: 'SunTrail Airlines' },
-        { id: FAMILY_COMPANY_IDS.HARBOR_DUNES_RESORT, name: 'Harbor Dunes Resort' },
-        { id: FAMILY_COMPANY_IDS.RIVER_COUNTY_SCHOOLS, name: 'River County School District' },
-        { id: FAMILY_COMPANY_IDS.FREELANCE_COLLECTIVE, name: 'Neighborhood Freelance Collective' },
-        { id: FAMILY_COMPANY_IDS.STATE_REVENUE, name: 'State Revenue Department' },
-        { id: FAMILY_COMPANY_IDS.MAIN_STREET_PHARMACY, name: 'Main Street Pharmacy' },
-        { id: FAMILY_COMPANY_IDS.FIBERLINK_HOME, name: 'FiberLink Home' },
-        { id: FAMILY_COMPANY_IDS.GREENFIELD_LAWN, name: 'GreenField Lawn Care' },
-        { id: FAMILY_COMPANY_IDS.COMMUNITY_SOCCER_CLUB, name: 'Community Soccer Club' },
-      ];
-    case 'projects':
-      return [
-        {
-          id: 1,
-          name: 'Mudroom Storage Refresh',
-          company_name: 'Maple Hardware',
-          contact_details: 'service@maplehardware.example',
-          project_category: 'other',
-          status: 'completed',
-          start_date: '2025-09-10',
-          end_date: '2025-10-02',
-          estimated_cost: 1800,
-          actual_cost: 1645,
-          notes: 'Built-in cubbies and bench seating for school gear',
-        },
-        {
-          id: 2,
-          name: 'Patio Shade Install',
-          company_name: 'GreenField Lawn Care',
-          contact_details: 'hello@greenfield.example',
-          project_category: 'landscaping',
-          status: 'planning',
-          start_date: '2026-03-14',
-          end_date: '2026-04-08',
-          estimated_cost: 2600,
-          actual_cost: 0,
-          notes: 'Shade sail and raised planters for the back patio',
-        },
-      ];
-    case 'trips':
-      return [
-        {
-          id: 1,
-          name: 'Outer Banks Summer Week',
-          destination: 'Outer Banks',
-          purpose: 'Family beach vacation',
-          trip_category: 'family',
-          status: 'completed',
-          start_date: '2025-07-13',
-          end_date: '2025-07-19',
-          estimated_cost: 2100,
-          actual_cost: 2248.63,
-          notes: 'Rental house, beach gear, and family activities',
-        },
-        {
-          id: 2,
-          name: 'Spring Break in Charleston',
-          destination: 'Charleston',
-          purpose: 'School break city trip',
-          trip_category: 'family',
-          status: 'planning',
-          start_date: '2026-04-05',
-          end_date: '2026-04-10',
-          estimated_cost: 2450,
-          actual_cost: 0,
-          notes: 'Historic district hotel plus aquarium and food tour',
-        },
-      ];
-    case 'budget_plans':
-      return [
-        {
-          id: 1,
-          effective_month: '2026-01',
-          total_amount: 6575,
-          notes: 'Baseline household budget for the year',
-        },
-        {
-          id: 2,
-          effective_month: '2026-04',
-          total_amount: 6840,
-          notes: 'Spring adjustment for travel and school activities',
-        },
-      ];
-    case 'budget_plan_categories':
-      return [
-        { id: 1, plan_id: 1, category_id: FAMILY_CATEGORY_IDS.HOUSING, amount: 2450 },
-        { id: 2, plan_id: 1, category_id: FAMILY_CATEGORY_IDS.GROCERIES, amount: 780 },
-        { id: 3, plan_id: 1, category_id: FAMILY_CATEGORY_IDS.UTILITIES, amount: 410 },
-        { id: 4, plan_id: 1, category_id: FAMILY_CATEGORY_IDS.DINING_OUT, amount: 360 },
-        { id: 5, plan_id: 2, category_id: FAMILY_CATEGORY_IDS.HOUSING, amount: 2450 },
-        { id: 6, plan_id: 2, category_id: FAMILY_CATEGORY_IDS.GROCERIES, amount: 825 },
-        { id: 7, plan_id: 2, category_id: FAMILY_CATEGORY_IDS.TRAVEL, amount: 620 },
-        { id: 8, plan_id: 2, category_id: FAMILY_CATEGORY_IDS.CHILDCARE_AND_SCHOOL, amount: 1180 },
-      ];
-    case 'income_sources':
-      return [
-        {
-          id: 1,
-          name: 'Primary salary',
-          kind: 'recurring_salary',
-          user_id: 1,
-          amount: 4200,
-          frequency: 'monthly',
-          start_date: '2024-01-01',
-          end_date: null,
-          is_active: 1,
-          notes: 'Monthly take-home pay estimate',
-        },
-        {
-          id: 2,
-          name: 'Household checking income deposits',
-          kind: 'linked_account',
-          user_id: 1,
-          account_id: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
-          amount: null,
-          frequency: null,
-          start_date: '2024-01-01',
-          end_date: null,
-          is_active: 1,
-          notes: 'Actual income linked from deposits',
-        },
-      ];
-    default:
-      return Array.from({ length: 2 }, (_, index) => ({ id: index + 1 }));
+  const householdRows = getHouseholdBaseRows(tableName, context.scenario);
+
+  if (householdRows) {
+    return householdRows;
   }
+
+  return Array.from({ length: 2 }, (_, index) => ({ id: index + 1 }));
 }
 
-function buildTransactionFixtureEnvelope(mode, transactionGenerationOptions) {
-  const plan = buildTransactionGenerationPlan(transactionGenerationOptions);
+function buildTransactionFixtureBundle(mode, transactionGenerationOptions, scenario = null) {
+  const plan = buildTransactionGenerationPlan(transactionGenerationOptions, scenario);
 
   if (plan.actualTransactionCount > MAX_IN_MEMORY_TRANSACTION_COUNT) {
     throw new Error(
@@ -1262,16 +997,29 @@ function buildTransactionFixtureEnvelope(mode, transactionGenerationOptions) {
     );
   }
 
+  const rowsWithEntries = Array.from(iterateTransactionRowsWithEntries(plan));
+
   return {
-    table: 'transactions',
-    data: Array.from(iterateTransactionRows(plan)),
-    meta: buildTransactionFixtureMeta(mode, plan),
+    plan,
+    rowsWithEntries,
+    envelope: {
+      table: 'transactions',
+      data: rowsWithEntries.map(({ row }) => row),
+      meta: buildTransactionFixtureMeta(mode, plan),
+    },
   };
 }
 
-function buildTransactionGenerationPlan(transactionGenerationOptions) {
+/**
+ * Resolves the window, builds the household scenario for it and decides how
+ * many rows each month gets. Without a target count ("natural" mode) every
+ * month keeps exactly its baseline rows, which is what the validation layers
+ * require; with one, months are split or merged to land near the target.
+ */
+function buildTransactionGenerationPlan(transactionGenerationOptions, scenario = null) {
   const config = resolveTransactionGenerationOptions(transactionGenerationOptions);
-  const monthlyBuckets = buildMonthlyTransactionBuckets(config);
+  const resolvedScenario = scenario ?? buildHouseholdScenario(config);
+  const monthlyBuckets = buildMonthlyTransactionBuckets(resolvedScenario);
   const baselineTransactionCount = monthlyBuckets.reduce(
     (sum, bucket) => sum + bucket.entries.length,
     0
@@ -1280,9 +1028,13 @@ function buildTransactionGenerationPlan(transactionGenerationOptions) {
     (sum, bucket) => sum + bucket.maxTransactionCount,
     0
   );
+  const natural = config.targetTransactionCount === null;
+  const requestedTransactionCount = natural
+    ? baselineTransactionCount
+    : config.targetTransactionCount;
   const actualTransactionCount = Math.max(
     0,
-    Math.min(config.targetTransactionCount, totalCapacity)
+    Math.min(requestedTransactionCount, totalCapacity)
   );
   const monthlyTargetCounts =
     actualTransactionCount === baselineTransactionCount
@@ -1302,9 +1054,11 @@ function buildTransactionGenerationPlan(transactionGenerationOptions) {
 
   return {
     config,
+    scenario: resolvedScenario,
+    natural,
     baselineTransactionCount,
     totalCapacity,
-    requestedTransactionCount: config.targetTransactionCount,
+    requestedTransactionCount,
     actualTransactionCount,
     monthlyPlans: monthlyBuckets
       .map((bucket, index) =>
@@ -1314,8 +1068,8 @@ function buildTransactionGenerationPlan(transactionGenerationOptions) {
   };
 }
 
-function buildMonthlyTransactionBuckets(config) {
-  const entries = buildBaselineTransactionEntries(config);
+function buildMonthlyTransactionBuckets(scenario) {
+  const entries = buildHouseholdTransactionEntries(scenario);
   const buckets = [];
   let currentBucket = null;
 
@@ -1336,337 +1090,6 @@ function buildMonthlyTransactionBuckets(config) {
 
   return buckets;
 }
-
-function buildBaselineTransactionEntries(config) {
-  const entries = [];
-  const startMonth = firstDayOfMonth(config.startDate);
-  const endMonth = firstDayOfMonth(config.referenceDate);
-  const monthCount = diffCalendarMonths(startMonth, endMonth) + 1;
-  const startYear = startMonth.getUTCFullYear();
-  const rangeStart = formatDate(config.startDate);
-  const rangeEnd = formatDate(config.referenceDate);
-
-  const pushTransaction = ({
-    monthDate,
-    day,
-    amount,
-    description,
-    accountId,
-    categoryId,
-    companyId,
-    type,
-    hour,
-    minute,
-  }) => {
-    const date = buildMonthDateString(monthDate, day);
-
-    if (date < rangeStart || date > rangeEnd) {
-      return;
-    }
-
-    entries.push({
-      monthKey: formatMonthKey(monthDate),
-      monthDate,
-      date,
-      day: Number(date.slice(-2)),
-      amountCents: toCents(amount),
-      description,
-      accountId,
-      categoryId,
-      companyId,
-      type,
-      hour,
-      minute,
-    });
-  };
-
-  for (let monthOffset = 0; monthOffset < monthCount; monthOffset += 1) {
-    const monthDate = new Date(
-      Date.UTC(
-        startMonth.getUTCFullYear(),
-        startMonth.getUTCMonth() + monthOffset,
-        1
-      )
-    );
-    const yearOffset = monthDate.getUTCFullYear() - startYear;
-    const monthNumber = monthDate.getUTCMonth();
-    const travelDestination =
-      FAMILY_TRAVEL_DESTINATIONS[
-        yearOffset % FAMILY_TRAVEL_DESTINATIONS.length
-      ];
-    const flexExpense = FLEX_EXPENSE_BUILDERS[monthOffset % FLEX_EXPENSE_BUILDERS.length];
-
-    pushTransaction({
-      monthDate,
-      day: 1,
-      amount: 4310 + yearOffset * 180 + (monthOffset % 3) * 24,
-      description: 'Avery payroll deposit',
-      accountId: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
-      categoryId: FAMILY_CATEGORY_IDS.SALARY,
-      companyId: FAMILY_COMPANY_IDS.PRIMARY_PAYROLL,
-      type: 'income',
-      hour: 8,
-      minute: 15,
-    });
-    pushTransaction({
-      monthDate,
-      day: 15,
-      amount: 2975 + yearOffset * 140 + (monthOffset % 4) * 18,
-      description: 'Jordan payroll deposit',
-      accountId: FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT,
-      categoryId: FAMILY_CATEGORY_IDS.SALARY,
-      companyId: FAMILY_COMPANY_IDS.SECONDARY_PAYROLL,
-      type: 'income',
-      hour: 8,
-      minute: 40,
-    });
-    pushTransaction({
-      monthDate,
-      day: 3,
-      amount: -(1825 + yearOffset * 48 + (monthNumber === 0 ? 18 : 0)),
-      description: 'Monthly mortgage payment',
-      accountId: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
-      categoryId: FAMILY_CATEGORY_IDS.HOUSING,
-      companyId: FAMILY_COMPANY_IDS.MORTGAGE_SERVICER,
-      type: 'expense',
-      hour: 9,
-      minute: 10,
-    });
-    pushTransaction({
-      monthDate,
-      day: 6,
-      amount:
-        -(628 +
-          yearOffset * 22 +
-          seasonalGroceriesAdjustment(monthNumber) +
-          (monthOffset % 2) * 34),
-      description:
-        monthOffset % 2 === 0
-          ? 'Weekly groceries and household staples'
-          : 'Warehouse restock for family pantry',
-      accountId: FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT,
-      categoryId: FAMILY_CATEGORY_IDS.GROCERIES,
-      companyId:
-        monthOffset % 2 === 0
-          ? FAMILY_COMPANY_IDS.FRESH_MARKET
-          : FAMILY_COMPANY_IDS.WAREHOUSE_CLUB,
-      type: 'expense',
-      hour: 17,
-      minute: 45,
-    });
-    pushTransaction({
-      monthDate,
-      day: 9,
-      amount: -(258 + yearOffset * 11 + seasonalUtilitiesAdjustment(monthNumber)),
-      description:
-        monthNumber >= 5 && monthNumber <= 7
-          ? 'Summer cooling, water, and internet'
-          : monthNumber === 11 || monthNumber <= 1
-            ? 'Winter heating, power, and internet'
-            : 'Utilities, water, and internet service',
-      accountId: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
-      categoryId: FAMILY_CATEGORY_IDS.UTILITIES,
-      companyId:
-        monthOffset % 2 === 0
-          ? FAMILY_COMPANY_IDS.ELECTRIC_AND_GAS
-          : FAMILY_COMPANY_IDS.FIBERLINK_HOME,
-      type: 'expense',
-      hour: 10,
-      minute: 5,
-    });
-    pushTransaction({
-      monthDate,
-      day: 11,
-      amount:
-        -(186 +
-          yearOffset * 8 +
-          transportationAdjustment(monthNumber) +
-          (monthOffset % 3) * 7),
-      description:
-        monthNumber >= 8 && monthNumber <= 10
-          ? 'Fuel, parking, and school commute costs'
-          : 'Fuel, tolls, and commuter costs',
-      accountId: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
-      categoryId: FAMILY_CATEGORY_IDS.TRANSPORTATION,
-      companyId: FAMILY_COMPANY_IDS.HIGHWAY_FUEL,
-      type: 'expense',
-      hour: 7,
-      minute: 25,
-    });
-    pushTransaction({
-      monthDate,
-      day: 18,
-      amount: -schoolAndActivityAmount(yearOffset, monthNumber, monthOffset),
-      description: buildSchoolExpenseDescription(monthNumber, monthOffset),
-      accountId: FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT,
-      categoryId: FAMILY_CATEGORY_IDS.CHILDCARE_AND_SCHOOL,
-      companyId: schoolExpenseCompanyId(monthNumber),
-      type: 'expense',
-      hour: 14,
-      minute: 20,
-    });
-    pushTransaction({
-      monthDate,
-      day: 22,
-      amount: flexExpense.amount(yearOffset, monthOffset, monthNumber),
-      description: flexExpense.description(monthNumber),
-      accountId: flexExpense.accountId,
-      categoryId: flexExpense.categoryId,
-      companyId: flexExpense.companyId,
-      type: 'expense',
-      hour: 19,
-      minute: 10,
-    });
-
-    if ([1, 4, 7, 10].includes(monthNumber)) {
-      pushTransaction({
-        monthDate,
-        day: 24,
-        amount: -(742 + yearOffset * 24 + (monthNumber === 10 ? 36 : 0)),
-        description: 'Quarterly home and auto insurance premium',
-        accountId: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
-        categoryId: FAMILY_CATEGORY_IDS.INSURANCE,
-        companyId: FAMILY_COMPANY_IDS.FAMILY_SHIELD_INSURANCE,
-        type: 'expense',
-        hour: 11,
-        minute: 30,
-      });
-    }
-
-    if ([0, 3, 8].includes(monthNumber)) {
-      pushTransaction({
-        monthDate,
-        day: 13,
-        amount: -healthcareAmount(yearOffset, monthNumber),
-        description: buildHealthcareDescription(monthNumber),
-        accountId: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
-        categoryId: FAMILY_CATEGORY_IDS.HEALTHCARE,
-        companyId:
-          monthNumber === 8
-            ? FAMILY_COMPANY_IDS.MAIN_STREET_PHARMACY
-            : FAMILY_COMPANY_IDS.BRIGHTPATH_PEDIATRICS,
-        type: 'expense',
-        hour: 16,
-        minute: 35,
-      });
-    }
-
-    if (monthNumber % 2 === 1) {
-      pushTransaction({
-        monthDate,
-        day: 27,
-        amount:
-          435 +
-          yearOffset * 28 +
-          (monthOffset % 4) * 42 +
-          (monthNumber === 11 ? 95 : 0),
-        description: buildSideIncomeDescription(monthNumber),
-        accountId: FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS,
-        categoryId: FAMILY_CATEGORY_IDS.SIDE_INCOME,
-        companyId: FAMILY_COMPANY_IDS.FREELANCE_COLLECTIVE,
-        type: 'income',
-        hour: 18,
-        minute: 10,
-      });
-    }
-
-    if (monthNumber === 2) {
-      pushTransaction({
-        monthDate,
-        day: 5,
-        amount: 2175 + yearOffset * 90 + (monthOffset % 2) * 125,
-        description: 'State tax refund',
-        accountId: FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS,
-        categoryId: FAMILY_CATEGORY_IDS.TAX_REFUND,
-        companyId: FAMILY_COMPANY_IDS.STATE_REVENUE,
-        type: 'income',
-        hour: 9,
-        minute: 5,
-      });
-    }
-
-    if ([3, 5, 9].includes(monthNumber)) {
-      pushTransaction({
-        monthDate,
-        day: monthNumber === 5 ? 25 : 26,
-        amount: -homeImprovementAmount(yearOffset, monthNumber),
-        description: buildHomeImprovementDescription(yearOffset, monthNumber),
-        accountId:
-          monthNumber === 9
-            ? FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS
-            : FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
-        categoryId: FAMILY_CATEGORY_IDS.HOME_IMPROVEMENT,
-        companyId:
-          monthNumber === 5
-            ? FAMILY_COMPANY_IDS.GREENFIELD_LAWN
-            : FAMILY_COMPANY_IDS.MAPLE_HARDWARE,
-        type: 'expense',
-        hour: 15,
-        minute: 45,
-      });
-    }
-
-    if (monthNumber === 6) {
-      pushTransaction({
-        monthDate,
-        day: 8,
-        amount: -(486 + yearOffset * 28 + (yearOffset % 2 === 0 ? 54 : 0)),
-        description: `Family vacation flights to ${travelDestination}`,
-        accountId: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
-        categoryId: FAMILY_CATEGORY_IDS.TRAVEL,
-        companyId: FAMILY_COMPANY_IDS.SUNTRAIL_AIRLINES,
-        type: 'expense',
-        hour: 6,
-        minute: 20,
-      });
-      pushTransaction({
-        monthDate,
-        day: 16,
-        amount: -(892 + yearOffset * 44 + (yearOffset % 3 === 1 ? 86 : 0)),
-        description: `${travelDestination} family lodging`,
-        accountId: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
-        categoryId: FAMILY_CATEGORY_IDS.TRAVEL,
-        companyId: FAMILY_COMPANY_IDS.HARBOR_DUNES_RESORT,
-        type: 'expense',
-        hour: 12,
-        minute: 50,
-      });
-    }
-
-    if (monthNumber === 10) {
-      pushTransaction({
-        monthDate,
-        day: 28,
-        amount: -(362 + yearOffset * 18 + (monthOffset % 2) * 68),
-        description: 'Holiday gifts and winter gear',
-        accountId: FAMILY_ACCOUNT_IDS.REWARDS_VISA,
-        categoryId: FAMILY_CATEGORY_IDS.SHOPPING,
-        companyId: FAMILY_COMPANY_IDS.UPTOWN_OUTFITTERS,
-        type: 'expense',
-        hour: 20,
-        minute: 5,
-      });
-    }
-
-    if (monthNumber === 11) {
-      pushTransaction({
-        monthDate,
-        day: 12,
-        amount: 985 + yearOffset * 72 + (yearOffset === 4 ? 220 : 0),
-        description: 'Year-end performance bonus',
-        accountId: FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING,
-        categoryId: FAMILY_CATEGORY_IDS.SALARY,
-        companyId: FAMILY_COMPANY_IDS.PRIMARY_PAYROLL,
-        type: 'income',
-        hour: 8,
-        minute: 55,
-      });
-    }
-  }
-
-  return entries;
-}
-
 function buildTransactionMonthPlan(bucket, targetCount) {
   if (!bucket || targetCount <= 0) {
     return null;
@@ -1788,23 +1211,38 @@ function partitionEntriesIntoGroups(entries, groupCount) {
 }
 
 function* iterateTransactionRows(plan) {
+  for (const { row } of iterateTransactionRowsWithEntries(plan)) {
+    yield row;
+  }
+}
+
+/**
+ * Yields every generated row with the baseline entry it came from. Rows are
+ * emitted newest month first so that `?sampleDataTransactionLimit=N` (which
+ * keeps the first N rows of the file) always keeps the most recent months.
+ * Ids still ascend in emission order.
+ */
+function* iterateTransactionRowsWithEntries(plan) {
   let nextId = 1;
 
-  for (const monthPlan of plan.monthlyPlans) {
-    if (monthPlan.mode === 'merge') {
-      for (let groupIndex = 0; groupIndex < monthPlan.groups.length; groupIndex += 1) {
-        const group = monthPlan.groups[groupIndex];
+  for (let monthIndex = plan.monthlyPlans.length - 1; monthIndex >= 0; monthIndex -= 1) {
+    const monthPlan = plan.monthlyPlans[monthIndex];
 
-        yield buildMergedTransactionRow(group, nextId, groupIndex + 1);
+    if (monthPlan.mode === 'merge') {
+      for (let groupIndex = monthPlan.groups.length - 1; groupIndex >= 0; groupIndex -= 1) {
+        const group = monthPlan.groups[groupIndex];
+        const row = buildMergedTransactionRow(group, nextId, groupIndex + 1);
         nextId += 1;
+        yield { row, entry: mergedEntryFor(group, row) };
       }
 
       continue;
     }
 
-    for (const item of monthPlan.items) {
-      for (let pieceIndex = 0; pieceIndex < item.pieceCount; pieceIndex += 1) {
-        yield buildSplitTransactionRow(
+    for (let itemIndex = monthPlan.items.length - 1; itemIndex >= 0; itemIndex -= 1) {
+      const item = monthPlan.items[itemIndex];
+      for (let pieceIndex = item.pieceCount - 1; pieceIndex >= 0; pieceIndex -= 1) {
+        const row = buildSplitTransactionRow(
           item.entry,
           getSplitAmountAtIndex(
             item.entry.amountCents,
@@ -1817,10 +1255,37 @@ function* iterateTransactionRows(plan) {
           plan.config
         );
         nextId += 1;
+        yield { row, entry: item.entry };
       }
     }
   }
 }
+
+// A merged row stands for several baseline entries; its "entry" view keeps
+// only what the manifest can still say about it (sign type, no transfer /
+// loan / series expectations).
+function mergedEntryFor(group, row) {
+  return {
+    expectedType: row.type,
+    transferKey: null,
+    loanId: null,
+    recurringKey: null,
+    merged: group.length,
+  };
+}
+
+// Rows are emitted the way a bank export arrives: typed by sign, nothing
+// paired, flagged or excluded. The app's scans fill these in after import.
+const RAW_IMPORT_CLASSIFICATION_COLUMNS = Object.freeze({
+  external_id: null,
+  transfer_group_id: null,
+  type_locked: 0,
+  type_source: 'sign',
+  type_confidence: null,
+  is_excluded: 0,
+  is_flagged: 0,
+  import_batch_id: null,
+});
 
 function buildMergedTransactionRow(group, id, variationSeed) {
   const dominantEntry = group.reduce((currentBest, candidate) =>
@@ -1844,8 +1309,9 @@ function buildMergedTransactionRow(group, id, variationSeed) {
     date,
     amount,
     description,
+    comment: null,
     account_id: dominantEntry.accountId,
-    card_id: getCardIdForAccount(dominantEntry.accountId),
+    card_id: dominantEntry.cardId ?? getCardIdForAccount(dominantEntry.accountId),
     category_id: dominantEntry.categoryId,
     company_id: dominantEntry.companyId,
     project_id: null,
@@ -1859,6 +1325,7 @@ function buildMergedTransactionRow(group, id, variationSeed) {
       variationSeed
     ),
     hash_variation_seed: variationSeed,
+    ...RAW_IMPORT_CLASSIFICATION_COLUMNS,
     created_at: createdAt,
     updated_at: createdAt,
   };
@@ -1883,12 +1350,13 @@ function buildSplitTransactionRow(
     date,
     amount,
     description: entry.description,
+    comment: entry.comment ?? null,
     account_id: entry.accountId,
-    card_id: getCardIdForAccount(entry.accountId),
+    card_id: entry.cardId === undefined ? getCardIdForAccount(entry.accountId) : entry.cardId,
     category_id: entry.categoryId,
     company_id: entry.companyId,
-    project_id: null,
-    trip_id: null,
+    project_id: entry.projectId ?? null,
+    trip_id: entry.tripId ?? null,
     type: entry.type,
     transaction_hash: buildTransactionHash(
       entry.accountId,
@@ -1898,6 +1366,7 @@ function buildSplitTransactionRow(
       variationSeed
     ),
     hash_variation_seed: variationSeed,
+    ...RAW_IMPORT_CLASSIFICATION_COLUMNS,
     created_at: createdAt,
     updated_at: createdAt,
   };
@@ -1950,6 +1419,11 @@ function buildTransactionFixtureMeta(mode, plan) {
     baselineTransactionCount: plan.baselineTransactionCount,
     totalTransactionCapacity: plan.totalCapacity,
     seed: plan.config.seed,
+    // natural: one row per household event, nothing split or merged (what the
+    // expectations manifest and the validation layers require).
+    natural: plan.natural,
+    // Newest month first, so a row cap keeps the most recent data.
+    rowOrder: 'newest-first',
   };
 }
 
@@ -2112,24 +1586,12 @@ function subtractUtcMonths(date, months) {
   );
 }
 
-function firstDayOfMonth(date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
-}
 
-function diffCalendarMonths(startDate, endDate) {
-  return (
-    (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12 +
-    (endDate.getUTCMonth() - startDate.getUTCMonth())
-  );
-}
 
 function formatDate(date) {
   return date.toISOString().slice(0, 10);
 }
 
-function formatMonthKey(date) {
-  return date.toISOString().slice(0, 7);
-}
 
 function getDaysInMonth(monthDate) {
   return new Date(
@@ -2144,9 +1606,6 @@ function isSameMonth(leftDate, rightDate) {
   );
 }
 
-function toCents(value) {
-  return Math.round(roundCurrency(value) * 100);
-}
 
 function fromCents(value) {
   return roundCurrency(value / 100);
@@ -2421,174 +1880,6 @@ async function writeToStream(stream, chunk) {
   await waitForStreamDrain(stream);
 }
 
-function seasonalGroceriesAdjustment(monthNumber) {
-  if (monthNumber === 10 || monthNumber === 11) {
-    return 58;
-  }
-
-  if (monthNumber >= 5 && monthNumber <= 7) {
-    return 34;
-  }
-
-  return 0;
-}
-
-function seasonalUtilitiesAdjustment(monthNumber) {
-  if (monthNumber === 11 || monthNumber <= 1) {
-    return 72;
-  }
-
-  if (monthNumber >= 5 && monthNumber <= 7) {
-    return 55;
-  }
-
-  return 18;
-}
-
-function transportationAdjustment(monthNumber) {
-  if (monthNumber >= 8 && monthNumber <= 10) {
-    return 28;
-  }
-
-  if (monthNumber >= 5 && monthNumber <= 7) {
-    return 16;
-  }
-
-  return 0;
-}
-
-function schoolAndActivityAmount(yearOffset, monthNumber, monthOffset) {
-  if (monthNumber >= 5 && monthNumber <= 6) {
-    return roundCurrency(648 + yearOffset * 24 + (monthOffset % 2) * 42);
-  }
-
-  if (monthNumber === 7) {
-    return roundCurrency(418 + yearOffset * 18 + (monthOffset % 3) * 28);
-  }
-
-  if (monthNumber >= 8 && monthNumber <= 10) {
-    return roundCurrency(332 + yearOffset * 16 + (monthOffset % 3) * 22);
-  }
-
-  if (monthNumber === 4) {
-    return roundCurrency(286 + yearOffset * 14 + (monthOffset % 2) * 18);
-  }
-
-  return roundCurrency(244 + yearOffset * 12 + (monthOffset % 2) * 16);
-}
-
-function buildSchoolExpenseDescription(monthNumber, monthOffset) {
-  if (monthNumber >= 5 && monthNumber <= 6) {
-    return monthOffset % 2 === 0
-      ? 'Summer camp tuition and activity fees'
-      : 'Day camp and swim lessons';
-  }
-
-  if (monthNumber === 7) {
-    return 'Back-to-school supplies and registration fees';
-  }
-
-  if (monthNumber >= 8 && monthNumber <= 10) {
-    return monthNumber === 9
-      ? 'Fall sports dues and school activity fees'
-      : 'After-school care and activity fees';
-  }
-
-  if (monthNumber === 4) {
-    return 'Spring field trips and soccer registration';
-  }
-
-  return 'After-school care and classroom extras';
-}
-
-function schoolExpenseCompanyId(monthNumber) {
-  if (monthNumber >= 5 && monthNumber <= 6) {
-    return FAMILY_COMPANY_IDS.LITTLE_OAKS_LEARNING;
-  }
-
-  if (monthNumber === 4 || monthNumber === 9) {
-    return FAMILY_COMPANY_IDS.COMMUNITY_SOCCER_CLUB;
-  }
-
-  return FAMILY_COMPANY_IDS.RIVER_COUNTY_SCHOOLS;
-}
-
-function healthcareAmount(yearOffset, monthNumber) {
-  if (monthNumber === 0) {
-    return roundCurrency(126 + yearOffset * 7);
-  }
-
-  if (monthNumber === 3) {
-    return roundCurrency(214 + yearOffset * 11);
-  }
-
-  return roundCurrency(94 + yearOffset * 6);
-}
-
-function buildHealthcareDescription(monthNumber) {
-  if (monthNumber === 0) {
-    return 'Winter pediatric visit and prescriptions';
-  }
-
-  if (monthNumber === 3) {
-    return 'Spring dental visits and pharmacy refill';
-  }
-
-  return 'Back-to-school physical and prescriptions';
-}
-
-function buildSideIncomeDescription(monthNumber) {
-  return monthNumber === 11
-    ? 'Holiday portrait side gig deposit'
-    : [
-        'Weekend consulting retainer',
-        'Neighborhood tutoring invoice',
-        'Freelance design project deposit',
-      ][monthNumber % 3];
-}
-
-function homeImprovementAmount(yearOffset, monthNumber) {
-  if (monthNumber === 3) {
-    return roundCurrency(212 + yearOffset * 12 + (yearOffset % 2 === 0 ? 160 : 0));
-  }
-
-  if (monthNumber === 5) {
-    return roundCurrency(338 + yearOffset * 15 + (yearOffset === 2 ? 620 : 0));
-  }
-
-  return roundCurrency(286 + yearOffset * 14 + (yearOffset === 4 ? 1180 : 0));
-}
-
-function buildHomeImprovementDescription(yearOffset, monthNumber) {
-  if (monthNumber === 3) {
-    return [
-      'Spring fence repair and garden supplies',
-      'Patio repair materials and mulch',
-      'Driveway patch and garden supplies',
-      'Garage shelving and tool refresh',
-      'Spring landscaping materials',
-    ][yearOffset % 5];
-  }
-
-  if (monthNumber === 5) {
-    return [
-      'Deck stain and yard cleanup',
-      'Backyard playset maintenance',
-      'Bathroom fixture refresh',
-      'Outdoor seating and garden updates',
-      'Summer landscaping and irrigation parts',
-    ][yearOffset % 5];
-  }
-
-  return [
-    'Fall gutter cleaning and weatherproofing',
-    'Furnace tune-up and filter replacement',
-    'Window weatherproofing materials',
-    'Roof leak repair materials',
-    'Water heater replacement deposit',
-  ][yearOffset % 5];
-}
-
 function roundCurrency(value) {
   return Number(value.toFixed(2));
 }
@@ -2804,19 +2095,4 @@ function toTitleCase(value) {
     .split('_')
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
-}
-
-function getCardIdForAccount(accountId) {
-  switch (accountId) {
-    case FAMILY_ACCOUNT_IDS.HOUSEHOLD_CHECKING:
-      return FAMILY_ACCOUNT_CARD_IDS.HOUSEHOLD_CHECKING;
-    case FAMILY_ACCOUNT_IDS.RAINY_DAY_SAVINGS:
-      return FAMILY_ACCOUNT_CARD_IDS.RAINY_DAY_SAVINGS;
-    case FAMILY_ACCOUNT_IDS.REWARDS_VISA:
-      return FAMILY_ACCOUNT_CARD_IDS.REWARDS_VISA;
-    case FAMILY_ACCOUNT_IDS.HOUSEHOLD_JOINT:
-      return FAMILY_ACCOUNT_CARD_IDS.HOUSEHOLD_JOINT;
-    default:
-      return null;
-  }
 }

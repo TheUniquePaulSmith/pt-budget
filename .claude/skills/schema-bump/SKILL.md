@@ -81,7 +81,7 @@ Capture a new `vN` baseline when the migration **rewrites rows** (rebuild, UPDAT
 2. In it, copy `tests/e2e-tools/export-v1-fixture.spec.ts` and change `OUTPUT_PATH` to `vN-budget-tracker.zip`.
    Run `npx playwright test --config playwright.fixture-export.config.ts` on a free port (copy the local-config
    pattern so it doesn't reuse a sibling's server). The spec asserts subscription links > 0 before it exports. If
-   that fails, the fixtures were generated with split rows; use `--months=12 --count=130 --seed=review`.
+   that fails, the fixtures were generated with split rows; use `--months=12 --seed=review`.
 3. Copy the zip into this branch's `tests/e2e/fixtures/`, add a `vN` test to `database-upgrade.spec.ts`, and remove the
    temporary worktree.
 
@@ -90,7 +90,7 @@ Capture a new `vN` baseline when the migration **rewrites rows** (rebuild, UPDAT
 The generator is schema-aware (it reads `public/database-schema.js`).
 
 ```bash
-node scripts/generate-sample-data.mjs --months=12 --count=130 --seed=review
+node scripts/generate-sample-data.mjs --months=12 --seed=review
 npm run sample-data:validate
 ```
 

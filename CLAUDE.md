@@ -19,6 +19,7 @@ Step-by-step workflows live in `.claude/skills/`; use them instead of re-derivin
 | `i18n` | Any user-facing string, translation, formatting; `scripts/audit-diff.mjs` finds hard-coded text |
 | `debug-app` | Debugging the running app: logs, worker, SQL inspection, symptom table |
 | `ship` | `/ship` only: CI-equivalent gates, hygiene, commit, PR, stacked-PR rebases |
+| `sample-data` | Regenerating the Parker-household fixtures, validating income/expenses/transfers against `expectations.json` (Vitest on Node SQLite + Playwright), extending the household or seeding a new table |
 | `feature-program` | Building several features with parallel agents (foundation PR, ownership, merge order) |
 
 ## Commands
@@ -40,13 +41,14 @@ npx vitest run src/lib/databaseService.test.ts        # single unit test file
 npx vitest run -t "test name"                         # single test by name
 npx playwright test --config playwright.local.config.ts tests/e2e/database-smoke.spec.ts  # single e2e file
 
-npm run sample-data:generate   # regenerate public/sample-data/ fixtures (schema-aware, non-interactive)
+npm run sample-data:generate   # regenerate public/sample-data/ fixtures + expectations.json (schema-aware, non-interactive)
 npm run sample-data:validate   # validate fixtures against current schema
+npx vitest run src/lib/sampleDataExpectations.test.ts   # prove the app's totals/scans match expectations.json (sample-data skill)
 ```
 
 Playwright runs Chromium only, one worker, `maxFailures: 1`. The base config targets `http://localhost:3000` (always localhost, not 127.0.0.1) and **reuses whatever dev server owns :3000** — in parallel worktrees that can be another branch, so pass the untracked `playwright.local.config.ts` that `worktree:prepare` writes (own port, `reuseExistingServer: false`).
 
-`sample-data:generate` never prompts; every input is a flag (`--months`, `--count`/`--transactions`/`--amount`, `--seed`, `--reference-date`, `--full-schema`, `--dry-run`; see `--help`), so agents and CI can run it unattended. CI and `worktree:prepare` use `--months=12 --count=130 --seed=review`.
+`sample-data:generate` never prompts; every input is a flag (`--months`, `--seed`, `--reference-date`, `--full-schema`, `--dry-run`, and `--count`/`--transactions`/`--amount` for volume fixtures only; see `--help`), so agents and CI can run it unattended. CI and `worktree:prepare` use `--months=12 --seed=review` (natural mode: one row per household event, newest month first, with the `expectations.json` manifest the validation layers compare against; `--count` turns the manifest off).
 
 ## Architecture
 
@@ -113,7 +115,7 @@ Shared entity contracts live in `src/types/database.ts`. The `@/` import alias m
 - **Vitest runs in the `node` environment by default** (see `vitest.config.ts`); component/hook tests opt into jsdom with a `// @vitest-environment jsdom` pragma at the top of the file. Setup lives in `src/test/setup.ts`. Service tests stub the transport (`new DatabaseService({ query } as DatabaseWorkerTransport)`).
 - Coverage enforcement centers on `src/lib/databaseService.ts` (80 lines / 60 branches / 95 functions; HTML report at `coverage/index.html`).
 - **E2E**: use the helpers in `tests/e2e/helpers/bootstrap.ts` (`bootstrapDatabase`, `reloadAndUnlock` after every reload — the worker drops the encryption key —, `navigateToPage`, `runQueryAndReadFirstCell`). Patterns and failure triage: `e2e` skill.
-- **Sample data**: `?loadSampleData` bootstraps sample data during new-database creation (`src/lib/sampleDataService.ts`, `public/sample-data/`; six of the fixture files are gitignored and generated); `?dev=true` enables developer-only sample-data export tooling. Regenerate fixtures with the scripts rather than hand-editing JSON, and revert churn in the committed ones unless the schema changed.
+- **Sample data**: `?loadSampleData` bootstraps sample data during new-database creation (`src/lib/sampleDataService.ts`, `public/sample-data/`). The set is the Parker household (`scripts/lib/sample-data-household.mjs`: four users, eleven USD accounts, transfers, refunds, loans with match rules, subscription-like fixed charges, projects, trips, budget plans and funds), emitted raw so the app's own scans classify it; the date-dependent fixtures (transactions, accounts, projects, trips, budgets, income sources, loans, rules, snapshots, `expectations.json`) are generated and gitignored, only users/cards/categories/companies are committed. `?dev=true` enables developer-only sample-data export tooling. Regenerate with the scripts rather than hand-editing JSON, revert churn in the committed four unless the schema changed, and keep the invariants listed in the `sample-data` skill (account ids 1–4 and names, cards ending 4821, the intentionally unlinked auto loan).
 - Tool-rewritten tracked files: `test-results/.last-run.json` (every Playwright run) and the committed `public/sample-data/*.json` (every generator run) — restore them before committing.
 
 ## GitHub Strategy

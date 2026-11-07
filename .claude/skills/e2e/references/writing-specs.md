@@ -54,8 +54,11 @@ use other ports. Route mocks intercept every provider request, so no spec contac
 - `tests/e2e/fixtures/*.csv`: CSV import inputs.
 - `v1-budget-tracker.zip`, `v2-budget-tracker.zip`: encrypted archives from older schema versions (password `TEST_PASSWORD`),
   loaded by `database-upgrade.spec.ts`. Regenerating them is covered by the `schema-bump` skill.
-- Sample data comes from `public/sample-data/`. Keep totals under the import caps (500 by default via
-  `sampleDataTransactionLimit`), because rows are written oldest-first and a cap truncates the *newest* months.
+- Sample data comes from `public/sample-data/` (the Parker household; the `sample-data` skill describes it). Rows are
+  written newest-first, so the import cap (500 by default via `sampleDataTransactionLimit`) keeps the most recent
+  months and drops the oldest; a spec that needs the whole year passes a higher cap. Seeded state a spec may meet:
+  three loans (the auto loan has no payment rule), four user classification rules, no notifications, no series until
+  a Rescan.
 
 ## WebAuthn / passkeys
 

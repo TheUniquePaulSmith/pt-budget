@@ -3,12 +3,13 @@ import {
   MANAGED_SAMPLE_TABLES,
   MAX_IN_MEMORY_TRANSACTION_COUNT,
   SAMPLE_DATA_GENERATION_MODES,
-  buildFixtureEnvelopes,
+  buildSampleDataBundle,
+  buildSampleDataExpectations,
   estimateTransactionFixtureOutput,
-  estimateDefaultTransactionCount,
   getGenerationTableNames,
   loadSampleDataContext,
   resolveTransactionGenerationOptions,
+  writeExpectationsFile,
   writeTransactionFixtureEnvelope,
   writeFixtureEnvelopes,
 } from './lib/sample-data-tools.mjs';
@@ -51,6 +52,7 @@ const generationInputs = resolveGenerationOptions(cliOptions);
 const transactionGeneration = resolveTransactionGenerationOptions({
   referenceDate: generationInputs.referenceDate,
   monthsBack: generationInputs.monthsBack,
+  // null = natural mode: one row per household event (the default).
   targetTransactionCount: generationInputs.targetTransactionCount,
   ...(generationInputs.seed !== null ? { seed: generationInputs.seed } : {}),
 });
@@ -60,11 +62,12 @@ const tableNames = getGenerationTableNames(context.runtimeCompatibility, mode);
 const includesTransactions = tableNames.includes('transactions');
 const shouldStreamTransactions =
   includesTransactions &&
+  transactionGeneration.targetTransactionCount !== null &&
   transactionGeneration.targetTransactionCount > MAX_IN_MEMORY_TRANSACTION_COUNT;
 const staticTableNames = shouldStreamTransactions || cliOptions.dryRun
   ? tableNames.filter((tableName) => tableName !== 'transactions')
   : tableNames;
-const fixtureEnvelopes = buildFixtureEnvelopes(
+const bundle = buildSampleDataBundle(
   context.schemaTables,
   context.runtimeCompatibility,
   {
@@ -73,6 +76,7 @@ const fixtureEnvelopes = buildFixtureEnvelopes(
     transactionGeneration,
   }
 );
+const fixtureEnvelopes = bundle.fixtureEnvelopes;
 const transactionEstimate = includesTransactions
   ? estimateTransactionFixtureOutput({
       mode,
@@ -120,11 +124,23 @@ let transactionResult = null;
     transactionMeta = transactionResult.meta;
   }
 
+  // The expectations manifest describes the natural, in-memory set. A
+  // streamed set gets a stub saying the manifest does not apply.
+  const expectations = shouldStreamTransactions
+    ? buildSampleDataExpectations({ scenario: bundle.scenario, transactionBundle: null, mode })
+    : bundle.expectations;
+  writtenFiles.push(await writeExpectationsFile(repoRoot, expectations));
+
   const skippedTables = MANAGED_SAMPLE_TABLES.filter(
     (tableName) => !tableNames.includes(tableName)
   );
 
   console.log(`Sample data generation mode: ${mode}`);
+  console.log(
+    expectations.natural
+      ? `Expectations manifest: natural fixtures, ${expectations.transactions.total.toLocaleString()} rows, ${expectations.transfers.pairCount} transfer pairs, ${expectations.refunds.length} refunds, ${expectations.loans.filter((loan) => loan.ruleLinked).length} rule-linked loans, ${expectations.subscriptions.filter((series) => series.detectable).length} detectable series`
+      : `Expectations manifest: not applicable (${expectations.reason})`
+  );
   console.log(`Generated tables: ${tableNames.join(', ')}`);
   console.log(`Written files: ${writtenFiles.join(', ')}`);
 
@@ -220,9 +236,12 @@ function resolveGenerationOptions(cliOptions) {
   );
   const monthsBack =
     parseOptionalPositiveInteger(cliOptions.monthsBack, 'months') ?? fallbackMonths;
-  const targetTransactionCount =
-    parseOptionalPositiveInteger(cliOptions.targetTransactionCount, 'count') ??
-    estimateDefaultTransactionCount(monthsBack);
+  // No --count: natural mode (one row per household event). The validation
+  // layers only accept natural fixtures; --count exists for volume testing.
+  const targetTransactionCount = parseOptionalPositiveInteger(
+    cliOptions.targetTransactionCount,
+    'count'
+  );
   const seed =
     cliOptions.seed !== null &&
     cliOptions.seed !== undefined &&
@@ -257,13 +276,17 @@ function printUsage() {
 
   console.log(`Usage: node scripts/generate-sample-data.mjs [options]
 
-Generates sample-data fixtures under public/sample-data/. Fully non-interactive:
-every value comes from a flag or a default.
+Generates the Parker-household sample-data fixtures under public/sample-data/
+plus expectations.json (what the app should show for them). Fully
+non-interactive: every value comes from a flag or a default.
 
 Options:
   --months=<n>             Months of history to cover (default: ${defaultMonths}).
-  --count=<n>              Approx transactions for the full period
-                          (aliases: --transactions, --amount; default: scaled to months).
+  --count=<n>              Approx transactions for the full period, for volume
+                          testing only: rows are split or merged to reach it and
+                          the expectations manifest no longer applies
+                          (aliases: --transactions, --amount; default: natural,
+                          one row per household event).
   --seed=<string>         Seed for deterministic output
                           (default: derived from reference date + months + count).
   --reference-date=<date> Reference "today" for the window, e.g. 2026-01-01
@@ -273,6 +296,7 @@ Options:
   -h, --help              Show this help and exit.
 
 Examples:
+  npm run sample-data:generate -- --months=12 --seed=review
   npm run sample-data:generate -- --months=12 --count=5000
   npm run sample-data:generate -- --count=250000 --seed=perf --reference-date=2026-01-01
   npm run sample-data:generate -- --dry-run --count=1000000`);

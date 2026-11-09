@@ -17,6 +17,8 @@ Facts about the setup:
 Run `node scripts/prepare-worktree.mjs` (the `worktree-ready` skill) if this session hasn't yet. It gives the worktree
 `playwright.local.config.ts`: a free per-worktree port with `reuseExistingServer: false`. Always pass that config.
 Without it, whichever session started `npm run dev` on :3000 first gets tested, and that may be another branch's code.
+It may also be a `npm run dev:unlocked` server, under which the setup wizard has no password step and reloads never
+show the unlock screen, so `bootstrapDatabase` and `reloadAndUnlock` fail. Specs always need a plain `npm run dev`.
 
 ## 2. Running
 

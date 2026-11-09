@@ -121,6 +121,25 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in a compatible browser.
 
+### Developing without the unlock screen
+
+Every reload of the app (a code change, a Fast Refresh full reload, a tab reopened) lands on the
+unlock screen, because the SharedWorker drops the encryption key. For local development, and for
+coding agents that drive a dev server, there is a second way to start it:
+
+```bash
+npm run dev:unlocked
+```
+
+This generates a random secret once per clone (kept in the repository's `.git` directory, never
+committed; shared by every worktree so they all open the same localhost database) and starts
+`next dev` with it. Under that server the secret is the database's password: creating a database
+skips the password step (the primary user is "Developer"), and every page load unlocks an existing
+database with it. A database created with another password still shows the normal unlock screen,
+and Settings → Lock still locks. Nothing else changes, and the feature is compiled out of every
+build: `next build` forces `NODE_ENV=production`, which is one of the two conditions
+([src/lib/devUnlock.ts](./src/lib/devUnlock.ts)). Delete the secret file to rotate the secret.
+
 ## ☁️ Cloud Sync Setup
 
 Cloud sync (OneDrive / Google Drive) is optional. Without any configuration the app works entirely

@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "dev-unlocked",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:unlocked"],
+      "port": 3000
     }
   ]
 }

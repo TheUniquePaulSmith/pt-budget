@@ -43,7 +43,8 @@ Work through the loop below in order. Jumping straight to edits is how this code
 
 | Symptom | Usual cause / first check |
 |---|---|
-| Unlock screen after a reload or HMR | The SharedWorker was torn down and dropped the in-memory VFS key. Expected behavior: unlock again. Adding locale JSON or editing during setup causes a Turbopack full reload. |
+| Unlock screen after a reload or HMR | The SharedWorker was torn down and dropped the in-memory VFS key. Expected behavior: unlock again. Adding locale JSON or editing during setup causes a Turbopack full reload. To stop it happening at all while you work, run the server as `preview_start {name: "dev-unlocked"}` / `npm run dev:unlocked`: the database is created with and unlocked by a per-clone dev secret (`src/lib/devUnlock.ts`; never in builds). A database created under plain `npm run dev` with your own password still asks for it. |
+| Unlock screen never appears under `dev-unlocked` though you want to test it | That is the point of that server. Use `preview_start {name: "dev"}` for lock-screen work, or Settings → Lock, which is not overridden. |
 | Never reaches `Connected` | Worker failed to start or migrate. Read `error` level logs where `context.source` is `worker`. A syntax error in `public/*.js` only appears in the worker's own console (not the page's), so check the logs and the `Failed to` entries. |
 | Change to `public/database-worker.js` (or `database-schema.js`, `database-encryption.js`, key slots, VFS) has no effect | The SharedWorker survives reloads while **any** tab on that origin is open. Close every app tab (or navigate them all away), then reopen. In real Chrome, `chrome://inspect/#workers` → terminate. With `?debug`, Settings → Developer → Reset App terminates it too (and wipes data). |
 | Behaves like old code / UI not on this branch | Another worktree's dev server owns the port. |

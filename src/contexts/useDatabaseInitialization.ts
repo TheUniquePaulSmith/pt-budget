@@ -18,6 +18,7 @@ import {
 } from '@/lib/cloudSyncService';
 import { createCloudProviderClient } from '@/lib/cloudProviderClients';
 import { isEncryptedArchive } from '@/lib/databaseEncryption';
+import { DEV_UNLOCK_PRIMARY_USER_NAME, getDevUnlockMaster } from '@/lib/devUnlock';
 import { getErrorCode, type MasterSecret, type MasterSlotType, type UnlockMethod, type UnlockMethods } from '@/lib/encryptionTypes';
 import { rememberLastUnlockMethod } from '@/lib/lastUnlockMethod';
 import {
@@ -36,6 +37,28 @@ import { DEFAULT_CURRENCY, normalizeCurrencyCode } from '@/lib/currencies';
 import { logger } from '@/lib/logging';
 
 const log = logger.child({ component: 'DatabaseInitialization' });
+
+/**
+ * `npm run dev:unlocked` only: tries the dev server's secret as the password
+ * at page load. False when the feature is off (every other run) or when the
+ * database is protected by something else — the normal unlock screen follows.
+ */
+async function unlockWithDevSecret(service: DatabaseService): Promise<boolean> {
+  const master = getDevUnlockMaster();
+  if (!master) return false;
+  try {
+    await service.unlockDatabase(master);
+    log.info('Unlocked with the dev server secret (npm run dev:unlocked)', { operation: 'devAutoUnlock' });
+    return true;
+  } catch (err) {
+    log.warn('The dev server secret does not open this database; showing the unlock screen', {
+      operation: 'devAutoUnlock',
+      error: err,
+      code: getErrorCode(err),
+    });
+    return false;
+  }
+}
 
 export type UnlockOrigin = 'startup' | 'lock';
 
@@ -297,6 +320,11 @@ export function useDatabaseInitialization({
             if (methods?.legacyHeader) {
               log.warn('Found a pre-key-slot (v1) encryption header; it cannot be opened', { operation: 'initialize' });
               setInitializationState('needs-legacy-reset');
+            } else if (await unlockWithDevSecret(service)) {
+              // Same path as the already-unlocked tab above: straight in, the
+              // cloud source (if linked) is reconciled by the auto-sync later.
+              await loadAllData(service);
+              setInitializationState('initialized');
             } else {
               log.info('Found an existing encrypted database, needs unlock', { operation: 'initialize' });
               setInitializationState('needs-unlock');
@@ -729,6 +757,19 @@ export function useDatabaseInitialization({
     },
     [databaseService]
   );
+
+  // `npm run dev:unlocked` only: the password step is answered with the dev
+  // server's secret, so Create New Database goes straight on to preferences.
+  // One attempt per page: if creation fails the normal form stays, with its error.
+  const devSetupStarted = useRef(false);
+  useEffect(() => {
+    if (initializationState !== 'needs-password-setup' || devSetupStarted.current) return;
+    const master = getDevUnlockMaster();
+    if (!master) return;
+    devSetupStarted.current = true;
+    log.info('Creating the database with the dev server secret (npm run dev:unlocked)', { operation: 'createDatabase' });
+    void handlePasswordSetupConfirmed(master, DEV_UNLOCK_PRIMARY_USER_NAME);
+  }, [initializationState, handlePasswordSetupConfirmed]);
 
   // ---------------------------------------------------------------------------
   // Preferences (right after password setup on a brand-new database)

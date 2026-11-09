@@ -47,3 +47,6 @@ next-env.d.ts
 
 # Public Sample Data (use generator to generate data)
 public/sample-data/*.json
+
+# `npm run dev:unlocked` secret (fallback location when the clone has no .git dir)
+.dev-unlock-secret

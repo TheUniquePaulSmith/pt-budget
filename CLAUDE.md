@@ -27,6 +27,7 @@ Step-by-step workflows live in `.claude/skills/`; use them instead of re-derivin
 ```bash
 npm run worktree:prepare     # fresh worktree: deps, fixtures, branch status, playwright.local.config.ts
 npm run dev                  # dev server at http://localhost:3000 (Turbopack)
+npm run dev:unlocked         # same, but the database auto-unlocks on every reload (agent-friendly; src/lib/devUnlock.ts)
 npm run build                # static export to dist/
 npm run lint
 

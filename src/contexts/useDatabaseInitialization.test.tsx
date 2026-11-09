@@ -214,6 +214,111 @@ describe('useDatabaseInitialization', () => {
 
   afterEach(() => {
     delete window.__budgetTrackerTestApi;
+    vi.unstubAllEnvs();
+  });
+
+  describe('npm run dev:unlocked (NEXT_PUBLIC_DEV_UNLOCK_SECRET under next dev)', () => {
+    const DEV_SECRET = 'dev-secret-0123456789abcdef';
+
+    function enableDevUnlock() {
+      vi.stubEnv('NODE_ENV', 'development');
+      vi.stubEnv('NEXT_PUBLIC_DEV_UNLOCK_SECRET', DEV_SECRET);
+    }
+
+    it('unlocks an existing database with the dev secret at page load, never showing needs-unlock', async () => {
+      enableDevUnlock();
+      localStorage.setItem('budgetApp_browserTestPassed', JSON.stringify(compatibleBrowserResults));
+      const service = createServiceMock({
+        dbExistsBeforeInit: true,
+        isEncryptionReady: vi.fn().mockResolvedValue(false),
+      });
+      mockedDatabaseService.mockImplementation(() => service as unknown as DatabaseService);
+      const loadAllData = vi.fn().mockResolvedValue(undefined);
+      const states: string[] = [];
+
+      const { result } = renderHook(() => {
+        const hook = useDatabaseInitialization({ loadAllData });
+        states.push(hook.initializationState);
+        return hook;
+      });
+
+      await waitFor(() => {
+        expect(result.current.initializationState).toBe('initialized');
+      });
+
+      expect(service.unlockDatabase).toHaveBeenCalledWith({ type: 'password', secret: DEV_SECRET });
+      expect(loadAllData).toHaveBeenCalledWith(service);
+      expect(states).not.toContain('needs-unlock');
+    });
+
+    it('falls back to the unlock screen, without an error, when the database has another password', async () => {
+      enableDevUnlock();
+      localStorage.setItem('budgetApp_browserTestPassed', JSON.stringify(compatibleBrowserResults));
+      const service = createServiceMock({
+        dbExistsBeforeInit: true,
+        isEncryptionReady: vi.fn().mockResolvedValue(false),
+        unlockDatabase: vi.fn().mockRejectedValue(new Error('Incorrect password')),
+      });
+      mockedDatabaseService.mockImplementation(() => service as unknown as DatabaseService);
+      const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+      const { result } = renderHook(() => useDatabaseInitialization({ loadAllData }));
+
+      await waitFor(() => {
+        expect(result.current.initializationState).toBe('needs-unlock');
+      });
+
+      expect(service.unlockDatabase).toHaveBeenCalledTimes(1);
+      expect(loadAllData).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it('answers the password step of setup with the dev secret and a Developer primary user', async () => {
+      enableDevUnlock();
+      const service = createServiceMock({
+        dbExistsBeforeInit: false,
+        isEncryptionReady: vi.fn().mockResolvedValue(false),
+      });
+      mockedDatabaseService.mockImplementation(() => service as unknown as DatabaseService);
+      mockedShouldLoadSampleData.mockReturnValue(false);
+      const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+      const { result } = renderHook(() => useDatabaseInitialization({ loadAllData }));
+
+      await completeBrowserTest(result);
+      await waitFor(() => {
+        expect(result.current.initializationState).toBe('needs-setup');
+      });
+
+      await act(async () => {
+        await result.current.createOrOpenDatabase(true);
+      });
+
+      await waitFor(() => {
+        expect(result.current.initializationState).toBe('needs-preferences');
+      });
+      expect(service.createNewDatabase).toHaveBeenCalledWith({ type: 'password', secret: DEV_SECRET }, { deferIndexes: false });
+      expect(service.ensurePrimaryUser).toHaveBeenCalledWith('Developer');
+    });
+
+    it('stays off under a plain dev server (no secret) and in builds (NODE_ENV production)', async () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      vi.stubEnv('NEXT_PUBLIC_DEV_UNLOCK_SECRET', DEV_SECRET);
+      localStorage.setItem('budgetApp_browserTestPassed', JSON.stringify(compatibleBrowserResults));
+      const service = createServiceMock({
+        dbExistsBeforeInit: true,
+        isEncryptionReady: vi.fn().mockResolvedValue(false),
+      });
+      mockedDatabaseService.mockImplementation(() => service as unknown as DatabaseService);
+      const loadAllData = vi.fn().mockResolvedValue(undefined);
+
+      const { result } = renderHook(() => useDatabaseInitialization({ loadAllData }));
+
+      await waitFor(() => {
+        expect(result.current.initializationState).toBe('needs-unlock');
+      });
+      expect(service.unlockDatabase).not.toHaveBeenCalled();
+    });
   });
 
   it('moves to browser testing when no cached compatibility result exists', async () => {

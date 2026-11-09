@@ -185,6 +185,27 @@ describe('LoansService', () => {
     expect(worker.query.mock.calls.some(([sql]) => sql === LOAN_QUERIES.GET_RULE_CANDIDATES)).toBe(false);
   });
 
+  it('carries each candidate’s account currency into the link dialog and the rule preview', async () => {
+    const rows = [
+      { id: 1, date: '2026-03-02', amount: -80, description: 'ACME PYMT', account_id: 4, account_name: 'Maple Chequing', account_currency: 'CAD' },
+      { id: 2, date: '2026-03-01', amount: -55, description: 'ACME PYMT', account_id: 1, account_name: 'Checking', account_currency: 'USD' },
+    ];
+    const worker = createWorker({
+      [LOAN_QUERIES.SEARCH_LINK_CANDIDATES]: rows,
+      [LOAN_QUERIES.GET_RULE_CANDIDATES]: rows,
+    });
+    const service = new LoansService(worker);
+
+    const found = await service.searchLinkCandidates('acme');
+    expect(found.map((row) => row.account_currency)).toEqual(['CAD', 'USD']);
+
+    const previewed = await service.previewRuleMatches({ pattern: 'acme', match_type: 'prefix' });
+    expect(previewed.map((row) => row.account_currency)).toEqual(['CAD', 'USD']);
+
+    expect(LOAN_QUERIES.SEARCH_LINK_CANDIDATES).toContain('a.currency AS account_currency');
+    expect(LOAN_QUERIES.GET_RULE_CANDIDATES).toContain('a.currency AS account_currency');
+  });
+
   it('links a transaction by hand using its absolute amount', async () => {
     const worker = createWorker({
       [LOAN_QUERIES.GET_TRANSACTION_FOR_LINK]: (params) => (params?.[0] === 55 ? [{ id: 55, date: '2026-03-01', amount: -120, description: 'PAYMENT', account_id: 1 }] : []),

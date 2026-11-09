@@ -151,7 +151,7 @@ export const LOAN_QUERIES = {
   // --- matching ---
   /** Rule-scan input: outgoing transactions that are not yet loan payments. */
   GET_RULE_CANDIDATES: `
-    SELECT t.id, t.date, t.amount, t.description, t.account_id, a.name AS account_name
+    SELECT t.id, t.date, t.amount, t.description, t.account_id, a.name AS account_name, a.currency AS account_currency
     FROM transactions t
     LEFT JOIN accounts a ON a.id = t.account_id
     WHERE ${UNLINKED_OUTFLOW}
@@ -165,7 +165,7 @@ export const LOAN_QUERIES = {
   `,
   /** Link dialog: newest unlinked outflows whose description contains the search text. Parameters: search, search. */
   SEARCH_LINK_CANDIDATES: `
-    SELECT t.id, t.date, t.amount, t.description, t.account_id, a.name AS account_name
+    SELECT t.id, t.date, t.amount, t.description, t.account_id, a.name AS account_name, a.currency AS account_currency
     FROM transactions t
     LEFT JOIN accounts a ON a.id = t.account_id
     WHERE ${UNLINKED_OUTFLOW}

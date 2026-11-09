@@ -18,7 +18,16 @@ export interface MoneyFormatOptions {
   signed?: boolean;
   /** Drop the currency symbol but keep the currency's digit rules. */
   symbolless?: boolean;
+  /**
+   * The household's default currency. Amounts in it keep the short symbol
+   * ("$12.00"); an amount in any other currency gets a symbol that cannot be
+   * mistaken for it ("CA$12.00", "A$12.00", "CN¥12.00", or the ISO code when
+   * even the standard symbol would collide).
+   */
+  referenceCurrency?: string;
 }
+
+type SymbolDisplay = 'narrowSymbol' | 'symbol' | 'code';
 
 const numberFormatCache = new Map<string, Intl.NumberFormat | null>();
 const dateFormatCache = new Map<string, Intl.DateTimeFormat>();
@@ -51,6 +60,26 @@ function getDateFormat(locale: string, options: Intl.DateTimeFormatOptions): Int
   return formatter;
 }
 
+/** The symbol Intl renders for `currency` with the given display style, or null for an unknown code. */
+function symbolPart(currency: string, locale: string, display: SymbolDisplay): string | null {
+  const formatter = getNumberFormat(locale, { style: 'currency', currency, currencyDisplay: display });
+  return formatter?.formatToParts(1).find((item) => item.type === 'currency')?.value ?? null;
+}
+
+/**
+ * Narrow symbols are ambiguous across currencies (every dollar is "$", the yen
+ * and the yuan are both "¥", the Nordic crowns are all "kr"). The household's
+ * default currency keeps its narrow symbol; any other currency uses the locale's
+ * standard symbol ("CA$", "CN¥", "R$"), and the ISO code when that standard
+ * symbol is identical to the default currency's.
+ */
+function symbolDisplayFor(currency: string, locale: string, referenceCurrency?: string): SymbolDisplay {
+  if (!referenceCurrency || referenceCurrency === currency) return 'narrowSymbol';
+  const own = symbolPart(currency, locale, 'symbol');
+  const reference = symbolPart(referenceCurrency, locale, 'narrowSymbol');
+  return own !== null && own === reference ? 'code' : 'symbol';
+}
+
 /** "$1,234.56", "1.234,56 €", "￥1,235" … Non-finite input renders as the zero amount. */
 export function formatMoney(amount: number | null | undefined, options: MoneyFormatOptions = {}): string {
   const locale = options.locale ?? DEFAULT_LOCALE;
@@ -59,7 +88,7 @@ export function formatMoney(amount: number | null | undefined, options: MoneyFor
   const intlOptions: Intl.NumberFormatOptions = {
     style: 'currency',
     currency,
-    currencyDisplay: 'narrowSymbol',
+    currencyDisplay: symbolDisplayFor(currency, locale, options.referenceCurrency),
   };
   if (options.whole) {
     intlOptions.minimumFractionDigits = 0;
@@ -89,16 +118,25 @@ export function formatMoney(amount: number | null | undefined, options: MoneyFor
   return formatter.format(value);
 }
 
-/** The currency's symbol as rendered in the locale ("$", "€", "¥", "CA$"). */
-export function currencySymbol(currency: string, locale: string = DEFAULT_LOCALE): string {
-  const formatter = getNumberFormat(locale, {
-    style: 'currency',
-    currency,
-    currencyDisplay: 'narrowSymbol',
-  });
-  if (!formatter) return currency;
-  const part = formatter.formatToParts(1).find((item) => item.type === 'currency');
-  return part?.value ?? currency;
+/**
+ * The currency's symbol as rendered in the locale ("$", "€", "¥"). With a
+ * `referenceCurrency` (the household default) a different currency gets its
+ * distinguishable symbol, the same one `formatMoney` prints ("CA$").
+ */
+export function currencySymbol(currency: string, locale: string = DEFAULT_LOCALE, referenceCurrency?: string): string {
+  return symbolPart(currency, locale, symbolDisplayFor(currency, locale, referenceCurrency)) ?? currency;
+}
+
+/**
+ * The symbol to print beside a currency's name in a picker ("$", "CA$", "kr"),
+ * or null when the currency has none beyond its ISO code (CHF).
+ */
+export function currencyPickerSymbol(currency: string, locale: string = DEFAULT_LOCALE): string | null {
+  for (const display of ['symbol', 'narrowSymbol'] as const) {
+    const value = symbolPart(currency, locale, display);
+    if (value && value !== currency) return value;
+  }
+  return null;
 }
 
 export interface NumberFormatOptions {

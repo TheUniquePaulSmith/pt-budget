@@ -30,9 +30,13 @@ import { useOptionalLocale } from './LocaleContext';
 export interface Formatters {
   locale: string;
   defaultCurrency: string;
-  /** Money in `currency` (an account's currency) or the default currency. */
-  money: (amount: number | null | undefined, currency?: string | null, options?: Omit<MoneyFormatOptions, 'locale' | 'currency'>) => string;
-  /** The symbol for `currency` (or the default currency) in the active locale. */
+  /**
+   * Money in `currency` (an account's currency) or the default currency. The
+   * default currency keeps its short symbol; any other currency is printed
+   * with a symbol that cannot be confused with it ("CA$12.00", not "$12.00").
+   */
+  money: (amount: number | null | undefined, currency?: string | null, options?: Omit<MoneyFormatOptions, 'locale' | 'currency' | 'referenceCurrency'>) => string;
+  /** The symbol for `currency` (or the default currency) in the active locale; distinguishable from the default's when it differs. */
   symbol: (currency?: string | null) => string;
   number: (value: number | null | undefined, options?: { minimumFractionDigits?: number; maximumFractionDigits?: number }) => string;
   /** Ratio in, percentage out (0.125 → "12.5%"); `fromPercent` for values already ×100. */
@@ -57,8 +61,8 @@ export function useFormatters(): Formatters {
       locale,
       defaultCurrency,
       money: (amount, currency, options) =>
-        formatMoney(amount, { ...options, locale, currency: currency || defaultCurrency }),
-      symbol: (currency) => currencySymbol(currency || defaultCurrency, locale),
+        formatMoney(amount, { ...options, locale, currency: currency || defaultCurrency, referenceCurrency: defaultCurrency }),
+      symbol: (currency) => currencySymbol(currency || defaultCurrency, locale, defaultCurrency),
       number: (value, options) => formatNumber(value, { ...options, locale }),
       percent: (value, options) => formatPercent(value, { ...options, locale }),
       date: (value, style) => formatDateOnly(value, { locale, style }),

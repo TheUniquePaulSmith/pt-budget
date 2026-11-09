@@ -85,6 +85,38 @@ test('a foreign-currency account is excluded from totals until a rate is entered
   await expect(page.getByTestId('missing-rates-notice')).toHaveCount(0);
 });
 
+test('the currency picker lists symbols and a CAD account never passes for USD', async ({ page }) => {
+  await bootstrapDatabase(page, { sampleDataTransactionLimit: 100 });
+
+  // The picker leads with the code (specs match on it) and ends with the symbol.
+  await navigateToPage(page, 'accounts');
+  await page.getByRole('button', { name: 'Add Account' }).first().click();
+  const accountDialog = page.getByRole('dialog', { name: 'Add New Account' });
+  await accountDialog.getByLabel(/Account Name/).fill('Maple Chequing');
+  await accountDialog.getByLabel('Currency').click();
+  await expect(page.getByRole('option', { name: 'USD – US Dollar ($)' })).toBeVisible();
+  await expect(page.getByRole('option', { name: 'EUR – Euro (€)' })).toBeVisible();
+  await page.getByRole('option', { name: 'CAD – Canadian Dollar (CA$)' }).click();
+  await accountDialog.getByLabel(/Card \/ Account Number/).fill('7777');
+  await accountDialog.getByRole('button', { name: 'Add' }).click();
+  await expect(accountDialog).not.toBeVisible({ timeout: 30_000 });
+
+  // A transaction on that account is shown with the Canadian-dollar symbol, not a bare "$".
+  await page.getByRole('button', { name: 'Add Transaction' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Add New Transaction' });
+  await dialog.getByRole('textbox', { name: 'Description' }).fill('Tim Hortons');
+  await dialog.getByRole('spinbutton', { name: 'Amount' }).fill('7.5');
+  await dialog.getByRole('combobox', { name: 'Account' }).click();
+  await page.getByRole('option', { name: /Maple Chequing/ }).click();
+  await dialog.getByRole('button', { name: 'Add Transaction' }).click();
+  await expect(dialog).not.toBeVisible({ timeout: 60_000 });
+
+  await navigateToPage(page, 'dashboard');
+  const recent = page.getByText('Tim Hortons').first();
+  await expect(recent).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('-CA$7.50').first()).toBeVisible();
+});
+
 test('changing the default currency rebases the known rates and re-expresses the old default', async ({ page }) => {
   await bootstrapDatabase(page, { sampleDataTransactionLimit: 100 });
 

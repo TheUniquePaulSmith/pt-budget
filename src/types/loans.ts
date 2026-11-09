@@ -103,4 +103,6 @@ export interface LoanLinkCandidate {
   description: string;
   account_id: number;
   account_name: string | null;
+  /** The account's ISO 4217 currency; `amount` is stored in it. */
+  account_currency?: string | null;
 }

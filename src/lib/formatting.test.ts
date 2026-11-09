@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  currencyPickerSymbol,
   currencySymbol,
   dateOnlyToLocalDate,
   formatDateOnly,
@@ -44,6 +45,67 @@ describe('formatting', () => {
     expect(currencySymbol('EUR', 'de-DE')).toBe('€');
     expect(currencySymbol('GBP')).toBe('£');
     expect(currencySymbol('NOTACODE')).toBe('NOTACODE');
+  });
+
+  it('keeps the default currency’s short symbol and tells every other currency apart from it', () => {
+    const base = { referenceCurrency: 'USD' };
+    // The default currency is unchanged.
+    expect(formatMoney(12, { ...base, currency: 'USD' })).toBe('$12.00');
+    // Dollar-sign currencies no longer pass for USD…
+    expect(formatMoney(12, { ...base, currency: 'CAD' })).toBe('CA$12.00');
+    expect(formatMoney(12, { ...base, currency: 'AUD' })).toBe('A$12.00');
+    expect(formatMoney(12, { ...base, currency: 'MXN' })).toBe('MX$12.00');
+    expect(formatMoney(12, { ...base, currency: 'NZD' })).toBe('NZ$12.00');
+    // …nor do yuan for yen, or the Nordic crowns for each other.
+    expect(formatMoney(1200, { ...base, currency: 'CNY' })).toBe('CN¥1,200.00');
+    expect(formatMoney(1200, { ...base, currency: 'JPY' })).toBe('¥1,200');
+    expect(formatMoney(12, { ...base, currency: 'SEK' })).toMatch(/^SEK\s12\.00$/);
+    // Unambiguous symbols are unchanged.
+    expect(formatMoney(12, { ...base, currency: 'EUR' })).toBe('€12.00');
+    expect(formatMoney(12, { ...base, currency: 'GBP' })).toBe('£12.00');
+    // Signs and whole amounts still apply.
+    expect(formatMoney(-12, { ...base, currency: 'CAD' })).toBe('-CA$12.00');
+    expect(formatMoney(12, { ...base, currency: 'CAD', signed: true })).toBe('+CA$12.00');
+    expect(formatMoney(1234.5, { ...base, currency: 'CAD', whole: true })).toBe('CA$1,235');
+    expect(formatMoney(1234.5, { ...base, currency: 'CAD', symbolless: true })).toBe('1,234.50');
+  });
+
+  it('uses the ISO code when a foreign currency’s symbol would match the default’s', () => {
+    // A US dollar account in a Canadian-dollar household: both would be "$".
+    expect(formatMoney(12, { referenceCurrency: 'CAD', currency: 'CAD' })).toBe('$12.00');
+    expect(formatMoney(12, { referenceCurrency: 'CAD', currency: 'USD' })).toMatch(/^USD\s12\.00$/);
+    // A yuan household with a yen account.
+    expect(formatMoney(12, { referenceCurrency: 'CNY', currency: 'JPY' })).toMatch(/^JPY\s12$/);
+    // A euro household with a US dollar account keeps "$".
+    expect(formatMoney(12, { referenceCurrency: 'EUR', currency: 'USD' })).toBe('$12.00');
+  });
+
+  it('localises the distinguishing symbol and leaves amounts without a reference unchanged', () => {
+    expect(formatMoney(12, { currency: 'CAD' })).toBe('$12.00');
+    expect(formatMoney(12, { currency: 'CAD', locale: 'pt-BR', referenceCurrency: 'BRL' })).toMatch(/^CA\$\s?12,00$/);
+    expect(formatMoney(12, { currency: 'USD', locale: 'pt-BR', referenceCurrency: 'BRL' })).toMatch(/^US\$\s?12,00$/);
+    expect(formatMoney(12, { currency: 'CAD', locale: 'de-DE', referenceCurrency: 'EUR' })).toMatch(/^12,00\sCA\$$/);
+  });
+
+  it('gives currencySymbol the same distinguishable symbol as formatMoney', () => {
+    expect(currencySymbol('CAD')).toBe('$');
+    expect(currencySymbol('CAD', 'en-US', 'USD')).toBe('CA$');
+    expect(currencySymbol('USD', 'en-US', 'USD')).toBe('$');
+    expect(currencySymbol('USD', 'en-US', 'CAD')).toBe('USD');
+    expect(currencySymbol('NOTACODE', 'en-US', 'USD')).toBe('NOTACODE');
+  });
+
+  it('picks the symbol shown beside a currency in a picker', () => {
+    expect(currencyPickerSymbol('USD')).toBe('$');
+    expect(currencyPickerSymbol('CAD')).toBe('CA$');
+    expect(currencyPickerSymbol('EUR')).toBe('€');
+    expect(currencyPickerSymbol('CNY')).toBe('CN¥');
+    // Only the code as a standard symbol: fall back to the narrow one.
+    expect(currencyPickerSymbol('SEK')).toBe('kr');
+    expect(currencyPickerSymbol('PLN')).toBe('zł');
+    // Nothing but the code to show.
+    expect(currencyPickerSymbol('CHF')).toBeNull();
+    expect(currencyPickerSymbol('NOTACODE')).toBeNull();
   });
 
   it('formats numbers and percentages', () => {

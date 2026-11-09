@@ -78,7 +78,7 @@ export default function LinkTransactionDialog({ open, loanName, search, onClose,
         width: 120,
         align: 'right',
         headerAlign: 'right',
-        renderCell: (params) => money(Math.abs(params.row.amount)),
+        renderCell: (params) => money(Math.abs(params.row.amount), params.row.account_currency),
       },
       {
         field: 'actions',

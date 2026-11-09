@@ -246,7 +246,7 @@ export default function LoanRuleEditorDialog({
               <Box component="ul" sx={{ m: 0, pl: 2, maxHeight: 160, overflowY: 'auto' }} data-testid="loan-rule-preview">
                 {preview.slice(0, 8).map((row) => (
                   <Typography component="li" variant="body2" key={row.id}>
-                    {[row.date, row.description, money(Math.abs(row.amount))].join(' · ')}
+                    {[row.date, row.description, money(Math.abs(row.amount), row.account_currency)].join(' · ')}
                     {row.account_name ? ` · ${row.account_name}` : ''}
                   </Typography>
                 ))}

@@ -3,7 +3,8 @@
 /**
  * ISO 4217 currency picker shared by the account form, the setup Preferences
  * step and the Settings Preferences tab. Lists SUPPORTED_CURRENCIES plus any
- * `extraCodes` already in use, each as "USD – US Dollar" in the active locale.
+ * `extraCodes` already in use, each as "USD – US Dollar ($)" in the active
+ * locale (the code stays first: tests and screen readers match on it).
  */
 
 import React, { useMemo } from 'react';
@@ -11,7 +12,7 @@ import { FormControl, FormHelperText, InputLabel, MenuItem, Select, type SelectC
 
 import { useOptionalLocale } from '@/contexts/LocaleContext';
 import { currencyDisplayName, currencyOptions } from '@/lib/currencies';
-import { DEFAULT_LOCALE } from '@/lib/formatting';
+import { currencyPickerSymbol, DEFAULT_LOCALE } from '@/lib/formatting';
 
 export interface CurrencySelectProps {
   value: string;
@@ -48,7 +49,15 @@ export function CurrencySelect({
 }: CurrencySelectProps) {
   const locale = useOptionalLocale()?.locale ?? DEFAULT_LOCALE;
   const options = useMemo(
-    () => currencyOptions([...(extraCodes ?? []), value]).map((code) => ({ code, name: currencyDisplayName(code, locale) })),
+    () =>
+      currencyOptions([...(extraCodes ?? []), value]).map((code) => {
+        const name = currencyDisplayName(code, locale);
+        const symbol = currencyPickerSymbol(code, locale);
+        return {
+          code,
+          text: `${code}${name !== code ? ` – ${name}` : ''}${symbol ? ` (${symbol})` : ''}`,
+        };
+      }),
     [extraCodes, value, locale]
   );
   const labelId = `${id}-label`;
@@ -67,8 +76,7 @@ export function CurrencySelect({
       >
         {options.map((option) => (
           <MenuItem key={option.code} value={option.code} data-testid={testId ? `${testId}-option-${option.code}` : undefined}>
-            {option.code}
-            {option.name !== option.code ? ` – ${option.name}` : ''}
+            {option.text}
           </MenuItem>
         ))}
       </Select>

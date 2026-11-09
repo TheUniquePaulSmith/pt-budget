@@ -113,6 +113,7 @@ function mapToCandidate(row: any): LoanLinkCandidate {
     description: String(row.description ?? ''),
     account_id: Number(row.account_id),
     account_name: row.account_name ?? null,
+    account_currency: row.account_currency ?? null,
   };
 }
 

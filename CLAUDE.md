@@ -17,7 +17,7 @@ Step-by-step workflows live in `.claude/skills/`; use them instead of re-derivin
 | `schema-bump` | Any new table / column / constraint (schema version N+1) |
 | `new-domain` | Adding a database operation or a whole data domain through every layer |
 | `i18n` | Any user-facing string, translation, formatting; `scripts/audit-diff.mjs` finds hard-coded text |
-| `debug-app` | Debugging the running app: logs, worker, SQL inspection, symptom table |
+| `debug-app` | Debugging the running app: `dev-unlocked` server, logs, worker, SQL inspection, symptom table |
 | `ship` | `/ship` only: CI-equivalent gates, hygiene, commit, PR, stacked-PR rebases |
 | `sample-data` | Regenerating the Parker-household fixtures, validating income/expenses/transfers against `expectations.json` (Vitest on Node SQLite + Playwright), extending the household or seeding a new table |
 | `feature-program` | Building several features with parallel agents (foundation PR, ownership, merge order) |
@@ -26,8 +26,9 @@ Step-by-step workflows live in `.claude/skills/`; use them instead of re-derivin
 
 ```bash
 npm run worktree:prepare     # fresh worktree: deps, fixtures, branch status, playwright.local.config.ts
-npm run dev                  # dev server at http://localhost:3000 (Turbopack)
-npm run dev:unlocked         # same, but the database auto-unlocks on every reload (agent-friendly; src/lib/devUnlock.ts)
+npm run dev:unlocked         # dev server at http://localhost:3000 whose database auto-unlocks on every reload — the default for debugging
+                             #   (browser pane: preview_start {name: "dev-unlocked"}; gate in src/lib/devUnlock.ts, compiled out of builds)
+npm run dev                  # plain dev server (Turbopack): only for work on the setup password step, the unlock screen or key slots
 npm run build                # static export to dist/
 npm run lint
 
@@ -116,6 +117,7 @@ Shared entity contracts live in `src/types/database.ts`. The `@/` import alias m
 - **The SQL Query page is intentionally read-only** (`SELECT` only; use table-valued pragmas such as `pragma_table_info('t')`). Mutations in tests or manual validation must go through real UI flows.
 - **Vitest runs in the `node` environment by default** (see `vitest.config.ts`); component/hook tests opt into jsdom with a `// @vitest-environment jsdom` pragma at the top of the file. Setup lives in `src/test/setup.ts`. Service tests stub the transport (`new DatabaseService({ query } as DatabaseWorkerTransport)`).
 - Coverage enforcement centers on `src/lib/databaseService.ts` (80 lines / 60 branches / 95 functions; HTML report at `coverage/index.html`).
+- **Debugging in the browser pane**: start the app with `preview_start {name: "dev-unlocked"}` so reloads and Fast Refresh never stop at the unlock screen; plain `dev` only when the password or unlock flow itself is under test. Stop the preview server before running Playwright in the same worktree (two `next dev` processes share `dist/`). Procedure and symptom table: `debug-app` skill.
 - **E2E**: use the helpers in `tests/e2e/helpers/bootstrap.ts` (`bootstrapDatabase`, `reloadAndUnlock` after every reload — the worker drops the encryption key —, `navigateToPage`, `runQueryAndReadFirstCell`). Patterns and failure triage: `e2e` skill.
 - **Sample data**: `?loadSampleData` bootstraps sample data during new-database creation (`src/lib/sampleDataService.ts`, `public/sample-data/`). The set is the Parker household (`scripts/lib/sample-data-household.mjs`: four users, eleven USD accounts, transfers, refunds, loans with match rules, subscription-like fixed charges, projects, trips, budget plans and funds), emitted raw so the app's own scans classify it; the date-dependent fixtures (transactions, accounts, projects, trips, budgets, income sources, loans, rules, snapshots, `expectations.json`) are generated and gitignored, only users/cards/categories/companies are committed. `?dev=true` enables developer-only sample-data export tooling. Regenerate with the scripts rather than hand-editing JSON, revert churn in the committed four unless the schema changed, and keep the invariants listed in the `sample-data` skill (account ids 1–4 and names, cards ending 4821, the intentionally unlinked auto loan).
 - Tool-rewritten tracked files: `test-results/.last-run.json` (every Playwright run) and the committed `public/sample-data/*.json` (every generator run) — restore them before committing.

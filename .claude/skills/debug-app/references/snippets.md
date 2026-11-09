@@ -108,4 +108,4 @@ SELECT key, substr(value, 1, 80) FROM app_metadata WHERE key NOT LIKE 'ai.provid
 window.__budgetTrackerTestApi?.disconnectWorker();
 ```
 
-Then reload, and unlock if asked.
+Then reload, and unlock if asked (under `dev-unlocked` the reload gets back in by itself).

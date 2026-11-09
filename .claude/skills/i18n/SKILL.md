@@ -82,4 +82,5 @@ npx tsc --noEmit -p tsconfig.json
 ```
 
 Adding locale JSON files while `npm run dev` is running makes Turbopack do a full reload, which drops the database key
-(the app comes back at the unlock screen). That's expected and not a bug. Don't add locale files while an e2e run is in progress.
+(the app comes back at the unlock screen; under `npm run dev:unlocked` / `preview_start {name: "dev-unlocked"}` it unlocks
+itself again). That's expected and not a bug. Don't add locale files while an e2e run is in progress.

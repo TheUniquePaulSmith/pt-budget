@@ -65,5 +65,7 @@ and it exits 1 if anything fails. Options:
 
 - Run e2e through the local config: `npx playwright test --config playwright.local.config.ts …`. The `e2e` skill covers
   running and reading results.
-- The browser pane's `preview_start {name: "dev"}` uses `.claude/launch.json` (port 3000; it moves to 3001 when 3000 is busy).
-  That is fine for manual looks, but it is not the server Playwright uses.
+- The browser pane's `preview_start {name: "dev-unlocked"}` (default for debugging: the database auto-unlocks on every
+  reload) and `{name: "dev"}` (plain server, for password/unlock-screen work) use `.claude/launch.json` (port 3000; it
+  moves to 3001 when 3000 is busy). Either is fine for manual looks, but neither is the server Playwright uses — and
+  stop it before running Playwright in the same worktree, since two `next dev` processes share `dist/`.

@@ -27,7 +27,6 @@ import {
   ChevronLeft as CollapseIcon,
   ChevronRight as ExpandIcon,
   Storage as ManageDataIcon,
-  Upload as ImportCsvIcon,
 } from '@mui/icons-material';
 import type { SvgIconProps } from '@mui/material';
 
@@ -45,9 +44,10 @@ export interface SidebarRailProps {
   onToggleExpanded: () => void;
   onNavigate: (page: PageId) => void;
   onOpenManageData: () => void;
-  /** Quick actions (dialogs, not pages) shown above the page list. */
+  /** Quick action shown above the page list (a dialog, not a page). */
   onAddTransaction: () => void;
-  onImportCsv: () => void;
+  /** The Import page: hidden from the page list, offered beside the quick action. */
+  importPage: PageDefinition;
   /** Developer console entry (hidden from the page list, reached from the rail footer). */
   developerConsolePage: PageDefinition;
 }
@@ -117,7 +117,7 @@ export default function SidebarRail({
   onNavigate,
   onOpenManageData,
   onAddTransaction,
-  onImportCsv,
+  importPage,
   developerConsolePage,
 }: SidebarRailProps) {
   const { t } = useTranslation(['shell', 'common']);
@@ -195,7 +195,13 @@ export default function SidebarRail({
           onClick={onAddTransaction}
           testId="rail-add-transaction"
         />
-        <RailItem label={t('nav.importCsv')} icon={ImportCsvIcon} expanded={expanded} onClick={onImportCsv} testId="rail-import-csv" />
+        <RailItem
+          label={getPageLabel(importPage, t)}
+          icon={importPage.icon}
+          expanded={expanded}
+          onClick={() => onNavigate(importPage.id)}
+          testId={importPage.testId}
+        />
       </List>
       <Divider />
 

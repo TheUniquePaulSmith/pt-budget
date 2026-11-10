@@ -6,6 +6,14 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 import { navigateToPage, seedBrowserCompatibility, TEST_PASSWORD } from './helpers/bootstrap';
+import {
+  addStatementFiles,
+  chooseImportAccount,
+  confirmReadingSettings,
+  nextWizardStep,
+  openImportWizard,
+  startImport,
+} from './helpers/importFlow';
 
 // Captures the screenshots the ptbudget.com landing site shows (a separate
 // repo, ptbudget-site), from this app's own sample data (the Parker household).
@@ -393,25 +401,39 @@ test('capture landing-site screenshots', async ({ page }) => {
     await closeDialogs(page);
   });
 
-  // --- CSV import -----------------------------------------------------------
+  // --- Import (the guided import; the shot names predate it) ------------------
   await step('csv import', async () => {
-    await page.getByRole('button', { name: 'Import CSV' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Import Transactions from CSV' });
-    await expect(dialog).toBeVisible();
-    await settle(page, 600);
-    await shot(page, 'csv-import-start');
-    await dialog.locator('input[type="file"]').setInputFiles(SAMPLE_IMPORT_CSV_PATH);
-    await dialog.getByTestId('csv-account-column-select').click();
-    await page.getByRole('option', { name: /Household Checking/i }).click();
-    await settle(page, 800);
-    await shot(page, 'csv-import-mapping');
-    await dialog.getByRole('button', { name: 'Analyze File', exact: true }).click();
-    await expect(dialog.getByText('Analysis Complete:')).toBeVisible({ timeout: 30_000 });
-    await settle(page, 800);
-    await dialog.getByText('Analysis Complete:').evaluate((el) => el.scrollIntoView({ block: 'center' }));
-    await settle(page, 500);
-    await shot(page, 'csv-import-analysis');
-    await closeDialogs(page);
+    try {
+      await openImportWizard(page);
+      await addStatementFiles(page, SAMPLE_IMPORT_CSV_PATH);
+      await settle(page, 600);
+      // Files: the dropped file and what was recognised in it.
+      await shot(page, 'csv-import-start');
+      if ((await startImport(page)) === 'account') {
+        const values = await page.locator('[data-testid^="import-account-"][data-status]').count();
+        for (let index = 0; index < values; index += 1) await chooseImportAccount(page, index, 'Household Checking');
+        await nextWizardStep(page, 'layout');
+        await settle(page, 800);
+        // Check how we read it: the rows as interpreted, with the worded examples.
+        await shot(page, 'csv-import-mapping');
+        await confirmReadingSettings(page);
+        await nextWizardStep(page, 'review');
+        await nextWizardStep(page, 'summary');
+      }
+      await expect(page.getByTestId('import-run')).toBeEnabled({ timeout: 30_000 });
+      await settle(page, 800);
+      // Summary: what pressing Import will do.
+      await shot(page, 'csv-import-analysis');
+    } finally {
+      // The capture imports nothing: leave and discard. The Import page is full-screen, so a step
+      // that failed half-way must not leave it open over the pages the next steps need.
+      if (await page.getByTestId('import-page').isVisible()) {
+        await page.getByTestId('import-close').click();
+        // Asked only while a file is loaded.
+        await page.getByTestId('import-leave-discard').click({ timeout: 5_000 }).catch(() => undefined);
+        await expect(page.getByTestId('import-page')).toBeHidden();
+      }
+    }
   });
 
   // --- Budget ---------------------------------------------------------------

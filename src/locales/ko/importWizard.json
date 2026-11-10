@@ -6,7 +6,297 @@
     "viewWizard": "가져오기",
     "viewManage": "기록 및 형식"
   },
-  "placeholder": {
-    "wizard": "안내형 가져오기는 아직 사용할 수 없습니다. 당분간 'CSV 가져오기'를 사용하세요."
+  "steps": {
+    "label": "가져오기 단계",
+    "progress": "{{total}}단계 중 {{step}}단계",
+    "files": "파일",
+    "account": "계좌",
+    "layout": "읽는 방식 확인",
+    "review": "확인할 사항",
+    "summary": "요약",
+    "done": "완료"
+  },
+  "frame": {
+    "queue": "파일 {{index}}/{{total}}: {{name}}",
+    "file": "파일: {{name}}",
+    "skipFile": "이 파일 건너뛰기",
+    "preparing": "파일을 준비하는 중…",
+    "importing": "가져오는 중…",
+    "finishing": "마무리하는 중…"
+  },
+  "files": {
+    "title": "은행 파일 추가",
+    "intro": "은행 웹사이트에서 거래 내역을 내려받은 다음 여기에 파일을 추가하세요. 한 번에 여러 개를 추가할 수 있습니다.",
+    "drop": "여기에 파일을 놓으세요",
+    "supported": "CSV, TXT, TSV, OFX, QFX 파일을 사용할 수 있습니다.",
+    "choose": "파일 선택",
+    "inputLabel": "거래 내역 파일",
+    "remove": "{{name}} 제거",
+    "size": {
+      "B": "{{value}}바이트",
+      "KB": "{{value}} KB",
+      "MB": "{{value}} MB"
+    },
+    "reading": "파일을 읽는 중…",
+    "unreadableHelp": "은행 웹사이트에서 내보내기 또는 다운로드를 찾아 CSV 또는 OFX / QFX(Quicken 또는 Microsoft Money라고 표시되기도 함)를 선택하세요. 스프레드시트(XLSX)와 PDF 내역서는 읽을 수 없습니다.",
+    "accountPart": "계좌 {{index}}/{{total}}",
+    "formatDelimited": "텍스트 파일(CSV)",
+    "formatOfx": "OFX / QFX",
+    "dateRange": "{{from}} – {{to}}",
+    "accountInFile": "파일의 계좌: {{value}}",
+    "savedFormat": "지난번과 같은 형식: {{name}}",
+    "newFormat": "새 형식",
+    "outcome": {
+      "imported": "가져옴",
+      "nothingNew": "새 항목 없음",
+      "skipped": "건너뜀",
+      "failed": "가져오지 않음"
+    },
+    "hintReading": "파일을 읽는 중…",
+    "hintNoneReadable": "계속하려면 가져올 수 있는 파일을 추가하세요."
+  },
+  "account": {
+    "title": "어느 계좌의 파일인가요?",
+    "intro": "이 파일의 모든 행은 계좌 중 하나에 들어갑니다.",
+    "introSeveral": "이 파일에는 둘 이상의 계좌에 해당하는 행이 있습니다. 각각 어디로 보낼지 선택하세요.",
+    "inFile": "파일에 표시된 값: {{value}}",
+    "noneInFile": "파일에 어느 계좌의 것인지 나와 있지 않습니다",
+    "status": {
+      "recognised": "인식됨",
+      "assumed": "추정",
+      "chosen": "선택됨",
+      "skipped": "제외됨",
+      "open": "선택이 필요합니다"
+    },
+    "choose": "계좌 선택",
+    "suggested": "일치 가능",
+    "createNew": "새 계좌 만들기…",
+    "skip": "이 행들 제외",
+    "confirm": "예, 이 계좌를 사용합니다",
+    "confirmPrompt": "저희가 추정한 계좌입니다. 맞는 계좌인가요?",
+    "openHint": "이 거래가 속한 계좌를 선택하거나 새 계좌를 만드세요.",
+    "openHintSeveral": "이 행들이 속한 계좌를 선택하거나, 새 계좌를 만들거나, 이 행들을 제외하세요.",
+    "unskip": "그래도 가져오기",
+    "skipped_other": "{{count}}개 행은 가져오지 않습니다.",
+    "createTitle": "새 계좌",
+    "createSubmit": "계좌 만들기",
+    "hint": "계속하려면 계좌를 선택하거나 확인하세요."
+  },
+  "layout": {
+    "title": "읽는 방식 확인",
+    "intro": "파일의 처음 몇 행을 다음과 같이 가져옵니다. 잘못된 부분이 있으면 아래에서 바꾸세요.",
+    "fromSavedFormat": "지난번과 같은 방식으로 읽었습니다(“{{name}}”).",
+    "fromSavedFormatOtherAccount": "열은 “{{name}}”과(와) 같은 방식으로 읽습니다. 이 형식은 다른 계좌용으로 저장된 것입니다. 이 계좌에서 돈이 어느 방향으로 움직이는지 확인하세요.",
+    "fromFileType": "이 종류의 파일은 구조가 항상 같아서 추정할 것이 없었습니다.",
+    "fromAi": "이 구조는 AI가 제안한 것입니다. 계속하기 전에 꼼꼼히 확인하세요.",
+    "missing": "파일에서 다음 항목을 찾지 못했습니다: {{parts}}. “파일의 열”에서 각 항목의 열을 선택하세요.",
+    "previewTitle": "처음 몇 행을 가져오는 방식",
+    "moneyIn": "입금",
+    "moneyOut": "출금",
+    "emptyCell": "(비어 있음)",
+    "notImported": "가져오지 않음",
+    "moreRows_other": "외 {{count}}개 행",
+    "pleaseCheck": "확인 필요",
+    "confirmed": "확인됨",
+    "thatsRight": "맞습니다",
+    "dates": {
+      "title": "날짜",
+      "label": "날짜 순서",
+      "order": {
+        "MDY": "월 먼저(12/31/2026)",
+        "DMY": "일 먼저(31/12/2026)",
+        "YMD": "연도 먼저(2026-12-31)"
+      },
+      "example": "“{{raw}}”은(는) {{date}}(으)로 읽습니다.",
+      "noneReadable": "이 방식으로 읽을 수 있는 날짜가 파일에 없습니다.",
+      "noColumn": "아직 날짜 열을 선택하지 않았습니다."
+    },
+    "decimal": {
+      "title": "숫자",
+      "label": "소수점 기호",
+      "period": "마침표(1,234.56)",
+      "comma": "쉼표(1.234,56)",
+      "example": "“{{raw}}”은(는) {{amount}}(으)로 읽습니다.",
+      "noneReadable": "이 방식으로 읽을 수 있는 금액이 파일에 없습니다."
+    },
+    "sign": {
+      "title": "입금과 출금",
+      "asIs": "음수가 출금입니다.",
+      "inverted": "양수가 출금입니다.",
+      "exampleOut": "“{{description}}”({{raw}})은(는) 출금으로 읽습니다: {{amount}}을(를) 지불했습니다.",
+      "exampleIn": "“{{description}}”({{raw}})은(는) 입금으로 읽습니다: {{amount}}을(를) 받았습니다.",
+      "noDescription": "설명 없음",
+      "flip": "아니요, 반대입니다",
+      "fromColumns": "출금은 “{{debit}}”에서, 입금은 “{{credit}}”에서 읽습니다.",
+      "noColumn": "열 없음",
+      "noAmount": "아직 금액 열을 선택하지 않았습니다."
+    },
+    "fixedColumns": "이 종류의 파일은 항상 같은 열을 사용하므로 여기서 선택할 것이 없습니다.",
+    "columnsTitle": "파일의 열",
+    "columnsHelp": "파일의 각 열과 그 용도입니다. 잘못된 것이 있으면 바꾸세요.",
+    "columnSample": "예: {{value}}",
+    "columnEmpty": "항상 비어 있음",
+    "columnRole": "용도",
+    "roles": {
+      "none": "가져오지 않음",
+      "date": "날짜",
+      "postedDate": "기장일",
+      "description": "설명",
+      "amount": "금액",
+      "debit": "출금",
+      "credit": "입금",
+      "direction": "입출금 구분",
+      "reference": "참조 번호",
+      "account": "계좌",
+      "balance": "잔액",
+      "status": "상태",
+      "currency": "통화"
+    },
+    "hintMissing": "계속하려면 빠진 열을 선택하세요.",
+    "hintConfirm": "계속하려면 강조 표시된 설정을 확인하세요."
+  },
+  "advanced": {
+    "title": "고급",
+    "subtitle": "위의 열이 잘못되어 보일 때만 사용하세요.",
+    "headerLine": "열 이름이 있는 줄",
+    "headerDetected": "{{line}}번째 줄에서 찾았습니다.",
+    "headerNone": "이 파일은 열 이름 없이 읽었습니다.",
+    "noHeader": "파일에 열 이름이 없음",
+    "delimiter": "셀 구분 기호",
+    "automatic": "자동 감지",
+    "automaticWith": "자동({{value}})",
+    "delimiters": {
+      "comma": "쉼표",
+      "semicolon": "세미콜론",
+      "tab": "탭",
+      "pipe": "세로선"
+    },
+    "encoding": "텍스트 인코딩",
+    "apply": "파일 다시 읽기",
+    "applying": "읽는 중…",
+    "failed": "이 설정으로는 파일을 읽을 수 없습니다."
+  },
+  "ai": {
+    "offer": "이 구조가 확실하지 않나요? {{provider}}이(가) 제안할 수 있습니다.",
+    "ask": "AI에게 묻기",
+    "working": "묻는 중…",
+    "outcome": {
+      "applied": "AI의 제안이 아래에 표시됩니다. 계속하기 전에 확인하세요.",
+      "noAnswer": "AI가 이 파일을 파악하지 못했습니다. 아래에서 직접 열을 선택하세요.",
+      "failed": "AI에 연결할 수 없습니다. 아래에서 직접 열을 선택하세요."
+    },
+    "consentTitle": "{{provider}}에 샘플을 보낼까요?",
+    "consentBody": "구조를 제안하기 위해 열 이름과 아래 행이 {{provider}}(으)로 전송됩니다. 긴 번호는 마지막 네 자리로 줄입니다. 그 밖의 내용은 이 기기를 떠나지 않습니다.",
+    "consentSend": "{{provider}}에 보내기"
+  },
+  "review": {
+    "title": "확인할 사항",
+    "intro": "파일을 읽으면서 발견한 내용입니다. 아직 아무것도 가져오지 않았습니다.",
+    "blocked": "이 파일을 가져오기 전에 결정이 필요한 항목이 있습니다.",
+    "clear": "이 가져오기를 막는 것은 없습니다.",
+    "clearWithWarnings_other": "이 가져오기를 막는 것은 없습니다. 살펴볼 만한 항목이 {{count}}개 있습니다.",
+    "column": "열: {{name}}",
+    "line": "{{line}}번째 줄",
+    "noDescription": "설명 없음",
+    "fix": "수정",
+    "skip": "제외",
+    "restore": "그래도 가져오기",
+    "direction": "입금 또는 출금",
+    "showAllRows": "{{total}}개 행 모두 보기",
+    "skipAll": "{{total}}개 행 모두 제외",
+    "changes": {
+      "title": "변경 내용",
+      "fixed": "{{line}}번째 줄: 수정됨",
+      "skipped": "{{line}}번째 줄: 제외됨",
+      "kept": "{{line}}번째 줄: 그래도 가져옴",
+      "undo": "실행 취소"
+    },
+    "checking": "이미 가져온 행, 반복된 행, 이체를 확인하는 중…",
+    "checkFailed": "이미 가져온 내용과 행을 비교할 수 없습니다.",
+    "duplicates": {
+      "title": "두 번 이상 나오는 행",
+      "help": "선택을 해제하지 않으면 모든 사본을 가져옵니다. 같은 날 커피 두 잔은 두 행이지만, 은행이 반복해서 내보낸 줄은 한 행입니다.",
+      "group": "동일한 행 {{copies}}개: {{date}} · {{description}} · {{amount}}",
+      "copy": "{{line}}번째 줄 가져오기"
+    },
+    "transfers": {
+      "title": "내 계좌 간 이체",
+      "help": "선택한 쌍은 이체로 가져오므로 수입도 지출도 아닙니다. 선택을 해제하면 두 행을 그대로 가져옵니다.",
+      "leg": "{{account}} · {{date}}",
+      "legExisting": "{{account}} · {{date}} · 이미 가져옴",
+      "importAsTransfer": "“{{description}}”을(를) 이체로 가져오기",
+      "match": "일치도 {{percent}}",
+      "possible": "가능성 있음 · {{percent}}",
+      "refunds_other": "환불 {{count}}건을 찾았습니다.",
+      "ruleTyped_other": "{{count}}개 행을 규칙으로 분류했습니다."
+    },
+    "coverage": {
+      "title": "이미 가져온 내용과 비교",
+      "stored_other": "이 계좌에는 이미 거래 {{count}}건이 있습니다({{from}} ~ {{to}}).",
+      "none": "이 계좌에는 아직 가져온 내용이 없습니다."
+    },
+    "assumptions": {
+      "title": "추정한 내용",
+      "account": "계좌: {{account}}",
+      "chosenByYou": "직접 선택함",
+      "change": "변경",
+      "none": "추정한 내용이 없습니다."
+    },
+    "hint": "계속하려면 읽을 수 없는 행을 수정하거나 제외하세요."
+  },
+  "blockers": {
+    "missing": "다음 항목의 열을 선택하세요: {{parts}}.",
+    "blockedRows_other": "{{count}}개 행을 읽을 수 없습니다. 수정하거나 제외하세요.",
+    "accounts": "계좌를 선택하거나 확인하세요.",
+    "confirm": "파일을 읽는 방식을 확인하세요.",
+    "noRows": "이 파일에는 가져올 내용이 남아 있지 않습니다."
+  },
+  "summary": {
+    "title": "요약",
+    "sameFormat": "지난번과 같은 형식입니다(“{{name}}”). 확인이 필요한 항목이 없습니다.",
+    "reviewDetails": "세부 정보 확인",
+    "failed": "가져오기가 완료되지 않았으며 아무것도 변경되지 않았습니다. {{error}}",
+    "blockedTitle": "가져오기 전에",
+    "goThere": "이동",
+    "nothingNew_other": "이 파일의 {{count}}개 행은 모두 이미 가져왔습니다. 새로 추가할 내용이 없습니다.",
+    "nothingLeft": "이 파일에는 가져올 내용이 남아 있지 않습니다.",
+    "into_other": "가져올 계좌",
+    "toImport": "새 거래",
+    "rowsInFile": "파일의 행 수",
+    "alreadyImported": "이미 가져옴",
+    "leftOut": "제외됨",
+    "dates": "기간",
+    "transfers": "이체",
+    "refunds": "환불",
+    "remember": "이 형식 기억하기",
+    "rememberHelp": "다음에는 이런 파일이 바로 이 요약으로 넘어갑니다.",
+    "rememberHelpKnown": "저장된 형식에 변경한 내용을 반영합니다.",
+    "formatName": "형식 이름",
+    "import_other": "거래 {{count}}건 가져오기",
+    "checking": "확인하는 중…"
+  },
+  "done": {
+    "title": "가져오기 완료",
+    "total_other": "거래 {{count}}건을 가져왔습니다.",
+    "totalNone": "새로 가져온 거래가 없습니다.",
+    "inserted_other": "거래 {{count}}건 가져옴",
+    "nothingNew": "이 파일에 새 항목이 없습니다",
+    "skippedFile": "이 파일은 건너뛰었습니다",
+    "duplicates_other": "{{count}}개 행은 이미 가져온 것이어서 제외했습니다",
+    "skipped_other": "{{count}}개 행을 제외했습니다",
+    "transfers_other": "내 계좌 간 이체 {{count}}건",
+    "refunds_other": "환불 {{count}}건 발견",
+    "ruleTyped_other": "{{count}}개 행을 규칙으로 분류",
+    "viewTransactions": "거래 보기",
+    "importAnother": "다른 파일 가져오기",
+    "undo": "실행 취소",
+    "undoHelp": "마음이 바뀌었나요? 가져오기는 기록 및 형식에서 취소할 수 있습니다."
+  },
+  "leave": {
+    "title": "이 가져오기를 취소할까요?",
+    "body": "추가한 파일을 아직 가져오지 않았습니다.",
+    "bodyPartly_other": "파일 {{count}}개는 이미 가져왔으며 그대로 유지됩니다. 나머지는 아직 가져오지 않았습니다.",
+    "stay": "계속 가져오기",
+    "discard": "취소"
   }
 }

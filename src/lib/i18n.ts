@@ -18,7 +18,6 @@ import enAccounts from '@/locales/en-US/accounts.json';
 import enAi from '@/locales/en-US/ai.json';
 import enBudget from '@/locales/en-US/budget.json';
 import enCommon from '@/locales/en-US/common.json';
-import enCsvImport from '@/locales/en-US/csvImport.json';
 import enDashboard from '@/locales/en-US/dashboard.json';
 import enDataManagement from '@/locales/en-US/dataManagement.json';
 import enDeveloper from '@/locales/en-US/developer.json';
@@ -80,7 +79,6 @@ export const NAMESPACES = [
   'loans',
   'subscriptions',
   'notifications',
-  'csvImport',
   'importWizard',
   'importIssues',
   'importManage',
@@ -108,7 +106,6 @@ export const EN_US_RESOURCES = {
   loans: enLoans,
   subscriptions: enSubscriptions,
   notifications: enNotifications,
-  csvImport: enCsvImport,
   importWizard: enImportWizard,
   importIssues: enImportIssues,
   importManage: enImportManage,

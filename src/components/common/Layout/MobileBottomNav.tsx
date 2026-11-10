@@ -26,7 +26,6 @@ import {
   Add as AddTransactionIcon,
   MoreHoriz as MoreIcon,
   Storage as ManageDataIcon,
-  Upload as ImportCsvIcon,
 } from '@mui/icons-material';
 
 import AiLauncherSlot from './slots/AiLauncherSlot';
@@ -49,7 +48,8 @@ export interface MobileBottomNavProps {
   onNavigate: (page: PageId) => void;
   onOpenManageData: () => void;
   onAddTransaction: () => void;
-  onImportCsv: () => void;
+  /** The Import page: hidden from the page list, offered beside Add Transaction in the More sheet. */
+  importPage: PageDefinition;
   settingsPage: PageDefinition;
   developerConsolePage: PageDefinition;
 }
@@ -63,7 +63,7 @@ export default function MobileBottomNav({
   onNavigate,
   onOpenManageData,
   onAddTransaction,
-  onImportCsv,
+  importPage,
   settingsPage,
   developerConsolePage,
 }: MobileBottomNavProps) {
@@ -152,16 +152,13 @@ export default function MobileBottomNav({
             </ListItem>
             <ListItem disablePadding>
               <ListItemButton
-                onClick={() => {
-                  closeSheet();
-                  onImportCsv();
-                }}
-                data-testid="mobile-import-csv"
+                onClick={() => onNavigate(importPage.id)}
+                data-testid={importPage.testId}
               >
                 <ListItemIcon>
-                  <ImportCsvIcon />
+                  <importPage.icon />
                 </ListItemIcon>
-                <ListItemText primary={t('nav.importCsv')} />
+                <ListItemText primary={getPageLabel(importPage, t)} />
               </ListItemButton>
             </ListItem>
           </List>

@@ -17,7 +17,6 @@
     "more": "더 보기",
     "quickActions": "빠른 작업",
     "addTransaction": "거래 추가",
-    "importCsv": "CSV 가져오기",
     "manageData": "데이터 관리"
   },
   "dataGrid": {

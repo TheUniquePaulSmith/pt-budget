@@ -17,8 +17,8 @@ type MigrationOp =
 const migrations = MIGRATIONS as Array<{ version: number; statements: MigrationOp[] }>;
 
 describe('database schema', () => {
-  it('is at version 6 with migrations in ascending order ending at the current version', () => {
-    expect(SCHEMA_VERSION).toBe(6);
+  it('is at version 7 with migrations in ascending order ending at the current version', () => {
+    expect(SCHEMA_VERSION).toBe(7);
     const versions = migrations.map((migration) => migration.version);
     expect(versions).toEqual([...versions].sort((a, b) => a - b));
     expect(versions.at(-1)).toBe(SCHEMA_VERSION);
@@ -204,6 +204,36 @@ describe('database schema', () => {
     expect(CREATE_TABLES.LOAN_PAYMENTS).toContain("CHECK(match_source IN ('rule', 'manual'))");
   });
 
+  it('version 7 adds import profiles, account identifiers and the import batch details', () => {
+    const v7 = migrations.find((migration) => migration.version === 7)!;
+    // import_profiles first: import_batches.profile_id references it.
+    expect(v7.statements.slice(0, 2)).toEqual([CREATE_TABLES.IMPORT_PROFILES, CREATE_TABLES.ACCOUNT_IDENTIFIERS]);
+
+    const addedColumns = v7.statements.filter(
+      (op): op is Extract<MigrationOp, { op: 'addColumn' }> => typeof op !== 'string' && op.op === 'addColumn'
+    );
+    expect(addedColumns.map((op) => `${op.table}.${op.column}`)).toEqual([
+      'import_batches.profile_id',
+      'import_batches.file_format',
+      'import_batches.issues_json',
+    ]);
+    // A fresh database gets the same columns straight from CREATE_TABLES.
+    for (const op of addedColumns) {
+      expect(CREATE_TABLES.IMPORT_BATCHES).toContain(op.ddl);
+    }
+    // Purely additive: the source CHECK is untouched, so no rebuild is needed.
+    expect(v7.statements.some((op) => typeof op !== 'string' && op.op === 'rebuild')).toBe(false);
+    expect(CREATE_TABLES.IMPORT_BATCHES).toContain("CHECK(source IN ('csv', 'manual', 'sample'))");
+
+    expect(CREATE_TABLES.IMPORT_PROFILES).toContain("CHECK(format IN ('delimited', 'ofx'))");
+    // Deleting an account keeps the saved layout but forgets where it went.
+    expect(CREATE_TABLES.IMPORT_PROFILES).toContain('FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE SET NULL');
+
+    expect(CREATE_TABLES.ACCOUNT_IDENTIFIERS).toContain("CHECK(kind IN ('number', 'label'))");
+    expect(CREATE_TABLES.ACCOUNT_IDENTIFIERS).toContain("CHECK(source IN ('import', 'manual'))");
+    expect(CREATE_TABLES.ACCOUNT_IDENTIFIERS).toContain('FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE');
+  });
+
   it('indexes the new sparse columns', () => {
     const indexes = CREATE_INDEXES.join('\n');
     expect(indexes).toContain("ON transactions(type_source) WHERE type_locked = 0 AND type_source != 'sign'");
@@ -219,5 +249,9 @@ describe('database schema', () => {
     expect(indexes).toContain('ON loans(project_id) WHERE project_id IS NOT NULL');
     expect(indexes).toContain('ON loan_match_rules(loan_id, enabled)');
     expect(indexes).toContain('ON loan_payments(loan_id, payment_date)');
+    expect(indexes).toContain('ON import_profiles(fingerprint)');
+    expect(indexes).toContain('UNIQUE INDEX IF NOT EXISTS idx_account_identifiers_account_value ON account_identifiers(account_id, kind, value)');
+    expect(indexes).toContain('ON account_identifiers(value)');
+    expect(indexes).toContain('ON account_identifiers(last_four) WHERE last_four IS NOT NULL');
   });
 });

@@ -87,6 +87,19 @@ describe('dateOnly', () => {
     expect(parseCsvDate('11/13/2026', { order: 'DMY' })).toBe('2026-11-13');
   });
 
+  it('strict mode reads one order only, so a file is never read with two', () => {
+    // The Import Wizard fixes the order per file: a value that only works the
+    // other way round is unreadable, not silently reinterpreted.
+    expect(parseCsvDate('26/04/2026', { order: 'MDY', strict: true })).toBeNull();
+    expect(parseCsvDate('11/13/2026', { order: 'DMY', strict: true })).toBeNull();
+    expect(parseCsvDate('04/06/2026', { order: 'MDY', strict: true })).toBe('2026-04-06');
+    expect(parseCsvDate('04/06/2026', { order: 'DMY', strict: true })).toBe('2026-06-04');
+    // Unambiguous shapes still parse in every order.
+    expect(parseCsvDate('2026-04-26', { order: 'MDY', strict: true })).toBe('2026-04-26');
+    expect(parseCsvDate('Apr 26, 2026', { order: 'DMY', strict: true })).toBe('2026-04-26');
+    expect(parseCsvDate('2026年4月6日', { order: 'YMD', strict: true })).toBe('2026-04-06');
+  });
+
   it.each([
     ['2026/04/06', '2026-04-06'],
     ['2026年4月6日', '2026-04-06'],

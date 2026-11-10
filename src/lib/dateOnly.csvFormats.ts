@@ -63,6 +63,18 @@ const MONTH_NAMES = [
   'MMM d yyyy',
 ];
 
+/**
+ * The patterns for exactly one day/month convention, with no fallback to the
+ * other one: "13/06/2026" is not a date in a month-first file. The Import
+ * Wizard decides the order once per file from the file's own evidence and
+ * then reads every row this way, so one file is never read with two orders.
+ * (`YMD` files write their slashed dates year-first; those are in YEAR_FIRST,
+ * so a day/month pair in such a file is read day-first.)
+ */
+export function csvDateFormatsStrict(order: CsvDateOrder): readonly string[] {
+  return [...YEAR_FIRST, ...(order === 'MDY' ? MONTH_FIRST : DAY_FIRST), ...MONTH_NAMES];
+}
+
 export function csvDateFormatsFor(order: CsvDateOrder): readonly string[] {
   switch (order) {
     case 'DMY':

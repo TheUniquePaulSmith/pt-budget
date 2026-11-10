@@ -1,0 +1,7 @@
+{
+  "severity": {
+    "blocker": "Requer uma decisão",
+    "warning": "Vale conferir",
+    "info": "Para sua informação"
+  }
+}

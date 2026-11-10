@@ -1,0 +1,12 @@
+{
+  "page": {
+    "title": "导入交易",
+    "close": "关闭导入",
+    "views": "导入视图",
+    "viewWizard": "导入",
+    "viewManage": "历史记录和格式"
+  },
+  "placeholder": {
+    "wizard": "引导式导入尚不可用。目前请使用“导入 CSV”。"
+  }
+}

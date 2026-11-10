@@ -87,6 +87,11 @@ import {
   useDatabasePreferencesSlice,
   type DatabasePreferencesSlice,
 } from './useDatabasePreferencesSlice';
+// Schema v7: statement import (saved layouts, account identifiers, staging, history).
+import {
+  useDatabaseImportsSlice,
+  type DatabaseImportsSlice,
+} from './useDatabaseImportsSlice';
 import { CurrencyPreferencesContext } from './CurrencyPreferencesContext';
 import { useDatabaseInitialization } from './useDatabaseInitialization';
 import { isDebugMode } from '../lib/debugMode';
@@ -183,6 +188,7 @@ interface DatabaseContextType {
   classification: DatabaseClassificationSlice;
   loans: DatabaseLoansSlice;
   preferences: DatabasePreferencesSlice;
+  imports: DatabaseImportsSlice;
 }
 
 const DatabaseStatusContext = createContext<DatabaseStatusSlice | null>(null);
@@ -216,6 +222,7 @@ const DatabaseClassificationContext =
   createContext<DatabaseClassificationSlice | null>(null);
 const DatabaseLoansContext = createContext<DatabaseLoansSlice | null>(null);
 const DatabasePreferencesContext = createContext<DatabasePreferencesSlice | null>(null);
+const DatabaseImportsContext = createContext<DatabaseImportsSlice | null>(null);
 
 function useRequiredContext<T>(
   context: React.Context<T | null>,
@@ -286,6 +293,9 @@ export const useDatabaseLoans = () =>
 export const useDatabasePreferences = () =>
   useRequiredContext(DatabasePreferencesContext, 'useDatabasePreferences');
 
+export const useDatabaseImports = () =>
+  useRequiredContext(DatabaseImportsContext, 'useDatabaseImports');
+
 export const useDatabaseContext = (): DatabaseContextType => ({
   status: useDatabaseStatus(),
   collections: useDatabaseCollections(),
@@ -306,6 +316,7 @@ export const useDatabaseContext = (): DatabaseContextType => ({
   classification: useDatabaseClassification(),
   loans: useDatabaseLoans(),
   preferences: useDatabasePreferences(),
+  imports: useDatabaseImports(),
 });
 
 interface DatabaseProviderProps {
@@ -584,6 +595,12 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
     refreshTransactions,
     refreshBudgets,
   });
+  const importsSlice = useDatabaseImportsSlice({
+    databaseService,
+    refreshTransactions,
+    refreshAccounts,
+    refreshLoans,
+  });
 
   // Custom SQL query execution
   const executeCustomQuery = useCallback(async (sql: string, timeoutMs?: number): Promise<any[]> => {
@@ -758,9 +775,11 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
                             <DatabaseClassificationContext.Provider value={classificationSlice}>
                             <DatabaseLoansContext.Provider value={loansSlice}>
                             <DatabasePreferencesContext.Provider value={preferencesSlice}>
+                            <DatabaseImportsContext.Provider value={importsSlice}>
                             <CurrencyPreferencesContext.Provider value={collections.currencyPreferences}>
                               {children}
                             </CurrencyPreferencesContext.Provider>
+                            </DatabaseImportsContext.Provider>
                             </DatabasePreferencesContext.Provider>
                             </DatabaseLoansContext.Provider>
                             </DatabaseClassificationContext.Provider>

@@ -37,6 +37,30 @@ erDiagram
         datetime created_at
     }
 
+    ACCOUNT_IDENTIFIERS {
+        int id PK
+        int account_id FK
+        string kind
+        string value
+        string last_four
+        string source
+        datetime created_at
+    }
+
+    IMPORT_PROFILES {
+        int id PK
+        string name
+        string format
+        string fingerprint
+        string institution
+        int account_id FK
+        string config_json
+        int use_count
+        datetime last_used_at
+        datetime created_at
+        datetime updated_at
+    }
+
     CATEGORIES {
         int id PK
         string name
@@ -281,6 +305,8 @@ erDiagram
     USERS ||--o{ ACCOUNTS : owns
     ACCOUNTS ||--o{ ACCOUNT_CARDS : has
     USERS ||--o{ ACCOUNT_CARDS : carries
+    ACCOUNTS ||--o{ ACCOUNT_IDENTIFIERS : known_as
+    ACCOUNTS ||--o{ IMPORT_PROFILES : last_imported_into
     ACCOUNTS ||--o{ TRANSACTIONS : contains
     CATEGORIES ||--o{ TRANSACTIONS : categorizes
     COMPANIES ||--o{ TRANSACTIONS : associated_with
@@ -316,6 +342,7 @@ erDiagram
 12. **Notifications** (v3): user reminders (birthday / anniversary / seasonal / custom; once, monthly, yearly) and system alerts (overdue non-autopay payments, budget overspend). Alerts upsert on `dedupe_key` so rescans are idempotent; `notification_settings` holds per-type lead-time defaults. `recurring_series.is_autopay` / `due_day` drive payment reminders
 13. **AI Tool Registry** (v3): `ai_tool_packs` stores user-imported declarative tool packs; `ai_tool_settings` stores the per-tool enable flag and consent policy (`ask` / `always` / `deny`)
 14. **Transaction Classification** (v4): `transactions.type` (`income` / `expense` / `refund` / `transfer`) is the only thing analytics look at; `type_source` records how it was decided (`sign` default, `rule`, `pair`, `inferred`, `manual`) and `type_confidence` the detector's confidence. The two legs of a transfer share `transfer_group_id`. `classification_rules` holds the household's description patterns ("PYMT BY FUNDS TRANSFER" → transfer), optionally scoped to one account and naming the transfer's counterpart account. `type_locked = 1` / `type_source = 'manual'` marks a user decision that automatic classification never overrides. The classifier (`src/lib/transactionClassifier.ts`) runs on the staged rows of a CSV import, on demand from the Transactions page, and once per database on open
+15. **Statement Import** (v7): `import_profiles` remembers how to read one bank's file shape (`format` `delimited` / `ofx`, a `fingerprint` of the header signature or of the OFX institution + account type, the layout in `config_json`, and the account it was last imported into). `account_identifiers` stores what a statement file calls an account — a `number` (digits only, with `last_four`) or a text `label` — for any account type, so checking, savings and loan accounts can be recognised the way cards are through `account_cards`. `import_batches` records the profile, the `file_format` and an `issues_json` summary of what the import analysis found; `source = 'csv'` means "from a statement file" of any format
 
 ## Relationships:
 
@@ -338,3 +365,4 @@ Schema changes are delivered by a `PRAGMA user_version`-gated migration runner i
 | 4 | classification_rules; `transactions.type_source` / `type_confidence` (defaulted; rows with `type_locked = 1` are backfilled to `manual`); `temp_import_transactions` recreated with `transfer_group_id` / `type_source` / `type_confidence`. On the first open after the upgrade the app runs one classification scan so pre-existing card payments and merchant credits get typed |
 | 5 | loans, loan_match_rules, loan_payments (loan terms, loan-owned payment rules, payment ledger) |
 | 6 | `accounts.currency` (ISO 4217, `NOT NULL DEFAULT 'USD'`) and `exchange_rates` (`currency` PK, nullable `rate`, `updated_at`). The household's default currency lives in `app_metadata` under `preferences.defaultCurrency` (USD when absent); `rate` is units of the default currency per 1 unit of `currency`, NULL = unknown. `sqlMoneyExpressions.ts` multiplies every money row by that rate inside `spendExpr` / `incomeExpr`, so every cross-account SUM is in the default currency and rows in a currency without a rate are skipped. Fixtures regenerated for the new column |
+| 7 | import_profiles, account_identifiers; `import_batches.profile_id` (FK, `ON DELETE SET NULL`) / `file_format` / `issues_json`. Purely additive: no table is rebuilt, no row is rewritten, and the `import_batches.source` CHECK is unchanged |

@@ -1,0 +1,26 @@
+{
+  "file": "signed-amount-iso.csv",
+  "description": "The simplest shape: one signed Amount column (negative = money out), ISO dates, a unique bank reference. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "amount": 1,
+      "description": [
+        2
+      ],
+      "reference": 3
+    },
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 3,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-05",
+    "moneyIn": 2400,
+    "moneyOut": 67.19,
+    "issueCodes": []
+  }
+}

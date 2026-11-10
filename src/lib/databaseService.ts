@@ -62,6 +62,7 @@ import { NotificationsService } from './databaseServiceNotifications';
 import { AiToolsService } from './databaseServiceAiTools';
 import { BudgetFundsService } from './databaseServiceBudgetFunds';
 import { ClassificationService } from './databaseServiceClassification';
+import { ImportsService, mapToImportBatch } from './databaseServiceImports';
 import { LoansService } from './databaseServiceLoans';
 import { PreferencesService } from './databaseServicePreferences';
 import { DEFAULT_CURRENCY } from './currencies';
@@ -210,6 +211,8 @@ export class DatabaseService {
   /** Loans (schema v5): terms, loan-owned payment rules, payment ledger. */
   readonly loans: LoansService;
   readonly preferences: PreferencesService;
+  /** Statement import (schema v7): saved layouts, account identifiers, staging, commit, history. */
+  readonly imports: ImportsService;
 
   constructor(
     private readonly workerService: DatabaseWorkerTransport = databaseWorkerService
@@ -221,6 +224,7 @@ export class DatabaseService {
     this.classification = new ClassificationService(workerService, this.appMetadata);
     this.loans = new LoansService(workerService);
     this.preferences = new PreferencesService(workerService, this.appMetadata);
+    this.imports = new ImportsService(workerService, this.classification);
   }
 
   async initialize(): Promise<void> {
@@ -2102,20 +2106,7 @@ export class DatabaseService {
   async getRecentImportBatches(limit = 20): Promise<ImportBatch[]> {
     try {
       const rows = await this.workerService.query(IMPORT_BATCH_QUERIES.GET_RECENT, [limit]);
-      return rows.map((row: any) => ({
-        id: Number(row.id),
-        imported_at: String(row.imported_at),
-        source: row.source,
-        file_name: row.file_name ?? null,
-        account_ids_json: row.account_ids_json ?? null,
-        total_rows: Number(row.total_rows ?? 0),
-        inserted_count: Number(row.inserted_count ?? 0),
-        duplicate_count: Number(row.duplicate_count ?? 0),
-        skipped_count: Number(row.skipped_count ?? 0),
-        rejected_count: Number(row.rejected_count ?? 0),
-        min_date: row.min_date ?? null,
-        max_date: row.max_date ?? null,
-      }));
+      return rows.map(mapToImportBatch);
     } catch (error) {
       log.error('Failed to get import batches', { operation: 'getRecentImportBatches', error });
       throw error;

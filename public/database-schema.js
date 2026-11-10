@@ -94,7 +94,12 @@ export const CREATE_TABLES = {
   `,
 
   // One row per import run, so the app can say when data was last brought in,
-  // through what date, and undo an import.
+  // through what date, and undo an import. source = 'csv' means "from a
+  // statement file" of any format; file_format (schema v7) says which
+  // ('delimited' | 'ofx', NULL on rows written before v7). profile_id is the
+  // saved layout the file was read with, and issues_json a compact summary of
+  // what the import analysis found (counts per issue code, accepted
+  // assumptions).
   IMPORT_BATCHES: `
     CREATE TABLE IF NOT EXISTS import_batches (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,7 +113,10 @@ export const CREATE_TABLES = {
       skipped_count INTEGER NOT NULL DEFAULT 0,
       rejected_count INTEGER NOT NULL DEFAULT 0,
       min_date DATE,
-      max_date DATE
+      max_date DATE,
+      profile_id INTEGER REFERENCES import_profiles (id) ON DELETE SET NULL,
+      file_format TEXT,
+      issues_json TEXT
     )
   `,
 
@@ -555,6 +563,56 @@ export const CREATE_TABLES = {
       FOREIGN KEY (loan_id) REFERENCES loans (id) ON DELETE CASCADE,
       FOREIGN KEY (transaction_id) REFERENCES transactions (id) ON DELETE CASCADE
     )
+  `,
+
+  // Version 7: statement import. A profile is the remembered way to read one
+  // bank's file shape, so a repeat import needs no mapping.
+  //   format       'delimited' (CSV / TSV / semicolon text) or 'ofx' (OFX / QFX)
+  //   fingerprint  what identifies the shape: the normalized header signature
+  //                of a delimited file, or the institution + account type of
+  //                an OFX file. Not unique: two accounts at one bank share it.
+  //   account_id   the account files of this shape were last imported into
+  //                (NULL = ask, or the file carries several accounts)
+  //   config_json  the layout: column roles, date order, decimal separator,
+  //                amount sign, reader options (ImportProfileConfig in
+  //                src/lib/statementImport/types.ts)
+  IMPORT_PROFILES: `
+    CREATE TABLE IF NOT EXISTS import_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      format TEXT CHECK(format IN ('delimited', 'ofx')) NOT NULL,
+      fingerprint TEXT NOT NULL,
+      institution TEXT,
+      account_id INTEGER,
+      config_json TEXT NOT NULL,
+      use_count INTEGER NOT NULL DEFAULT 0,
+      last_used_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE SET NULL
+    )
+  `,
+
+  // What a statement file calls an account, for any account type (cards keep
+  // living in account_cards, which also carries the cardholder).
+  //   kind    'number'  an account number as exported: value holds its digits
+  //                     only (masking characters dropped), last_four the
+  //                     trailing four
+  //           'label'   a text label with no usable number ("Joint Checking"):
+  //                     value is lower-cased and trimmed, last_four is NULL
+  //   source  'import'  remembered when the user confirmed an account for a file
+  //           'manual'  typed by the user
+  ACCOUNT_IDENTIFIERS: `
+    CREATE TABLE IF NOT EXISTS account_identifiers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      account_id INTEGER NOT NULL,
+      kind TEXT CHECK(kind IN ('number', 'label')) NOT NULL,
+      value TEXT NOT NULL,
+      last_four TEXT,
+      source TEXT CHECK(source IN ('import', 'manual')) NOT NULL DEFAULT 'import',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE
+    )
   `
 };
 
@@ -615,6 +673,13 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_loans_project ON loans(project_id) WHERE project_id IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_loan_match_rules_loan ON loan_match_rules(loan_id, enabled)`,
   `CREATE INDEX IF NOT EXISTS idx_loan_payments_loan_date ON loan_payments(loan_id, payment_date)`,
+  // Version 7: statement import. A file is matched to its saved layout by
+  // fingerprint, and to an account by the number or label it carries (the
+  // full value first, then the last four digits).
+  `CREATE INDEX IF NOT EXISTS idx_import_profiles_fingerprint ON import_profiles(fingerprint)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_account_identifiers_account_value ON account_identifiers(account_id, kind, value)`,
+  `CREATE INDEX IF NOT EXISTS idx_account_identifiers_value ON account_identifiers(value)`,
+  `CREATE INDEX IF NOT EXISTS idx_account_identifiers_last_four ON account_identifiers(last_four) WHERE last_four IS NOT NULL`,
 ];
 
 // Schema versioning — applied by runMigrations() in database-worker.js.
@@ -636,7 +701,7 @@ export const CREATE_INDEXES = [
 //       -> RENAME. Skipped when the table already has `guardColumn`.
 //   - { op: 'rehashTransactions' }                     recomputes legacy hashes
 //   - an UPDATE ... WHERE string is allowed too when it is a no-op on rerun
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 export const MIGRATIONS = [
   {
     version: 1,
@@ -773,6 +838,23 @@ export const MIGRATIONS = [
       // Per-account currency (ISO 4217) and the manual exchange-rate table.
       { op: 'addColumn', table: 'accounts', column: 'currency', ddl: "currency TEXT NOT NULL DEFAULT 'USD'" },
       CREATE_TABLES.EXCHANGE_RATES,
+    ],
+  },
+  {
+    version: 7,
+    statements: [
+      // Statement import: saved file layouts, account numbers / labels for
+      // any account type, and what each import run was read with and found.
+      CREATE_TABLES.IMPORT_PROFILES,
+      CREATE_TABLES.ACCOUNT_IDENTIFIERS,
+      {
+        op: 'addColumn',
+        table: 'import_batches',
+        column: 'profile_id',
+        ddl: 'profile_id INTEGER REFERENCES import_profiles (id) ON DELETE SET NULL',
+      },
+      { op: 'addColumn', table: 'import_batches', column: 'file_format', ddl: 'file_format TEXT' },
+      { op: 'addColumn', table: 'import_batches', column: 'issues_json', ddl: 'issues_json TEXT' },
     ],
   },
 ];

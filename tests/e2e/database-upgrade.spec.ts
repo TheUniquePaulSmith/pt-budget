@@ -52,7 +52,30 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
 
   // Opening an older database runs the pending migrations before the app
   // reports Connected, so the version is already current here.
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('6');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('7');
+
+  // Version 7: the statement-import tables and the import batch details exist
+  // on an upgraded database too, with the same columns a fresh one gets.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('import_profiles', 'account_identifiers')"
+    )
+  ).toBe('2');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT group_concat(name, ',') FROM pragma_table_info('import_batches')"
+    )
+  ).toBe(
+    'id,imported_at,source,file_name,account_ids_json,total_rows,inserted_count,duplicate_count,skipped_count,rejected_count,min_date,max_date,profile_id,file_format,issues_json'
+  );
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('idx_import_profiles_fingerprint', 'idx_account_identifiers_account_value', 'idx_account_identifiers_value', 'idx_account_identifiers_last_four')"
+    )
+  ).toBe('4');
 
   // Version 5: the loan tables exist on an upgraded database too.
   expect(
@@ -225,7 +248,14 @@ test('upgrades a schema v2 archive to the current version, keeping rows and addi
   test.skip(!fs.existsSync(V2_ARCHIVE_PATH), 'v2 baseline archive not captured (see tests/e2e-tools)');
   await loadArchiveAndUnlock(page, V2_ARCHIVE_PATH);
 
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('6');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('7');
+  // A v2 database already has import_batches; version 7 only adds its three columns.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('import_batches') WHERE name IN ('profile_id', 'file_format', 'issues_json')"
+    )
+  ).toBe('3');
 
   // Rows survive: the v2 archive carries transactions, series and links.
   expect(Number(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM transactions'))).toBeGreaterThan(0);

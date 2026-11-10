@@ -1,0 +1,12 @@
+{
+  "page": {
+    "title": "거래 가져오기",
+    "close": "가져오기 닫기",
+    "views": "가져오기 보기",
+    "viewWizard": "가져오기",
+    "viewManage": "기록 및 형식"
+  },
+  "placeholder": {
+    "wizard": "안내형 가져오기는 아직 사용할 수 없습니다. 당분간 'CSV 가져오기'를 사용하세요."
+  }
+}

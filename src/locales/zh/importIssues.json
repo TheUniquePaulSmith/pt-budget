@@ -1,0 +1,7 @@
+{
+  "severity": {
+    "blocker": "需要决定",
+    "warning": "建议检查",
+    "info": "供您参考"
+  }
+}

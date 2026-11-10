@@ -213,6 +213,7 @@ export type AppPageId =
   | 'accounts'
   | 'loans'
   | 'transactions'
+  | 'import'
   | 'subscriptions'
   | 'notifications'
   | 'sql-query'

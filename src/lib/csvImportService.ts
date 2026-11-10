@@ -2,6 +2,25 @@ import type { Account, Transaction } from '../types/database';
 
 import { DatabaseService } from './databaseService';
 import { type CsvDateOrder, parseCsvDate } from './dateOnly';
+import {
+  deriveInstitutionHint,
+  extractDigitsValue,
+  extractLastFourValue,
+  findTextHintedAccounts,
+} from './statementImport/shared/accountText';
+import { type CsvDecimalSeparator, parseCsvAmount } from './statementImport/shared/amounts';
+import { detectUniqueIdentifierColumn, isPlaceholderReference } from './statementImport/shared/references';
+
+// The pure parsing helpers moved to ./statementImport/shared so the Import
+// Wizard's readers and analysis can use them without this module's database
+// dependency; they are re-exported here so existing imports keep working.
+export {
+  deriveInstitutionHint,
+  extractLastFourValue,
+  findTextHintedAccounts,
+} from './statementImport/shared/accountText';
+export { type CsvDecimalSeparator, type ParseCsvAmountOptions, parseCsvAmount } from './statementImport/shared/amounts';
+export { detectUniqueIdentifierColumn, isPlaceholderReference } from './statementImport/shared/references';
 
 export interface CSVImportColumnMapping {
   accountColumn: string;
@@ -147,170 +166,8 @@ export function autoDetectColumnMapping(
   };
 }
 
-// A bank reference/transaction number is a strong dedup key; a header that merely
-// contains "id" (Paid, Valid, Card Holder ID) is not, and a wrong pick silently
-// breaks duplicate detection on the next overlapping import.
-const UNIQUE_ID_STRONG_RE = /reference|\btrans(?:action)?\s*(?:id|number|#|no\.?)\b|\btxn\s*(?:id|number)|\bfitid\b/i;
-const UNIQUE_ID_WEAK_RE = /\bid\b/i;
-const UNIQUE_ID_EXCLUDE_RE = /holder|customer|member|account|card|user|category|merchant|payee/i;
-
-/**
- * Picks the bank-reference column by header name. With the parsed rows it also
- * checks the values: a column that is mostly placeholders ("0", blank) or
- * repeats a value is not an identifier, whatever its header says.
- */
-export function detectUniqueIdentifierColumn(headers: string[], rows?: Array<Record<string, unknown>>): string {
-  const usable = (header: string) => !rows || hasUniqueReferenceValues(rows, header);
-  const strong = headers.filter((header) => UNIQUE_ID_STRONG_RE.test(header));
-  const weak = headers.filter(
-    (header) => UNIQUE_ID_WEAK_RE.test(header) && !UNIQUE_ID_EXCLUDE_RE.test(header) && !strong.includes(header)
-  );
-  return [...strong, ...weak].find(usable) || '';
-}
-
-function hasUniqueReferenceValues(rows: Array<Record<string, unknown>>, header: string): boolean {
-  const values = rows
-    .map((row) => String(row[header] ?? '').trim())
-    .filter((value) => !isPlaceholderReference(value));
-  // Most rows must carry a real value, and no value may repeat.
-  return values.length > 0 && values.length * 2 >= rows.length && new Set(values).size === values.length;
-}
-
-/**
- * Parses a bank-export amount cell. Understands accounting negatives "(12.34)",
- * trailing minus "12.34-", CR/DR markers (CR = money in, DR = money out), and
- * currency symbols / thousands separators. Returns null for anything that is
- * not a number so the row can be reported instead of imported as $0.
- */
-export type CsvDecimalSeparator = '.' | ',' | 'auto';
-
-export interface ParseCsvAmountOptions {
-  /**
-   * Which separator is the decimal point. `'auto'` (default) decides per
-   * value: when both `.` and `,` appear, the last one is the decimal; a lone
-   * comma followed by one or two digits at the end is a decimal comma
-   * ("12,34"), otherwise a thousands separator ("1,234"). Pass `','` for a
-   * decimal-comma locale so "1.234" reads as one thousand two hundred
-   * thirty-four; the CSV importer passes `decimalSeparatorFor(language)`.
-   */
-  decimal?: CsvDecimalSeparator;
-}
-
-/** Normalises a numeric string to a dot-decimal form Number() understands, or null when malformed. */
-function normalizeCsvNumber(text: string, decimal: CsvDecimalSeparator): string | null {
-  const stripped = text.replace(/[^\d.,-]/g, '');
-  if (!/\d/.test(stripped)) return null;
-  const hasDot = stripped.includes('.');
-  const hasComma = stripped.includes(',');
-
-  let decimalChar: '.' | ',' | null;
-  if (hasDot && hasComma) {
-    decimalChar = stripped.lastIndexOf('.') > stripped.lastIndexOf(',') ? '.' : ',';
-  } else if (hasComma) {
-    decimalChar = decimal === '.' ? null : decimal === ',' || /,\d{1,2}$/.test(stripped) ? ',' : null;
-  } else if (hasDot) {
-    decimalChar = decimal === ',' ? (/\.\d{1,2}$/.test(stripped) && (stripped.match(/\./g) ?? []).length === 1 ? '.' : null) : '.';
-    // A decimal-comma locale writing "1.234" means one thousand; "1.5" is still a decimal.
-    if (decimal === ',' && decimalChar === '.' && /\.\d{3}$/.test(stripped)) decimalChar = null;
-  } else {
-    decimalChar = null;
-  }
-
-  const groupChar = decimalChar === '.' ? ',' : decimalChar === ',' ? '.' : null;
-  let normalized = stripped;
-  if (groupChar) normalized = normalized.split(groupChar).join('');
-  else normalized = normalized.replace(/[.,]/g, '');
-  if (decimalChar === ',') normalized = normalized.replace(',', '.');
-  // More than one decimal point left means the value was malformed ("12.34.56").
-  if ((normalized.match(/\./g) ?? []).length > 1) return null;
-  return normalized;
-}
-
-export function parseCsvAmount(raw: unknown, { decimal = 'auto' }: ParseCsvAmountOptions = {}): number | null {
-  if (raw == null) return null;
-  let text = String(raw).trim();
-  if (!text) return null;
-
-  let sign = 1;
-  if (/^\(.*\)$/.test(text)) {
-    sign = -1;
-    text = text.slice(1, -1);
-  }
-
-  const marker = text.match(/\b(CR|DR)\b\s*$/i) ?? text.match(/^\s*(CR|DR)\b/i);
-  if (marker) {
-    if (marker[1].toUpperCase() === 'DR') sign *= -1;
-    text = text.replace(marker[0], '');
-  }
-
-  if (/-\s*$/.test(text) && !/^\s*-/.test(text)) {
-    sign *= -1;
-    text = text.replace(/-\s*$/, '');
-  }
-
-  const cleaned = normalizeCsvNumber(text, decimal);
-  if (cleaned === null) return null;
-  const value = Number(cleaned);
-  if (!Number.isFinite(value)) return null;
-  return value * sign;
-}
-
-export function extractLastFourValue(csvValue: string): string {
-  const lastFourMatch = csvValue.match(/(\d{4})$/);
-  return lastFourMatch ? lastFourMatch[1] : '';
-}
-
-function extractDigitsValue(csvValue: string): string {
-  return csvValue.replace(/\D/g, '');
-}
-
-// Words that appear in bank-export account labels and file names but say
-// nothing about which account or institution is meant.
-const ACCOUNT_TEXT_STOPWORDS = new Set([
-  'account', 'accounts', 'acct', 'card', 'ending', 'number', 'no', 'xxxx', 'the', 'and', 'for',
-  'export', 'exports', 'transaction', 'transactions', 'statement', 'statements', 'download',
-  'downloads', 'history', 'data', 'csv', 'activity', 'report', 'file', 'details', 'detail',
-  'list', 'all', 'my', 'import', 'sample',
-  // Account-type words are shared by unrelated accounts, so they are not a hint either.
-  'checking', 'savings', 'credit', 'debit', 'loan', 'mortgage', 'investment', 'retirement',
-]);
-
 // Filler dropped from the CSV value when it is reused as the account name.
 const NAME_PREFILL_FILLER = new Set(['ending', 'number', 'no', 'xxxx', 'acct']);
-
-function textTokens(text: string): string[] {
-  return text
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .toLowerCase()
-    .split(/[^a-z]+/)
-    .filter((token) => token.length >= 3 && !ACCOUNT_TEXT_STOPWORDS.has(token));
-}
-
-/**
- * Accounts whose name or institution shares a meaningful word with the CSV
- * account value ("Huntington Checking 1234" → the Huntington accounts). A hint
- * for the mapping UI only: text is too weak to pick an account on its own.
- */
-export function findTextHintedAccounts(csvValue: string, accounts: Account[]): Account[] {
-  const valueTokens = new Set(textTokens(csvValue));
-  if (valueTokens.size === 0) return [];
-  return accounts.filter((account) => {
-    const accountTokens = textTokens(`${account.name} ${account.institution ?? ''}`);
-    return accountTokens.some((token) => valueTokens.has(token));
-  });
-}
-
-/**
- * Guesses the institution from an export's file name ("HuntingtonExport.csv"
- * → "Huntington"). Only a prefill: the user can clear or change it.
- */
-export function deriveInstitutionHint(fileName: string | null | undefined): string {
-  if (!fileName) return '';
-  const base = fileName.replace(/\.[^.]+$/, '');
-  const [first] = textTokens(base);
-  if (!first) return '';
-  return first.charAt(0).toUpperCase() + first.slice(1);
-}
 
 /**
  * Prefill for "Create new account…" from the import: the CSV value's digits
@@ -581,16 +438,6 @@ export async function mapTransactionsFromCSV(
 
   dropRepeatedReferences(mapped);
   return { mapped, rejected };
-}
-
-/**
- * Blank, all-zero or "N/A"-style cells are what banks print when a row has no
- * reference. As a dedup key they would match every stored row of the same
- * account and amount, silently dropping new transactions (Huntington's
- * "Reference Number" is "0" on most rows).
- */
-export function isPlaceholderReference(value: string): boolean {
-  return /^[\s0.#-]*$/.test(value) || /^(n\/?a|none|null|undefined)$/i.test(value.trim());
 }
 
 /**

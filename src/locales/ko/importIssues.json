@@ -1,0 +1,7 @@
+{
+  "severity": {
+    "blocker": "결정 필요",
+    "warning": "확인 권장",
+    "info": "참고 정보"
+  }
+}

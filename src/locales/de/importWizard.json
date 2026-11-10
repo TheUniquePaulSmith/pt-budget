@@ -1,0 +1,12 @@
+{
+  "page": {
+    "title": "Transaktionen importieren",
+    "close": "Import schließen",
+    "views": "Importansichten",
+    "viewWizard": "Importieren",
+    "viewManage": "Verlauf und Formate"
+  },
+  "placeholder": {
+    "wizard": "Der geführte Import ist noch nicht verfügbar. Verwenden Sie vorerst „CSV importieren“."
+  }
+}

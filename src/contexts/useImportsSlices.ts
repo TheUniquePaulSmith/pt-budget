@@ -67,8 +67,10 @@ export function useImportManageSlice() {
     transactionVersion: collections.transactionVersion,
     listImportBatches: imports.listImportBatches,
     getImportBatchImpact: imports.getImportBatchImpact,
+    // Refreshes transactions and, when loan payments went with the batch, the
+    // loans and their linked account balances.
     undoImportBatch: imports.undoImportBatch,
-    // An undo removes rows the detected series were built from.
+    // An undo removes rows the detected series were built from: run this after it.
     runSubscriptionScan: subscriptions.runSubscriptionScan,
     listImportProfiles: imports.listImportProfiles,
     saveImportProfile: imports.saveImportProfile,

@@ -62,12 +62,109 @@ export const IMPORT_QUERIES = {
   FIND_IDENTIFIERS_BY_LAST_FOUR: `
     SELECT account_id FROM account_identifiers WHERE kind = 'number' AND last_four = ? ORDER BY id`,
 
+  // A value that matches nothing is compared with these by name, as a hint only.
+  LIST_ACCOUNTS_FOR_HINTS: `SELECT id, name, institution FROM accounts ORDER BY id`,
+
+  // --- what is already stored for an account ---
+  // One row per account that has transactions. last_import_through is the
+  // latest max_date among the import batches that wrote to the account.
+  // __IDS__ is replaced with a list of integer ids by the service.
+  ACCOUNT_COVERAGE: `
+    SELECT t.account_id,
+           MIN(t.date) AS first_date,
+           MAX(t.date) AS last_date,
+           COUNT(*) AS transaction_count,
+           (SELECT MAX(b.max_date)
+              FROM import_batches b
+             WHERE b.id IN (SELECT bt.import_batch_id
+                              FROM transactions bt
+                             WHERE bt.account_id = t.account_id AND bt.import_batch_id IS NOT NULL)
+           ) AS last_import_through
+      FROM transactions t
+     WHERE t.account_id IN (__IDS__)
+     GROUP BY t.account_id`,
+
+  // --- staging ---
+  // In file order (ids ascend with the rows handed to staging).
+  GET_STAGED_ROWS: `
+    SELECT id, account_id, date, amount, description, transaction_hash, hash_variation_seed
+      FROM temp_import_transactions
+     ORDER BY id`,
+  RESEED_STAGED_ROW: `UPDATE temp_import_transactions SET transaction_hash = ?, hash_variation_seed = ? WHERE id = ?`,
+
   // --- import runs ---
   SET_BATCH_DETAILS: `UPDATE import_batches SET profile_id = ?, file_format = ?, issues_json = ? WHERE id = ?`,
+  COUNT_BATCH_TRANSACTIONS: `SELECT COUNT(*) AS count FROM transactions WHERE import_batch_id = ?`,
+  GET_BATCH: `SELECT id FROM import_batches WHERE id = ?`,
   LIST_BATCHES: `
     SELECT b.*, p.name AS profile_name
       FROM import_batches b
       LEFT JOIN import_profiles p ON p.id = b.profile_id
      ORDER BY b.imported_at DESC, b.id DESC
      LIMIT ?`,
+
+  // --- undo ---
+  // What removing a batch takes with it. "Edited" means the row carries
+  // something the user added after the import: a category, a project or trip,
+  // a note, a flag, an exclusion, a type they chose or confirmed, or a series
+  // they linked by hand. updated_at is no use here: the subscription scan and
+  // later classification passes touch it too.
+  BATCH_IMPACT: `
+    WITH batch_rows AS (SELECT * FROM transactions WHERE import_batch_id = ?)
+    SELECT
+      (SELECT COUNT(*) FROM batch_rows) AS transactions,
+      (SELECT COUNT(*) FROM batch_rows t
+        WHERE t.type_locked = 1
+           OR t.category_id IS NOT NULL
+           OR t.project_id IS NOT NULL
+           OR t.trip_id IS NOT NULL
+           OR COALESCE(t.comment, '') != ''
+           OR t.is_flagged = 1
+           OR t.is_excluded = 1
+           OR EXISTS (SELECT 1 FROM transaction_series_links l
+                       WHERE l.transaction_id = t.id AND l.match_source = 'manual')
+      ) AS edited_since_import,
+      (SELECT COUNT(*) FROM loan_payments lp
+        WHERE lp.transaction_id IN (SELECT id FROM batch_rows)) AS loan_payments,
+      (SELECT COUNT(DISTINCT transfer_group_id) FROM batch_rows
+        WHERE transfer_group_id IS NOT NULL) AS transfer_pairs`,
+  // Loans that lose a payment when the batch goes: their linked account's
+  // balance snapshot has to be recomputed afterwards.
+  BATCH_LOAN_IDS: `
+    SELECT DISTINCT lp.loan_id
+      FROM loan_payments lp
+      JOIN transactions t ON t.id = lp.transaction_id
+     WHERE t.import_batch_id = ?
+     ORDER BY lp.loan_id`,
+  // Children are removed by hand: PRAGMA foreign_keys is off on reopened
+  // databases, so ON DELETE CASCADE cannot be relied upon.
+  DELETE_BATCH_SERIES_LINKS: `
+    DELETE FROM transaction_series_links
+     WHERE transaction_id IN (SELECT id FROM transactions WHERE import_batch_id = ?)`,
+  DELETE_BATCH_LOAN_PAYMENTS: `
+    DELETE FROM loan_payments
+     WHERE transaction_id IN (SELECT id FROM transactions WHERE import_batch_id = ?)`,
+  // The other leg of a transfer whose counterpart is being removed. A leg the
+  // pairing typed goes back to what its sign says (what the classifier does
+  // with an unpaired row); parameters: batch id, batch id.
+  REVERT_SURVIVING_PAIRED_LEGS: `
+    UPDATE transactions
+       SET type = CASE WHEN amount > 0 THEN 'income' ELSE 'expense' END,
+           type_source = 'sign', type_confidence = NULL, transfer_group_id = NULL,
+           updated_at = CURRENT_TIMESTAMP
+     WHERE (import_batch_id IS NULL OR import_batch_id != ?)
+       AND type_locked = 0 AND type_source = 'pair'
+       AND transfer_group_id IN (
+         SELECT transfer_group_id FROM transactions
+          WHERE import_batch_id = ? AND transfer_group_id IS NOT NULL)`,
+  // A leg the user typed keeps its type and only loses the pairing;
+  // parameters: batch id, batch id.
+  CLEAR_SURVIVING_TRANSFER_GROUPS: `
+    UPDATE transactions
+       SET transfer_group_id = NULL, updated_at = CURRENT_TIMESTAMP
+     WHERE (import_batch_id IS NULL OR import_batch_id != ?)
+       AND transfer_group_id IN (
+         SELECT transfer_group_id FROM transactions
+          WHERE import_batch_id = ? AND transfer_group_id IS NOT NULL)`,
+  DELETE_BATCH_TRANSACTIONS: `DELETE FROM transactions WHERE import_batch_id = ?`,
 } as const;

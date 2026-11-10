@@ -19,8 +19,11 @@ import type { AccountIdentifier, AccountIdentifierInput, ImportBatch } from '../
 /**
  * Provider-domain slice for statement import (schema v7). Saved layouts,
  * account identifiers and import history are read on demand by the Import
- * page, not cached. A commit refreshes transactions; an undo also refreshes
- * accounts and loans, because removing rows changes balances and loan ledgers.
+ * page, not cached. A commit refreshes transactions (nothing else changes
+ * until the wizard runs the loan rules and the subscription scan, which
+ * refresh their own collections). An undo refreshes transactions too; when it
+ * took loan payments with it, the loans' linked account balances are
+ * recomputed and loans and accounts are refreshed as well.
  */
 export interface DatabaseImportsSlice {
   listImportProfiles: () => Promise<SavedImportProfile[]>;
@@ -39,11 +42,16 @@ export interface DatabaseImportsSlice {
   commitStagedImport: (input: CommitInput) => Promise<CommitResult>;
   listImportBatches: (limit?: number) => Promise<ImportBatch[]>;
   getImportBatchImpact: (batchId: number) => Promise<ImportBatchImpact>;
-  /** Removes a batch and what it imported; refreshes transactions, accounts and loans. */
+  /**
+   * Removes a batch and what it imported; refreshes transactions, plus loans
+   * and accounts when loan payments went with it. The subscription scan is the
+   * caller's to re-run.
+   */
   undoImportBatch: (batchId: number) => Promise<ImportBatchImpact>;
 }
 
-type ImportsDatabaseService = Pick<DatabaseService, 'imports'>;
+// `loans` only for syncAccountSnapshot after an undo that removed loan payments.
+type ImportsDatabaseService = Pick<DatabaseService, 'imports' | 'loans'>;
 
 interface UseDatabaseImportsSliceOptions {
   databaseService: ImportsDatabaseService | null;
@@ -58,12 +66,13 @@ export function useDatabaseImportsSlice({
   refreshAccounts,
   refreshLoans,
 }: UseDatabaseImportsSliceOptions): DatabaseImportsSlice {
-  const requireService = useCallback(() => {
+  const requireDatabase = useCallback(() => {
     if (!databaseService) {
       throw new Error('Database service not initialized');
     }
-    return databaseService.imports;
+    return databaseService;
   }, [databaseService]);
+  const requireService = useCallback(() => requireDatabase().imports, [requireDatabase]);
 
   const listImportProfiles = useCallback(async () => requireService().listProfiles(), [requireService]);
   const findImportProfiles = useCallback(
@@ -123,11 +132,22 @@ export function useDatabaseImportsSlice({
 
   const undoImportBatch = useCallback(
     async (batchId: number) => {
-      const impact = await requireService().undoBatch(batchId);
-      await Promise.all([refreshTransactions(), refreshAccounts(), refreshLoans()]);
+      const { imports, loans } = requireDatabase();
+      // Asked first: once the batch is gone, nothing says which loans it paid.
+      const loanIds = await imports.getBatchLoanIds(batchId);
+      const impact = await imports.undoBatch(batchId);
+      // A linked loan / credit account shows the balance the ledger computes;
+      // without this it would still count the payments that were just removed.
+      for (const loanId of loanIds) {
+        await loans.syncAccountSnapshot(loanId);
+      }
+      await Promise.all([
+        refreshTransactions(),
+        ...(loanIds.length > 0 ? [refreshLoans(), refreshAccounts()] : []),
+      ]);
       return impact;
     },
-    [refreshAccounts, refreshLoans, refreshTransactions, requireService]
+    [refreshAccounts, refreshLoans, refreshTransactions, requireDatabase]
   );
 
   return useMemo(

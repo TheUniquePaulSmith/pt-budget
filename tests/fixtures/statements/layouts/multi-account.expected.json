@@ -1,0 +1,28 @@
+{
+  "file": "multi-account.csv",
+  "description": "One export for two accounts: a per-row Account Number column with masked numbers. The account column is a role, and the analysis says the file carries more than one account. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "account": 0,
+      "date": 1,
+      "description": [
+        2
+      ],
+      "amount": 3
+    },
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 9,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-02",
+    "lastDate": "2026-09-30",
+    "moneyIn": 2051.12,
+    "moneyOut": 423.65,
+    "issueCodes": [
+      "multipleAccountsInFile"
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "file": "excel-mangled-numbers.csv",
+  "description": "A file that went through a spreadsheet: one amount became \"-1.25E+04\" (blocked until fixed or skipped), the account number became \"4.00E+14\" on every row, and the reference \"7.31E+11\" on every row (so it is not used as a duplicate key). Synthetic rows.",
+  "layout": {
+    "roles": {
+      "account": 0,
+      "date": 1,
+      "description": [
+        2
+      ],
+      "amount": 3
+    },
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 4,
+    "blockedRows": 1,
+    "skippedRows": 0,
+    "firstDate": "2026-09-02",
+    "lastDate": "2026-09-15",
+    "moneyIn": 1800,
+    "moneyOut": 123.25,
+    "issueCodes": [
+      "excelMangledNumber",
+      "referenceNotUnique"
+    ]
+  }
+}

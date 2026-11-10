@@ -3,5 +3,239 @@
     "blocker": "Needs a decision",
     "warning": "Worth checking",
     "info": "For your information"
+  },
+  "issues": {
+    "unsupportedFormat": {
+      "title": "This kind of file cannot be imported",
+      "detail": "The import reads CSV, TXT, TSV, OFX and QFX files. Spreadsheets (XLSX), PDF and QIF files are not supported. On your bank's website, choose CSV or OFX when you download the statement."
+    },
+    "emptyFile": {
+      "title": "The file is empty",
+      "detail": "There is nothing in this file. Download the statement from your bank again and try once more."
+    },
+    "noDataRows": {
+      "title": "No transactions in this file",
+      "detail": "The file has column names but no rows below them. Check the dates you chose when you downloaded it."
+    },
+    "encodingGuessed": {
+      "title": "The text encoding was guessed",
+      "detail": "The file does not say how its letters are stored, so the most common Western encoding was used. If names show odd characters, choose another encoding for this file."
+    },
+    "preambleSkipped": {
+      "title": "Lines above the column names were left out",
+      "detail": "The file starts with lines that are not transactions, such as the bank's name or the account. They are not imported."
+    },
+    "trailerSkipped": {
+      "title": "Lines below the transactions were left out",
+      "detail": "The file ends with lines that are not transactions, such as totals or a disclaimer. They are not imported."
+    },
+    "headerMissing": {
+      "title": "The file has no column names",
+      "detail": "The first line already looks like a transaction, so the columns are called Column 1, Column 2 and so on. Check that each one was understood correctly."
+    },
+    "duplicateHeaderNames": {
+      "title": "Two columns have the same name",
+      "detail": "Columns with the same name were numbered so you can tell them apart."
+    },
+    "raggedRows": {
+      "title": "Some rows have more or fewer values than there are columns",
+      "detail": "A value may have ended up in the wrong column in these rows, often because of a stray comma or quotation mark. Check them before you import."
+    },
+    "truncatedFile": {
+      "title": "The file seems to be cut off",
+      "detail": "The last line stops in the middle of a row, so the download may be incomplete. Download the file again if the latest transactions are missing."
+    },
+    "multipleAccountsInFile": {
+      "title": "This file has more than one account",
+      "detail": "Each row says which account it belongs to. Every account in the file is matched to one of yours separately."
+    },
+    "dateOrderAmbiguous": {
+      "title": "Day and month could be the other way round",
+      "detail": "Every date in this file works both as day/month and as month/day, so the file cannot tell us which is meant. We read {{example}} as {{readAs}} (year-month-day). If that is wrong, change the date order for this file."
+    },
+    "dateOrderMixed": {
+      "title_one": "{{count}} date does not fit the order of the rest",
+      "title_other": "{{count}} dates do not fit the order of the rest",
+      "detail": "A file writes its dates the same way throughout, but {{example}} on line {{line}} only works with day and month swapped. Either the date order chosen for this file is wrong, or these rows are. Change the date order, or fix or skip these rows."
+    },
+    "decimalAmbiguous": {
+      "title": "Check the decimal mark",
+      "detail": "Amounts like {{example}} can be read two ways, and nothing else in this file settles it. We took “{{mark}}” as the decimal mark. If the amounts look a thousand times too big or too small, change it for this file."
+    },
+    "signAssumed": {
+      "title": "Check which amounts are money in and money out",
+      "detail": "The file does not say clearly which way its amounts go, so this is our best reading. Rows read as money out: {{moneyOutRows}}. Rows read as money in: {{moneyInRows}}. If that looks the wrong way round, flip the sign for this file."
+    },
+    "noDateColumn": {
+      "title": "No date column",
+      "detail": "We could not tell which column holds the date. Choose it yourself: nothing can be imported without a date."
+    },
+    "noAmountColumn": {
+      "title": "No amount column",
+      "detail": "We could not tell which column holds the amount. Choose it yourself: nothing can be imported without an amount."
+    },
+    "noDescriptionColumn": {
+      "title": "No description column",
+      "detail": "We could not tell which column describes each transaction. Choose it yourself, so you can recognise your transactions later."
+    },
+    "debitCreditBothFilled": {
+      "title_one": "{{count}} row has both money out and money in",
+      "title_other": "{{count}} rows have both money out and money in",
+      "detail": "A row normally fills only one of the two columns. Where both have a value, the difference is imported. Check that this is what you expect."
+    },
+    "descriptionMostlyBlank": {
+      "title": "Most rows have no description",
+      "detail": "{{count}} of {{total}} rows have nothing in the description column. They can be imported, but the wrong column may have been picked: the description should be the one with the shop or payer names."
+    },
+    "referenceNotUnique": {
+      "title": "“{{column}}” is not used to spot duplicates",
+      "detail": "A bank reference only helps when every row has its own. In this file it is blank, repeated or damaged, so rows you already imported are recognised by their date, amount and description instead."
+    },
+    "currencyMismatch": {
+      "title_one": "{{count}} row is in {{fileCurrency}}, but the account is in {{accountCurrency}}",
+      "title_other": "{{count}} rows are in {{fileCurrency}}, but the account is in {{accountCurrency}}",
+      "detail": "Amounts are imported as they are and counted as {{accountCurrency}}. Nothing is converted. Check that you picked the right account."
+    },
+    "columnNotImported": {
+      "title": "“{{column}}” is not imported",
+      "detail": "The import keeps the date, description and amount of each transaction. Other columns, such as a category, a check number or the principal and interest parts of a loan payment, are left out."
+    },
+    "unreadableDate": {
+      "title_one": "{{count}} row has a date we cannot read",
+      "title_other": "{{count}} rows have a date we cannot read",
+      "detail": "The date is missing or is not written like the other dates in this file. Type the right date for each row, or skip the row. It cannot be imported as it is."
+    },
+    "unreadableAmount": {
+      "title_one": "{{count}} row has an amount we cannot read",
+      "title_other": "{{count}} rows have an amount we cannot read",
+      "detail": "The amount is missing, is not a number, or does not say whether it is money in or money out. Type the right amount for each row, or skip the row. It cannot be imported as it is."
+    },
+    "excelMangledNumber": {
+      "title_one": "{{count}} amount was changed by a spreadsheet",
+      "title_other": "{{count}} amounts were changed by a spreadsheet",
+      "detail": "A value such as {{example}} is what a spreadsheet program writes when it shortens a long number, so the real amount is lost. Type the amount from your statement, skip the row, or download the file again without opening it in a spreadsheet first."
+    },
+    "blankDescription": {
+      "title_one": "{{count}} row has no description",
+      "title_other": "{{count}} rows have no description",
+      "detail": "These rows can be imported, but you may not recognise them later. You can type a description for each one."
+    },
+    "zeroAmount": {
+      "title_one": "{{count}} row has an amount of zero",
+      "title_other": "{{count}} rows have an amount of zero",
+      "detail": "A transaction of zero changes nothing in your totals. Skip these rows unless you want them for your records."
+    },
+    "futureDate": {
+      "title_one": "{{count}} row is dated in the future",
+      "title_other": "{{count}} rows are dated in the future",
+      "detail": "The date is later than today. It may be a scheduled payment, or day and month may be swapped. Check the date, or skip the row until it has happened."
+    },
+    "dateFarFromOthers": {
+      "title_one": "{{count}} date is far from the rest of the file",
+      "title_other": "{{count}} dates are far from the rest of the file",
+      "detail": "Most of this file is between {{from}} and {{to}}, but these rows are more than a year away. That is often a typing mistake in the year. Fix the date if it is wrong."
+    },
+    "amountOutlier": {
+      "title_one": "{{count}} amount is much larger than the rest",
+      "title_other": "{{count}} amounts are much larger than the rest",
+      "detail": "More than ten times the largest of the other amounts in this file. It may be right, such as a deposit on a house, or the decimal mark may be in the wrong place. Have a look before you import."
+    },
+    "pendingTransaction": {
+      "title_one": "{{count}} row is still pending",
+      "title_other": "{{count}} rows are still pending",
+      "detail": "The bank has not finished processing these transactions: the amount can still change, or the transaction can disappear. If you import them now, a later file may bring them in again with different details. Skipping them until they are final is the safe choice."
+    },
+    "summaryRow": {
+      "title_one": "{{count}} total line was left out",
+      "title_other": "{{count}} total lines were left out",
+      "detail": "These lines are totals or balances, not transactions, so they are skipped. If one of them is a real transaction, you can bring it back."
+    },
+    "balanceMismatch": {
+      "title_one": "{{count}} row does not match the bank's running balance",
+      "title_other": "{{count}} rows do not match the bank's running balance",
+      "detail": "The balance printed on these rows is not the balance before plus or minus the amount. A row may be missing from the file, or an amount may have been read wrongly. Compare these rows with your statement."
+    },
+    "duplicateInFile": {
+      "title": "Rows that appear more than once in this file",
+      "detail": "These rows have the same date, amount and description as another row in the file. They may be two real transactions, such as two coffees on the same day, or the same one listed twice. Choose which ones to import."
+    },
+    "alreadyImported": {
+      "title": "Rows you have already imported",
+      "detail": "These transactions are already in the account from an earlier import, so they are not added again."
+    },
+    "accountRecognised": {
+      "title": "Account recognised",
+      "detail": "The full account number in the file matches this account."
+    },
+    "accountAssumedByLastFour": {
+      "title": "Account assumed from the last four digits",
+      "detail": "The file only shows the end of the account number. It matches this account, but another account could end the same way. Confirm that it is the right one."
+    },
+    "accountAssumedByProfile": {
+      "title": "Account assumed from last time",
+      "detail": "The file does not name an account. Files in this format went into this account before, so it was picked again. Confirm that it is the right one."
+    },
+    "accountAssumedByName": {
+      "title": "Account assumed from its name",
+      "detail": "The file has no account number we know, but its account label resembles the name of this account. Confirm that it is the right one."
+    },
+    "accountAmbiguous": {
+      "title": "More than one account matches",
+      "detail": "The account number in the file fits several of your accounts. Choose the one this file belongs to."
+    },
+    "accountValueMalformed": {
+      "title": "The account number in the file is damaged",
+      "detail": "It looks like 4.00E+14, which is what a spreadsheet program writes when it shortens a long number. The account cannot be recognised from it, so choose the account yourself."
+    },
+    "accountTypeMismatch": {
+      "title": "The file and the account are different kinds of account",
+      "detail": "The file says it comes from one kind of account, such as a credit card, and the account you chose is another kind, such as checking. Check that you picked the right account."
+    },
+    "accountUnknown": {
+      "title": "We do not know which account this file is for",
+      "detail": "Nothing in the file matches an account you have. Choose an account, or add a new one."
+    },
+    "gapSinceLastImport": {
+      "title_one": "{{count}} day is not covered",
+      "title_other": "{{count}} days are not covered",
+      "detail": "Nothing has been imported for {{from}} to {{to}}: what the account already has stops before, and this file starts after. If you have a statement for those days, import it too so that nothing is missing."
+    },
+    "overlapsExisting": {
+      "title": "Part of this file is already in the account",
+      "detail": "The account already has transactions between {{from}} and {{to}}. Rows that were imported before are recognised and not added twice."
+    }
+  },
+  "assumptions": {
+    "savedLayout": "This file has the same format as one you imported before, so it is read the same way.",
+    "columnsByName": "The columns were recognised by their names: the date is “{{date}}”, the description is “{{description}}” and the amount is “{{amount}}”.",
+    "columnsByContent": "Some column names are not ones we know, so we went by what the columns contain: the date is “{{date}}”, the description is “{{description}}” and the amount is “{{amount}}”. Check that this is right.",
+    "columnsByAi": "The AI assistant suggested how to read this file: the date is “{{date}}”, the description is “{{description}}” and the amount is “{{amount}}”. Check it before you import.",
+    "twoDateColumns": "The file has two dates. “{{date}}” is used as the day the transaction happened; “{{postedDate}}” is not imported.",
+    "descriptionJoined": "The description is put together from these columns: {{columns}}.",
+    "debitCreditColumns": "Money out is read from “{{debit}}” and money in from “{{credit}}”.",
+    "directionColumn": "“{{amount}}” has no plus or minus sign. “{{direction}}” says which way the money went: {{out}} is money out and {{in}} is money in.",
+    "accountColumn": "“{{column}}” says which account each row belongs to.",
+    "datesUnambiguous": "Dates such as {{example}} can only be read one way, so there is nothing to guess.",
+    "dayFirstFromFile": "Dates are read as day, month, year: {{example}} on line {{line}} cannot be anything else.",
+    "monthFirstFromFile": "Dates are read as month, day, year: {{example}} on line {{line}} cannot be anything else.",
+    "dayFirstBySequence": "Dates such as {{example}} could be read two ways. Read as day, month, year the rows are in date order, so that is how they are read.",
+    "monthFirstBySequence": "Dates such as {{example}} could be read two ways. Read as month, day, year the rows are in date order, so that is how they are read.",
+    "dayFirstAssumed": "Dates such as {{example}} could be read two ways and the file does not settle it. They are read as day, month, year.",
+    "monthFirstAssumed": "Dates such as {{example}} could be read two ways and the file does not settle it. They are read as month, day, year.",
+    "dayFirstByMajority": "Dates that only work as day, month, year: {{count}}. Dates that only work as month, day, year: {{otherCount}}. The file is read as day, month, year; the other rows have to be fixed or skipped.",
+    "monthFirstByMajority": "Dates that only work as month, day, year: {{count}}. Dates that only work as day, month, year: {{otherCount}}. The file is read as month, day, year; the other rows have to be fixed or skipped.",
+    "decimalFromFile": "“{{mark}}” is the decimal mark: amounts such as {{example}} cannot be read any other way.",
+    "decimalByGrouping": "“{{group}}” separates thousands in amounts such as {{example}}, so “{{mark}}” is taken as the decimal mark.",
+    "decimalAssumed": "Amounts such as {{example}} could be read two ways and the file does not settle it. “{{mark}}” is taken as the decimal mark.",
+    "signAsPrintedByBalance": "Negative amounts are money out and positive amounts are money in. That is the only reading that adds up with the running balance in the file.",
+    "signFlippedByBalance": "This file writes money out as positive numbers, so the sign is flipped. That is the only reading that adds up with the running balance in the file.",
+    "signAsPrintedByKeywords": "Negative amounts are money out and positive amounts are money in, going by rows such as “{{description}}” ({{amount}}).",
+    "signFlippedByKeywords": "This file seems to write money out as positive numbers, going by rows such as “{{description}}” ({{amount}}), so the sign is flipped.",
+    "signAsPrintedByShare": "Negative amounts are money out and positive amounts are money in. {{percent}}% of the amounts are negative, as spending usually is.",
+    "signFlippedByShare": "This file seems to write money out as positive numbers: {{percent}}% of the amounts are positive, and most rows on a statement are spending. So the sign is flipped.",
+    "signFlippedForCard": "Every amount in this file is positive. Card statements usually list purchases that way, so they are read as money out.",
+    "signAsPrintedDefault": "Amounts are read as printed: negative is money out, positive is money in. Nothing in the file says otherwise.",
+    "signAsPrintedByAi": "The AI assistant read negative amounts as money out and positive amounts as money in.",
+    "signFlippedByAi": "The AI assistant thinks this file writes money out as positive numbers, so the sign is flipped."
   }
 }

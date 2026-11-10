@@ -1,0 +1,33 @@
+{
+  "file": "card-positive-charges-two-dates.csv",
+  "description": "Credit card export: purchases are positive numbers and the payment is negative, with a transaction date and a later post date. The sign is flipped (most rows are spending, and the payment row is printed negative); the Category column is reported as not imported. Synthetic rows.",
+  "context": {
+    "accountType": "credit"
+  },
+  "layout": {
+    "roles": {
+      "date": 0,
+      "postedDate": 1,
+      "description": [
+        2
+      ],
+      "amount": 3
+    },
+    "dateOrder": "MDY",
+    "decimal": ".",
+    "amountSign": "inverted",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 8,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-14",
+    "lastDate": "2026-09-29",
+    "moneyIn": 500,
+    "moneyOut": 261.1,
+    "issueCodes": [
+      "columnNotImported"
+    ]
+  }
+}

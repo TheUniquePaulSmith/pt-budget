@@ -106,6 +106,49 @@ export const IMPORT_ISSUE_CODES = {
 
 export type ImportIssueCode = keyof typeof IMPORT_ISSUE_CODES;
 
+/**
+ * The `{{placeholders}}` each issue text uses, so whoever raises the issue
+ * knows which `params` to pass. A code that is not listed takes none (every
+ * reader, duplicate and account code: their texts are complete sentences
+ * whatever `params` come with them).
+ *
+ * `count` is the number of affected rows and selects the plural form; the
+ * analysis sets it on every finding that lists `rows`. Dates are `yyyy-MM-dd`.
+ */
+export const ISSUE_TEXT_PARAMS: Partial<Record<ImportIssueCode, readonly string[]>> = {
+  /** `example`: a date as printed; `readAs`: the date it was read as. */
+  dateOrderAmbiguous: ['example', 'readAs'],
+  /** `example`: the first date that does not fit, on file line `line`. */
+  dateOrderMixed: ['count', 'example', 'line'],
+  /** `example`: an amount as printed; `mark`: the decimal mark in use ("." or ","). */
+  decimalAmbiguous: ['example', 'mark'],
+  signAssumed: ['moneyOutRows', 'moneyInRows'],
+  debitCreditBothFilled: ['count'],
+  /** `total`: rows in the file that are not skipped. */
+  descriptionMostlyBlank: ['count', 'total'],
+  /** `column`: the header as printed. */
+  referenceNotUnique: ['column'],
+  currencyMismatch: ['count', 'fileCurrency', 'accountCurrency'],
+  columnNotImported: ['column'],
+  unreadableDate: ['count'],
+  unreadableAmount: ['count'],
+  /** `example`: the mangled cell ("1.25E+04"). */
+  excelMangledNumber: ['count', 'example'],
+  blankDescription: ['count'],
+  zeroAmount: ['count'],
+  futureDate: ['count'],
+  /** `from` / `to`: the dates most of the file lies between. */
+  dateFarFromOthers: ['count', 'from', 'to'],
+  amountOutlier: ['count'],
+  pendingTransaction: ['count'],
+  summaryRow: ['count'],
+  balanceMismatch: ['count'],
+  /** `count`: days not covered, from `from` to `to` inclusive. */
+  gapSinceLastImport: ['count', 'from', 'to'],
+  /** `from` / `to`: the dates both the file and the account cover. */
+  overlapsExisting: ['from', 'to'],
+};
+
 export const ALL_IMPORT_ISSUE_CODES = Object.keys(IMPORT_ISSUE_CODES) as ImportIssueCode[];
 
 export function defaultSeverityOf(code: ImportIssueCode): IssueSeverity {

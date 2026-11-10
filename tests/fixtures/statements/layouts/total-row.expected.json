@@ -1,0 +1,27 @@
+{
+  "file": "total-row.csv",
+  "description": "A \"Total\" line with no date below the transactions: skipped automatically and reported, not blocked as an unreadable date. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "amount": 2
+    },
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 4,
+    "blockedRows": 0,
+    "skippedRows": 1,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-09",
+    "moneyIn": 2400,
+    "moneyOut": 98.94,
+    "issueCodes": [
+      "summaryRow"
+    ]
+  }
+}

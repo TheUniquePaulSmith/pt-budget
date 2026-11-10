@@ -1,0 +1,29 @@
+{
+  "file": "french-headers.csv",
+  "description": "French headers (Date opération, Date de valeur, Libellé, Débit, Crédit) with accents, debits printed as negative numbers in their own column, a space as thousands separator and decimal commas. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "postedDate": 1,
+      "description": [
+        2
+      ],
+      "debit": 3,
+      "credit": 4
+    },
+    "dateOrder": "DMY",
+    "decimal": ",",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 6,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-03",
+    "lastDate": "2026-09-29",
+    "moneyIn": 2345.6,
+    "moneyOut": 1100.45,
+    "issueCodes": []
+  }
+}

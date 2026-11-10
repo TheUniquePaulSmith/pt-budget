@@ -1,0 +1,35 @@
+{
+  "file": "loan-servicer.csv",
+  "description": "Loan servicer payment history: the payment amount is imported; the Principal / Interest / Escrow split and the remaining principal balance (which does not follow from the payment amounts, so it is not used as a running balance) are reported as not imported. Synthetic rows.",
+  "context": {
+    "accountType": "loan"
+  },
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "amount": 2
+    },
+    "dateOrder": "MDY",
+    "decimal": ".",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 6,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-01-15",
+    "lastDate": "2026-06-15",
+    "moneyIn": 7750,
+    "moneyOut": 0,
+    "issueCodes": [
+      "columnNotImported",
+      "columnNotImported",
+      "columnNotImported",
+      "columnNotImported"
+    ]
+  }
+}

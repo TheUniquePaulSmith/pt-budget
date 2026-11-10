@@ -1,0 +1,31 @@
+{
+  "file": "german-decimal-comma-dmy.csv",
+  "description": "German headers (Buchungstag, Valuta, Verwendungszweck, Beguenstigter/Zahlungspflichtiger, Betrag, Waehrung, Saldo), dotted day-first dates and decimal commas with thousands points. The description is payee + purpose; Buchungstext (the booking type) is left out. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "postedDate": 1,
+      "description": [
+        4,
+        3
+      ],
+      "amount": 5,
+      "currency": 6,
+      "balance": 7
+    },
+    "dateOrder": "DMY",
+    "decimal": ",",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 6,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-25",
+    "moneyIn": 2850,
+    "moneyOut": 1375.27,
+    "issueCodes": []
+  }
+}

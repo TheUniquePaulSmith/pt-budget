@@ -1,0 +1,7 @@
+Buchungstag,Valuta,Buchungstext,Verwendungszweck,Beguenstigter/Zahlungspflichtiger,Betrag,Waehrung,Saldo
+01.09.2026,01.09.2026,Gutschrift,Gehalt September,Musterfirma GmbH,"2.850,00",EUR,"3.912,40"
+03.09.2026,03.09.2026,Lastschrift,Miete September,Hausverwaltung Beispiel,"-980,00",EUR,"2.932,40"
+05.09.2026,04.09.2026,Kartenzahlung,Einkauf Supermarkt,Frischemarkt Nord,"-64,37",EUR,"2.868,03"
+14.09.2026,14.09.2026,Lastschrift,Stromabschlag,Stadtwerke Beispiel,"-72,00",EUR,"2.796,03"
+18.09.2026,17.09.2026,Kartenzahlung,Tankstelle,Tankpunkt 12,"-58,90",EUR,"2.737,13"
+25.09.2026,25.09.2026,Dauerauftrag,Sparen,Eigenes Sparkonto,"-200,00",EUR,"2.537,13"

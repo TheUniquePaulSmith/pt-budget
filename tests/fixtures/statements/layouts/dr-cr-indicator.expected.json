@@ -1,0 +1,38 @@
+{
+  "file": "dr-cr-indicator.csv",
+  "description": "Unsigned Amount column with a Dr/Cr indicator beside it, day-first dates, a unique bank reference and a running balance. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "reference": 2,
+      "amount": 3,
+      "direction": 4,
+      "balance": 5
+    },
+    "directionValues": {
+      "out": [
+        "dr"
+      ],
+      "in": [
+        "cr"
+      ]
+    },
+    "dateOrder": "DMY",
+    "decimal": ".",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 6,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-14",
+    "lastDate": "2026-09-25",
+    "moneyIn": 65312.75,
+    "moneyOut": 8789.5,
+    "issueCodes": []
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "file": "pending-rows.csv",
+  "description": "A Status column with Posted and Pending rows: the pending ones are flagged, not blocked. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "amount": 2,
+      "status": 3
+    },
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 5,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-11-02",
+    "lastDate": "2026-11-09",
+    "moneyIn": 2400,
+    "moneyOut": 129.62,
+    "issueCodes": [
+      "pendingTransaction"
+    ]
+  }
+}

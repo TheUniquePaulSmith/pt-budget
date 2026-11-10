@@ -1,0 +1,30 @@
+{
+  "file": "ambiguous-dates.csv",
+  "description": "Every date works both day-first and month-first (01/02/2026 …) and the rows are in order either way, so the file cannot settle it: the caller's fallback (day first here) decides and the analysis reports dateOrderAmbiguous. Synthetic rows.",
+  "context": {
+    "fallbackDateOrder": "DMY"
+  },
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "amount": 2
+    },
+    "dateOrder": "DMY",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 4,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-02-01",
+    "lastDate": "2026-08-07",
+    "moneyIn": 2400,
+    "moneyOut": 98.94,
+    "issueCodes": [
+      "dateOrderAmbiguous"
+    ]
+  }
+}

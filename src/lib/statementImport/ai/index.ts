@@ -1,14 +1,16 @@
 /**
  * AI help for layouts the built-in detection cannot work out.
  *
- * BASELINE (Import Wizard foundation). `buildAiLayoutSample` is real: it is
- * what the wizard shows the user before anything is sent. `suggestLayoutWithAi`
- * is a stub that never calls the provider; the interpretation agent writes the
- * prompt, the reply validation and the mapping to a LayoutProposal. Both
- * signatures are part of the frozen contract.
+ * `buildAiLayoutSample` is exactly what would leave the device (the wizard
+ * shows it in the confirmation before a remote provider is called), and the
+ * prompt is built from that sample and nothing else. The prompt, the reply
+ * validation and the mapping to a LayoutProposal live in ./layoutAssist.ts.
+ * Both signatures here are part of the frozen contract.
  */
 
 import type { AiComplete, AiLayoutSample, LayoutProposal, StatementTable } from '../types';
+
+import { suggestLayout } from './layoutAssist';
 
 export const AI_LAYOUT_SAMPLE_ROWS = 10;
 
@@ -26,14 +28,15 @@ export function buildAiLayoutSample(table: StatementTable, maxRows = AI_LAYOUT_S
 
 /**
  * Asks the user's AI provider to read the file's layout. Resolves with a
- * proposal (basis `ai`) that goes through the same preview and analysis as a
- * detected one, or null when the reply is unusable. Never throws for a bad
- * reply; an aborted or failed provider call rejects.
+ * proposal (every assumption has basis `ai` and a confidence of at most 0.7)
+ * that goes through the same preview and analysis as a detected one, or null
+ * when the reply is unusable. Never throws for a bad reply; an aborted or
+ * failed provider call rejects.
  */
 export async function suggestLayoutWithAi(
-  _table: StatementTable,
-  _complete: AiComplete,
-  _signal?: AbortSignal
+  table: StatementTable,
+  complete: AiComplete,
+  signal?: AbortSignal
 ): Promise<LayoutProposal | null> {
-  return null;
+  return suggestLayout(table, buildAiLayoutSample(table), complete, signal);
 }

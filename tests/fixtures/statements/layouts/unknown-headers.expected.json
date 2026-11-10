@@ -1,0 +1,28 @@
+{
+  "file": "unknown-headers.csv",
+  "description": "Headers no alias list knows (When, Who, How much, After). The roles come from the contents: the column of dates, the column of text, and the two numeric columns where one is the running total of the other. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "amount": 2,
+      "balance": 3
+    },
+    "dateOrder": "YMD",
+    "decimal": ".",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 5,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-12",
+    "moneyIn": 2400,
+    "moneyOut": 105.69,
+    "issueCodes": []
+  }
+}

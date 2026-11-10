@@ -1,0 +1,30 @@
+{
+  "file": "portuguese-headers.csv",
+  "description": "Portuguese headers (Data Mov., Data Valor, Descrição, Débito, Crédito, Saldo Contabilístico): the balance column is recognised by the word it contains, and it adds up. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "postedDate": 1,
+      "description": [
+        2
+      ],
+      "debit": 3,
+      "credit": 4,
+      "balance": 5
+    },
+    "dateOrder": "DMY",
+    "decimal": ",",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 6,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-30",
+    "moneyIn": 1480.42,
+    "moneyOut": 817.74,
+    "issueCodes": []
+  }
+}

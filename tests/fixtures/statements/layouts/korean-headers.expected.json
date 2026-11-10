@@ -1,0 +1,29 @@
+{
+  "file": "korean-headers.csv",
+  "description": "Korean headers (거래일자, 적요, 출금액, 입금액, 거래후잔액) with yyyy.MM.dd dates and whole-won amounts (\"3,200,000\" has two commas, so the comma can only be grouping). Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "debit": 2,
+      "credit": 3,
+      "balance": 4
+    },
+    "dateOrder": "YMD",
+    "decimal": ".",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 6,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-30",
+    "moneyIn": 3201240,
+    "moneyOut": 939300,
+    "issueCodes": []
+  }
+}

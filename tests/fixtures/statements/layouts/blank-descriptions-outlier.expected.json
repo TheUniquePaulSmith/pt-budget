@@ -1,0 +1,28 @@
+{
+  "file": "blank-descriptions-outlier.csv",
+  "description": "Two rows without a description and one amount (31,750.00) more than ten times the largest of the rest. Both are flagged, neither blocks the import. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "amount": 2
+    },
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 10,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-24",
+    "moneyIn": 2400,
+    "moneyOut": 31934.93,
+    "issueCodes": [
+      "amountOutlier",
+      "blankDescription"
+    ]
+  }
+}

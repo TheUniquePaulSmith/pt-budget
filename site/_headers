@@ -1,0 +1,7 @@
+# Response headers for every path. Cloudflare static assets read this file; it is not served.
+# X-Robots-Tag: a placeholder should not be what search engines keep for the app's address.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Robots-Tag: noindex

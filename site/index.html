@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ptbudget: coming soon</title>
+<meta name="description" content="ptbudget is getting ready for launch: a private budget tracker that runs entirely in your browser.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#04030c">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --space: #04030c;
+    --text: #ffffff;
+    --text-dim: rgba(255, 255, 255, 0.88);
+    --text-faint: rgba(255, 255, 255, 0.7);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--space);
+    color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* The sky is fixed and clipped, so the canvas (rounded up to whole pixels) never adds a scrollbar. */
+  .sky {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: var(--space);
+  }
+
+  #galaxy {
+    position: absolute;
+    top: 0;
+    left: 0;
+    image-rendering: pixelated;
+    pointer-events: none;
+  }
+
+  /* Soft shade behind the copy so it never fights the galactic core. */
+  .shade {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 62% 58% at 50% 50%, rgba(4, 3, 12, 0.66), rgba(4, 3, 12, 0) 78%);
+  }
+
+  .page {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    padding: 48px 16px 72px;
+    text-align: center;
+  }
+
+  .logo {
+    width: clamp(96px, 28vw, 144px);
+    height: auto;
+    overflow: visible;
+    animation: bob 2.4s steps(4) infinite alternate;
+  }
+
+  @keyframes bob {
+    from { transform: translateY(-5px); }
+    to { transform: translateY(5px); }
+  }
+
+  .headline {
+    width: min(90vw, 640px);
+    height: auto;
+    overflow: visible;
+  }
+
+  /* A dark halo keeps the copy readable where the galaxy's bright band passes behind it. */
+  .copy {
+    max-width: 520px;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 0 6px rgba(4, 3, 12, 0.95), 0 0 18px rgba(4, 3, 12, 0.9);
+  }
+
+  .copy p { margin: 0; }
+
+  .lead {
+    font-size: clamp(1.15rem, 2.6vw, 1.4rem);
+    font-weight: 700;
+  }
+
+  .detail {
+    margin-top: 10px !important;
+    color: var(--text-dim);
+  }
+
+  footer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 18px;
+    color: var(--text-faint);
+    font: 12px/1.4 ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+    letter-spacing: 0.02em;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 0 6px rgba(4, 3, 12, 0.95), 0 0 14px rgba(4, 3, 12, 0.9);
+  }
+
+  /* Anchored with top/left: left at its static position it can widen the page. */
+  .visually-hidden {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .logo { animation: none; }
+    /* !important outranks the SMIL flap, so the wings hold one frame. */
+    .wing-up { visibility: visible !important; }
+    .wing-mid, .wing-down { visibility: hidden !important; }
+  }
+</style>
+</head>
+<body>
+<div class="sky" aria-hidden="true">
+  <canvas id="galaxy"></canvas>
+  <div class="shade"></div>
+</div>
+
+<main class="page">
+  <svg class="logo" viewBox="0 0 16 12" shape-rendering="crispEdges" aria-hidden="true">
+    <g class="wing-up" visibility="visible"><animate attributeName="visibility" calcMode="discrete" dur="0.7s" repeatCount="indefinite" keyTimes="0.00;0.25;0.50;0.75" values="visible;hidden;hidden;hidden"/><path fill="#3d5a99" d="M0 0h1v1h-1zM15 0h1v1h-1zM0 1h2v1h-2zM14 1h2v1h-2zM0 2h1v1h-1zM2 2h1v1h-1zM13 2h1v1h-1zM15 2h1v1h-1zM0 3h1v1h-1zM3 3h1v1h-1zM12 3h1v1h-1zM15 3h1v1h-1zM0 4h1v1h-1zM15 4h1v1h-1zM1 5h1v1h-1zM14 5h1v1h-1zM2 6h1v1h-1zM13 6h1v1h-1zM3 7h1v1h-1zM12 7h1v1h-1z"/><path fill="#ffffff" d="M1 2h1v1h-1zM14 2h1v1h-1zM1 3h2v1h-2zM13 3h2v1h-2zM1 4h1v1h-1zM3 4h1v1h-1zM12 4h1v1h-1zM14 4h1v1h-1zM3 5h1v1h-1zM12 5h1v1h-1z"/><path fill="#bcd0f0" d="M2 4h1v1h-1zM13 4h1v1h-1zM2 5h1v1h-1zM13 5h1v1h-1zM3 6h1v1h-1zM12 6h1v1h-1z"/></g>
+    <g class="wing-mid" visibility="hidden"><animate attributeName="visibility" calcMode="discrete" dur="0.7s" repeatCount="indefinite" keyTimes="0.00;0.25;0.50;0.75" values="hidden;visible;hidden;visible"/><path fill="#3d5a99" d="M2 4h2v1h-2zM12 4h2v1h-2zM1 5h1v1h-1zM14 5h1v1h-1zM0 6h1v1h-1zM15 6h1v1h-1zM1 7h1v1h-1zM14 7h1v1h-1zM2 8h2v1h-2zM12 8h2v1h-2z"/><path fill="#ffffff" d="M2 5h2v1h-2zM12 5h2v1h-2zM1 6h2v1h-2zM13 6h2v1h-2z"/><path fill="#bcd0f0" d="M3 6h1v1h-1zM12 6h1v1h-1zM2 7h2v1h-2zM12 7h2v1h-2z"/></g>
+    <g class="wing-down" visibility="hidden"><animate attributeName="visibility" calcMode="discrete" dur="0.7s" repeatCount="indefinite" keyTimes="0.00;0.25;0.50;0.75" values="hidden;hidden;visible;hidden"/><path fill="#3d5a99" d="M3 4h1v1h-1zM12 4h1v1h-1zM2 5h1v1h-1zM13 5h1v1h-1zM1 6h1v1h-1zM14 6h1v1h-1zM0 7h1v1h-1zM15 7h1v1h-1zM0 8h1v1h-1zM3 8h1v1h-1zM12 8h1v1h-1zM15 8h1v1h-1zM0 9h1v1h-1zM2 9h1v1h-1zM13 9h1v1h-1zM15 9h1v1h-1zM0 10h2v1h-2zM14 10h2v1h-2zM0 11h1v1h-1zM15 11h1v1h-1z"/><path fill="#bcd0f0" d="M3 5h1v1h-1zM12 5h1v1h-1zM2 6h1v1h-1zM13 6h1v1h-1zM2 7h1v1h-1zM13 7h1v1h-1z"/><path fill="#ffffff" d="M3 6h1v1h-1zM12 6h1v1h-1zM1 7h1v1h-1zM3 7h1v1h-1zM12 7h1v1h-1zM14 7h1v1h-1zM1 8h2v1h-2zM13 8h2v1h-2zM1 9h1v1h-1zM14 9h1v1h-1z"/></g>
+    <g><path fill="#0e3b1c" d="M4 4h8v1h-8zM4 5h1v1h-1zM11 5h1v1h-1zM4 6h1v1h-1zM11 6h1v1h-1zM4 7h1v1h-1zM11 7h1v1h-1zM4 8h1v1h-1zM11 8h1v1h-1zM4 9h8v1h-8z"/><path fill="#8be28f" d="M5 5h6v1h-6z"/><path fill="#3dba5a" d="M5 6h2v1h-2zM9 6h2v1h-2zM5 7h2v1h-2zM9 7h2v1h-2z"/><path fill="#ffd84a" d="M7 6h2v1h-2zM7 7h2v1h-2z"/><path fill="#27873f" d="M5 8h6v1h-6z"/></g>
+  </svg>
+
+  <svg class="headline" viewBox="0 0 67 8" shape-rendering="crispEdges" aria-hidden="true">
+    <g opacity="0.9" transform="translate(1 1)"><path fill="#2a1840" d="M1 0h4v1h-4zM8 0h3v1h-3zM14 0h1v1h-1zM18 0h1v1h-1zM20 0h3v1h-3zM24 0h1v1h-1zM28 0h1v1h-1zM31 0h4v1h-4zM40 0h4v1h-4zM47 0h3v1h-3zM55 0h3v1h-3zM61 0h1v1h-1zM65 0h1v1h-1zM0 1h1v1h-1zM7 1h5v1h-5zM14 1h2v1h-2zM17 1h2v1h-2zM21 1h1v1h-1zM24 1h2v1h-2zM28 1h1v1h-1zM30 1h1v1h-1zM39 1h1v1h-1zM46 1h5v1h-5zM54 1h5v1h-5zM61 1h2v1h-2zM65 1h1v1h-1zM0 2h1v1h-1zM6 2h7v1h-7zM14 2h1v1h-1zM16 2h1v1h-1zM18 2h1v1h-1zM21 2h1v1h-1zM24 2h2v1h-2zM28 2h1v1h-1zM30 2h1v1h-1zM39 2h1v1h-1zM45 2h7v1h-7zM53 2h7v1h-7zM61 2h2v1h-2zM65 2h1v1h-1zM0 3h1v1h-1zM6 3h7v1h-7zM14 3h1v1h-1zM16 3h1v1h-1zM18 3h1v1h-1zM21 3h1v1h-1zM24 3h1v1h-1zM26 3h1v1h-1zM28 3h1v1h-1zM30 3h1v1h-1zM32 3h3v1h-3zM40 3h3v1h-3zM45 3h7v1h-7zM53 3h7v1h-7zM61 3h1v1h-1zM63 3h1v1h-1zM65 3h1v1h-1zM0 4h1v1h-1zM6 4h7v1h-7zM14 4h1v1h-1zM18 4h1v1h-1zM21 4h1v1h-1zM24 4h1v1h-1zM27 4h2v1h-2zM30 4h1v1h-1zM34 4h1v1h-1zM43 4h1v1h-1zM45 4h7v1h-7zM53 4h7v1h-7zM61 4h1v1h-1zM64 4h2v1h-2zM0 5h1v1h-1zM7 5h5v1h-5zM14 5h1v1h-1zM18 5h1v1h-1zM21 5h1v1h-1zM24 5h1v1h-1zM27 5h2v1h-2zM30 5h1v1h-1zM34 5h1v1h-1zM43 5h1v1h-1zM46 5h5v1h-5zM54 5h5v1h-5zM61 5h1v1h-1zM64 5h2v1h-2zM1 6h4v1h-4zM8 6h3v1h-3zM14 6h1v1h-1zM18 6h1v1h-1zM20 6h3v1h-3zM24 6h1v1h-1zM28 6h1v1h-1zM31 6h4v1h-4zM39 6h4v1h-4zM47 6h3v1h-3zM55 6h3v1h-3zM61 6h1v1h-1zM65 6h1v1h-1z"/></g>
+    <g><path fill="#fff2a8" d="M1 0h4v1h-4zM14 0h1v1h-1zM18 0h1v1h-1zM20 0h3v1h-3zM24 0h1v1h-1zM28 0h1v1h-1zM31 0h4v1h-4zM40 0h4v1h-4zM61 0h1v1h-1zM65 0h1v1h-1z"/><path fill="#e0a000" d="M8 0h1v1h-1zM10 0h1v1h-1zM47 0h1v1h-1zM49 0h1v1h-1zM55 0h1v1h-1zM57 0h1v1h-1zM7 1h1v1h-1zM11 1h1v1h-1zM46 1h1v1h-1zM50 1h1v1h-1zM54 1h1v1h-1zM58 1h1v1h-1zM6 2h1v1h-1zM12 2h1v1h-1zM45 2h1v1h-1zM51 2h1v1h-1zM53 2h1v1h-1zM59 2h1v1h-1zM6 3h1v1h-1zM12 3h1v1h-1zM45 3h1v1h-1zM51 3h1v1h-1zM53 3h1v1h-1zM59 3h1v1h-1zM6 4h1v1h-1zM12 4h1v1h-1zM45 4h1v1h-1zM51 4h1v1h-1zM53 4h1v1h-1zM59 4h1v1h-1zM7 5h1v1h-1zM11 5h1v1h-1zM46 5h1v1h-1zM50 5h1v1h-1zM54 5h1v1h-1zM58 5h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM47 6h1v1h-1zM49 6h1v1h-1zM55 6h1v1h-1zM57 6h1v1h-1z"/><path fill="#8a4f00" d="M9 0h1v1h-1zM48 0h1v1h-1zM56 0h1v1h-1zM8 1h3v1h-3zM47 1h3v1h-3zM55 1h3v1h-3zM8 2h1v1h-1zM47 2h1v1h-1zM55 2h1v1h-1zM8 3h3v1h-3zM47 3h3v1h-3zM55 3h3v1h-3zM10 4h1v1h-1zM49 4h1v1h-1zM57 4h1v1h-1zM8 5h3v1h-3zM47 5h3v1h-3zM55 5h3v1h-3zM9 6h1v1h-1zM48 6h1v1h-1zM56 6h1v1h-1z"/><path fill="#ffd84a" d="M0 1h1v1h-1zM14 1h2v1h-2zM17 1h2v1h-2zM21 1h1v1h-1zM24 1h2v1h-2zM28 1h1v1h-1zM30 1h1v1h-1zM39 1h1v1h-1zM61 1h2v1h-2zM65 1h1v1h-1zM0 2h1v1h-1zM7 2h1v1h-1zM9 2h3v1h-3zM14 2h1v1h-1zM16 2h1v1h-1zM18 2h1v1h-1zM21 2h1v1h-1zM24 2h2v1h-2zM28 2h1v1h-1zM30 2h1v1h-1zM39 2h1v1h-1zM46 2h1v1h-1zM48 2h3v1h-3zM54 2h1v1h-1zM56 2h3v1h-3zM61 2h2v1h-2zM65 2h1v1h-1zM0 3h1v1h-1zM7 3h1v1h-1zM11 3h1v1h-1zM14 3h1v1h-1zM16 3h1v1h-1zM18 3h1v1h-1zM21 3h1v1h-1zM24 3h1v1h-1zM26 3h1v1h-1zM28 3h1v1h-1zM30 3h1v1h-1zM32 3h3v1h-3zM40 3h3v1h-3zM46 3h1v1h-1zM50 3h1v1h-1zM54 3h1v1h-1zM58 3h1v1h-1zM61 3h1v1h-1zM63 3h1v1h-1zM65 3h1v1h-1zM0 4h1v1h-1zM7 4h3v1h-3zM11 4h1v1h-1zM14 4h1v1h-1zM18 4h1v1h-1zM21 4h1v1h-1zM24 4h1v1h-1zM27 4h2v1h-2zM30 4h1v1h-1zM34 4h1v1h-1zM43 4h1v1h-1zM46 4h3v1h-3zM50 4h1v1h-1zM54 4h3v1h-3zM58 4h1v1h-1zM61 4h1v1h-1zM64 4h2v1h-2zM0 5h1v1h-1zM14 5h1v1h-1zM18 5h1v1h-1zM21 5h1v1h-1zM24 5h1v1h-1zM27 5h2v1h-2zM30 5h1v1h-1zM34 5h1v1h-1zM43 5h1v1h-1zM61 5h1v1h-1zM64 5h2v1h-2zM1 6h4v1h-4zM14 6h1v1h-1zM18 6h1v1h-1zM20 6h3v1h-3zM24 6h1v1h-1zM28 6h1v1h-1zM31 6h4v1h-4zM39 6h4v1h-4zM61 6h1v1h-1zM65 6h1v1h-1z"/></g>
+  </svg>
+
+  <div class="copy">
+    <h1 class="visually-hidden">ptbudget is coming soon</h1>
+    <p class="lead">ptbudget is getting ready for launch.</p>
+    <p class="detail">A private budget tracker that runs entirely in your browser, with an encrypted database that stays on your device.</p>
+  </div>
+
+  <footer>ptbudget · <span data-testid="app-version"><!--version-->dev<!--/version--></span></footer>
+</main>
+
+<script>
+// Pixel-art Milky Way, the same seeded generator the app's 404 page uses
+// (src/lib/pixelGalaxy.ts on devel/latest), ported to plain JavaScript.
+(() => {
+  const canvas = document.getElementById('galaxy');
+  const context = canvas && canvas.getContext('2d');
+  if (!context) return;
+
+  const MIN_PIXEL_SIZE = 4;
+  const MAX_GALAXY_WIDTH = 480;
+  const FRAME_INTERVAL_MS = 90;
+  const RESIZE_DEBOUNCE_MS = 150;
+  const SHOOTING_STAR_LIFE_S = 0.9;
+  const SHOOTING_STAR_TRAIL = 7;
+  const INTENSITY_LEVELS = 11;
+  const MAX_INTENSITY = 0.82;
+  const HUE_LEVELS = 4;
+
+  const hex = (value) => {
+    const n = parseInt(value.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const WARM_RAMP = [
+    [0, hex('#04030c')], [0.14, hex('#0b0a2a')], [0.28, hex('#1d1457')], [0.42, hex('#4a2090')],
+    [0.56, hex('#8e3a9e')], [0.7, hex('#d4627f')], [0.84, hex('#ffb571')], [1, hex('#fff1d2')],
+  ];
+  const COOL_RAMP = [
+    [0, hex('#04030c')], [0.14, hex('#07112c')], [0.28, hex('#0f2a5e')], [0.42, hex('#1a4fa0')],
+    [0.56, hex('#2f86c8')], [0.7, hex('#6cd0e0')], [0.84, hex('#c4f2f6')], [1, hex('#f4ffff')],
+  ];
+  const STAR_COLORS = ['#ffffff', '#ffffff', '#dfe9ff', '#b9d0ff', '#fff1c2', '#ffd49a'].map(hex);
+  const BAYER_4X4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+  const mulberry32 = (seed) => {
+    let state = seed >>> 0;
+    return () => {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let t = state;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+  const hash2 = (ix, iy, seed) => {
+    let h = Math.imul(ix, 374761393) ^ Math.imul(iy, 668265263) ^ Math.imul(seed | 0, 1103515245);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+  const valueNoise = (x, y, seed) => {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = x - ix;
+    const fy = y - iy;
+    const sx = fx * fx * (3 - 2 * fx);
+    const sy = fy * fy * (3 - 2 * fy);
+    const top = hash2(ix, iy, seed) * (1 - sx) + hash2(ix + 1, iy, seed) * sx;
+    const bottom = hash2(ix, iy + 1, seed) * (1 - sx) + hash2(ix + 1, iy + 1, seed) * sx;
+    return top * (1 - sy) + bottom * sy;
+  };
+  const fbm = (x, y, seed, octaves) => {
+    let sum = 0;
+    let amplitude = 0.5;
+    let frequency = 1;
+    let norm = 0;
+    for (let octave = 0; octave < octaves; octave += 1) {
+      sum += valueNoise(x * frequency, y * frequency, seed + octave * 101) * amplitude;
+      norm += amplitude;
+      amplitude *= 0.5;
+      frequency *= 2;
+    }
+    return sum / norm;
+  };
+  const clamp01 = (value) => Math.min(1, Math.max(0, value));
+  const smoothstep = (edge0, edge1, value) => {
+    const t = clamp01((value - edge0) / (edge1 - edge0));
+    return t * t * (3 - 2 * t);
+  };
+  const sampleRamp = (ramp, t) => {
+    for (let i = 1; i < ramp.length; i += 1) {
+      const [stop, color] = ramp[i];
+      if (t <= stop) {
+        const [prevStop, prevColor] = ramp[i - 1];
+        const k = (t - prevStop) / (stop - prevStop);
+        return [
+          prevColor[0] + (color[0] - prevColor[0]) * k,
+          prevColor[1] + (color[1] - prevColor[1]) * k,
+          prevColor[2] + (color[2] - prevColor[2]) * k,
+        ];
+      }
+    }
+    return ramp[ramp.length - 1][1];
+  };
+  const bayer = (x, y) => (BAYER_4X4[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
+
+  const generatePixelGalaxy = (width, height, seed) => {
+    const rng = mulberry32(seed);
+    const noiseSeed = Math.floor(rng() * 1e9);
+    const diagonal = Math.hypot(width, height);
+
+    const slopeSign = rng() < 0.5 ? -1 : 1;
+    const angle = slopeSign * (0.25 + rng() * 0.45);
+    const axisX = Math.cos(angle);
+    const axisY = Math.sin(angle);
+    const centerX = width * (0.38 + rng() * 0.24);
+    const centerY = height * (0.38 + rng() * 0.24);
+    const bulgeAlong = (rng() - 0.5) * 0.3;
+    const bandWidth = 0.11 + rng() * 0.05;
+    const laneOffset = (rng() - 0.5) * 0.03;
+
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    const bandBoost = new Float32Array(width * height);
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const u = x / diagonal;
+        const v = y / diagonal;
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const along = (dx * axisX + dy * axisY) / diagonal;
+        const across = (-dx * axisY + dy * axisX) / diagonal;
+
+        const warped = across + (fbm(u * 3.2, v * 3.2, noiseSeed, 4) - 0.5) * 0.24;
+        const taper = 0.5 + 0.5 * Math.exp(-((along / 0.5) ** 2));
+        const half = bandWidth * taper;
+        const band = Math.exp(-((warped / half) ** 2) * 1.2);
+        const bulge = Math.exp(-(((along - bulgeAlong) ** 2) / 0.045 + (warped ** 2) / 0.006));
+        const clouds = fbm(u * 11, v * 11, noiseSeed + 7, 5);
+        const dustNoise = fbm(u * 15, v * 15, noiseSeed + 13, 4);
+        const lane = Math.exp(-(((warped - laneOffset) / (half * 0.3)) ** 2));
+        const dust = lane * smoothstep(0.4, 0.68, dustNoise);
+        const halo = Math.exp(-((warped / (half * 2.8)) ** 2)) * 0.2;
+
+        let intensity = band * (0.28 + 0.8 * clouds) + bulge * 0.6;
+        intensity *= 1 - 0.88 * dust;
+        intensity += halo * (0.5 + clouds * 0.5);
+        // Capped below the ramp's near-white top so the core glows warm and
+        // the text stays readable on top of it.
+        intensity = clamp01(intensity) * MAX_INTENSITY;
+        bandBoost[y * width + x] = clamp01(band + bulge);
+
+        const hueNoise = fbm(u * 5 + 40, v * 5 + 40, noiseSeed + 29, 3);
+        const coolness = smoothstep(0.38, 0.7, hueNoise * (1 - bulge * 0.85));
+
+        const dither = bayer(x, y);
+        const level = Math.floor(intensity * INTENSITY_LEVELS + dither) / INTENSITY_LEVELS;
+        const hueLevel = Math.floor(coolness * HUE_LEVELS + dither) / HUE_LEVELS;
+        const warm = sampleRamp(WARM_RAMP, clamp01(level));
+        const cool = sampleRamp(COOL_RAMP, clamp01(level));
+
+        const offset = (y * width + x) * 4;
+        pixels[offset] = warm[0] + (cool[0] - warm[0]) * hueLevel;
+        pixels[offset + 1] = warm[1] + (cool[1] - warm[1]) * hueLevel;
+        pixels[offset + 2] = warm[2] + (cool[2] - warm[2]) * hueLevel;
+        pixels[offset + 3] = 255;
+      }
+    }
+
+    const twinklers = [];
+    const paintStar = (x, y, color, strength) => {
+      if (x < 0 || y < 0 || x >= width || y >= height) return;
+      const offset = (y * width + x) * 4;
+      pixels[offset] = Math.min(255, pixels[offset] + color[0] * strength);
+      pixels[offset + 1] = Math.min(255, pixels[offset + 1] + color[1] * strength);
+      pixels[offset + 2] = Math.min(255, pixels[offset + 2] + color[2] * strength);
+    };
+
+    const starCount = Math.round((width * height) / 85);
+    for (let i = 0; i < starCount; i += 1) {
+      const x = Math.floor(rng() * width);
+      const y = Math.floor(rng() * height);
+      // Stars crowd into the band, thin out in the void.
+      if (rng() > 0.28 + 0.72 * bandBoost[y * width + x]) continue;
+
+      const brightness = rng() ** 3;
+      const color = STAR_COLORS[Math.floor(rng() * STAR_COLORS.length)];
+      const sparkle = brightness > 0.9 && rng() < 0.5;
+
+      if (brightness > 0.5 || sparkle) {
+        twinklers.push({ x, y, color, phase: rng() * Math.PI * 2, period: 1.6 + rng() * 3.4 });
+        if (sparkle) {
+          paintStar(x - 1, y, color, 0.35);
+          paintStar(x + 1, y, color, 0.35);
+          paintStar(x, y - 1, color, 0.35);
+          paintStar(x, y + 1, color, 0.35);
+        }
+        continue;
+      }
+      paintStar(x, y, color, 0.28 + brightness * 1.1);
+    }
+
+    return { width, height, pixels, twinklers };
+  };
+
+  // A new seed per visit, so every arrival gets its own sky.
+  const seed = Math.floor(Math.random() * 0xffffffff);
+  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let reducedMotion = motionQuery.matches;
+  let galaxy = null;
+  let base = null;
+  let builtFor = '';
+  let frameHandle = 0;
+  let resizeTimer = 0;
+  let lastFrameAt = 0;
+  let shooter = null;
+  let nextShooterAt = performance.now() / 1000 + 2.5;
+
+  const build = () => {
+    // A hidden or not-yet-laid-out window reports 0x0; the resize handler
+    // builds the sky once it has a size.
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    if (viewportWidth < 1 || viewportHeight < 1) return;
+    const pixelSize = Math.max(MIN_PIXEL_SIZE, Math.ceil(Math.max(viewportWidth, viewportHeight) / MAX_GALAXY_WIDTH));
+    const width = Math.ceil(viewportWidth / pixelSize);
+    const height = Math.ceil(viewportHeight / pixelSize);
+    galaxy = generatePixelGalaxy(width, height, seed);
+
+    base = document.createElement('canvas');
+    base.width = width;
+    base.height = height;
+    const baseContext = base.getContext('2d');
+    if (!baseContext) return;
+    const image = baseContext.createImageData(width, height);
+    image.data.set(galaxy.pixels);
+    baseContext.putImageData(image, 0, 0);
+
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = `${width * pixelSize}px`;
+    canvas.style.height = `${height * pixelSize}px`;
+    builtFor = `${viewportWidth}x${viewportHeight}`;
+  };
+
+  const drawShootingStar = (seconds, width, height) => {
+    if (!shooter && seconds >= nextShooterAt) {
+      const direction = Math.random() < 0.5 ? -1 : 1;
+      shooter = {
+        x: width * (0.1 + Math.random() * 0.8),
+        y: height * Math.random() * 0.4,
+        vx: direction * (55 + Math.random() * 30),
+        vy: 25 + Math.random() * 20,
+        bornAt: seconds,
+      };
+    }
+    if (!shooter) return;
+
+    const age = seconds - shooter.bornAt;
+    if (age > SHOOTING_STAR_LIFE_S) {
+      shooter = null;
+      nextShooterAt = seconds + 6 + Math.random() * 9;
+      return;
+    }
+    for (let i = 0; i < SHOOTING_STAR_TRAIL; i += 1) {
+      const trailAge = age - i * 0.035;
+      if (trailAge < 0) continue;
+      const alpha = (1 - i / SHOOTING_STAR_TRAIL) * (1 - age / SHOOTING_STAR_LIFE_S);
+      context.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
+      context.fillRect(Math.round(shooter.x + shooter.vx * trailAge), Math.round(shooter.y + shooter.vy * trailAge), 1, 1);
+    }
+  };
+
+  const draw = (now) => {
+    if (!galaxy || !base) return;
+    context.drawImage(base, 0, 0);
+
+    const seconds = now / 1000;
+    for (const star of galaxy.twinklers) {
+      const wave = 0.5 + 0.5 * Math.sin((seconds / star.period) * Math.PI * 2 + star.phase);
+      // Stepped brightness keeps the twinkle pixel-y instead of a smooth fade.
+      const alpha = reducedMotion ? 0.85 : Math.round((0.15 + 0.85 * wave * wave) * 5) / 5;
+      context.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${alpha})`;
+      context.fillRect(star.x, star.y, 1, 1);
+    }
+
+    if (!reducedMotion) drawShootingStar(seconds, galaxy.width, galaxy.height);
+  };
+
+  // About 11 frames per second, for a stop-motion feel.
+  const tick = (now) => {
+    frameHandle = window.requestAnimationFrame(tick);
+    if (now - lastFrameAt < FRAME_INTERVAL_MS) return;
+    lastFrameAt = now;
+    draw(now);
+  };
+
+  const start = () => {
+    window.cancelAnimationFrame(frameHandle);
+    draw(performance.now());
+    if (!reducedMotion) frameHandle = window.requestAnimationFrame(tick);
+  };
+
+  // Rebuild whenever the viewport's size is not the one the sky was painted
+  // for. The observer also covers a page that loaded at 0x0 and was given a
+  // size later without a window resize event.
+  const scheduleRebuild = () => {
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(() => {
+      const root = document.documentElement;
+      if (`${root.clientWidth}x${root.clientHeight}` === builtFor) return;
+      build();
+      draw(performance.now());
+    }, RESIZE_DEBOUNCE_MS);
+  };
+  window.addEventListener('resize', scheduleRebuild);
+  if ('ResizeObserver' in window) new ResizeObserver(scheduleRebuild).observe(document.documentElement);
+  motionQuery.addEventListener('change', (event) => {
+    reducedMotion = event.matches;
+    start();
+  });
+
+  build();
+  start();
+})();
+</script>
+</body>
+</html>

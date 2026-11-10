@@ -10,21 +10,21 @@
  * The pure pipeline that produces the rows (readers, layout, analysis) is in
  * src/lib/statementImport; this class only talks to SQLite.
  *
- * FOUNDATION STATE (Import Wizard program). Layouts, identifiers, account
- * resolution, staging and commit work end to end. Still to do, by the import
- * data agent: the commit is not yet one transaction, excluding an in-file
- * duplicate does not re-seed the kept copies, unknown values carry no name
- * hints, account coverage is empty, and batch impact / undo throw
- * IMPORTS_NOT_IMPLEMENTED. Method signatures are part of the frozen contract.
+ * A commit and an undo are each one BEGIN … COMMIT: a failure leaves the
+ * database as it was (no empty batch row, no half-removed import). Inside
+ * them every write is this class's own statement, because the classification
+ * service's writes open transactions of their own. Method signatures are part
+ * of the frozen contract of the Import Wizard program.
  */
 
-import type { AccountIdentifier, AccountIdentifierInput, ImportBatch } from '../types/database';
+import type { Account, AccountIdentifier, AccountIdentifierInput, ImportBatch } from '../types/database';
 import type { TypeDecision } from '../types/classification';
 import type { DatabaseWorkerTransport } from './databaseService';
+import { parseDecisionKey } from './databaseServiceClassification';
 import { logger } from './logging';
-import { IMPORT_BATCH_QUERIES, TRANSACTION_QUERIES } from './sqlQueries';
+import { CLASSIFICATION_QUERIES, IMPORT_BATCH_QUERIES, TRANSACTION_QUERIES } from './sqlQueries';
 import { IMPORT_QUERIES } from './sqlQueriesImports';
-import { extractDigitsValue, extractLastFourValue } from './statementImport/shared/accountText';
+import { extractDigitsValue, extractLastFourValue, findTextHintedAccounts } from './statementImport/shared/accountText';
 import { isPlaceholderReference } from './statementImport/shared/references';
 import type {
   AccountCoverage,
@@ -43,13 +43,19 @@ import { computeTransactionHash } from './transactionHash';
 
 type ImportsTransport = Pick<DatabaseWorkerTransport, 'query' | 'batchQueryReturning'>;
 
-/** The classification writes a commit performs (ClassificationService satisfies it). */
+/**
+ * The classification service as the constructor receives it. The commit no
+ * longer calls it (its writes open their own transactions, which cannot nest
+ * inside the commit's); the parameter stays because the constructor signature
+ * is frozen.
+ */
 export interface ImportClassificationPort {
   applyStagedDecisions(decisions: TypeDecision[]): Promise<number>;
   applyDecisions(decisions: TypeDecision[]): Promise<number>;
 }
 
-export const IMPORTS_NOT_IMPLEMENTED = 'IMPORTS_NOT_IMPLEMENTED';
+/** Thrown by getBatchImpact / undoBatch for an id that is not an import batch. */
+export const IMPORT_BATCH_NOT_FOUND = 'IMPORT_BATCH_NOT_FOUND';
 
 const log = logger.child({ component: 'ImportsService' });
 
@@ -126,11 +132,71 @@ export function normalizeIdentifierValue(kind: AccountIdentifier['kind'], value:
 
 const distinct = (ids: number[]): number[] => [...new Set(ids)];
 
+const decisionParams = (decision: TypeDecision, id: number): unknown[] => [
+  decision.type,
+  decision.transferGroupId,
+  decision.source,
+  decision.confidence,
+  id,
+];
+
+/** Parameter sets for the staged rows' decisions (`tmp:` keys). A malformed key throws. */
+export function stagedDecisionParams(decisions: TypeDecision[]): unknown[][] {
+  return decisions
+    .map((decision) => ({ decision, key: parseDecisionKey(decision.key) }))
+    .filter(({ key }) => key.kind === 'tmp')
+    .map(({ decision, key }) => decisionParams(decision, key.id));
+}
+
+/**
+ * Parameter sets for the stored rows' decisions (`tx:` keys): unlocked rows
+ * take the whole decision, a locked transfer only gains the transfer group
+ * (the same two writes as ClassificationService.applyDecisions).
+ */
+export function storedDecisionParams(decisions: TypeDecision[]): { full: unknown[][]; lockedTransfers: unknown[][] } {
+  const stored = decisions
+    .map((decision) => ({ decision, key: parseDecisionKey(decision.key) }))
+    .filter(({ key }) => key.kind === 'tx');
+  return {
+    full: stored.map(({ decision, key }) => decisionParams(decision, key.id)),
+    lockedTransfers: stored
+      .filter(({ decision }) => decision.type === 'transfer' && decision.transferGroupId)
+      .map(({ decision, key }) => [decision.transferGroupId, key.id]),
+  };
+}
+
 export class ImportsService {
   constructor(
     private readonly worker: ImportsTransport,
-    private readonly classification: ImportClassificationPort
-  ) {}
+    // Unused since the commit became one transaction; see ImportClassificationPort.
+    classification: ImportClassificationPort
+  ) {
+    void classification;
+  }
+
+  /**
+   * Runs `work` between BEGIN and COMMIT, rolling back when it throws. The
+   * writes inside must not open a transaction of their own (`runEach`).
+   */
+  private async inTransaction<T>(work: () => Promise<T>): Promise<T> {
+    await this.worker.query('BEGIN TRANSACTION');
+    try {
+      const result = await work();
+      await this.worker.query('COMMIT');
+      return result;
+    } catch (error) {
+      await this.worker.query('ROLLBACK').catch((rollbackError) => {
+        log.warn('Rollback failed', { operation: 'inTransaction', error: rollbackError });
+      });
+      throw error;
+    }
+  }
+
+  /** One statement per parameter set, inside the transaction the caller opened. */
+  private async runEach(sql: string, parameterSets: unknown[][]): Promise<void> {
+    if (parameterSets.length === 0) return;
+    await this.worker.batchQueryReturning(sql, parameterSets as any[][], { useTransaction: false });
+  }
 
   // --- saved layouts ---
 
@@ -209,20 +275,37 @@ export class ImportsService {
    * `''` stands for a file that names no account. Order: full number (cards,
    * then identifiers) → last four → label → the saved layout's account. Only
    * a full-number match is `recognised`; the rest are `assumed` and shown to
-   * the user for confirmation, and several matches are `ambiguous`.
+   * the user for confirmation. Several matches are `ambiguous`, unless the
+   * saved layout's account is one of them: then it is `assumed` on the
+   * layout's word (basis `profile`). A value that matches nothing is
+   * `unknown`, with the accounts whose name or institution resembles it as
+   * candidates.
    */
   async resolveAccounts(
     values: string[],
     options: { profileAccountId?: number | null } = {}
   ): Promise<AccountResolution[]> {
+    // Read once per call, and only when some value matched nothing.
+    let accounts: Promise<Account[]> | null = null;
+    const loadAccounts = () =>
+      (accounts ??= this.worker.query(IMPORT_QUERIES.LIST_ACCOUNTS_FOR_HINTS).then((rows) =>
+        rows.map(
+          (row) => ({ id: Number(row.id), name: String(row.name ?? ''), institution: row.institution ?? null }) as Account
+        )
+      ));
+
     const resolutions: AccountResolution[] = [];
     for (const value of distinctValues(values)) {
-      resolutions.push(await this.resolveAccount(value, options.profileAccountId ?? null));
+      resolutions.push(await this.resolveAccount(value, options.profileAccountId ?? null, loadAccounts));
     }
     return resolutions;
   }
 
-  private async resolveAccount(value: string, profileAccountId: number | null): Promise<AccountResolution> {
+  private async resolveAccount(
+    value: string,
+    profileAccountId: number | null,
+    loadAccounts: () => Promise<Account[]>
+  ): Promise<AccountResolution> {
     const trimmed = value.trim();
     const digits = extractDigitsValue(trimmed);
     const lastFour = extractLastFourValue(trimmed) || (digits.length >= 4 ? digits.slice(-4) : '');
@@ -234,16 +317,30 @@ export class ImportsService {
     ): AccountResolution | null => {
       const accountIds = distinct([...cards, ...identifiers].map((row) => Number(row.account_id)));
       if (accountIds.length === 0) return null;
+      const cardOf = (accountId: number) => {
+        const card = cards.find((row) => Number(row.account_id) === accountId);
+        return card ? Number(card.card_id) : null;
+      };
       if (accountIds.length > 1) {
+        // The layout remembers which of them this file shape went into last time.
+        if (profileAccountId != null && accountIds.includes(profileAccountId)) {
+          return {
+            value,
+            status: 'assumed',
+            basis: 'profile',
+            accountId: profileAccountId,
+            cardId: cardOf(profileAccountId),
+            candidateAccountIds: accountIds,
+          };
+        }
         return { value, status: 'ambiguous', basis, accountId: null, cardId: null, candidateAccountIds: accountIds };
       }
-      const card = cards.find((row) => Number(row.account_id) === accountIds[0]);
       return {
         value,
         status: basis === 'fullNumber' ? 'recognised' : 'assumed',
         basis,
         accountId: accountIds[0],
-        cardId: card ? Number(card.card_id) : null,
+        cardId: cardOf(accountIds[0]),
         candidateAccountIds: accountIds,
       };
     };
@@ -282,7 +379,16 @@ export class ImportsService {
         candidateAccountIds: [profileAccountId],
       };
     }
-    return { value, status: 'unknown', basis: null, accountId: null, cardId: null, candidateAccountIds: [] };
+    // Text is too weak to pick an account, but it narrows the list the user chooses from.
+    const hinted = trimmed ? findTextHintedAccounts(trimmed, await loadAccounts()) : [];
+    return {
+      value,
+      status: 'unknown',
+      basis: null,
+      accountId: null,
+      cardId: null,
+      candidateAccountIds: hinted.map((account) => account.id),
+    };
   }
 
   // --- staging and commit ---
@@ -369,53 +475,100 @@ export class ImportsService {
   /**
    * Moves the staged rows into `transactions` as one import batch and empties
    * the staging table. Rows already stored are skipped and counted.
+   *
+   * One transaction: the batch row and its details, the staged type
+   * decisions, the insert, the decisions for the existing legs and the totals
+   * all land, or none of them does. The staging table is emptied either way.
    */
   async commitStaged(input: CommitInput): Promise<CommitResult> {
     const operation = log.withOperation('commitStaged');
     try {
-      const excluded = input.excludedTempIds.filter((id) => Number.isInteger(id));
-      if (excluded.length > 0) {
-        await this.worker.query(
-          TRANSACTION_QUERIES.DELETE_TEMP_TRANSACTIONS_BY_IDS.replace('__IDS__', excluded.join(','))
+      // Everything that can be refused or worked out without writing comes first.
+      const excluded = distinct(input.excludedTempIds.filter((id) => Number.isInteger(id)));
+      const stagedDecisions = stagedDecisionParams(input.stagedDecisions);
+      const existingDecisions = storedDecisionParams(input.existingDecisions);
+      const reseeds = excluded.length > 0 ? await this.reseedsAfterExclusion(new Set(excluded)) : [];
+
+      const result = await this.inTransaction(async () => {
+        if (excluded.length > 0) {
+          await this.worker.query(
+            TRANSACTION_QUERIES.DELETE_TEMP_TRANSACTIONS_BY_IDS.replace('__IDS__', excluded.join(','))
+          );
+        }
+        await this.runEach(IMPORT_QUERIES.RESEED_STAGED_ROW, reseeds);
+        const duplicates = (await this.worker.query(TRANSACTION_QUERIES.CHECK_DUPLICATES_IN_TEMP)).length;
+
+        const batchRows = await this.worker.query(IMPORT_BATCH_QUERIES.CREATE, [
+          'csv',
+          input.fileName,
+          JSON.stringify(input.accountIds),
+          input.totalRows,
+        ]);
+        const batchId = Number(batchRows[0].id);
+        await this.worker.query(IMPORT_QUERIES.SET_BATCH_DETAILS, [
+          input.profileId,
+          input.format,
+          JSON.stringify(input.issues),
+          batchId,
+        ]);
+
+        // The classification decided before the import travels with the staged rows.
+        await this.runEach(CLASSIFICATION_QUERIES.UPDATE_STAGED_CLASSIFICATION, stagedDecisions);
+        await this.worker.query(TRANSACTION_QUERIES.BULK_INSERT_FROM_TEMP, [batchId]);
+        const inserted = Number(
+          (await this.worker.query(IMPORT_QUERIES.COUNT_BATCH_TRANSACTIONS, [batchId]))[0]?.count ?? 0
         );
-      }
-      const duplicates = (await this.worker.query(TRANSACTION_QUERIES.CHECK_DUPLICATES_IN_TEMP)).length;
+        // The stored leg of a kept transfer pair: an unlocked row takes the whole
+        // decision, a locked transfer only gains the group.
+        await this.runEach(CLASSIFICATION_QUERIES.APPLY_CLASSIFICATION, existingDecisions.full);
+        await this.runEach(
+          CLASSIFICATION_QUERIES.SET_TRANSFER_GROUP_ON_LOCKED_TRANSFER,
+          existingDecisions.lockedTransfers
+        );
 
-      const batchRows = await this.worker.query(IMPORT_BATCH_QUERIES.CREATE, [
-        'csv',
-        input.fileName,
-        JSON.stringify(input.accountIds),
-        input.totalRows,
-      ]);
-      const batchId = Number(batchRows[0].id);
-      await this.worker.query(IMPORT_QUERIES.SET_BATCH_DETAILS, [
-        input.profileId,
-        input.format,
-        JSON.stringify(input.issues),
-        batchId,
-      ]);
-
-      // The classification decided before the import travels with the staged rows.
-      await this.classification.applyStagedDecisions(input.stagedDecisions);
-      await this.worker.query(TRANSACTION_QUERIES.BULK_INSERT_FROM_TEMP, [batchId]);
-      const inserted = Number((await this.worker.query('SELECT changes() as count'))[0]?.count ?? 0);
-      await this.classification.applyDecisions(input.existingDecisions);
-
-      await this.worker.query(IMPORT_BATCH_QUERIES.FINALIZE, [
-        inserted,
-        duplicates,
-        input.skippedRows,
-        input.rejectedRows,
-        batchId,
-      ]);
-      operation.info('Imported statement file', { batchId, inserted, duplicates, format: input.format });
-      return { batchId, inserted, duplicates };
+        await this.worker.query(IMPORT_BATCH_QUERIES.FINALIZE, [
+          inserted,
+          duplicates,
+          input.skippedRows,
+          input.rejectedRows,
+          batchId,
+        ]);
+        return { batchId, inserted, duplicates };
+      });
+      operation.info('Imported statement file', { ...result, format: input.format });
+      return result;
     } catch (error) {
       operation.error('Failed to import statement file', { error });
       throw error;
     } finally {
       await this.discardStaged().catch(() => undefined);
     }
+  }
+
+  /**
+   * The copies of identical rows that stay after the user left some out take
+   * seeds 0, 1, 2… in file order, so a later overlapping import matches each
+   * stored copy by its seed. Rows arrive seeded by occurrence, so only a copy
+   * whose position among the kept ones changed (an earlier copy was left out)
+   * needs a new hash. Returns RESEED_STAGED_ROW parameter sets; writes nothing.
+   */
+  private async reseedsAfterExclusion(excluded: Set<number>): Promise<unknown[][]> {
+    const nextSeedByContentHash = new Map<string, number>();
+    const reseeds: unknown[][] = [];
+    for (const row of await this.worker.query(IMPORT_QUERIES.GET_STAGED_ROWS)) {
+      const id = Number(row.id);
+      if (excluded.has(id)) continue;
+      const seed = Number(row.hash_variation_seed ?? 0);
+      const hashWithSeed = (variationSeed: number) =>
+        computeTransactionHash(row.account_id, String(row.date), Number(row.amount), String(row.description), variationSeed);
+      // A first copy is staged under the content hash itself.
+      const contentHash = seed === 0 ? String(row.transaction_hash) : await hashWithSeed(0);
+      const keptPosition = nextSeedByContentHash.get(contentHash) ?? 0;
+      nextSeedByContentHash.set(contentHash, keptPosition + 1);
+      if (seed === keptPosition) continue;
+      reseeds.push([keptPosition === 0 ? contentHash : await hashWithSeed(keptPosition), keptPosition, id]);
+    }
+    return reseeds;
   }
 
   // --- history ---
@@ -425,22 +578,86 @@ export class ImportsService {
     return (await this.worker.query(IMPORT_QUERIES.LIST_BATCHES, [limit])).map(mapToImportBatch);
   }
 
-  /** What is already stored for these accounts, for the coverage findings. Not built yet. */
+  /**
+   * What is already stored for these accounts, for the coverage findings: one
+   * entry per account asked for, in that order. An account with no
+   * transactions has null dates and a count of 0.
+   */
   async getAccountCoverage(accountIds: number[]): Promise<AccountCoverage[]> {
-    void accountIds;
-    return [];
+    const ids = distinct(accountIds.filter((id) => Number.isInteger(id)));
+    if (ids.length === 0) return [];
+    const rows = await this.worker.query(IMPORT_QUERIES.ACCOUNT_COVERAGE.replace('__IDS__', ids.join(',')));
+    const rowByAccount = new Map(rows.map((row) => [Number(row.account_id), row]));
+    return ids.map((accountId) => {
+      const row = rowByAccount.get(accountId);
+      return {
+        accountId,
+        firstDate: row?.first_date ?? null,
+        lastDate: row?.last_date ?? null,
+        lastImportThrough: row?.last_import_through ?? null,
+        transactionCount: Number(row?.transaction_count ?? 0),
+      };
+    });
   }
 
-  /** What undoing a batch would remove. Not built yet. */
+  /**
+   * What undoing a batch would remove, for the confirmation: its transactions,
+   * how many of them carry something the user added since (a category, a
+   * label, a note, a flag, a type they chose), the loan payments linked to
+   * them and the transfer pairs they are a leg of.
+   */
   async getBatchImpact(batchId: number): Promise<ImportBatchImpact> {
-    void batchId;
-    throw new Error(IMPORTS_NOT_IMPLEMENTED);
+    if (!Number.isInteger(batchId) || (await this.worker.query(IMPORT_QUERIES.GET_BATCH, [batchId])).length === 0) {
+      throw new Error(IMPORT_BATCH_NOT_FOUND);
+    }
+    const row = (await this.worker.query(IMPORT_QUERIES.BATCH_IMPACT, [batchId]))[0] ?? {};
+    return {
+      batchId,
+      transactions: Number(row.transactions ?? 0),
+      editedSinceImport: Number(row.edited_since_import ?? 0),
+      loanPayments: Number(row.loan_payments ?? 0),
+      transferPairs: Number(row.transfer_pairs ?? 0),
+    };
   }
 
-  /** Removes a batch and everything it imported. Not built yet. */
+  /**
+   * The loans that have a payment among the batch's transactions. Ask before
+   * `undoBatch`: afterwards each of them needs
+   * `databaseService.loans.syncAccountSnapshot`, because the balance written
+   * to a linked account still counts the removed payments.
+   */
+  async getBatchLoanIds(batchId: number): Promise<number[]> {
+    if (!Number.isInteger(batchId)) return [];
+    return (await this.worker.query(IMPORT_QUERIES.BATCH_LOAN_IDS, [batchId])).map((row) => Number(row.loan_id));
+  }
+
+  /**
+   * Removes a batch and everything it imported, in one transaction: the
+   * series links and loan payments of its transactions, the transactions, and
+   * the batch row. The other leg of a transfer it was half of survives
+   * unpaired: a leg the pairing had typed goes back to income / expense by
+   * its sign, a leg the user typed keeps its type. Resolves with what was
+   * removed. The caller refreshes loan balances (`getBatchLoanIds`) and
+   * re-runs the subscription scan.
+   */
   async undoBatch(batchId: number): Promise<ImportBatchImpact> {
-    void batchId;
-    throw new Error(IMPORTS_NOT_IMPLEMENTED);
+    const operation = log.withOperation('undoBatch');
+    try {
+      const impact = await this.getBatchImpact(batchId);
+      await this.inTransaction(async () => {
+        await this.worker.query(IMPORT_QUERIES.DELETE_BATCH_SERIES_LINKS, [batchId]);
+        await this.worker.query(IMPORT_QUERIES.DELETE_BATCH_LOAN_PAYMENTS, [batchId]);
+        await this.worker.query(IMPORT_QUERIES.REVERT_SURVIVING_PAIRED_LEGS, [batchId, batchId]);
+        await this.worker.query(IMPORT_QUERIES.CLEAR_SURVIVING_TRANSFER_GROUPS, [batchId, batchId]);
+        await this.worker.query(IMPORT_QUERIES.DELETE_BATCH_TRANSACTIONS, [batchId]);
+        await this.worker.query(IMPORT_BATCH_QUERIES.DELETE, [batchId]);
+      });
+      operation.info('Undid import', { ...impact });
+      return impact;
+    } catch (error) {
+      operation.error('Failed to undo import', { batchId, error });
+      throw error;
+    }
   }
 }
 

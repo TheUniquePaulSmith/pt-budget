@@ -1,0 +1,31 @@
+{
+  "file": "chinese-headers-year-month-day.csv",
+  "description": "Simplified Chinese headers (交易日期, 摘要, 对方户名, 支出, 收入, 余额, 币种) with yyyy年M月d日 dates: year first, so there is no day / month question. The description is the counterparty followed by the summary. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        2,
+        1
+      ],
+      "debit": 3,
+      "credit": 4,
+      "balance": 5,
+      "currency": 6
+    },
+    "dateOrder": "YMD",
+    "decimal": ".",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 6,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-25",
+    "moneyIn": 12008.32,
+    "moneyOut": 4023.5,
+    "issueCodes": []
+  }
+}

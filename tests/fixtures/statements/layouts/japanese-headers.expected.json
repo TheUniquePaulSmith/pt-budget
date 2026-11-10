@@ -1,0 +1,29 @@
+{
+  "file": "japanese-headers.csv",
+  "description": "Japanese headers (日付, 摘要, お支払金額, お預り金額, 差引残高): the payment column next to a deposits column is money out. Whole-yen amounts with thousands commas (\"285,000\"): every separator is followed by three digits, so the comma is grouping and the file is not reported as ambiguous. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "debit": 2,
+      "credit": 3,
+      "balance": 4
+    },
+    "dateOrder": "YMD",
+    "decimal": ".",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 6,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-30",
+    "moneyIn": 285012,
+    "moneyOut": 121656,
+    "issueCodes": []
+  }
+}

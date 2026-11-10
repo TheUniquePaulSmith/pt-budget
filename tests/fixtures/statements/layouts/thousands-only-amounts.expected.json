@@ -1,0 +1,28 @@
+{
+  "file": "thousands-only-amounts.csv",
+  "description": "Whole-number amounts where the only separators are in \"-1,250\" and \"3,400\": read as thousands (money is not written with three decimals), but two values are too few to be sure, so decimalAmbiguous is reported. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "amount": 2
+    },
+    "decimal": ".",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 4,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-09",
+    "moneyIn": 3400,
+    "moneyOut": 1349,
+    "issueCodes": [
+      "decimalAmbiguous"
+    ]
+  }
+}

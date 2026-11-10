@@ -3,5 +3,239 @@
     "blocker": "Richiede una decisione",
     "warning": "Da controllare",
     "info": "Per informazione"
+  },
+  "issues": {
+    "unsupportedFormat": {
+      "title": "Questo tipo di file non può essere importato",
+      "detail": "L'importazione legge file CSV, TXT, TSV, OFX e QFX. I fogli di calcolo (XLSX) e i file PDF e QIF non sono supportati. Sul sito della tua banca, scegli CSV oppure OFX quando scarichi l'estratto conto."
+    },
+    "emptyFile": {
+      "title": "Il file è vuoto",
+      "detail": "In questo file non c'è nulla. Scarica di nuovo l'estratto conto dalla tua banca e riprova."
+    },
+    "noDataRows": {
+      "title": "Nessuna transazione in questo file",
+      "detail": "Il file contiene i nomi delle colonne, ma nessuna riga sotto. Controlla le date che hai scelto quando lo hai scaricato."
+    },
+    "encodingGuessed": {
+      "title": "La codifica del testo è stata ipotizzata",
+      "detail": "Il file non indica come sono memorizzate le lettere, quindi è stata usata la codifica occidentale più comune. Se i nomi mostrano caratteri strani, scegli un'altra codifica per questo file."
+    },
+    "preambleSkipped": {
+      "title": "Le righe sopra i nomi delle colonne sono state tralasciate",
+      "detail": "Il file inizia con righe che non sono transazioni, come il nome della banca o il conto. Non vengono importate."
+    },
+    "trailerSkipped": {
+      "title": "Le righe sotto le transazioni sono state tralasciate",
+      "detail": "Il file termina con righe che non sono transazioni, come totali o un'avvertenza legale. Non vengono importate."
+    },
+    "headerMissing": {
+      "title": "Il file non ha nomi di colonna",
+      "detail": "La prima riga sembra già una transazione, quindi le colonne si chiamano Colonna 1, Colonna 2 e così via. Controlla che ognuna sia stata interpretata correttamente."
+    },
+    "duplicateHeaderNames": {
+      "title": "Due colonne hanno lo stesso nome",
+      "detail": "Le colonne con lo stesso nome sono state numerate per poterle distinguere."
+    },
+    "raggedRows": {
+      "title": "Alcune righe hanno più o meno valori rispetto alle colonne",
+      "detail": "In queste righe un valore potrebbe essere finito nella colonna sbagliata, spesso per una virgola o delle virgolette di troppo. Controllale prima di importare."
+    },
+    "truncatedFile": {
+      "title": "Il file sembra troncato",
+      "detail": "L'ultima riga si interrompe a metà, quindi il download potrebbe essere incompleto. Scarica di nuovo il file se mancano le transazioni più recenti."
+    },
+    "multipleAccountsInFile": {
+      "title": "Questo file contiene più di un conto",
+      "detail": "Ogni riga indica a quale conto appartiene. Ogni conto del file viene abbinato separatamente a uno dei tuoi."
+    },
+    "dateOrderAmbiguous": {
+      "title": "Giorno e mese potrebbero essere invertiti",
+      "detail": "Tutte le date di questo file funzionano sia come giorno/mese sia come mese/giorno, quindi il file non permette di capire quale sia quella giusta. Abbiamo letto {{example}} come {{readAs}} (anno-mese-giorno). Se non è corretto, cambia l'ordine della data per questo file."
+    },
+    "dateOrderMixed": {
+      "title_one": "{{count}} data non rispetta l'ordine delle altre",
+      "title_other": "{{count}} date non rispettano l'ordine delle altre",
+      "detail": "Un file scrive tutte le sue date allo stesso modo, ma {{example}} alla riga {{line}} è valida solo scambiando giorno e mese. O l'ordine della data scelto per questo file è sbagliato, oppure lo sono queste righe. Cambia l'ordine della data, oppure correggi o salta queste righe."
+    },
+    "decimalAmbiguous": {
+      "title": "Controlla il separatore decimale",
+      "detail": "Importi come {{example}} si possono leggere in due modi e nient'altro in questo file chiarisce quale sia quello giusto. Abbiamo considerato «{{mark}}» come separatore decimale. Se gli importi sembrano mille volte troppo grandi o troppo piccoli, cambialo per questo file."
+    },
+    "signAssumed": {
+      "title": "Controlla quali importi sono entrate e quali uscite di denaro",
+      "detail": "Il file non dice chiaramente in che direzione vanno gli importi, quindi questa è la nostra lettura più probabile. Righe lette come uscita di denaro: {{moneyOutRows}}. Righe lette come entrata di denaro: {{moneyInRows}}. Se ti sembra al contrario, inverti il segno per questo file."
+    },
+    "noDateColumn": {
+      "title": "Nessuna colonna della data",
+      "detail": "Non siamo riusciti a capire quale colonna contiene la data. Sceglila tu: senza data non si può importare nulla."
+    },
+    "noAmountColumn": {
+      "title": "Nessuna colonna dell'importo",
+      "detail": "Non siamo riusciti a capire quale colonna contiene l'importo. Sceglila tu: senza importo non si può importare nulla."
+    },
+    "noDescriptionColumn": {
+      "title": "Nessuna colonna della descrizione",
+      "detail": "Non siamo riusciti a capire quale colonna descrive ogni transazione. Sceglila tu, così potrai riconoscere le tue transazioni in seguito."
+    },
+    "debitCreditBothFilled": {
+      "title_one": "{{count}} riga ha sia un'uscita sia un'entrata di denaro",
+      "title_other": "{{count}} righe hanno sia un'uscita sia un'entrata di denaro",
+      "detail": "Di norma una riga compila solo una delle due colonne. Quando entrambe hanno un valore, viene importata la differenza. Controlla che sia ciò che ti aspetti."
+    },
+    "descriptionMostlyBlank": {
+      "title": "La maggior parte delle righe non ha descrizione",
+      "detail": "{{count}} righe su {{total}} non hanno nulla nella colonna della descrizione. Possono essere importate, ma forse è stata scelta la colonna sbagliata: la descrizione dovrebbe essere quella con i nomi dei negozi o di chi paga."
+    },
+    "referenceNotUnique": {
+      "title": "«{{column}}» non viene usata per individuare i duplicati",
+      "detail": "Un riferimento bancario è utile solo se ogni riga ha il proprio. In questo file è vuoto, ripetuto o danneggiato, quindi le righe che hai già importato vengono riconosciute da data, importo e descrizione."
+    },
+    "currencyMismatch": {
+      "title_one": "{{count}} riga è in {{fileCurrency}}, ma il conto è in {{accountCurrency}}",
+      "title_other": "{{count}} righe sono in {{fileCurrency}}, ma il conto è in {{accountCurrency}}",
+      "detail": "Gli importi vengono importati così come sono e contati come {{accountCurrency}}. Non viene convertito nulla. Controlla di aver scelto il conto giusto."
+    },
+    "columnNotImported": {
+      "title": "«{{column}}» non viene importata",
+      "detail": "L'importazione conserva la data, la descrizione e l'importo di ogni transazione. Le altre colonne, come una categoria, un numero di assegno o le quote di capitale e di interessi di una rata di prestito, vengono tralasciate."
+    },
+    "unreadableDate": {
+      "title_one": "{{count}} riga ha una data che non riusciamo a leggere",
+      "title_other": "{{count}} righe hanno una data che non riusciamo a leggere",
+      "detail": "La data manca oppure non è scritta come le altre date di questo file. Scrivi la data corretta per ogni riga, oppure salta la riga. Così com'è non può essere importata."
+    },
+    "unreadableAmount": {
+      "title_one": "{{count}} riga ha un importo che non riusciamo a leggere",
+      "title_other": "{{count}} righe hanno un importo che non riusciamo a leggere",
+      "detail": "L'importo manca, non è un numero oppure non indica se è un'entrata o un'uscita di denaro. Scrivi l'importo corretto per ogni riga, oppure salta la riga. Così com'è non può essere importata."
+    },
+    "excelMangledNumber": {
+      "title_one": "{{count}} importo è stato modificato da un foglio di calcolo",
+      "title_other": "{{count}} importi sono stati modificati da un foglio di calcolo",
+      "detail": "Un valore come {{example}} è ciò che scrive un programma di fogli di calcolo quando abbrevia un numero lungo, quindi l'importo reale è andato perso. Scrivi l'importo riportato sul tuo estratto conto, salta la riga oppure scarica di nuovo il file senza aprirlo prima in un foglio di calcolo."
+    },
+    "blankDescription": {
+      "title_one": "{{count}} riga non ha descrizione",
+      "title_other": "{{count}} righe non hanno descrizione",
+      "detail": "Queste righe possono essere importate, ma in seguito potresti non riconoscerle. Puoi scrivere una descrizione per ciascuna."
+    },
+    "zeroAmount": {
+      "title_one": "{{count}} riga ha un importo pari a zero",
+      "title_other": "{{count}} righe hanno un importo pari a zero",
+      "detail": "Una transazione pari a zero non cambia nulla nei tuoi totali. Salta queste righe, a meno che tu non voglia tenerle per i tuoi registri."
+    },
+    "futureDate": {
+      "title_one": "{{count}} riga ha una data futura",
+      "title_other": "{{count}} righe hanno una data futura",
+      "detail": "La data è successiva a oggi. Può essere un pagamento programmato, oppure giorno e mese potrebbero essere scambiati. Controlla la data, oppure salta la riga finché non è avvenuta."
+    },
+    "dateFarFromOthers": {
+      "title_one": "{{count}} data è lontana dal resto del file",
+      "title_other": "{{count}} date sono lontane dal resto del file",
+      "detail": "La maggior parte di questo file è compresa tra {{from}} e {{to}}, ma queste righe distano più di un anno. Spesso è un errore di battitura nell'anno. Correggi la data se è sbagliata."
+    },
+    "amountOutlier": {
+      "title_one": "{{count}} importo è molto più grande degli altri",
+      "title_other": "{{count}} importi sono molto più grandi degli altri",
+      "detail": "Più di dieci volte il maggiore degli altri importi di questo file. Può essere corretto, come l'anticipo per una casa, oppure il separatore decimale è nel posto sbagliato. Dai un'occhiata prima di importare."
+    },
+    "pendingTransaction": {
+      "title_one": "{{count}} riga è ancora in sospeso",
+      "title_other": "{{count}} righe sono ancora in sospeso",
+      "detail": "La banca non ha ancora finito di elaborare queste transazioni: l'importo può ancora cambiare, oppure la transazione può sparire. Se le importi adesso, un file successivo potrebbe riportarle con dati diversi. La scelta più sicura è saltarle finché non sono definitive."
+    },
+    "summaryRow": {
+      "title_one": "{{count}} riga di totale è stata tralasciata",
+      "title_other": "{{count}} righe di totale sono state tralasciate",
+      "detail": "Queste righe sono totali o saldi, non transazioni, quindi vengono saltate. Se una di esse è una transazione vera, puoi ripristinarla."
+    },
+    "balanceMismatch": {
+      "title_one": "{{count}} riga non corrisponde al saldo indicato dalla banca",
+      "title_other": "{{count}} righe non corrispondono al saldo indicato dalla banca",
+      "detail": "Il saldo riportato su queste righe non è il saldo precedente più o meno l'importo. Potrebbe mancare una riga nel file, oppure un importo potrebbe essere stato letto male. Confronta queste righe con il tuo estratto conto."
+    },
+    "duplicateInFile": {
+      "title": "Righe che compaiono più di una volta in questo file",
+      "detail": "Queste righe hanno la stessa data, lo stesso importo e la stessa descrizione di un'altra riga del file. Possono essere due transazioni vere, come due caffè nello stesso giorno, oppure la stessa riportata due volte. Scegli quali importare."
+    },
+    "alreadyImported": {
+      "title": "Righe che hai già importato",
+      "detail": "Queste transazioni sono già nel conto grazie a un'importazione precedente, quindi non vengono aggiunte di nuovo."
+    },
+    "accountRecognised": {
+      "title": "Conto riconosciuto",
+      "detail": "Il numero di conto completo presente nel file corrisponde a questo conto."
+    },
+    "accountAssumedByLastFour": {
+      "title": "Conto ipotizzato dalle ultime quattro cifre",
+      "detail": "Il file mostra solo la parte finale del numero di conto. Corrisponde a questo conto, ma un altro conto potrebbe terminare allo stesso modo. Conferma che sia quello giusto."
+    },
+    "accountAssumedByProfile": {
+      "title": "Conto ipotizzato dalla volta precedente",
+      "detail": "Il file non indica alcun conto. I file con questo formato sono stati importati in questo conto in passato, quindi è stato scelto di nuovo. Conferma che sia quello giusto."
+    },
+    "accountAssumedByName": {
+      "title": "Conto ipotizzato dal nome",
+      "detail": "Il file non contiene un numero di conto che conosciamo, ma la sua etichetta del conto somiglia al nome di questo conto. Conferma che sia quello giusto."
+    },
+    "accountAmbiguous": {
+      "title": "Corrisponde più di un conto",
+      "detail": "Il numero di conto presente nel file è compatibile con diversi tuoi conti. Scegli quello a cui appartiene questo file."
+    },
+    "accountValueMalformed": {
+      "title": "Il numero di conto nel file è danneggiato",
+      "detail": "Ha un aspetto simile a 4.00E+14, cioè quello che scrive un programma di fogli di calcolo quando abbrevia un numero lungo. Così non è possibile riconoscere il conto, quindi sceglilo tu."
+    },
+    "accountTypeMismatch": {
+      "title": "Il file e il conto sono di tipo diverso",
+      "detail": "Il file indica di provenire da un tipo di conto, come una carta di credito, mentre il conto che hai scelto è di un altro tipo, come un conto corrente. Controlla di aver scelto il conto giusto."
+    },
+    "accountUnknown": {
+      "title": "Non sappiamo a quale conto si riferisce questo file",
+      "detail": "Nulla nel file corrisponde a uno dei tuoi conti. Scegli un conto oppure aggiungine uno nuovo."
+    },
+    "gapSinceLastImport": {
+      "title_one": "{{count}} giorno non è coperto",
+      "title_other": "{{count}} giorni non sono coperti",
+      "detail": "Non è stato importato nulla dal {{from}} al {{to}}: ciò che il conto contiene già si ferma prima e questo file inizia dopo. Se hai un estratto conto per quei giorni, importa anche quello, così non manca nulla."
+    },
+    "overlapsExisting": {
+      "title": "Una parte di questo file è già nel conto",
+      "detail": "Il conto contiene già transazioni tra il {{from}} e il {{to}}. Le righe importate in precedenza vengono riconosciute e non vengono aggiunte due volte."
+    }
+  },
+  "assumptions": {
+    "savedLayout": "Questo file ha lo stesso formato di uno che hai già importato, quindi viene letto allo stesso modo.",
+    "columnsByName": "Le colonne sono state riconosciute dal nome: la data è «{{date}}», la descrizione è «{{description}}» e l'importo è «{{amount}}».",
+    "columnsByContent": "Alcuni nomi di colonna non ci sono noti, quindi ci siamo basati sul contenuto delle colonne: la data è «{{date}}», la descrizione è «{{description}}» e l'importo è «{{amount}}». Controlla che sia corretto.",
+    "columnsByAi": "L'assistente IA ha suggerito come leggere questo file: la data è «{{date}}», la descrizione è «{{description}}» e l'importo è «{{amount}}». Controlla prima di importare.",
+    "twoDateColumns": "Il file contiene due date. «{{date}}» viene usata come giorno in cui è avvenuta la transazione; «{{postedDate}}» non viene importata.",
+    "descriptionJoined": "La descrizione viene composta unendo queste colonne: {{columns}}.",
+    "debitCreditColumns": "Le uscite di denaro vengono lette da «{{debit}}» e le entrate da «{{credit}}».",
+    "directionColumn": "«{{amount}}» non ha il segno più o meno. «{{direction}}» indica in che direzione è andato il denaro: {{out}} è un'uscita di denaro e {{in}} è un'entrata di denaro.",
+    "accountColumn": "«{{column}}» indica a quale conto appartiene ogni riga.",
+    "datesUnambiguous": "Date come {{example}} si possono leggere in un solo modo, quindi non c'è nulla da ipotizzare.",
+    "dayFirstFromFile": "Le date vengono lette come giorno, mese, anno: {{example}} alla riga {{line}} non può essere altro.",
+    "monthFirstFromFile": "Le date vengono lette come mese, giorno, anno: {{example}} alla riga {{line}} non può essere altro.",
+    "dayFirstBySequence": "Date come {{example}} si potrebbero leggere in due modi. Lette come giorno, mese, anno, le righe risultano in ordine di data, quindi vengono lette così.",
+    "monthFirstBySequence": "Date come {{example}} si potrebbero leggere in due modi. Lette come mese, giorno, anno, le righe risultano in ordine di data, quindi vengono lette così.",
+    "dayFirstAssumed": "Date come {{example}} si potrebbero leggere in due modi e il file non chiarisce quale sia quello giusto. Vengono lette come giorno, mese, anno.",
+    "monthFirstAssumed": "Date come {{example}} si potrebbero leggere in due modi e il file non chiarisce quale sia quello giusto. Vengono lette come mese, giorno, anno.",
+    "dayFirstByMajority": "Date valide solo come giorno, mese, anno: {{count}}. Date valide solo come mese, giorno, anno: {{otherCount}}. Il file viene letto come giorno, mese, anno; le altre righe vanno corrette o saltate.",
+    "monthFirstByMajority": "Date valide solo come mese, giorno, anno: {{count}}. Date valide solo come giorno, mese, anno: {{otherCount}}. Il file viene letto come mese, giorno, anno; le altre righe vanno corrette o saltate.",
+    "decimalFromFile": "«{{mark}}» è il separatore decimale: importi come {{example}} non si possono leggere in altro modo.",
+    "decimalByGrouping": "«{{group}}» separa le migliaia in importi come {{example}}, quindi «{{mark}}» viene considerato il separatore decimale.",
+    "decimalAssumed": "Importi come {{example}} si potrebbero leggere in due modi e il file non chiarisce quale sia quello giusto. «{{mark}}» viene considerato il separatore decimale.",
+    "signAsPrintedByBalance": "Gli importi negativi sono uscite di denaro e quelli positivi sono entrate. È l'unica lettura che torna con il saldo riportato nel file.",
+    "signFlippedByBalance": "Questo file scrive le uscite di denaro come numeri positivi, quindi il segno viene invertito. È l'unica lettura che torna con il saldo riportato nel file.",
+    "signAsPrintedByKeywords": "Gli importi negativi sono uscite di denaro e quelli positivi sono entrate, a giudicare da righe come «{{description}}» ({{amount}}).",
+    "signFlippedByKeywords": "Questo file sembra scrivere le uscite di denaro come numeri positivi, a giudicare da righe come «{{description}}» ({{amount}}), quindi il segno viene invertito.",
+    "signAsPrintedByShare": "Gli importi negativi sono uscite di denaro e quelli positivi sono entrate. Il {{percent}}% degli importi è negativo, come accade di solito per le spese.",
+    "signFlippedByShare": "Questo file sembra scrivere le uscite di denaro come numeri positivi: il {{percent}}% degli importi è positivo e la maggior parte delle righe di un estratto conto sono spese. Per questo il segno viene invertito.",
+    "signFlippedForCard": "Tutti gli importi di questo file sono positivi. Gli estratti conto delle carte di solito riportano così gli acquisti, quindi vengono letti come uscite di denaro.",
+    "signAsPrintedDefault": "Gli importi vengono letti così come sono scritti: negativo è un'uscita di denaro, positivo è un'entrata. Nulla nel file indica il contrario.",
+    "signAsPrintedByAi": "L'assistente IA ha letto gli importi negativi come uscite di denaro e quelli positivi come entrate.",
+    "signFlippedByAi": "L'assistente IA ritiene che questo file scriva le uscite di denaro come numeri positivi, quindi il segno viene invertito."
   }
 }

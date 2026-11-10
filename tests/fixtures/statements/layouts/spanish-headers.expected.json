@@ -1,0 +1,29 @@
+{
+  "file": "spanish-headers.csv",
+  "description": "Spanish headers (Fecha, Fecha valor, Concepto, Importe, Saldo), day-first dates, decimal commas. The running balance confirms that negative amounts are money out. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "postedDate": 1,
+      "description": [
+        2
+      ],
+      "amount": 3,
+      "balance": 4
+    },
+    "dateOrder": "DMY",
+    "decimal": ",",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 6,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-02",
+    "lastDate": "2026-09-28",
+    "moneyIn": 1950,
+    "moneyOut": 1042.65,
+    "issueCodes": []
+  }
+}

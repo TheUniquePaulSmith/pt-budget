@@ -1,0 +1,27 @@
+{
+  "file": "mixed-date-order.csv",
+  "description": "Four dates only work day-first (13/09/2026) and two only month-first (09/17/2026). The file is read day-first (the majority) and the two rows that do not fit are blocked under dateOrderMixed: one file is never read with two orders. Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "amount": 2
+    },
+    "dateOrder": "DMY",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 4,
+    "blockedRows": 2,
+    "skippedRows": 0,
+    "firstDate": "2026-09-13",
+    "lastDate": "2026-09-28",
+    "moneyIn": 2400,
+    "moneyOut": 104.2,
+    "issueCodes": [
+      "dateOrderMixed"
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "file": "italian-headers.csv",
+  "description": "Italian headers (Data contabile, Data valuta, Descrizione, Dare, Avere): the booking date is the date, \"valuta\" is the value date here (in other files it is a currency column). Synthetic rows.",
+  "layout": {
+    "roles": {
+      "date": 0,
+      "postedDate": 1,
+      "description": [
+        2
+      ],
+      "debit": 3,
+      "credit": 4
+    },
+    "dateOrder": "DMY",
+    "decimal": ",",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 6,
+    "blockedRows": 0,
+    "skippedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-29",
+    "moneyIn": 1720,
+    "moneyOut": 1022.95,
+    "issueCodes": []
+  }
+}

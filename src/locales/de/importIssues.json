@@ -3,5 +3,239 @@
     "blocker": "Entscheidung erforderlich",
     "warning": "Bitte prüfen",
     "info": "Zur Information"
+  },
+  "issues": {
+    "unsupportedFormat": {
+      "title": "Diese Art von Datei kann nicht importiert werden",
+      "detail": "Der Import liest CSV-, TXT-, TSV-, OFX- und QFX-Dateien. Tabellen (XLSX) sowie PDF- und QIF-Dateien werden nicht unterstützt. Wählen Sie auf der Website Ihrer Bank CSV oder OFX, wenn Sie den Kontoauszug herunterladen."
+    },
+    "emptyFile": {
+      "title": "Die Datei ist leer",
+      "detail": "In dieser Datei steht nichts. Laden Sie den Kontoauszug erneut bei Ihrer Bank herunter und versuchen Sie es noch einmal."
+    },
+    "noDataRows": {
+      "title": "Keine Transaktionen in dieser Datei",
+      "detail": "Die Datei enthält Spaltennamen, aber keine Zeilen darunter. Prüfen Sie den Zeitraum, den Sie beim Herunterladen gewählt haben."
+    },
+    "encodingGuessed": {
+      "title": "Die Zeichenkodierung wurde geraten",
+      "detail": "Die Datei gibt nicht an, wie ihre Buchstaben gespeichert sind, daher wurde die gängigste westliche Kodierung verwendet. Falls Namen seltsame Zeichen enthalten, wählen Sie für diese Datei eine andere Kodierung."
+    },
+    "preambleSkipped": {
+      "title": "Zeilen über den Spaltennamen wurden ausgelassen",
+      "detail": "Die Datei beginnt mit Zeilen, die keine Transaktionen sind, etwa dem Namen der Bank oder dem Konto. Sie werden nicht importiert."
+    },
+    "trailerSkipped": {
+      "title": "Zeilen unter den Transaktionen wurden ausgelassen",
+      "detail": "Die Datei endet mit Zeilen, die keine Transaktionen sind, etwa Summen oder einem rechtlichen Hinweis. Sie werden nicht importiert."
+    },
+    "headerMissing": {
+      "title": "Die Datei hat keine Spaltennamen",
+      "detail": "Schon die erste Zeile sieht wie eine Transaktion aus, daher heißen die Spalten Spalte 1, Spalte 2 und so weiter. Prüfen Sie, ob jede richtig verstanden wurde."
+    },
+    "duplicateHeaderNames": {
+      "title": "Zwei Spalten haben denselben Namen",
+      "detail": "Spalten mit demselben Namen wurden nummeriert, damit Sie sie unterscheiden können."
+    },
+    "raggedRows": {
+      "title": "Einige Zeilen haben mehr oder weniger Werte, als es Spalten gibt",
+      "detail": "In diesen Zeilen ist möglicherweise ein Wert in die falsche Spalte gerutscht, oft wegen eines überzähligen Kommas oder Anführungszeichens. Prüfen Sie sie vor dem Import."
+    },
+    "truncatedFile": {
+      "title": "Die Datei scheint abgeschnitten zu sein",
+      "detail": "Die letzte Zeile bricht mitten in einem Datensatz ab, der Download ist also möglicherweise unvollständig. Laden Sie die Datei erneut herunter, falls die neuesten Transaktionen fehlen."
+    },
+    "multipleAccountsInFile": {
+      "title": "Diese Datei enthält mehr als ein Konto",
+      "detail": "In jeder Zeile steht, zu welchem Konto sie gehört. Jedes Konto der Datei wird einzeln einem Ihrer Konten zugeordnet."
+    },
+    "dateOrderAmbiguous": {
+      "title": "Tag und Monat könnten vertauscht sein",
+      "detail": "Jedes Datum in dieser Datei funktioniert sowohl als Tag/Monat als auch als Monat/Tag, die Datei selbst verrät also nicht, was gemeint ist. Wir haben {{example}} als {{readAs}} gelesen (Jahr-Monat-Tag). Falls das nicht stimmt, ändern Sie die Datumsreihenfolge für diese Datei."
+    },
+    "dateOrderMixed": {
+      "title_one": "{{count}} Datum passt nicht zur Reihenfolge der übrigen",
+      "title_other": "{{count}} Datumsangaben passen nicht zur Reihenfolge der übrigen",
+      "detail": "Eine Datei schreibt ihre Datumsangaben durchgehend gleich, aber {{example}} in Zeile {{line}} funktioniert nur mit vertauschtem Tag und Monat. Entweder ist die für diese Datei gewählte Datumsreihenfolge falsch, oder diese Zeilen sind es. Ändern Sie die Datumsreihenfolge, oder korrigieren oder überspringen Sie diese Zeilen."
+    },
+    "decimalAmbiguous": {
+      "title": "Dezimaltrennzeichen prüfen",
+      "detail": "Beträge wie {{example}} lassen sich auf zwei Arten lesen, und nichts sonst in dieser Datei entscheidet das. Wir haben „{{mark}}“ als Dezimaltrennzeichen genommen. Falls die Beträge tausendfach zu groß oder zu klein wirken, ändern Sie es für diese Datei."
+    },
+    "signAssumed": {
+      "title": "Prüfen Sie, welche Beträge Eingänge und welche Ausgänge sind",
+      "detail": "Die Datei sagt nicht eindeutig, in welche Richtung ihre Beträge gehen, dies ist also unsere beste Lesart. Als Geldausgang gelesene Zeilen: {{moneyOutRows}}. Als Geldeingang gelesene Zeilen: {{moneyInRows}}. Falls das verkehrt herum aussieht, kehren Sie das Vorzeichen für diese Datei um."
+    },
+    "noDateColumn": {
+      "title": "Keine Datumsspalte",
+      "detail": "Wir konnten nicht erkennen, in welcher Spalte das Datum steht. Wählen Sie sie selbst aus: Ohne Datum kann nichts importiert werden."
+    },
+    "noAmountColumn": {
+      "title": "Keine Betragsspalte",
+      "detail": "Wir konnten nicht erkennen, in welcher Spalte der Betrag steht. Wählen Sie sie selbst aus: Ohne Betrag kann nichts importiert werden."
+    },
+    "noDescriptionColumn": {
+      "title": "Keine Beschreibungsspalte",
+      "detail": "Wir konnten nicht erkennen, welche Spalte die einzelnen Transaktionen beschreibt. Wählen Sie sie selbst aus, damit Sie Ihre Transaktionen später wiedererkennen."
+    },
+    "debitCreditBothFilled": {
+      "title_one": "{{count}} Zeile hat sowohl einen Geldausgang als auch einen Geldeingang",
+      "title_other": "{{count}} Zeilen haben sowohl einen Geldausgang als auch einen Geldeingang",
+      "detail": "Normalerweise ist in einer Zeile nur eine der beiden Spalten ausgefüllt. Wo beide einen Wert haben, wird die Differenz importiert. Prüfen Sie, ob das Ihren Erwartungen entspricht."
+    },
+    "descriptionMostlyBlank": {
+      "title": "Die meisten Zeilen haben keine Beschreibung",
+      "detail": "{{count}} von {{total}} Zeilen haben nichts in der Beschreibungsspalte. Sie können importiert werden, aber möglicherweise wurde die falsche Spalte gewählt: Die Beschreibung sollte die Spalte mit den Namen der Händler oder Zahler sein."
+    },
+    "referenceNotUnique": {
+      "title": "„{{column}}“ wird nicht zum Erkennen von Duplikaten verwendet",
+      "detail": "Eine Bankreferenz hilft nur, wenn jede Zeile ihre eigene hat. In dieser Datei ist sie leer, wiederholt oder beschädigt; bereits importierte Zeilen werden daher an Datum, Betrag und Beschreibung erkannt."
+    },
+    "currencyMismatch": {
+      "title_one": "{{count}} Zeile ist in {{fileCurrency}}, das Konto aber in {{accountCurrency}}",
+      "title_other": "{{count}} Zeilen sind in {{fileCurrency}}, das Konto aber in {{accountCurrency}}",
+      "detail": "Die Beträge werden unverändert importiert und als {{accountCurrency}} gezählt. Es wird nichts umgerechnet. Prüfen Sie, ob Sie das richtige Konto gewählt haben."
+    },
+    "columnNotImported": {
+      "title": "„{{column}}“ wird nicht importiert",
+      "detail": "Der Import übernimmt Datum, Beschreibung und Betrag jeder Transaktion. Andere Spalten, etwa eine Kategorie, eine Schecknummer oder der Tilgungs- und Zinsanteil einer Kreditrate, bleiben außen vor."
+    },
+    "unreadableDate": {
+      "title_one": "{{count}} Zeile hat ein Datum, das wir nicht lesen können",
+      "title_other": "{{count}} Zeilen haben ein Datum, das wir nicht lesen können",
+      "detail": "Das Datum fehlt oder ist nicht so geschrieben wie die übrigen Datumsangaben dieser Datei. Geben Sie für jede Zeile das richtige Datum ein, oder überspringen Sie die Zeile. So, wie sie ist, kann sie nicht importiert werden."
+    },
+    "unreadableAmount": {
+      "title_one": "{{count}} Zeile hat einen Betrag, den wir nicht lesen können",
+      "title_other": "{{count}} Zeilen haben einen Betrag, den wir nicht lesen können",
+      "detail": "Der Betrag fehlt, ist keine Zahl oder lässt nicht erkennen, ob es ein Geldeingang oder ein Geldausgang ist. Geben Sie für jede Zeile den richtigen Betrag ein, oder überspringen Sie die Zeile. So, wie sie ist, kann sie nicht importiert werden."
+    },
+    "excelMangledNumber": {
+      "title_one": "{{count}} Betrag wurde von einer Tabellenkalkulation verändert",
+      "title_other": "{{count}} Beträge wurden von einer Tabellenkalkulation verändert",
+      "detail": "Ein Wert wie {{example}} ist das, was ein Tabellenkalkulationsprogramm schreibt, wenn es eine lange Zahl abkürzt; der tatsächliche Betrag ist damit verloren. Geben Sie den Betrag aus Ihrem Kontoauszug ein, überspringen Sie die Zeile, oder laden Sie die Datei erneut herunter, ohne sie vorher in einer Tabellenkalkulation zu öffnen."
+    },
+    "blankDescription": {
+      "title_one": "{{count}} Zeile hat keine Beschreibung",
+      "title_other": "{{count}} Zeilen haben keine Beschreibung",
+      "detail": "Diese Zeilen können importiert werden, aber Sie erkennen sie später vielleicht nicht wieder. Sie können für jede eine Beschreibung eingeben."
+    },
+    "zeroAmount": {
+      "title_one": "{{count}} Zeile hat den Betrag null",
+      "title_other": "{{count}} Zeilen haben den Betrag null",
+      "detail": "Eine Transaktion über null ändert nichts an Ihren Summen. Überspringen Sie diese Zeilen, sofern Sie sie nicht für Ihre Unterlagen behalten möchten."
+    },
+    "futureDate": {
+      "title_one": "{{count}} Zeile liegt in der Zukunft",
+      "title_other": "{{count}} Zeilen liegen in der Zukunft",
+      "detail": "Das Datum liegt nach dem heutigen Tag. Es kann eine geplante Zahlung sein, oder Tag und Monat sind vertauscht. Prüfen Sie das Datum, oder überspringen Sie die Zeile, bis die Transaktion stattgefunden hat."
+    },
+    "dateFarFromOthers": {
+      "title_one": "{{count}} Datum liegt weit vom Rest der Datei entfernt",
+      "title_other": "{{count}} Datumsangaben liegen weit vom Rest der Datei entfernt",
+      "detail": "Der größte Teil dieser Datei liegt zwischen {{from}} und {{to}}, diese Zeilen sind aber mehr als ein Jahr davon entfernt. Oft ist das ein Tippfehler in der Jahreszahl. Korrigieren Sie das Datum, falls es falsch ist."
+    },
+    "amountOutlier": {
+      "title_one": "{{count}} Betrag ist viel größer als die übrigen",
+      "title_other": "{{count}} Beträge sind viel größer als die übrigen",
+      "detail": "Mehr als das Zehnfache des größten der übrigen Beträge in dieser Datei. Das kann stimmen, etwa bei einer Anzahlung für ein Haus, oder das Dezimaltrennzeichen steht an der falschen Stelle. Sehen Sie es sich vor dem Import an."
+    },
+    "pendingTransaction": {
+      "title_one": "{{count}} Zeile ist noch vorgemerkt",
+      "title_other": "{{count}} Zeilen sind noch vorgemerkt",
+      "detail": "Die Bank hat diese Transaktionen noch nicht abschließend verarbeitet: Der Betrag kann sich noch ändern, oder die Transaktion kann verschwinden. Wenn Sie sie jetzt importieren, bringt eine spätere Datei sie womöglich mit anderen Angaben noch einmal. Am sichersten ist es, sie zu überspringen, bis sie endgültig sind."
+    },
+    "summaryRow": {
+      "title_one": "{{count}} Summenzeile wurde ausgelassen",
+      "title_other": "{{count}} Summenzeilen wurden ausgelassen",
+      "detail": "Diese Zeilen sind Summen oder Salden, keine Transaktionen, und werden daher übersprungen. Falls eine davon eine echte Transaktion ist, können Sie sie wieder aufnehmen."
+    },
+    "balanceMismatch": {
+      "title_one": "{{count}} Zeile passt nicht zum Saldo, den die Bank angibt",
+      "title_other": "{{count}} Zeilen passen nicht zum Saldo, den die Bank angibt",
+      "detail": "Der in diesen Zeilen angegebene Saldo ist nicht der vorherige Saldo plus oder minus den Betrag. Möglicherweise fehlt eine Zeile in der Datei, oder ein Betrag wurde falsch gelesen. Vergleichen Sie diese Zeilen mit Ihrem Kontoauszug."
+    },
+    "duplicateInFile": {
+      "title": "Zeilen, die in dieser Datei mehrfach vorkommen",
+      "detail": "Diese Zeilen haben dasselbe Datum, denselben Betrag und dieselbe Beschreibung wie eine andere Zeile der Datei. Es können zwei echte Transaktionen sein, etwa zwei Kaffees am selben Tag, oder dieselbe, die doppelt aufgeführt ist. Wählen Sie, welche importiert werden sollen."
+    },
+    "alreadyImported": {
+      "title": "Zeilen, die Sie bereits importiert haben",
+      "detail": "Diese Transaktionen sind durch einen früheren Import bereits im Konto und werden daher nicht erneut hinzugefügt."
+    },
+    "accountRecognised": {
+      "title": "Konto erkannt",
+      "detail": "Die vollständige Kontonummer in der Datei stimmt mit diesem Konto überein."
+    },
+    "accountAssumedByLastFour": {
+      "title": "Konto anhand der letzten vier Ziffern angenommen",
+      "detail": "Die Datei zeigt nur das Ende der Kontonummer. Es passt zu diesem Konto, aber ein anderes Konto könnte genauso enden. Bestätigen Sie, dass es das richtige ist."
+    },
+    "accountAssumedByProfile": {
+      "title": "Konto vom letzten Mal übernommen",
+      "detail": "Die Datei nennt kein Konto. Dateien in diesem Format wurden bisher in dieses Konto importiert, daher wurde es wieder gewählt. Bestätigen Sie, dass es das richtige ist."
+    },
+    "accountAssumedByName": {
+      "title": "Konto anhand seines Namens angenommen",
+      "detail": "Die Datei enthält keine Kontonummer, die wir kennen, aber ihre Kontobezeichnung ähnelt dem Namen dieses Kontos. Bestätigen Sie, dass es das richtige ist."
+    },
+    "accountAmbiguous": {
+      "title": "Mehr als ein Konto passt",
+      "detail": "Die Kontonummer in der Datei passt zu mehreren Ihrer Konten. Wählen Sie das Konto, zu dem diese Datei gehört."
+    },
+    "accountValueMalformed": {
+      "title": "Die Kontonummer in der Datei ist beschädigt",
+      "detail": "Sie sieht aus wie 4.00E+14, also so, wie ein Tabellenkalkulationsprogramm eine lange Zahl abkürzt. Daran lässt sich das Konto nicht erkennen, wählen Sie es bitte selbst aus."
+    },
+    "accountTypeMismatch": {
+      "title": "Datei und Konto sind unterschiedliche Kontoarten",
+      "detail": "Laut Datei stammt sie von einer Kontoart, etwa einer Kreditkarte, und das von Ihnen gewählte Konto ist eine andere Art, etwa ein Girokonto. Prüfen Sie, ob Sie das richtige Konto gewählt haben."
+    },
+    "accountUnknown": {
+      "title": "Wir wissen nicht, zu welchem Konto diese Datei gehört",
+      "detail": "Nichts in der Datei passt zu einem Ihrer Konten. Wählen Sie ein Konto, oder legen Sie ein neues an."
+    },
+    "gapSinceLastImport": {
+      "title_one": "{{count}} Tag ist nicht abgedeckt",
+      "title_other": "{{count}} Tage sind nicht abgedeckt",
+      "detail": "Für {{from}} bis {{to}} wurde nichts importiert: Was das Konto bereits enthält, endet davor, und diese Datei beginnt danach. Falls Sie einen Kontoauszug für diese Tage haben, importieren Sie ihn ebenfalls, damit nichts fehlt."
+    },
+    "overlapsExisting": {
+      "title": "Ein Teil dieser Datei ist bereits im Konto",
+      "detail": "Das Konto enthält bereits Transaktionen zwischen {{from}} und {{to}}. Zuvor importierte Zeilen werden erkannt und nicht doppelt hinzugefügt."
+    }
+  },
+  "assumptions": {
+    "savedLayout": "Diese Datei hat dasselbe Format wie eine, die Sie schon einmal importiert haben, und wird daher genauso gelesen.",
+    "columnsByName": "Die Spalten wurden an ihren Namen erkannt: Das Datum ist „{{date}}“, die Beschreibung ist „{{description}}“ und der Betrag ist „{{amount}}“.",
+    "columnsByContent": "Einige Spaltennamen kennen wir nicht, daher haben wir uns nach dem Inhalt der Spalten gerichtet: Das Datum ist „{{date}}“, die Beschreibung ist „{{description}}“ und der Betrag ist „{{amount}}“. Prüfen Sie, ob das stimmt.",
+    "columnsByAi": "Der KI-Assistent hat vorgeschlagen, wie diese Datei zu lesen ist: Das Datum ist „{{date}}“, die Beschreibung ist „{{description}}“ und der Betrag ist „{{amount}}“. Prüfen Sie das vor dem Import.",
+    "twoDateColumns": "Die Datei enthält zwei Datumsangaben. „{{date}}“ wird als Tag der Transaktion verwendet; „{{postedDate}}“ wird nicht importiert.",
+    "descriptionJoined": "Die Beschreibung wird aus diesen Spalten zusammengesetzt: {{columns}}.",
+    "debitCreditColumns": "Geldausgänge werden aus „{{debit}}“ gelesen, Geldeingänge aus „{{credit}}“.",
+    "directionColumn": "„{{amount}}“ hat kein Plus- oder Minuszeichen. „{{direction}}“ gibt an, in welche Richtung das Geld ging: {{out}} ist ein Geldausgang und {{in}} ein Geldeingang.",
+    "accountColumn": "„{{column}}“ gibt an, zu welchem Konto jede Zeile gehört.",
+    "datesUnambiguous": "Datumsangaben wie {{example}} lassen sich nur auf eine Art lesen, es gibt also nichts zu raten.",
+    "dayFirstFromFile": "Datumsangaben werden als Tag, Monat, Jahr gelesen: {{example}} in Zeile {{line}} kann nichts anderes sein.",
+    "monthFirstFromFile": "Datumsangaben werden als Monat, Tag, Jahr gelesen: {{example}} in Zeile {{line}} kann nichts anderes sein.",
+    "dayFirstBySequence": "Datumsangaben wie {{example}} ließen sich auf zwei Arten lesen. Als Tag, Monat, Jahr gelesen stehen die Zeilen in zeitlicher Reihenfolge, daher werden sie so gelesen.",
+    "monthFirstBySequence": "Datumsangaben wie {{example}} ließen sich auf zwei Arten lesen. Als Monat, Tag, Jahr gelesen stehen die Zeilen in zeitlicher Reihenfolge, daher werden sie so gelesen.",
+    "dayFirstAssumed": "Datumsangaben wie {{example}} ließen sich auf zwei Arten lesen, und die Datei entscheidet es nicht. Sie werden als Tag, Monat, Jahr gelesen.",
+    "monthFirstAssumed": "Datumsangaben wie {{example}} ließen sich auf zwei Arten lesen, und die Datei entscheidet es nicht. Sie werden als Monat, Tag, Jahr gelesen.",
+    "dayFirstByMajority": "Datumsangaben, die nur als Tag, Monat, Jahr funktionieren: {{count}}. Datumsangaben, die nur als Monat, Tag, Jahr funktionieren: {{otherCount}}. Die Datei wird als Tag, Monat, Jahr gelesen; die übrigen Zeilen müssen korrigiert oder übersprungen werden.",
+    "monthFirstByMajority": "Datumsangaben, die nur als Monat, Tag, Jahr funktionieren: {{count}}. Datumsangaben, die nur als Tag, Monat, Jahr funktionieren: {{otherCount}}. Die Datei wird als Monat, Tag, Jahr gelesen; die übrigen Zeilen müssen korrigiert oder übersprungen werden.",
+    "decimalFromFile": "„{{mark}}“ ist das Dezimaltrennzeichen: Beträge wie {{example}} lassen sich nicht anders lesen.",
+    "decimalByGrouping": "„{{group}}“ trennt in Beträgen wie {{example}} die Tausender, daher gilt „{{mark}}“ als Dezimaltrennzeichen.",
+    "decimalAssumed": "Beträge wie {{example}} ließen sich auf zwei Arten lesen, und die Datei entscheidet es nicht. „{{mark}}“ gilt als Dezimaltrennzeichen.",
+    "signAsPrintedByBalance": "Negative Beträge sind Geldausgänge, positive Beträge Geldeingänge. Nur diese Lesart geht mit dem Saldo in der Datei auf.",
+    "signFlippedByBalance": "Diese Datei schreibt Geldausgänge als positive Zahlen, daher wird das Vorzeichen umgekehrt. Nur diese Lesart geht mit dem Saldo in der Datei auf.",
+    "signAsPrintedByKeywords": "Negative Beträge sind Geldausgänge, positive Beträge Geldeingänge. Das legen Zeilen wie „{{description}}“ ({{amount}}) nahe.",
+    "signFlippedByKeywords": "Diese Datei schreibt Geldausgänge offenbar als positive Zahlen. Das legen Zeilen wie „{{description}}“ ({{amount}}) nahe, daher wird das Vorzeichen umgekehrt.",
+    "signAsPrintedByShare": "Negative Beträge sind Geldausgänge, positive Beträge Geldeingänge. {{percent}} % der Beträge sind negativ, wie es bei Ausgaben üblich ist.",
+    "signFlippedByShare": "Diese Datei schreibt Geldausgänge offenbar als positive Zahlen: {{percent}} % der Beträge sind positiv, und die meisten Zeilen eines Kontoauszugs sind Ausgaben. Daher wird das Vorzeichen umgekehrt.",
+    "signFlippedForCard": "Alle Beträge in dieser Datei sind positiv. Kartenabrechnungen führen Einkäufe üblicherweise so auf, daher werden sie als Geldausgänge gelesen.",
+    "signAsPrintedDefault": "Die Beträge werden so gelesen, wie sie dastehen: negativ ist ein Geldausgang, positiv ein Geldeingang. Nichts in der Datei spricht dagegen.",
+    "signAsPrintedByAi": "Der KI-Assistent hat negative Beträge als Geldausgänge und positive Beträge als Geldeingänge gelesen.",
+    "signFlippedByAi": "Der KI-Assistent geht davon aus, dass diese Datei Geldausgänge als positive Zahlen schreibt, daher wird das Vorzeichen umgekehrt."
   }
 }

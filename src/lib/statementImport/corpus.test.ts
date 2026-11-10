@@ -79,6 +79,16 @@ describe('statement fixture corpus', () => {
     }
   });
 
+  it('covers the shapes of export the interpretation has to cope with', () => {
+    const layouts = fixtures.filter((fixture) => fixture.name.startsWith('layouts/'));
+    expect(layouts.length).toBeGreaterThanOrEqual(15);
+    // A layouts/ fixture is there to pin what is detected and what is reported.
+    for (const { name, manifest } of layouts) {
+      expect(manifest.layout, `${name} states a layout`).toBeDefined();
+      expect(manifest.analysis?.issueCodes, `${name} states its issue codes`).toBeDefined();
+    }
+  });
+
   it.each(fixtures)('$name', async ({ dir, manifest }) => {
     const bytes = new Uint8Array(fs.readFileSync(path.join(dir, manifest.file)));
     const result = await readStatement({ name: manifest.file, size: bytes.length, bytes });

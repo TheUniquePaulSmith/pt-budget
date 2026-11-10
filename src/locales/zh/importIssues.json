@@ -3,5 +3,224 @@
     "blocker": "需要决定",
     "warning": "建议检查",
     "info": "供您参考"
+  },
+  "issues": {
+    "unsupportedFormat": {
+      "title": "无法导入这种文件",
+      "detail": "导入功能可读取 CSV、TXT、TSV、OFX 和 QFX 文件。不支持电子表格（XLSX）、PDF 和 QIF 文件。请在银行网站下载对账单时选择 CSV 或 OFX。"
+    },
+    "emptyFile": {
+      "title": "文件是空的",
+      "detail": "这个文件里没有任何内容。请重新从银行下载对账单，然后再试一次。"
+    },
+    "noDataRows": {
+      "title": "这个文件里没有交易",
+      "detail": "文件有列名，但下面没有任何行。请检查下载时选择的日期范围。"
+    },
+    "encodingGuessed": {
+      "title": "文字编码是推测的",
+      "detail": "文件没有说明文字的存储方式，因此使用了最常见的西文编码。如果名称中出现乱码，请为此文件选择其他编码。"
+    },
+    "preambleSkipped": {
+      "title": "已略过列名上方的行",
+      "detail": "文件开头有一些不是交易的行，例如银行名称或账户信息。这些行不会导入。"
+    },
+    "trailerSkipped": {
+      "title": "已略过交易下方的行",
+      "detail": "文件结尾有一些不是交易的行，例如合计或免责声明。这些行不会导入。"
+    },
+    "headerMissing": {
+      "title": "文件没有列名",
+      "detail": "第一行看起来已经是一笔交易，因此各列被命名为“第 1 列”“第 2 列”等。请检查每一列是否识别正确。"
+    },
+    "duplicateHeaderNames": {
+      "title": "有两列同名",
+      "detail": "同名的列已加上编号，方便您区分。"
+    },
+    "raggedRows": {
+      "title": "部分行的值比列数多或少",
+      "detail": "这些行中可能有值错位到了别的列，通常是因为多了一个逗号或引号。请在导入前检查这些行。"
+    },
+    "truncatedFile": {
+      "title": "文件似乎不完整",
+      "detail": "最后一行在中途中断，下载可能没有完成。如果缺少最近的交易，请重新下载文件。"
+    },
+    "multipleAccountsInFile": {
+      "title": "这个文件包含多个账户",
+      "detail": "每一行都标明了所属账户。文件中的每个账户会分别对应到您的一个账户。"
+    },
+    "dateOrderAmbiguous": {
+      "title": "日和月可能颠倒了",
+      "detail": "这个文件里的每个日期既可以按“日/月”读，也可以按“月/日”读，仅凭文件无法判断。我们把 {{example}} 读作 {{readAs}}（年-月-日）。如果不对，请更改此文件的日期顺序。"
+    },
+    "dateOrderMixed": {
+      "title_other": "有 {{count}} 个日期与其他日期的顺序不一致",
+      "detail": "同一个文件里的日期写法应该是一致的，但第 {{line}} 行的 {{example}} 只有把日和月对调才成立。要么为此文件选择的日期顺序不对，要么这些行有问题。请更改日期顺序，或者修正或跳过这些行。"
+    },
+    "decimalAmbiguous": {
+      "title": "请检查小数点符号",
+      "detail": "像 {{example}} 这样的金额有两种读法，文件中没有其他内容可以判断。我们把“{{mark}}”当作小数点。如果金额看起来大了或小了一千倍，请为此文件更改。"
+    },
+    "signAssumed": {
+      "title": "请检查哪些金额是收入、哪些是支出",
+      "detail": "文件没有明确说明金额的方向，以下是我们认为最合理的读法。读作支出的行数：{{moneyOutRows}}。读作收入的行数：{{moneyInRows}}。如果看起来正好相反，请为此文件反转正负号。"
+    },
+    "noDateColumn": {
+      "title": "没有日期列",
+      "detail": "我们无法判断哪一列是日期。请您自己选择：没有日期就无法导入任何内容。"
+    },
+    "noAmountColumn": {
+      "title": "没有金额列",
+      "detail": "我们无法判断哪一列是金额。请您自己选择：没有金额就无法导入任何内容。"
+    },
+    "noDescriptionColumn": {
+      "title": "没有描述列",
+      "detail": "我们无法判断哪一列是每笔交易的描述。请您自己选择，以便日后认出这些交易。"
+    },
+    "debitCreditBothFilled": {
+      "title_other": "有 {{count}} 行同时填写了支出和收入",
+      "detail": "通常一行只会填写两列中的一列。两列都有值时，导入的是两者的差额。请确认这符合您的预期。"
+    },
+    "descriptionMostlyBlank": {
+      "title": "大多数行没有描述",
+      "detail": "{{total}} 行中有 {{count}} 行的描述列是空的。这些行可以导入，但可能选错了列：描述列应该是包含商户或付款人名称的那一列。"
+    },
+    "referenceNotUnique": {
+      "title": "“{{column}}”不用于识别重复项",
+      "detail": "只有每一行都有各自的银行参考号时，它才有用。在这个文件里，它是空的、重复的或已损坏，因此会根据日期、金额和描述来识别已导入的行。"
+    },
+    "currencyMismatch": {
+      "title_other": "有 {{count}} 行的币种是 {{fileCurrency}}，但账户的币种是 {{accountCurrency}}",
+      "detail": "金额会按原样导入，并按 {{accountCurrency}} 计算，不做任何换算。请确认您选对了账户。"
+    },
+    "columnNotImported": {
+      "title": "“{{column}}”不会导入",
+      "detail": "导入只保留每笔交易的日期、描述和金额。其他列（例如分类、支票号码，或贷款还款中的本金和利息部分）不会导入。"
+    },
+    "unreadableDate": {
+      "title_other": "有 {{count}} 行的日期无法读取",
+      "detail": "日期缺失，或者写法与此文件中的其他日期不同。请为每一行填写正确的日期，或者跳过该行。按现在的样子无法导入。"
+    },
+    "unreadableAmount": {
+      "title_other": "有 {{count}} 行的金额无法读取",
+      "detail": "金额缺失、不是数字，或者没有说明是收入还是支出。请为每一行填写正确的金额，或者跳过该行。按现在的样子无法导入。"
+    },
+    "excelMangledNumber": {
+      "title_other": "有 {{count}} 个金额被电子表格改动过",
+      "detail": "像 {{example}} 这样的值是电子表格软件缩写长数字时写出的，真实金额已经丢失。请填写对账单上的金额、跳过该行，或者重新下载文件并且不要先用电子表格打开。"
+    },
+    "blankDescription": {
+      "title_other": "有 {{count}} 行没有描述",
+      "detail": "这些行可以导入，但日后您可能认不出它们。您可以为每一行填写描述。"
+    },
+    "zeroAmount": {
+      "title_other": "有 {{count}} 行的金额为零",
+      "detail": "金额为零的交易不会改变您的合计。除非您想留作记录，否则请跳过这些行。"
+    },
+    "futureDate": {
+      "title_other": "有 {{count}} 行的日期在未来",
+      "detail": "日期晚于今天。可能是预定的付款，也可能是日和月对调了。请检查日期，或者先跳过该行，等交易发生后再导入。"
+    },
+    "dateFarFromOthers": {
+      "title_other": "有 {{count}} 个日期与文件中其他日期相差很远",
+      "detail": "这个文件的大部分内容在 {{from}} 到 {{to}} 之间，但这些行相差一年以上。这往往是年份输入有误。如果日期不对，请修正。"
+    },
+    "amountOutlier": {
+      "title_other": "有 {{count}} 个金额比其他金额大得多",
+      "detail": "超过此文件中其他最大金额的十倍。它可能是对的（例如购房首付），也可能是小数点放错了位置。导入前请看一下。"
+    },
+    "pendingTransaction": {
+      "title_other": "有 {{count}} 行仍在处理中",
+      "detail": "银行尚未处理完这些交易：金额还可能变化，交易也可能消失。如果现在导入，之后的文件可能会带着不同的信息再次带入它们。最稳妥的做法是先跳过，等它们最终入账后再导入。"
+    },
+    "summaryRow": {
+      "title_other": "已略过 {{count}} 行合计",
+      "detail": "这些行是合计或余额，不是交易，因此被跳过。如果其中某一行确实是交易，您可以把它恢复。"
+    },
+    "balanceMismatch": {
+      "title_other": "有 {{count}} 行与银行给出的余额不符",
+      "detail": "这些行上的余额不等于上一行余额加上或减去金额。文件中可能缺少某一行，或者某个金额读错了。请对照您的对账单检查这些行。"
+    },
+    "duplicateInFile": {
+      "title": "在此文件中出现多次的行",
+      "detail": "这些行与文件中的另一行日期、金额和描述都相同。它们可能是两笔真实的交易（例如同一天买了两杯咖啡），也可能是同一笔交易被列了两次。请选择要导入哪些。"
+    },
+    "alreadyImported": {
+      "title": "您已经导入过的行",
+      "detail": "这些交易在之前的导入中已经进入账户，因此不会再次添加。"
+    },
+    "accountRecognised": {
+      "title": "已识别账户",
+      "detail": "文件中的完整账号与此账户一致。"
+    },
+    "accountAssumedByLastFour": {
+      "title": "根据末四位推测的账户",
+      "detail": "文件只显示了账号的末尾部分。它与此账户相符，但其他账户的末尾也可能相同。请确认这是正确的账户。"
+    },
+    "accountAssumedByProfile": {
+      "title": "沿用上次的账户",
+      "detail": "文件没有指明账户。这种格式的文件以前导入过此账户，因此再次选择了它。请确认这是正确的账户。"
+    },
+    "accountAssumedByName": {
+      "title": "根据名称推测的账户",
+      "detail": "文件中没有我们认识的账号，但其中的账户标签与此账户的名称相似。请确认这是正确的账户。"
+    },
+    "accountAmbiguous": {
+      "title": "有多个账户相符",
+      "detail": "文件中的账号与您的多个账户相符。请选择此文件所属的账户。"
+    },
+    "accountValueMalformed": {
+      "title": "文件中的账号已损坏",
+      "detail": "它看起来像 4.00E+14，这是电子表格软件缩写长数字时写出的。无法据此识别账户，请您自己选择账户。"
+    },
+    "accountTypeMismatch": {
+      "title": "文件与账户的类型不同",
+      "detail": "文件显示它来自某一类账户（例如信用卡），而您选择的账户是另一类（例如支票账户）。请确认您选对了账户。"
+    },
+    "accountUnknown": {
+      "title": "我们不知道这个文件属于哪个账户",
+      "detail": "文件中没有任何内容与您的账户相符。请选择一个账户，或者添加新账户。"
+    },
+    "gapSinceLastImport": {
+      "title_other": "有 {{count}} 天没有覆盖",
+      "detail": "{{from}} 到 {{to}} 之间没有导入任何内容：账户中已有的记录在此之前结束，而这个文件在此之后开始。如果您有这些天的对账单，请一并导入，以免遗漏。"
+    },
+    "overlapsExisting": {
+      "title": "此文件的一部分已在账户中",
+      "detail": "账户中已有 {{from}} 到 {{to}} 之间的交易。之前导入过的行会被识别出来，不会重复添加。"
+    }
+  },
+  "assumptions": {
+    "savedLayout": "这个文件与您之前导入过的文件格式相同，因此按同样的方式读取。",
+    "columnsByName": "各列是根据列名识别的：日期是“{{date}}”，描述是“{{description}}”，金额是“{{amount}}”。",
+    "columnsByContent": "有些列名我们不认识，因此根据各列的内容来判断：日期是“{{date}}”，描述是“{{description}}”，金额是“{{amount}}”。请确认是否正确。",
+    "columnsByAi": "AI 助手建议这样读取此文件：日期是“{{date}}”，描述是“{{description}}”，金额是“{{amount}}”。请在导入前检查。",
+    "twoDateColumns": "文件中有两个日期。“{{date}}”用作交易发生的日期；“{{postedDate}}”不会导入。",
+    "descriptionJoined": "描述由以下各列合并而成：{{columns}}。",
+    "debitCreditColumns": "支出从“{{debit}}”读取，收入从“{{credit}}”读取。",
+    "directionColumn": "“{{amount}}”没有正负号。“{{direction}}”说明了资金的方向：{{out}} 表示支出，{{in}} 表示收入。",
+    "accountColumn": "“{{column}}”标明了每一行所属的账户。",
+    "datesUnambiguous": "像 {{example}} 这样的日期只有一种读法，因此无需推测。",
+    "dayFirstFromFile": "日期按“日、月、年”读取：第 {{line}} 行的 {{example}} 不可能有别的读法。",
+    "monthFirstFromFile": "日期按“月、日、年”读取：第 {{line}} 行的 {{example}} 不可能有别的读法。",
+    "dayFirstBySequence": "像 {{example}} 这样的日期有两种读法。按“日、月、年”读取时各行是按日期排列的，因此采用这种读法。",
+    "monthFirstBySequence": "像 {{example}} 这样的日期有两种读法。按“月、日、年”读取时各行是按日期排列的，因此采用这种读法。",
+    "dayFirstAssumed": "像 {{example}} 这样的日期有两种读法，而文件本身无法判断。这里按“日、月、年”读取。",
+    "monthFirstAssumed": "像 {{example}} 这样的日期有两种读法，而文件本身无法判断。这里按“月、日、年”读取。",
+    "dayFirstByMajority": "只能按“日、月、年”读取的日期：{{count}} 个。只能按“月、日、年”读取的日期：{{otherCount}} 个。文件按“日、月、年”读取；其余的行需要修正或跳过。",
+    "monthFirstByMajority": "只能按“月、日、年”读取的日期：{{count}} 个。只能按“日、月、年”读取的日期：{{otherCount}} 个。文件按“月、日、年”读取；其余的行需要修正或跳过。",
+    "decimalFromFile": "“{{mark}}”是小数点：像 {{example}} 这样的金额没有别的读法。",
+    "decimalByGrouping": "在 {{example}} 这样的金额中，“{{group}}”用来分隔千位，因此把“{{mark}}”当作小数点。",
+    "decimalAssumed": "像 {{example}} 这样的金额有两种读法，而文件本身无法判断。这里把“{{mark}}”当作小数点。",
+    "signAsPrintedByBalance": "负数是支出，正数是收入。只有这样读，才能与文件中的余额对得上。",
+    "signFlippedByBalance": "这个文件把支出写成正数，因此反转了正负号。只有这样读，才能与文件中的余额对得上。",
+    "signAsPrintedByKeywords": "负数是支出，正数是收入。这是根据“{{description}}”（{{amount}}）这样的行判断的。",
+    "signFlippedByKeywords": "从“{{description}}”（{{amount}}）这样的行来看，这个文件似乎把支出写成正数，因此反转了正负号。",
+    "signAsPrintedByShare": "负数是支出，正数是收入。{{percent}}% 的金额是负数，而支出通常占多数。",
+    "signFlippedByShare": "这个文件似乎把支出写成正数：{{percent}}% 的金额是正数，而对账单上的大多数行都是支出。因此反转了正负号。",
+    "signFlippedForCard": "这个文件中的金额全部为正数。信用卡账单通常这样列出消费，因此按支出读取。",
+    "signAsPrintedDefault": "金额按原样读取：负数是支出，正数是收入。文件中没有任何内容表明相反的情况。",
+    "signAsPrintedByAi": "AI 助手把负数读作支出，把正数读作收入。",
+    "signFlippedByAi": "AI 助手认为这个文件把支出写成正数，因此反转了正负号。"
   }
 }

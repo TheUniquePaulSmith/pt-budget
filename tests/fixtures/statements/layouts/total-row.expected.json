@@ -1,6 +1,6 @@
 {
   "file": "total-row.csv",
-  "description": "A \"Total\" line with no date below the transactions: skipped automatically and reported, not blocked as an unreadable date. Synthetic rows.",
+  "description": "A \"Subtotal\" line with no date in the middle of the transactions: skipped automatically and reported as summaryRow, not blocked as an unreadable date. The line sits among the data rows on purpose: lines below the last data row are taken out by the readers before the analysis sees them (raw/trailing-total-row). Synthetic rows.",
   "layout": {
     "roles": {
       "date": 0,
@@ -13,13 +13,13 @@
     "missing": []
   },
   "analysis": {
-    "readyRows": 4,
+    "readyRows": 5,
     "blockedRows": 0,
     "skippedRows": 1,
     "firstDate": "2026-09-01",
-    "lastDate": "2026-09-09",
+    "lastDate": "2026-09-12",
     "moneyIn": 2400,
-    "moneyOut": 98.94,
+    "moneyOut": 105.69,
     "issueCodes": [
       "summaryRow"
     ]

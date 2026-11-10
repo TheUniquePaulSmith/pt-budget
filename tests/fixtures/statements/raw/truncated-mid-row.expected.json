@@ -1,0 +1,30 @@
+{
+  "file": "truncated-mid-row.csv",
+  "description": "A download that was cut short: the last line stops in the middle of the description, with no line break after it. The half row is left out (kept in meta.trailer) and the table carries truncatedFile. UTF-8, CRLF, no final line break.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-8",
+    "delimiter": ",",
+    "headerLine": 1,
+    "columns": [
+      "Date",
+      "Description",
+      "Amount",
+      "Balance"
+    ],
+    "rows": 2,
+    "notes": [
+      "truncatedFile"
+    ],
+    "fingerprint": "delimited:date|description|amount|balance"
+  },
+  "analysis": {
+    "readyRows": 2,
+    "firstDate": "2026-09-20",
+    "lastDate": "2026-09-21",
+    "moneyIn": 0,
+    "moneyOut": 58.2
+  }
+}

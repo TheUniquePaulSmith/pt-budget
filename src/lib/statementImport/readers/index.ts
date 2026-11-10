@@ -1,64 +1,42 @@
 /**
  * Readers: bytes → StatementTable.
  *
- * BASELINE (Import Wizard foundation). This reproduces what the old CSV dialog
- * did (UTF-8, header on the first line, PapaParse's delimiter guess) so the
- * pipeline runs end to end. The readers agent replaces the body with encoding
- * detection, preamble / trailer handling, headerless files and OFX / QFX; the
- * signature of `readStatement` is part of the frozen contract.
+ *   bytes ─► sniffBinaryKind ─► decodeStatementBytes ─► sniffTextKind ─┬─► readOfx        (OFX 1.x / 2.x, QFX)
+ *            (XLSX, PDF…)       (BOM, UTF-8, UTF-16,    (OFX, QIF,     └─► readDelimited  (comma, semicolon, tab, pipe)
+ *                                Windows-1252)           HTML…)
+ *
+ * The file is judged by its content, never by its extension or by the
+ * language of the user interface. A file we cannot read comes back with no
+ * tables and one issue that says why (`unsupportedFormat` carries
+ * `params.kind`); everything the reader had to decide on a readable file
+ * (encoding guessed, lines skipped, rows padded) is a note on the table.
+ *
+ * `readStatement`'s signature is part of the frozen contract.
  */
 
-import Papa from 'papaparse';
+import type { ReadOptions, ReadResult, SourceFile } from '../types';
 
-import type { ImportIssue, ReadOptions, ReadResult, SourceFile, StatementColumn, StatementTable } from '../types';
+import { readDelimited } from './delimited';
+import { decodeStatementBytes } from './encoding';
+import { unreadable, unsupported } from './issues';
+import { readOfx } from './ofx';
+import { sniffBinaryKind, sniffTextKind } from './sniff';
 
-import { fingerprintOfColumns } from './fingerprint';
-
-export { fingerprintOfColumns } from './fingerprint';
-
-const fileIssue = (code: 'emptyFile' | 'noDataRows'): ImportIssue => ({ code, severity: 'blocker', scope: 'file' });
+export { fingerprintOfColumns, fingerprintOfOfx } from './fingerprint';
+export type { UnsupportedKind } from './sniff';
 
 export async function readStatement(file: SourceFile, options: ReadOptions = {}): Promise<ReadResult> {
-  const encoding = options.encoding ?? 'utf-8';
-  const text = new TextDecoder(encoding).decode(file.bytes);
-  if (!text.trim()) {
-    return { tables: [], issues: [fileIssue('emptyFile')] };
-  }
+  const { bytes } = file;
+  if (bytes.length === 0) return unreadable('emptyFile');
 
-  const parsed = Papa.parse<string[]>(text, {
-    header: false,
-    skipEmptyLines: true,
-    ...(options.delimiter ? { delimiter: options.delimiter } : {}),
-  });
-  const lines = parsed.data;
-  if (lines.length === 0) {
-    return { tables: [], issues: [fileIssue('emptyFile')] };
-  }
+  const binaryKind = sniffBinaryKind(bytes);
+  if (binaryKind) return unsupported(binaryKind);
 
-  const columns: StatementColumn[] = lines[0].map((name, index) => ({ index, name: String(name ?? '').trim() }));
-  const dataLines = lines.slice(1);
-  if (dataLines.length === 0) {
-    return { tables: [], issues: [fileIssue('noDataRows')] };
-  }
+  const decoded = decodeStatementBytes(bytes, options.encoding);
+  if (!/\S/.test(decoded.text)) return unreadable('emptyFile');
 
-  const table: StatementTable = {
-    format: 'delimited',
-    fingerprint: fingerprintOfColumns(columns),
-    columns,
-    // Every row is exactly as wide as the header: short rows are padded, extra cells dropped.
-    rows: dataLines.map((cells) => columns.map((column) => String(cells[column.index] ?? ''))),
-    // Approximate while blank lines and quoted line breaks are not tracked.
-    sourceLines: dataLines.map((_, index) => index + 2),
-    meta: {
-      fileName: file.name,
-      encoding,
-      delimiter: parsed.meta.delimiter,
-      headerLine: 1,
-      preamble: [],
-      trailer: [],
-      accountHints: [],
-    },
-    notes: [],
-  };
-  return { tables: [table], issues: [] };
+  const kind = sniffTextKind(decoded.text);
+  if (kind === 'ofx') return readOfx(file, decoded);
+  if (kind !== 'delimited') return unsupported(kind);
+  return readDelimited(file, decoded, options);
 }

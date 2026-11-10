@@ -1,0 +1,30 @@
+{
+  "file": "preamble-account-number.csv",
+  "description": "Four lines of bank preamble (name, account number, account type, statement period) and a blank line above the header, which is on line 6. The preamble is skipped, kept in meta.preamble, and gives a \"number\" and an \"accountType\" hint. UTF-8, CRLF.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-8",
+    "delimiter": ",",
+    "headerLine": 6,
+    "columns": [
+      "Date",
+      "Description",
+      "Amount",
+      "Balance"
+    ],
+    "rows": 3,
+    "notes": [
+      "preambleSkipped"
+    ],
+    "fingerprint": "delimited:date|description|amount|balance"
+  },
+  "analysis": {
+    "readyRows": 3,
+    "firstDate": "2026-09-02",
+    "lastDate": "2026-09-15",
+    "moneyIn": 1500,
+    "moneyOut": 78.35
+  }
+}

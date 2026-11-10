@@ -1,0 +1,43 @@
+{
+  "file": "ofx1-bank.ofx",
+  "description": "OFX 1.x (SGML: values are not closed) for one checking account, three transactions. The header declares CHARSET:1252 and a name has É as the single byte C9, so the declared charset must be honoured. One memo repeats its name, one transaction has a check number, dates carry a time and a zone. CRLF.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "ofx",
+    "encoding": "windows-1252",
+    "columns": [
+      "Date",
+      "Amount",
+      "Name",
+      "Memo",
+      "Reference",
+      "Type",
+      "Check Number"
+    ],
+    "rows": 3,
+    "notes": [],
+    "fingerprint": "ofx:northwind community bank:checking"
+  },
+  "layout": {
+    "roles": {
+      "date": 0,
+      "amount": 1,
+      "description": [
+        2,
+        3
+      ],
+      "reference": 4
+    },
+    "dateOrder": "YMD",
+    "decimal": ".",
+    "amountSign": "asIs"
+  },
+  "analysis": {
+    "readyRows": 3,
+    "firstDate": "2026-09-02",
+    "lastDate": "2026-09-15",
+    "moneyIn": 1500,
+    "moneyOut": 254.25
+  }
+}

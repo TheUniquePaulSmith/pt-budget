@@ -1,0 +1,10 @@
+{
+  "file": "unsupported-workbook.xlsx",
+  "description": "An Excel workbook (a ZIP container with its parts under xl/). Not read: no tables and one unsupportedFormat issue with params.kind \"xlsx\". Built as a stored (uncompressed) ZIP with a fixed timestamp and computed CRC-32s.",
+  "read": {
+    "issues": [
+      "unsupportedFormat"
+    ],
+    "tables": 0
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "file": "ragged-rows.csv",
+  "description": "Rows that do not match the header width: line 3 is one cell short (padded) and line 4 has an unquoted comma in the description, so it is one cell long (cut to the header width, which shifts its amount). Both are reported in raggedRows with their row indexes. UTF-8, LF.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-8",
+    "delimiter": ",",
+    "headerLine": 1,
+    "columns": [
+      "Date",
+      "Description",
+      "Amount",
+      "Memo"
+    ],
+    "rows": 4,
+    "notes": [
+      "raggedRows"
+    ],
+    "fingerprint": "delimited:date|description|amount|memo"
+  }
+}

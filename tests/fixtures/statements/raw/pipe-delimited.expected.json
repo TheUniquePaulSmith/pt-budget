@@ -1,0 +1,28 @@
+{
+  "file": "pipe-delimited.txt",
+  "description": "Pipe-separated text. One description has a comma and another a semicolon; neither is the separator because neither splits every line alike. UTF-8, LF.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-8",
+    "delimiter": "|",
+    "headerLine": 1,
+    "columns": [
+      "Date",
+      "Description",
+      "Amount",
+      "Type"
+    ],
+    "rows": 3,
+    "notes": [],
+    "fingerprint": "delimited:date|description|amount|type"
+  },
+  "analysis": {
+    "readyRows": 3,
+    "firstDate": "2026-09-10",
+    "lastDate": "2026-09-12",
+    "moneyIn": 18.25,
+    "moneyOut": 86.4
+  }
+}

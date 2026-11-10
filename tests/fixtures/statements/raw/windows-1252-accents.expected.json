@@ -1,0 +1,29 @@
+{
+  "file": "windows-1252-accents.csv",
+  "description": "Windows-1252 with no byte-order mark: accented capitals (C9, C4, DC), an en dash (96) and a euro sign (80), none of which is valid UTF-8. The reader must fall back to Windows-1252 and say that it guessed. Written byte by byte from a character table.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "windows-1252",
+    "delimiter": ",",
+    "headerLine": 1,
+    "columns": [
+      "Date",
+      "Description",
+      "Amount"
+    ],
+    "rows": 3,
+    "notes": [
+      "encodingGuessed"
+    ],
+    "fingerprint": "delimited:date|description|amount"
+  },
+  "analysis": {
+    "readyRows": 3,
+    "firstDate": "2026-09-06",
+    "lastDate": "2026-09-08",
+    "moneyIn": 120,
+    "moneyOut": 5.8
+  }
+}

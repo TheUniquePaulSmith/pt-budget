@@ -1,0 +1,9 @@
+Northwind Community Bank
+Account Number: 000123456789
+Account Type: Checking
+Statement Period: 09/01/2026 - 09/30/2026
+
+Date,Description,Amount,Balance
+09/02/2026,COFFEE ROASTERS,-4.25,995.75
+09/09/2026,PAYROLL NORTHWIND LLC,1500.00,2495.75
+09/15/2026,ELECTRIC UTILITY,-74.10,2421.65

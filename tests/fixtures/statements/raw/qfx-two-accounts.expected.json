@@ -1,0 +1,45 @@
+{
+  "file": "qfx-two-accounts.qfx",
+  "description": "QFX (OFX 1.x with Intuit tags) carrying two accounts: a checking and a savings statement, written the compact way with several tags on a line. One table per account, each with multipleAccountsInFile; the manifest describes the first (checking). LF.",
+  "read": {
+    "issues": [],
+    "tables": 2,
+    "format": "ofx",
+    "encoding": "windows-1252",
+    "columns": [
+      "Date",
+      "Amount",
+      "Name",
+      "Memo",
+      "Reference",
+      "Type",
+      "Check Number"
+    ],
+    "rows": 2,
+    "notes": [
+      "multipleAccountsInFile"
+    ],
+    "fingerprint": "ofx:lakeside credit union:checking"
+  },
+  "layout": {
+    "roles": {
+      "date": 0,
+      "amount": 1,
+      "description": [
+        2,
+        3
+      ],
+      "reference": 4
+    },
+    "dateOrder": "YMD",
+    "decimal": ".",
+    "amountSign": "asIs"
+  },
+  "analysis": {
+    "readyRows": 2,
+    "firstDate": "2026-09-05",
+    "lastDate": "2026-09-10",
+    "moneyIn": 0,
+    "moneyOut": 323.1
+  }
+}

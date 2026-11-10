@@ -1,0 +1,30 @@
+{
+  "file": "trailing-total-row.csv",
+  "description": "A total row in table shape and, after a blank line, a quoted disclaimer below the data. Both are skipped and kept in meta.trailer; importing the total would double the spending. UTF-8, LF.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-8",
+    "delimiter": ",",
+    "headerLine": 1,
+    "columns": [
+      "Date",
+      "Description",
+      "Category",
+      "Amount"
+    ],
+    "rows": 3,
+    "notes": [
+      "trailerSkipped"
+    ],
+    "fingerprint": "delimited:date|description|category|amount"
+  },
+  "analysis": {
+    "readyRows": 3,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-12",
+    "moneyIn": 1.12,
+    "moneyOut": 1256.3
+  }
+}

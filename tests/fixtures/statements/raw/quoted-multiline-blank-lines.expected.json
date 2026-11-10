@@ -1,0 +1,27 @@
+{
+  "file": "quoted-multiline-blank-lines.csv",
+  "description": "A quoted description that runs over three lines, and blank lines between rows. Three rows, on file lines 2, 6 and 9: sourceLines must be the real line each row starts on. UTF-8, CRLF.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-8",
+    "delimiter": ",",
+    "headerLine": 1,
+    "columns": [
+      "Date",
+      "Description",
+      "Amount"
+    ],
+    "rows": 3,
+    "notes": [],
+    "fingerprint": "delimited:date|description|amount"
+  },
+  "analysis": {
+    "readyRows": 3,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-05",
+    "moneyIn": 2000,
+    "moneyOut": 413.5
+  }
+}

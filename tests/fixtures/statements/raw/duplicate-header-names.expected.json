@@ -1,0 +1,23 @@
+{
+  "file": "duplicate-header-names.csv",
+  "description": "Two columns with the same header name (money out and money in, both called \"Amount\"). The second is renamed \"Amount (2)\" so that a column can be picked by name, and the table carries duplicateHeaderNames. UTF-8, LF.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-8",
+    "delimiter": ",",
+    "headerLine": 1,
+    "columns": [
+      "Date",
+      "Description",
+      "Amount",
+      "Amount (2)"
+    ],
+    "rows": 2,
+    "notes": [
+      "duplicateHeaderNames"
+    ],
+    "fingerprint": "delimited:date|description|amount|amount (2)"
+  }
+}

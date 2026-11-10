@@ -16,3 +16,13 @@ export function fingerprintOfColumns(columns: StatementColumn[]): string {
   }
   return `delimited:${columns.map((column) => normalizeHeaderName(column.name)).join('|')}`;
 }
+
+/**
+ * What identifies an OFX / QFX statement's shape: who issued it (`<ORG>`,
+ * else `<FID>`) and the kind of account. The columns are fixed, so every
+ * statement of that kind from that bank shares one saved layout (in practice:
+ * the remembered account and sign).
+ */
+export function fingerprintOfOfx(institution: string | null, accountType: string | null): string {
+  return `ofx:${normalizeHeaderName(institution ?? '') || 'unknown'}:${accountType ?? 'unknown'}`;
+}

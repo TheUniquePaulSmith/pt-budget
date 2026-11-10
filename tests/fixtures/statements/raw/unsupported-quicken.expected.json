@@ -1,0 +1,10 @@
+{
+  "file": "unsupported-quicken.qif",
+  "description": "Quicken Interchange Format (starts with !Type:). Plain text, but one field per line rather than a table. Not read: unsupportedFormat with params.kind \"qif\". UTF-8, CRLF.",
+  "read": {
+    "issues": [
+      "unsupportedFormat"
+    ],
+    "tables": 0
+  }
+}

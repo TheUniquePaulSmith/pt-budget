@@ -1,0 +1,10 @@
+{
+  "file": "unsupported-html-table.xls",
+  "description": "A web page saved with an .xls extension, as some banks offer for \"Excel\": judged by its content, not its name. Not read: unsupportedFormat with params.kind \"html\". UTF-8, LF.",
+  "read": {
+    "issues": [
+      "unsupportedFormat"
+    ],
+    "tables": 0
+  }
+}

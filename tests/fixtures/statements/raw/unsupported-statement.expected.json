@@ -1,0 +1,10 @@
+{
+  "file": "unsupported-statement.pdf",
+  "description": "A one-page PDF (starts with %PDF-). Not read: no tables and one unsupportedFormat issue with params.kind \"pdf\". Assembled object by object with a computed cross-reference table.",
+  "read": {
+    "issues": [
+      "unsupportedFormat"
+    ],
+    "tables": 0
+  }
+}

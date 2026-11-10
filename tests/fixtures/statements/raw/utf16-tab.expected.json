@@ -1,0 +1,28 @@
+{
+  "file": "utf16-tab.txt",
+  "description": "UTF-16 little-endian with a byte-order mark (FF FE), tab-separated, CRLF line endings: what a spreadsheet program writes for \"Unicode text\". One description has a comma, which must not split the cell. Written with Buffer.from(text, \"utf16le\") behind the two mark bytes.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-16le",
+    "delimiter": "\t",
+    "headerLine": 1,
+    "columns": [
+      "Posting Date",
+      "Description",
+      "Amount",
+      "Balance"
+    ],
+    "rows": 3,
+    "notes": [],
+    "fingerprint": "delimited:posting date|description|amount|balance"
+  },
+  "analysis": {
+    "readyRows": 3,
+    "firstDate": "2026-09-03",
+    "lastDate": "2026-09-05",
+    "moneyIn": 2150,
+    "moneyOut": 88.94
+  }
+}

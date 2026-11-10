@@ -1,0 +1,21 @@
+{
+  "file": "semicolon-decimal-comma.csv",
+  "description": "Semicolon-separated, as exports from decimal-comma countries are: every data row has exactly one comma (the decimal mark), so a reader that only counts commas sees a consistent two-column file. The header line, which has none, settles it. UTF-8, CRLF.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-8",
+    "delimiter": ";",
+    "headerLine": 1,
+    "columns": [
+      "Buchungstag",
+      "Verwendungszweck",
+      "Betrag",
+      "Währung"
+    ],
+    "rows": 4,
+    "notes": [],
+    "fingerprint": "delimited:buchungstag|verwendungszweck|betrag|währung"
+  }
+}

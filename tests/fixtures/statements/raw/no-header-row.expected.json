@@ -1,0 +1,23 @@
+{
+  "file": "no-header-row.csv",
+  "description": "No header row: the first line is already a transaction. The columns are named \"Column 1\" to \"Column 4\" (synthetic), headerLine is null and the fingerprint is the column count. UTF-8, LF.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-8",
+    "delimiter": ",",
+    "headerLine": null,
+    "columns": [
+      "Column 1",
+      "Column 2",
+      "Column 3",
+      "Column 4"
+    ],
+    "rows": 3,
+    "notes": [
+      "headerMissing"
+    ],
+    "fingerprint": "delimited:noheader:4"
+  }
+}

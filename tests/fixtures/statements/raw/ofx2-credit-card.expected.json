@@ -1,0 +1,43 @@
+{
+  "file": "ofx2-credit-card.ofx",
+  "description": "OFX 2.x (XML: every element closed) for one credit card, three transactions. Covers an XML entity in a name, an empty MEMO element, a PAYEE aggregate in place of NAME, multi-byte UTF-8 in a memo, and a CCACCTTO whose ACCTID must not be mistaken for the statement account. UTF-8, LF.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "ofx",
+    "encoding": "utf-8",
+    "columns": [
+      "Date",
+      "Amount",
+      "Name",
+      "Memo",
+      "Reference",
+      "Type",
+      "Check Number"
+    ],
+    "rows": 3,
+    "notes": [],
+    "fingerprint": "ofx:harbor card services:credit"
+  },
+  "layout": {
+    "roles": {
+      "date": 0,
+      "amount": 1,
+      "description": [
+        2,
+        3
+      ],
+      "reference": 4
+    },
+    "dateOrder": "YMD",
+    "decimal": ".",
+    "amountSign": "asIs"
+  },
+  "analysis": {
+    "readyRows": 3,
+    "firstDate": "2026-09-04",
+    "lastDate": "2026-09-20",
+    "moneyIn": 250,
+    "moneyOut": 78.11
+  }
+}

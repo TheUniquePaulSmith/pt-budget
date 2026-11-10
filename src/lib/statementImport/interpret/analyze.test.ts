@@ -442,6 +442,21 @@ describe('analyzeStatement: what the file does not settle', () => {
     expect(issue(card, 'signAssumed')?.params).toEqual({ moneyOutRows: 3, moneyInRows: 0 });
   });
 
+  it('asks nothing about the formats of a file whose layout the reader knows for certain (OFX)', () => {
+    // A savings statement with deposits only: the sign of an OFX amount is not in question.
+    const table = tableFromCsv(`
+      Date,Amount,Name
+      2026-09-10,300.00,TRANSFER FROM CHECKING
+      2026-09-30,0.42,INTEREST PAID
+    `);
+    const preset: ImportLayout = { roles: { date: 0, amount: 1, description: [2] }, dateOrder: 'YMD', decimal: '.', amountSign: 'asIs' };
+    expect(issue(analyse(table, {}, preset), 'signAssumed')).toBeDefined();
+    const ofx = { ...table, format: 'ofx' as const, meta: { ...table.meta, presetLayout: preset } };
+    const report = analyse(ofx, {}, preset);
+    expect(report.issues).toEqual([]);
+    expect(report.stats).toMatchObject({ readyRows: 2, moneyIn: 300.42, moneyOut: 0 });
+  });
+
   it('signAssumed: also when the layout goes against clear evidence in the file', () => {
     const table = tableFromCells(CLEAN);
     expect(issue(analyse(table), 'signAssumed')).toBeUndefined();

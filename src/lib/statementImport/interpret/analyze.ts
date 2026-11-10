@@ -358,7 +358,9 @@ export function analyzeStatement(table: StatementTable, layout: ImportLayout, co
   if (!hasAmount) add('noAmountColumn');
   if (!hasDescription) add('noDescriptionColumn');
 
-  // The layout: what the file does not settle.
+  // The layout: what the file does not settle. A layout the reader knows for
+  // certain (OFX: ISO dates, dot decimals, signed amounts) leaves nothing open.
+  const fixedFormat = table.meta.presetLayout !== undefined;
   if (dateColumn !== null) {
     if (mixedOrderRows.length > 0) {
       const first = mixedOrderRows[0];
@@ -371,13 +373,14 @@ export function analyzeStatement(table: StatementTable, layout: ImportLayout, co
           line: table.sourceLines[first],
         },
       });
-    } else if (orderEvidenceRows === 0 && ambiguousDate !== null) {
+    } else if (!fixedFormat && orderEvidenceRows === 0 && ambiguousDate !== null) {
       add('dateOrderAmbiguous', { column: dateColumn, params: { example: ambiguousDate.text, readAs: ambiguousDate.readAs } });
     }
   }
   // Nothing in the file proves the decimal mark, and either some amounts are
   // read with three decimals or too few look like thousands to be sure.
   if (
+    !fixedFormat &&
     hasAmount &&
     decimalEvidenceCells === 0 &&
     ambiguousAmount !== null &&
@@ -388,7 +391,12 @@ export function analyzeStatement(table: StatementTable, layout: ImportLayout, co
       params: { example: ambiguousAmount, mark: decimal },
     });
   }
-  if (amountColumn !== null && directionColumn === null && printedAmounts.some((value) => value !== null && value !== 0)) {
+  if (
+    !fixedFormat &&
+    amountColumn !== null &&
+    directionColumn === null &&
+    printedAmounts.some((value) => value !== null && value !== 0)
+  ) {
     const inference = inferAmountSign({
       amounts: printedAmounts,
       printed: table.rows.map((cells) => cells[amountColumn] ?? ''),

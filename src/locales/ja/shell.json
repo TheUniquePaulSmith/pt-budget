@@ -17,7 +17,6 @@
     "more": "その他",
     "quickActions": "クイック操作",
     "addTransaction": "取引を追加",
-    "importCsv": "CSV をインポート",
     "manageData": "データ管理"
   },
   "dataGrid": {

@@ -3,60 +3,68 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 import { bootstrapDatabase, navigateToPage, runQueryAndReadFirstCell } from './helpers/bootstrap';
+import {
+  addStatementFiles,
+  closeImport,
+  confirmReadingSettings,
+  nextWizardStep,
+  openImportWizard,
+  runImport,
+  startImport,
+} from './helpers/importFlow';
 
 // Two weekly card payments (checking → Rewards Visa), one grocery charge and
 // one merchant credit on the card. The account numbers are sample-data card
-// numbers, so the per-value mapping auto-selects both accounts: the checking
-// card's full number (two sample cards end in 4821, so the last four alone
-// would be ambiguous) and the Visa's unique last four, 9034.
+// numbers, so the import ties both values to their accounts: the checking
+// card's full number is recognised (two sample cards end in 4821, so the last
+// four alone would be ambiguous) and the Visa's unique last four, 9034, is an
+// assumption the user confirms.
 const TRANSFERS_CSV_PATH = path.join(__dirname, 'fixtures', 'sample-import-transfers.csv');
 const CHECKING_ACCOUNT_NAME = 'Household Checking';
 
-async function importTransfersCsv(page: Page) {
-  await page.getByRole('button', { name: 'Import CSV' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Import Transactions from CSV' });
-  await expect(dialog).toBeVisible();
-  await dialog.locator('input[type="file"]').setInputFiles(TRANSFERS_CSV_PATH);
+/** Walks the Import page with the transfers file up to "Things to check". */
+async function reviewTransfersCsv(page: Page) {
+  await openImportWizard(page);
+  await addStatementFiles(page, TRANSFERS_CSV_PATH);
+  expect(await startImport(page)).toBe('account');
 
-  await expect(dialog.getByTestId('csv-account-mapping-0-select')).toContainText(CHECKING_ACCOUNT_NAME, { timeout: 30_000 });
-  await expect(dialog.getByTestId('csv-account-mapping-1-select')).toContainText('Rewards Visa');
-  await expect(dialog.getByTestId('csv-detect-types')).toBeChecked();
+  await expect(page.getByTestId('import-account-0')).toHaveAttribute('data-status', 'recognised');
+  await expect(page.getByTestId('import-account-0-select')).toContainText(CHECKING_ACCOUNT_NAME);
+  await expect(page.getByTestId('import-account-1')).toHaveAttribute('data-status', 'assumed');
+  await expect(page.getByTestId('import-account-1-select')).toContainText('Rewards Visa');
+  await page.getByTestId('import-account-1-confirm').click();
 
-  await dialog.getByRole('button', { name: 'Analyze File', exact: true }).click();
-  await expect(dialog.getByText('Analysis Complete:')).toBeVisible({ timeout: 30_000 });
-  return dialog;
+  await nextWizardStep(page, 'layout');
+  await confirmReadingSettings(page);
+  await nextWizardStep(page, 'review');
 }
 
-test('@smoke detects transfer pairs and a refund while importing a CSV, and lets the user confirm them', async ({ page }) => {
+test('@smoke detects transfer pairs and a refund while importing a file, and lets the user confirm them', async ({ page }) => {
   await bootstrapDatabase(page);
 
-  const dialog = await importTransfersCsv(page);
+  await reviewTransfersCsv(page);
 
   // Both card payments pair up (checking out ↔ card in, one day apart, transfer
   // wording on both sides); the lone merchant credit on the card is a refund.
-  const summary = dialog.getByTestId('csv-classification-summary');
-  await expect(summary).toContainText('Transfers between your accounts: 2');
-  await expect(summary).toContainText('Refunds detected: 1');
+  // The pairs are listed with their legs; both are checked by default.
+  const transfers = page.getByTestId('import-review-transfers');
+  await expect(transfers).toBeVisible({ timeout: 30_000 });
+  const pairs = transfers.getByTestId('import-transfer-pair');
+  await expect(pairs).toHaveCount(2);
+  await expect(pairs.first()).toContainText('PYMT BY FUNDS TRANSFER');
+  await expect(pairs.first()).toContainText('PAYMENT - THANK YOU');
+  await expect(transfers.getByRole('checkbox').first()).toBeChecked();
+  await expect(transfers.getByTestId('import-refunds')).toHaveText('1 refund detected.');
 
-  // The review lists the pairs with their evidence; both are checked by default.
-  await dialog.getByTestId('csv-review-transfers').click();
-  const review = page.getByRole('dialog', { name: 'Detected Transfers' });
-  await expect(review).toBeVisible();
-  const rows = review.getByTestId('csv-transfer-review-row');
-  await expect(rows).toHaveCount(2);
-  await expect(rows.first()).toContainText('PYMT BY FUNDS TRANSFER');
-  await expect(rows.first()).toContainText('PAYMENT - THANK YOU');
-  await expect(review.getByRole('checkbox').first()).toBeChecked();
-  await review.getByRole('button', { name: 'Done' }).click();
-
-  await dialog.getByRole('button', { name: 'Import 6 Transactions' }).click();
-  const result = dialog.getByTestId('csv-import-result');
-  await expect(result).toBeVisible({ timeout: 120_000 });
-  await expect(dialog.getByTestId('csv-import-result-inserted')).toHaveText(/Imported: 6/);
-  await expect(dialog.getByTestId('csv-import-result-transfers')).toHaveText(/Transfers between your accounts: 2/);
-  await expect(dialog.getByTestId('csv-import-result-refunds')).toHaveText(/Refunds detected: 1/);
-  await dialog.getByRole('button', { name: 'Close' }).click();
-  await expect(dialog).not.toBeVisible();
+  await nextWizardStep(page, 'summary');
+  await expect(page.getByTestId('import-summary-transfers')).toHaveText(/2$/);
+  await expect(page.getByTestId('import-run')).toHaveText('Import 6 transactions', { timeout: 30_000 });
+  await runImport(page);
+  const result = page.getByTestId('import-result-0');
+  await expect(result).toContainText('6 transactions imported');
+  await expect(result).toContainText('2 transfers between your accounts');
+  await expect(result).toContainText('1 refund detected');
+  await closeImport(page);
 
   // Both legs of each payment are transfers sharing a group, in different accounts.
   expect(

@@ -14,7 +14,6 @@ import { useTranslation } from 'react-i18next';
 
 import { useAiPanel } from '@/components/ai/AiPanelProvider';
 import AppLogo from '@/components/common/AppLogo';
-import CSVImport from '@/components/csv-import/CSVImport';
 import ManageData from '@/components/data-management/ManageData';
 import DatabaseStatusBar from '@/components/common/StatusBar/DatabaseStatusBar';
 import AddTransaction from '@/components/transactions/AddTransaction';
@@ -58,7 +57,6 @@ export default function AppShell() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [manageDataOpen, setManageDataOpen] = useState(false);
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);
-  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(readStoredSidebarExpanded);
   // The page that was showing before a full-screen page (settings / developer
   // console) opened, so `goBack` returns there.
@@ -83,6 +81,7 @@ export default function AppShell() {
   const morePages = navigationPages.filter((page) => !barPages.includes(page));
   const settingsPage = getPage('settings');
   const developerConsolePage = getPage('developer-console');
+  const importPage = getPage('import');
 
   useEffect(() => {
     writeStoredSidebarExpanded(sidebarExpanded);
@@ -144,7 +143,7 @@ export default function AppShell() {
               onNavigate={navigate}
               onOpenManageData={() => setManageDataOpen(true)}
               onAddTransaction={() => setAddTransactionOpen(true)}
-              onImportCsv={() => setCsvImportOpen(true)}
+              importPage={importPage}
               developerConsolePage={developerConsolePage}
             />
           )}
@@ -206,7 +205,7 @@ export default function AppShell() {
               onNavigate={navigate}
               onOpenManageData={() => setManageDataOpen(true)}
               onAddTransaction={() => setAddTransactionOpen(true)}
-              onImportCsv={() => setCsvImportOpen(true)}
+              importPage={importPage}
               settingsPage={settingsPage}
               developerConsolePage={developerConsolePage}
             />
@@ -214,16 +213,11 @@ export default function AppShell() {
 
           <ManageData open={manageDataOpen} onClose={() => setManageDataOpen(false)} />
 
-          {/* Quick-action dialogs live in the shell so they open from the rail on any page. */}
+          {/* The quick-action dialog lives in the shell so it opens from the rail on any page. */}
           <AddTransaction
             open={addTransactionOpen}
             onClose={() => setAddTransactionOpen(false)}
             onSuccess={() => setAddTransactionOpen(false)}
-          />
-          <CSVImport
-            open={csvImportOpen}
-            onClose={() => setCsvImportOpen(false)}
-            onSuccess={() => setCsvImportOpen(false)}
           />
 
           {/* The status bar is fixed to the viewport bottom; on desktop it starts

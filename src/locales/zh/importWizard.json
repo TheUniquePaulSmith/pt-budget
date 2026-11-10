@@ -6,7 +6,297 @@
     "viewWizard": "导入",
     "viewManage": "历史记录和格式"
   },
-  "placeholder": {
-    "wizard": "引导式导入尚不可用。目前请使用“导入 CSV”。"
+  "steps": {
+    "label": "导入步骤",
+    "progress": "第 {{step}} 步，共 {{total}} 步",
+    "files": "文件",
+    "account": "账户",
+    "layout": "核对读取方式",
+    "review": "需要检查的内容",
+    "summary": "摘要",
+    "done": "完成"
+  },
+  "frame": {
+    "queue": "文件 {{index}}/{{total}}：{{name}}",
+    "file": "文件：{{name}}",
+    "skipFile": "跳过此文件",
+    "preparing": "正在准备文件…",
+    "importing": "正在导入…",
+    "finishing": "即将完成…"
+  },
+  "files": {
+    "title": "添加银行文件",
+    "intro": "从银行网站下载交易记录，然后在此处添加文件。可以一次添加多个。",
+    "drop": "将文件拖放到此处",
+    "supported": "支持 CSV、TXT、TSV、OFX 和 QFX 文件。",
+    "choose": "选择文件",
+    "inputLabel": "对账单文件",
+    "remove": "移除 {{name}}",
+    "size": {
+      "B": "{{value}} 字节",
+      "KB": "{{value}} KB",
+      "MB": "{{value}} MB"
+    },
+    "reading": "正在读取文件…",
+    "unreadableHelp": "请在银行网站上找到“导出”或“下载”，然后选择 CSV 或 OFX / QFX（有时称为 Quicken 或 Microsoft Money）。无法读取电子表格（XLSX）和 PDF 格式的对账单。",
+    "accountPart": "账户 {{index}}/{{total}}",
+    "formatDelimited": "文本文件（CSV）",
+    "formatOfx": "OFX / QFX",
+    "dateRange": "{{from}} – {{to}}",
+    "accountInFile": "文件中的账户：{{value}}",
+    "savedFormat": "与上次格式相同：{{name}}",
+    "newFormat": "新格式",
+    "outcome": {
+      "imported": "已导入",
+      "nothingNew": "没有新内容",
+      "skipped": "已跳过",
+      "failed": "未导入"
+    },
+    "hintReading": "正在读取您的文件…",
+    "hintNoneReadable": "请添加一个可以导入的文件以继续。"
+  },
+  "account": {
+    "title": "此文件属于哪个账户？",
+    "intro": "此文件的每一行都会进入您的某个账户。",
+    "introSeveral": "此文件包含多个账户的行。请为每个账户选择去向。",
+    "inFile": "文件中显示：{{value}}",
+    "noneInFile": "文件没有说明它属于哪个账户",
+    "status": {
+      "recognised": "已识别",
+      "assumed": "推测",
+      "chosen": "已选择",
+      "skipped": "已排除",
+      "open": "需要您选择"
+    },
+    "choose": "选择账户",
+    "suggested": "可能匹配",
+    "createNew": "创建新账户…",
+    "skip": "排除这些行",
+    "confirm": "是的，使用此账户",
+    "confirmPrompt": "这是我们的最佳推测。账户是否正确？",
+    "openHint": "请选择这些交易所属的账户，或创建一个新账户。",
+    "openHintSeveral": "请选择这些行所属的账户、创建一个新账户，或排除这些行。",
+    "unskip": "仍然导入",
+    "skipped_other": "{{count}} 行不会被导入。",
+    "createTitle": "新账户",
+    "createSubmit": "创建账户",
+    "hint": "请选择或确认账户以继续。"
+  },
+  "layout": {
+    "title": "核对读取方式",
+    "intro": "文件的前几行将按如下方式导入。如有不对，请在下方修改。",
+    "fromSavedFormat": "读取方式与上次相同（“{{name}}”）。",
+    "fromSavedFormatOtherAccount": "列的读取方式与“{{name}}”相同，该格式是为另一个账户保存的。请核对此账户的资金方向。",
+    "fromFileType": "这类文件的结构始终相同，因此无需任何推测。",
+    "fromAi": "此结构由 AI 建议。继续之前请仔细核对。",
+    "missing": "在您的文件中未找到：{{parts}}。请在“文件中的列”中为每一项选择对应的列。",
+    "previewTitle": "前几行的导入方式",
+    "moneyIn": "入账",
+    "moneyOut": "出账",
+    "emptyCell": "（空）",
+    "notImported": "不导入",
+    "moreRows_other": "另有 {{count}} 行",
+    "pleaseCheck": "请核对",
+    "confirmed": "已确认",
+    "thatsRight": "没错",
+    "dates": {
+      "title": "日期",
+      "label": "日期顺序",
+      "order": {
+        "MDY": "月在前（12/31/2026）",
+        "DMY": "日在前（31/12/2026）",
+        "YMD": "年在前（2026-12-31）"
+      },
+      "example": "“{{raw}}”读取为 {{date}}。",
+      "noneReadable": "此文件中没有日期能按这种方式读取。",
+      "noColumn": "尚未选择日期列。"
+    },
+    "decimal": {
+      "title": "数字",
+      "label": "小数分隔符",
+      "period": "点（1,234.56）",
+      "comma": "逗号（1.234,56）",
+      "example": "“{{raw}}”读取为 {{amount}}。",
+      "noneReadable": "此文件中没有金额能按这种方式读取。"
+    },
+    "sign": {
+      "title": "入账和出账",
+      "asIs": "负数表示出账。",
+      "inverted": "正数表示出账。",
+      "exampleOut": "“{{description}}”（{{raw}}）读取为出账：您支付了 {{amount}}。",
+      "exampleIn": "“{{description}}”（{{raw}}）读取为入账：您收到了 {{amount}}。",
+      "noDescription": "无描述",
+      "flip": "不对，正好相反",
+      "fromColumns": "出账从“{{debit}}”读取，入账从“{{credit}}”读取。",
+      "noColumn": "无对应列",
+      "noAmount": "尚未选择金额列。"
+    },
+    "fixedColumns": "这类文件始终使用相同的列，因此这里无需选择。",
+    "columnsTitle": "文件中的列",
+    "columnsHelp": "文件的每一列及其用途。如果我们判断有误，请修改。",
+    "columnSample": "例如：{{value}}",
+    "columnEmpty": "始终为空",
+    "columnRole": "用作",
+    "roles": {
+      "none": "不导入",
+      "date": "日期",
+      "postedDate": "入账日期",
+      "description": "描述",
+      "amount": "金额",
+      "debit": "出账",
+      "credit": "入账",
+      "direction": "收支标记",
+      "reference": "参考号",
+      "account": "账户",
+      "balance": "余额",
+      "status": "状态",
+      "currency": "货币"
+    },
+    "hintMissing": "请选择缺少的列以继续。",
+    "hintConfirm": "请确认突出显示的设置以继续。"
+  },
+  "advanced": {
+    "title": "高级",
+    "subtitle": "仅当上面的列看起来不对时使用。",
+    "headerLine": "列名所在的行",
+    "headerDetected": "在第 {{line}} 行找到。",
+    "headerNone": "读取此文件时没有使用列名。",
+    "noHeader": "文件没有列名",
+    "delimiter": "单元格分隔符",
+    "automatic": "自动检测",
+    "automaticWith": "自动（{{value}}）",
+    "delimiters": {
+      "comma": "逗号",
+      "semicolon": "分号",
+      "tab": "制表符",
+      "pipe": "竖线"
+    },
+    "encoding": "文本编码",
+    "apply": "重新读取文件",
+    "applying": "正在读取…",
+    "failed": "无法使用这些设置读取文件。"
+  },
+  "ai": {
+    "offer": "对这个结构没有把握？{{provider}} 可以给出建议。",
+    "ask": "询问 AI",
+    "working": "正在询问…",
+    "outcome": {
+      "applied": "AI 的建议显示在下方。继续之前请先核对。",
+      "noAnswer": "AI 无法识别此文件。请在下方自行选择列。",
+      "failed": "无法连接到 AI。请在下方自行选择列。"
+    },
+    "consentTitle": "要向 {{provider}} 发送样本吗？",
+    "consentBody": "为了给出结构建议，下方的列名和行将发送给 {{provider}}。较长的数字会缩短为最后四位。除此之外没有任何内容离开此设备。",
+    "consentSend": "发送给 {{provider}}"
+  },
+  "review": {
+    "title": "需要检查的内容",
+    "intro": "这是我们在读取文件时注意到的情况。尚未导入任何内容。",
+    "blocked": "有些内容需要您做出决定，然后才能导入此文件。",
+    "clear": "没有任何内容妨碍此次导入。",
+    "clearWithWarnings_other": "没有任何内容妨碍此次导入。有 {{count}} 项值得看一下。",
+    "column": "列：{{name}}",
+    "line": "第 {{line}} 行",
+    "noDescription": "无描述",
+    "fix": "修正",
+    "skip": "排除",
+    "restore": "仍然导入",
+    "direction": "入账或出账",
+    "showAllRows": "显示全部 {{total}} 行",
+    "skipAll": "排除全部 {{total}} 行",
+    "changes": {
+      "title": "您的更改",
+      "fixed": "第 {{line}} 行：已修正",
+      "skipped": "第 {{line}} 行：已排除",
+      "kept": "第 {{line}} 行：仍然导入",
+      "undo": "撤销"
+    },
+    "checking": "正在检查已导入的行、重复的行和转账…",
+    "checkFailed": "无法将这些行与已导入的内容进行比对。",
+    "duplicates": {
+      "title": "出现多次的行",
+      "help": "除非您取消勾选，否则每一份都会导入。同一天的两杯咖啡是两行；银行重复列出的一行只算一行。",
+      "group": "{{copies}} 行完全相同：{{date}} · {{description}} · {{amount}}",
+      "copy": "导入第 {{line}} 行"
+    },
+    "transfers": {
+      "title": "您的账户之间的转账",
+      "help": "勾选的一对会作为转账导入，因此既不计入收入也不计入支出。取消勾选则按原样导入这两行。",
+      "leg": "{{account}} · {{date}}",
+      "legExisting": "{{account}} · {{date}} · 已导入",
+      "importAsTransfer": "将“{{description}}”作为转账导入",
+      "match": "匹配度 {{percent}}",
+      "possible": "可能 · {{percent}}",
+      "refunds_other": "检测到 {{count}} 笔退款。",
+      "ruleTyped_other": "{{count}} 行已按您的规则分类。"
+    },
+    "coverage": {
+      "title": "与已导入内容的比较",
+      "stored_other": "此账户已有 {{count}} 笔交易，从 {{from}} 到 {{to}}。",
+      "none": "此账户尚未导入任何内容。"
+    },
+    "assumptions": {
+      "title": "我们的推测",
+      "account": "账户：{{account}}",
+      "chosenByYou": "由您选择",
+      "change": "更改",
+      "none": "没有需要推测的内容。"
+    },
+    "hint": "请修正或排除无法读取的行以继续。"
+  },
+  "blockers": {
+    "missing": "请为以下内容选择列：{{parts}}。",
+    "blockedRows_other": "有 {{count}} 行无法读取。请修正或排除。",
+    "accounts": "请选择或确认账户。",
+    "confirm": "请确认文件的读取方式。",
+    "noRows": "此文件中没有可导入的内容了。"
+  },
+  "summary": {
+    "title": "摘要",
+    "sameFormat": "与上次格式相同（“{{name}}”）。没有需要您处理的内容。",
+    "reviewDetails": "查看详情",
+    "failed": "导入未完成，没有任何更改。{{error}}",
+    "blockedTitle": "导入之前",
+    "goThere": "前往",
+    "nothingNew_other": "此文件的 {{count}} 行均已导入。没有新内容可添加。",
+    "nothingLeft": "此文件中没有可导入的内容了。",
+    "into_other": "导入到",
+    "toImport": "新交易",
+    "rowsInFile": "文件中的行数",
+    "alreadyImported": "已导入",
+    "leftOut": "已排除",
+    "dates": "日期",
+    "transfers": "转账",
+    "refunds": "退款",
+    "remember": "记住此格式",
+    "rememberHelp": "下次遇到同样的文件时，将直接进入此摘要。",
+    "rememberHelpKnown": "根据您所做的更改更新已保存的格式。",
+    "formatName": "格式名称",
+    "import_other": "导入 {{count}} 笔交易",
+    "checking": "正在检查…"
+  },
+  "done": {
+    "title": "导入完成",
+    "total_other": "已导入 {{count}} 笔交易。",
+    "totalNone": "没有导入新的交易。",
+    "inserted_other": "已导入 {{count}} 笔交易",
+    "nothingNew": "此文件没有新内容",
+    "skippedFile": "此文件已跳过",
+    "duplicates_other": "{{count}} 行此前已导入，已排除",
+    "skipped_other": "{{count}} 行已排除",
+    "transfers_other": "{{count}} 笔您的账户之间的转账",
+    "refunds_other": "检测到 {{count}} 笔退款",
+    "ruleTyped_other": "{{count}} 行已按您的规则分类",
+    "viewTransactions": "查看交易",
+    "importAnother": "再导入一个",
+    "undo": "撤销",
+    "undoHelp": "改变主意了？可以在“历史记录和格式”中撤销导入。"
+  },
+  "leave": {
+    "title": "要放弃此次导入吗？",
+    "body": "您添加的文件尚未导入。",
+    "bodyPartly_other": "{{count}} 个文件已导入并会保留。其余文件尚未导入。",
+    "stay": "继续导入",
+    "discard": "放弃"
   }
 }

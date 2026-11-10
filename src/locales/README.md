@@ -11,7 +11,7 @@ One folder per language (`en-US`, `es`, `fr`, `de`, `zh`, `ja`, `ko`, `pt`, `it`
 | `developer` | Developer Console and the Developer settings tab (`src/components/common/Console`). |
 | `setup` | First-run screens (`src/components/setup`). |
 | `settings` | Settings page and its tabs. |
-| `dashboard`, `accounts`, `transactions`, `budget`, `loans`, `subscriptions`, `notifications`, `csvImport`, `ai`, `projects`, `trips`, `sqlQuery`, `dataManagement`, `notFound` | The matching feature folder. |
+| `dashboard`, `accounts`, `transactions`, `budget`, `loans`, `subscriptions`, `notifications`, `ai`, `projects`, `trips`, `sqlQuery`, `dataManagement`, `notFound` | The matching feature folder. |
 | `importWizard` | The Import page shell and the guided import (`src/components/import-wizard/ImportPage.tsx`, `wizard/`). |
 | `importIssues` | What the import analysis finds: one entry per issue code (`issues.<code>.title` / `.detail`, codes in `src/lib/statementImport/issueCodes.ts`), the assumptions it shows for confirmation (`assumptions.<code>`) and the severity labels. |
 | `importManage` | Import history with undo, saved formats and account identifiers (`src/components/import-wizard/manage/`). |

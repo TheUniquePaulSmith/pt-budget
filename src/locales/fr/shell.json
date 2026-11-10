@@ -17,7 +17,6 @@
     "more": "Plus",
     "quickActions": "Actions rapides",
     "addTransaction": "Ajouter une transaction",
-    "importCsv": "Importer un CSV",
     "manageData": "Gérer les données"
   },
   "dataGrid": {

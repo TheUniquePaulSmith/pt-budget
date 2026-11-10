@@ -21,7 +21,7 @@ The app runs in nine languages and lets every account carry its own currency whi
 | SQL conversion | `src/lib/sqlMoneyExpressions.ts` (`rateExpr`, `spendExpr`, `incomeExpr`) |
 | Schema | `public/database-schema.js` version 6: `accounts.currency`, `exchange_rates` |
 | UI | `src/components/setup/PreferencesSetup.tsx`, `src/components/settings/PreferencesSettingsTab.tsx`, `ExchangeRatesEditor.tsx`, `src/components/dashboard/MissingRatesNotice.tsx`, `src/components/common/CurrencySelect.tsx`, `LanguageMenu.tsx` |
-| CSV parsing | `src/lib/dateOnly.ts` (`parseCsvDate(raw, { order })`), `src/lib/csvImportService.ts` (`parseCsvAmount(raw, { decimal })`) |
+| CSV parsing | `src/lib/dateOnly.ts` (`parseCsvDate(raw, { order })`), `src/lib/statementImport/shared/amounts.ts` (`parseCsvAmount(raw, { decimal })`) |
 | AI | `src/lib/aiChatService.ts` `buildLocalePromptSection` (reply language, default currency, how to read `exchange_rates`) |
 
 ## Language

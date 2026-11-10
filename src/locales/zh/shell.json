@@ -17,7 +17,6 @@
     "more": "更多",
     "quickActions": "快捷操作",
     "addTransaction": "添加交易",
-    "importCsv": "导入 CSV",
     "manageData": "管理数据"
   },
   "dataGrid": {

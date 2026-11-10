@@ -1,0 +1,4 @@
+Account,Date,Amount,Description
+9999,2030-04-01,-10.00,Playwright Bad Rows Good Row
+9999,2030-04-31,-20.00,Playwright Bad Rows Bad Date
+9999,2030-04-03,abc,Playwright Bad Rows Bad Amount

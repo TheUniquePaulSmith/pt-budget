@@ -56,8 +56,13 @@ vi.mock('@/components/transactions/AddTransaction', () => ({
     <div data-testid="add-transaction-dialog" data-open={String(open)} />
   ),
 }));
-vi.mock('@/components/csv-import/CSVImport', () => ({
-  default: ({ open }: { open: boolean }) => <div data-testid="csv-import-dialog" data-open={String(open)} />,
+vi.mock('@/components/import-wizard/ImportPage', () => ({
+  default: ({ onClose, onViewTransactions }: { onClose: () => void; onViewTransactions: () => void }) => (
+    <div data-testid="page-import">
+      <button onClick={onClose}>Close import</button>
+      <button onClick={onViewTransactions}>View imported transactions</button>
+    </div>
+  ),
 }));
 const runtimeMounts = vi.hoisted(() => ({ count: 0 }));
 vi.mock('@/components/notifications/NotificationsRuntime', () => {
@@ -169,20 +174,38 @@ describe('AppContent shell', () => {
     expect(screen.getByTestId('ai-side-panel')).toHaveAttribute('data-open', 'true');
   });
 
-  it('opens Add Transaction and Import CSV from the rail on any page', async () => {
+  it('opens Add Transaction and the Import page from the rail on any page', async () => {
     render(<AppContent />);
 
     const rail = screen.getByTestId('sidebar-rail');
     expect(screen.getByTestId('add-transaction-dialog')).toHaveAttribute('data-open', 'false');
-    expect(screen.getByTestId('csv-import-dialog')).toHaveAttribute('data-open', 'false');
 
     fireEvent.click(within(rail).getByRole('button', { name: 'Add Transaction' }));
     expect(screen.getByTestId('add-transaction-dialog')).toHaveAttribute('data-open', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: 'Trips' }));
     await screen.findByTestId('page-trips');
-    fireEvent.click(within(rail).getByRole('button', { name: 'Import CSV' }));
-    expect(screen.getByTestId('csv-import-dialog')).toHaveAttribute('data-open', 'true');
+
+    // Import is a full-screen page, not a dialog: the shell chrome steps aside for it...
+    fireEvent.click(within(rail).getByRole('button', { name: 'Import' }));
+    expect(await screen.findByTestId('page-import')).toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-rail')).not.toBeInTheDocument();
+
+    // ...and closing it returns to the page it was opened from.
+    fireEvent.click(screen.getByRole('button', { name: 'Close import' }));
+    expect(await screen.findByTestId('page-trips')).toBeInTheDocument();
+    expect(screen.queryByTestId('page-import')).not.toBeInTheDocument();
+  });
+
+  it('goes from a finished import to the Transactions page', async () => {
+    render(<AppContent />);
+
+    fireEvent.click(within(screen.getByTestId('sidebar-rail')).getByTestId('nav-import'));
+    await screen.findByTestId('page-import');
+    fireEvent.click(screen.getByRole('button', { name: 'View imported transactions' }));
+
+    expect(await screen.findByTestId('page-transactions')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-rail')).toBeInTheDocument();
   });
 
   it('keeps the quick actions reachable, name intact, when the rail is collapsed', () => {
@@ -191,7 +214,7 @@ describe('AppContent shell', () => {
 
     const rail = screen.getByTestId('sidebar-rail');
     expect(within(rail).getByTestId('rail-add-transaction')).toHaveAccessibleName('Add Transaction');
-    expect(within(rail).getByTestId('rail-import-csv')).toHaveAccessibleName('Import CSV');
+    expect(within(rail).getByTestId('nav-import')).toHaveAccessibleName('Import');
   });
 
   it('opens settings full-screen and returns to the previous page on close', async () => {
@@ -289,7 +312,7 @@ describe('AppContent shell', () => {
     expect(await screen.findByTestId('page-sql-query')).toBeInTheDocument();
   });
 
-  it('offers Add Transaction and Import CSV in the More sheet on phones', async () => {
+  it('offers Add Transaction and Import in the More sheet on phones', async () => {
     installMatchMedia(true);
     render(<AppContent />);
 
@@ -300,8 +323,9 @@ describe('AppContent shell', () => {
 
     fireEvent.click(screen.getByTestId('nav-more'));
     const reopened = await screen.findByTestId('mobile-more-sheet');
-    fireEvent.click(within(reopened).getByTestId('mobile-import-csv'));
-    expect(screen.getByTestId('csv-import-dialog')).toHaveAttribute('data-open', 'true');
+    expect(within(reopened).getByTestId('nav-import')).toHaveAccessibleName('Import');
+    fireEvent.click(within(reopened).getByTestId('nav-import'));
+    expect(await screen.findByTestId('page-import')).toBeInTheDocument();
   });
 
   it('collapses the rail to icons that keep their accessible names and remembers the choice', async () => {

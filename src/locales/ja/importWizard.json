@@ -6,7 +6,297 @@
     "viewWizard": "インポート",
     "viewManage": "履歴と形式"
   },
-  "placeholder": {
-    "wizard": "ガイド付きインポートはまだ利用できません。当面は「CSV をインポート」をご利用ください。"
+  "steps": {
+    "label": "インポートの手順",
+    "progress": "ステップ {{step}} / {{total}}",
+    "files": "ファイル",
+    "account": "口座",
+    "layout": "読み取り方の確認",
+    "review": "確認事項",
+    "summary": "概要",
+    "done": "完了"
+  },
+  "frame": {
+    "queue": "ファイル {{index}} / {{total}}：{{name}}",
+    "file": "ファイル：{{name}}",
+    "skipFile": "このファイルをスキップ",
+    "preparing": "ファイルを準備しています…",
+    "importing": "インポートしています…",
+    "finishing": "仕上げています…"
+  },
+  "files": {
+    "title": "銀行のファイルを追加",
+    "intro": "銀行のウェブサイトから取引をダウンロードし、ここにファイルを追加してください。一度に複数追加できます。",
+    "drop": "ここにファイルをドロップ",
+    "supported": "CSV、TXT、TSV、OFX、QFX ファイルに対応しています。",
+    "choose": "ファイルを選択",
+    "inputLabel": "明細ファイル",
+    "remove": "{{name}} を削除",
+    "size": {
+      "B": "{{value}} バイト",
+      "KB": "{{value}} KB",
+      "MB": "{{value}} MB"
+    },
+    "reading": "ファイルを読み込んでいます…",
+    "unreadableHelp": "銀行のウェブサイトで「エクスポート」または「ダウンロード」を探し、CSV か OFX / QFX（Quicken や Microsoft Money と表示されることもあります）を選んでください。表計算（XLSX）や PDF の明細は読み込めません。",
+    "accountPart": "口座 {{index}} / {{total}}",
+    "formatDelimited": "テキストファイル（CSV）",
+    "formatOfx": "OFX / QFX",
+    "dateRange": "{{from}} – {{to}}",
+    "accountInFile": "ファイル内の口座：{{value}}",
+    "savedFormat": "前回と同じ形式：{{name}}",
+    "newFormat": "新しい形式",
+    "outcome": {
+      "imported": "インポート済み",
+      "nothingNew": "新しい取引なし",
+      "skipped": "スキップ",
+      "failed": "未インポート"
+    },
+    "hintReading": "ファイルを読み込んでいます…",
+    "hintNoneReadable": "続けるには、インポートできるファイルを追加してください。"
+  },
+  "account": {
+    "title": "どの口座のファイルですか？",
+    "intro": "このファイルのすべての行は、いずれかの口座に取り込まれます。",
+    "introSeveral": "このファイルには複数の口座の行が含まれています。それぞれの取り込み先を選んでください。",
+    "inFile": "ファイル内の表記：{{value}}",
+    "noneInFile": "ファイルにはどの口座のものか書かれていません",
+    "status": {
+      "recognised": "認識済み",
+      "assumed": "推測",
+      "chosen": "選択済み",
+      "skipped": "除外",
+      "open": "選択が必要です"
+    },
+    "choose": "口座を選択",
+    "suggested": "候補",
+    "createNew": "新しい口座を作成…",
+    "skip": "これらの行を除外",
+    "confirm": "はい、この口座を使用します",
+    "confirmPrompt": "これは推測です。この口座で正しいですか？",
+    "openHint": "これらの取引が属する口座を選ぶか、新しい口座を作成してください。",
+    "openHintSeveral": "これらの行が属する口座を選ぶか、新しい口座を作成するか、これらの行を除外してください。",
+    "unskip": "やはりインポートする",
+    "skipped_other": "{{count}} 行はインポートされません。",
+    "createTitle": "新しい口座",
+    "createSubmit": "口座を作成",
+    "hint": "続けるには、口座を選択または確認してください。"
+  },
+  "layout": {
+    "title": "読み取り方の確認",
+    "intro": "ファイルの最初の数行は次のようにインポートされます。おかしな点があれば、下で変更してください。",
+    "fromSavedFormat": "前回と同じ方法で読み取りました（「{{name}}」）。",
+    "fromSavedFormatOtherAccount": "列は「{{name}}」と同じように読み取ります。この形式は別の口座用に保存されたものです。この口座での入出金の向きを確認してください。",
+    "fromFileType": "この種類のファイルは常に同じ構成のため、推測は必要ありませんでした。",
+    "fromAi": "この構成は AI が提案したものです。続ける前によく確認してください。",
+    "missing": "ファイル内で次の項目が見つかりませんでした：{{parts}}。「ファイルの列」でそれぞれの列を選んでください。",
+    "previewTitle": "最初の数行のインポート内容",
+    "moneyIn": "入金",
+    "moneyOut": "出金",
+    "emptyCell": "（空）",
+    "notImported": "インポートしない",
+    "moreRows_other": "ほか {{count}} 行",
+    "pleaseCheck": "要確認",
+    "confirmed": "確認済み",
+    "thatsRight": "正しい",
+    "dates": {
+      "title": "日付",
+      "label": "日付の順序",
+      "order": {
+        "MDY": "月が先（12/31/2026）",
+        "DMY": "日が先（31/12/2026）",
+        "YMD": "年が先（2026-12-31）"
+      },
+      "example": "「{{raw}}」は {{date}} と読み取ります。",
+      "noneReadable": "この方法で読み取れる日付がファイル内にありません。",
+      "noColumn": "日付の列がまだ選択されていません。"
+    },
+    "decimal": {
+      "title": "数値",
+      "label": "小数点の記号",
+      "period": "ピリオド（1,234.56）",
+      "comma": "カンマ（1.234,56）",
+      "example": "「{{raw}}」は {{amount}} と読み取ります。",
+      "noneReadable": "この方法で読み取れる金額がファイル内にありません。"
+    },
+    "sign": {
+      "title": "入金と出金",
+      "asIs": "マイナスの数値が出金です。",
+      "inverted": "プラスの数値が出金です。",
+      "exampleOut": "「{{description}}」（{{raw}}）は出金として読み取ります：{{amount}} を支払いました。",
+      "exampleIn": "「{{description}}」（{{raw}}）は入金として読み取ります：{{amount}} を受け取りました。",
+      "noDescription": "説明なし",
+      "flip": "いいえ、逆です",
+      "fromColumns": "出金は「{{debit}}」から、入金は「{{credit}}」から読み取ります。",
+      "noColumn": "列なし",
+      "noAmount": "金額の列がまだ選択されていません。"
+    },
+    "fixedColumns": "この種類のファイルは常に同じ列を使うため、ここで選ぶものはありません。",
+    "columnsTitle": "ファイルの列",
+    "columnsHelp": "ファイルの各列とその用途です。間違っている場合は変更してください。",
+    "columnSample": "例：{{value}}",
+    "columnEmpty": "常に空",
+    "columnRole": "用途",
+    "roles": {
+      "none": "インポートしない",
+      "date": "日付",
+      "postedDate": "記帳日",
+      "description": "説明",
+      "amount": "金額",
+      "debit": "出金",
+      "credit": "入金",
+      "direction": "入出金の区分",
+      "reference": "照会番号",
+      "account": "口座",
+      "balance": "残高",
+      "status": "状態",
+      "currency": "通貨"
+    },
+    "hintMissing": "続けるには、不足している列を選んでください。",
+    "hintConfirm": "続けるには、強調表示された設定を確認してください。"
+  },
+  "advanced": {
+    "title": "詳細設定",
+    "subtitle": "上の列が正しくない場合のみ使用します。",
+    "headerLine": "列名のある行",
+    "headerDetected": "{{line}} 行目で見つかりました。",
+    "headerNone": "このファイルは列名なしで読み取りました。",
+    "noHeader": "ファイルに列名がない",
+    "delimiter": "セルの区切り文字",
+    "automatic": "自動検出",
+    "automaticWith": "自動（{{value}}）",
+    "delimiters": {
+      "comma": "カンマ",
+      "semicolon": "セミコロン",
+      "tab": "タブ",
+      "pipe": "縦棒"
+    },
+    "encoding": "文字コード",
+    "apply": "ファイルを読み直す",
+    "applying": "読み込んでいます…",
+    "failed": "この設定ではファイルを読み取れませんでした。"
+  },
+  "ai": {
+    "offer": "この構成に自信がありませんか？{{provider}} が提案できます。",
+    "ask": "AI に聞く",
+    "working": "問い合わせ中…",
+    "outcome": {
+      "applied": "AI の提案を下に表示しています。続ける前に確認してください。",
+      "noAnswer": "AI はこのファイルを解釈できませんでした。下で列を選んでください。",
+      "failed": "AI に接続できませんでした。下で列を選んでください。"
+    },
+    "consentTitle": "{{provider}} にサンプルを送信しますか？",
+    "consentBody": "構成を提案するために、列名と下の行を {{provider}} に送信します。長い番号は末尾 4 桁に短縮されます。それ以外はこのデバイスから送信されません。",
+    "consentSend": "{{provider}} に送信"
+  },
+  "review": {
+    "title": "確認事項",
+    "intro": "ファイルの読み取り中に気づいた点です。まだ何もインポートされていません。",
+    "blocked": "このファイルをインポートする前に、判断が必要な項目があります。",
+    "clear": "このインポートを妨げるものはありません。",
+    "clearWithWarnings_other": "このインポートを妨げるものはありません。確認しておきたい項目が {{count}} 件あります。",
+    "column": "列：{{name}}",
+    "line": "{{line}} 行目",
+    "noDescription": "説明なし",
+    "fix": "修正",
+    "skip": "除外",
+    "restore": "やはりインポートする",
+    "direction": "入金または出金",
+    "showAllRows": "{{total}} 行すべてを表示",
+    "skipAll": "{{total}} 行すべてを除外",
+    "changes": {
+      "title": "変更内容",
+      "fixed": "{{line}} 行目：修正済み",
+      "skipped": "{{line}} 行目：除外",
+      "kept": "{{line}} 行目：インポートする",
+      "undo": "元に戻す"
+    },
+    "checking": "インポート済みの行、重複する行、振替を確認しています…",
+    "checkFailed": "インポート済みの内容と照合できませんでした。",
+    "duplicates": {
+      "title": "複数回出てくる行",
+      "help": "チェックを外さない限り、すべての行がインポートされます。同じ日のコーヒー 2 杯は 2 行ですが、銀行が重複して出力した行は 1 行です。",
+      "group": "同一の行が {{copies}} 件：{{date}} · {{description}} · {{amount}}",
+      "copy": "{{line}} 行目をインポート"
+    },
+    "transfers": {
+      "title": "口座間の振替",
+      "help": "チェックした組は振替としてインポートされ、収入にも支出にも数えられません。チェックを外すと、両方の行をそのままインポートします。",
+      "leg": "{{account}} · {{date}}",
+      "legExisting": "{{account}} · {{date}} · インポート済み",
+      "importAsTransfer": "「{{description}}」を振替としてインポート",
+      "match": "一致度 {{percent}}",
+      "possible": "可能性あり · {{percent}}",
+      "refunds_other": "返金を {{count}} 件検出しました。",
+      "ruleTyped_other": "{{count}} 行をルールで分類しました。"
+    },
+    "coverage": {
+      "title": "インポート済みの内容との比較",
+      "stored_other": "この口座にはすでに {{count}} 件の取引があります（{{from}} ～ {{to}}）。",
+      "none": "この口座にはまだ何もインポートされていません。"
+    },
+    "assumptions": {
+      "title": "推測した内容",
+      "account": "口座：{{account}}",
+      "chosenByYou": "ご自身で選択",
+      "change": "変更",
+      "none": "推測した内容はありません。"
+    },
+    "hint": "続けるには、読み取れない行を修正するか除外してください。"
+  },
+  "blockers": {
+    "missing": "次の項目の列を選んでください：{{parts}}。",
+    "blockedRows_other": "{{count}} 行が読み取れません。修正するか除外してください。",
+    "accounts": "口座を選択または確認してください。",
+    "confirm": "ファイルの読み取り方を確認してください。",
+    "noRows": "このファイルにインポートできるものは残っていません。"
+  },
+  "summary": {
+    "title": "概要",
+    "sameFormat": "前回と同じ形式です（「{{name}}」）。対応が必要な項目はありません。",
+    "reviewDetails": "詳細を確認",
+    "failed": "インポートは完了せず、何も変更されていません。{{error}}",
+    "blockedTitle": "インポートの前に",
+    "goThere": "移動する",
+    "nothingNew_other": "このファイルの {{count}} 行はすべてインポート済みです。新しく追加するものはありません。",
+    "nothingLeft": "このファイルにインポートできるものは残っていません。",
+    "into_other": "取り込み先の口座",
+    "toImport": "新しい取引",
+    "rowsInFile": "ファイルの行数",
+    "alreadyImported": "インポート済み",
+    "leftOut": "除外",
+    "dates": "期間",
+    "transfers": "振替",
+    "refunds": "返金",
+    "remember": "この形式を記憶する",
+    "rememberHelp": "次回、同じようなファイルはこの概要に直接進みます。",
+    "rememberHelpKnown": "保存済みの形式に、今回の変更を反映します。",
+    "formatName": "形式の名前",
+    "import_other": "{{count}} 件の取引をインポート",
+    "checking": "確認しています…"
+  },
+  "done": {
+    "title": "インポートが完了しました",
+    "total_other": "{{count}} 件の取引をインポートしました。",
+    "totalNone": "新しい取引はインポートされませんでした。",
+    "inserted_other": "{{count}} 件の取引をインポート",
+    "nothingNew": "このファイルに新しい取引はありません",
+    "skippedFile": "このファイルはスキップしました",
+    "duplicates_other": "{{count}} 行はインポート済みのため除外しました",
+    "skipped_other": "{{count}} 行を除外しました",
+    "transfers_other": "口座間の振替 {{count}} 件",
+    "refunds_other": "返金を {{count}} 件検出",
+    "ruleTyped_other": "{{count}} 行をルールで分類",
+    "viewTransactions": "取引を表示",
+    "importAnother": "別のファイルをインポート",
+    "undo": "元に戻す",
+    "undoHelp": "気が変わりましたか？インポートは「履歴と形式」から取り消せます。"
+  },
+  "leave": {
+    "title": "このインポートを破棄しますか？",
+    "body": "追加したファイルはまだインポートされていません。",
+    "bodyPartly_other": "{{count}} 件のファイルはインポート済みで、そのまま残ります。残りはまだインポートされていません。",
+    "stay": "インポートを続ける",
+    "discard": "破棄"
   }
 }

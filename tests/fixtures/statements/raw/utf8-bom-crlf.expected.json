@@ -1,0 +1,27 @@
+{
+  "file": "utf8-bom-crlf.csv",
+  "description": "UTF-8 with a byte-order mark (EF BB BF) and CRLF line endings, as spreadsheet programs on Windows save it; an accented character and a quoted comma. Written byte by byte with a Node script (Buffer.concat of the mark and the CRLF-joined lines). Synthetic rows.",
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "format": "delimited",
+    "encoding": "utf-8",
+    "delimiter": ",",
+    "headerLine": 1,
+    "columns": [
+      "Date",
+      "Description",
+      "Amount"
+    ],
+    "rows": 2,
+    "notes": [],
+    "fingerprint": "delimited:date|description|amount"
+  },
+  "analysis": {
+    "readyRows": 2,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-02",
+    "moneyIn": 19.99,
+    "moneyOut": 4.5
+  }
+}

@@ -31,6 +31,7 @@ import {
   RequestQuote as LoansIcon,
   Savings as BudgetIcon,
   Settings as SettingsIcon,
+  UploadFile as ImportIcon,
 } from '@mui/icons-material';
 
 import { useAiPanel } from '@/components/ai/AiPanelProvider';
@@ -43,6 +44,7 @@ export type PageId =
   | 'accounts'
   | 'loans'
   | 'transactions'
+  | 'import'
   | 'subscriptions'
   | 'notifications'
   | 'sql-query'
@@ -81,6 +83,7 @@ const BudgetPage = lazy(() => import('@/components/budget/BudgetPage'));
 const ManageAccountsPage = lazy(() => import('@/components/accounts/ManageAccounts'));
 const LoansPage = lazy(() => import('@/components/loans/LoansPage'));
 const TransactionReportPage = lazy(() => import('@/components/transactions/TransactionReport'));
+const ImportPage = lazy(() => import('@/components/import-wizard/ImportPage'));
 const SubscriptionsPage = lazy(() => import('@/components/subscriptions/SubscriptionsPage'));
 const NotificationsPage = lazy(() => import('@/components/notifications/NotificationsPage'));
 const SQLQueryPage = lazy(() => import('@/components/sql-query/SQLQueryPage'));
@@ -162,6 +165,21 @@ export const PAGE_DEFINITIONS: readonly PageDefinition[] = [
     mobileNav: true,
     testId: 'nav-transactions',
     render: () => <TransactionReportPage />,
+  },
+  {
+    // The Import Wizard: a full-screen task, opened from the "Import" quick
+    // action rather than listed among the pages.
+    id: 'import',
+    label: 'Import',
+    icon: ImportIcon,
+    section: 'main',
+    order: 65,
+    hiddenFromNav: true,
+    fullScreen: true,
+    testId: 'nav-import',
+    render: ({ goBack, navigate }) => (
+      <ImportPage onClose={goBack} onViewTransactions={() => navigate('transactions')} />
+    ),
   },
   {
     id: 'subscriptions',

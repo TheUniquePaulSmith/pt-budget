@@ -34,13 +34,15 @@ describe('pageRegistry', () => {
     expect(getNavigationPages().map((page) => page.id)).toContain('notifications');
   });
 
-  it('keeps settings and the developer console out of the page list as full-screen pages', () => {
-    for (const id of ['settings', 'developer-console'] as const) {
+  it('keeps settings, the developer console and the import page out of the page list as full-screen pages', () => {
+    for (const id of ['settings', 'developer-console', 'import'] as const) {
       const page = getPage(id);
       expect(page.hiddenFromNav).toBe(true);
       expect(page.fullScreen).toBe(true);
     }
     expect(getNavigationPages().map((page) => page.id)).not.toContain('settings');
+    expect(getNavigationPages().map((page) => page.id)).not.toContain('import');
+    expect(getPage('import').label).toBe('Import');
   });
 
   it('orders navigation pages and preserves the historical labels the e2e suite clicks', () => {

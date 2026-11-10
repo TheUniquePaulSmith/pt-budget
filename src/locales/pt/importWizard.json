@@ -1,0 +1,12 @@
+{
+  "page": {
+    "title": "Importar transações",
+    "close": "Fechar importação",
+    "views": "Visualizações de importação",
+    "viewWizard": "Importar",
+    "viewManage": "Histórico e formatos"
+  },
+  "placeholder": {
+    "wizard": "A importação guiada ainda não está disponível. Por enquanto, use Importar CSV."
+  }
+}

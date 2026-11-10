@@ -1,0 +1,5 @@
+# Statement-import fixtures are byte-exact: their encoding, byte-order mark and
+# line endings are what the readers are tested against, so git must not
+# normalise them (see tests/fixtures/statements/README.md).
+tests/fixtures/statements/raw/** -text
+tests/fixtures/statements/layouts/** -text

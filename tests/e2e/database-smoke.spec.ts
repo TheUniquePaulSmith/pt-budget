@@ -86,13 +86,20 @@ test('@smoke creates and reopens the browser-backed database', async ({ page }) 
   // A brand-new database is stamped with the current schema version and gets
   // every CREATE_TABLES entry (createTables iterates the schema export, so a
   // table added to the schema file cannot be missed on fresh databases).
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('6');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('7');
   expect(
     await runQueryAndReadFirstCell(
       page,
-      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('notifications', 'notification_settings', 'ai_tool_packs', 'ai_tool_settings', 'classification_rules', 'loans', 'loan_match_rules', 'loan_payments', 'exchange_rates')"
+      "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('notifications', 'notification_settings', 'ai_tool_packs', 'ai_tool_settings', 'classification_rules', 'loans', 'loan_match_rules', 'loan_payments', 'exchange_rates', 'import_profiles', 'account_identifiers')"
     )
-  ).toBe('9');
+  ).toBe('11');
+  // Version 7: what each import run was read with and found.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('import_batches') WHERE name IN ('profile_id', 'file_format', 'issues_json')"
+    )
+  ).toBe('3');
   expect(
     await runQueryAndReadFirstCell(page, "SELECT COUNT(*) FROM pragma_table_info('accounts') WHERE name = 'currency'")
   ).toBe('1');

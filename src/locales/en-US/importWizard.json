@@ -1,0 +1,12 @@
+{
+  "page": {
+    "title": "Import transactions",
+    "close": "Close import",
+    "views": "Import views",
+    "viewWizard": "Import",
+    "viewManage": "History & formats"
+  },
+  "placeholder": {
+    "wizard": "The guided import is not available yet. Use Import CSV for now."
+  }
+}

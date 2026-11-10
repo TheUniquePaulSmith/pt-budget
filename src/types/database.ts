@@ -196,6 +196,64 @@ export interface ImportBatch {
   rejected_count: number;
   min_date: string | null;
   max_date: string | null;
+  /** Schema v7: the saved layout the file was read with. */
+  profile_id: number | null;
+  /** Schema v7: 'delimited' | 'ofx'; null on rows written before v7. */
+  file_format: string | null;
+  /** Schema v7: `ImportIssuesSummary` (src/lib/statementImport/types.ts) as JSON. */
+  issues_json: string | null;
+  // Joined fields from the import history query
+  profile_name?: string | null;
+}
+
+/**
+ * A saved layout for one bank's file shape (schema v7), so a repeat import
+ * needs no mapping. `config_json` is an `ImportProfileConfig`; the imports
+ * service hands out the parsed form (`SavedImportProfile`).
+ */
+export interface ImportProfile {
+  id: number;
+  name: string;
+  format: 'delimited' | 'ofx';
+  /** Header signature (delimited) or institution + account type (ofx); not unique. */
+  fingerprint: string;
+  institution: string | null;
+  /** The account files of this shape were last imported into; null = ask. */
+  account_id: number | null;
+  config_json: string;
+  use_count: number;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields from SQL queries
+  account_name?: string | null;
+}
+
+/**
+ * What a statement file calls an account (schema v7), for any account type;
+ * cards stay in `account_cards`. `number`: `value` is the digits as exported
+ * and `last_four` their last four. `label`: `value` is lower-cased text and
+ * `last_four` is null.
+ */
+export interface AccountIdentifier {
+  id: number;
+  account_id: number;
+  kind: 'number' | 'label';
+  value: string;
+  last_four: string | null;
+  /** 'import': remembered when the user confirmed an account for a file. */
+  source: 'import' | 'manual';
+  created_at: string;
+  // Joined fields from SQL queries
+  account_name?: string;
+}
+
+export interface AccountIdentifierInput {
+  account_id: number;
+  kind: AccountIdentifier['kind'];
+  /** As printed in the file; the service normalises it. */
+  value: string;
+  source?: AccountIdentifier['source'];
 }
 
 /** Statement balance for accounts valued rather than transacted (investment, retirement, loan). */

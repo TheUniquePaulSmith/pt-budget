@@ -19,6 +19,7 @@ export { BUDGET_FUND_QUERIES } from './sqlQueriesBudgetFunds';
 export { CLASSIFICATION_QUERIES } from './sqlQueriesClassification';
 export { LOAN_QUERIES } from './sqlQueriesLoans';
 export { EXCHANGE_RATE_QUERIES } from './sqlQueriesPreferences';
+export { IMPORT_QUERIES } from './sqlQueriesImports';
 
 // Transaction Queries
 export const TRANSACTION_QUERIES = {

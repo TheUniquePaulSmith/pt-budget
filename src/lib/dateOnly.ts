@@ -9,7 +9,7 @@
 
 import { format, isValid, parse } from 'date-fns';
 
-import { type CsvDateOrder, csvDateFormatsFor } from './dateOnly.csvFormats';
+import { type CsvDateOrder, csvDateFormatsFor, csvDateFormatsStrict } from './dateOnly.csvFormats';
 
 export type { CsvDateOrder };
 
@@ -78,9 +78,15 @@ export interface ParseCsvDateOptions {
    * the CSV importer passes `csvDateOrderFor(language)` from src/lib/i18n.ts.
    */
   order?: CsvDateOrder;
+  /**
+   * Read numeric dates with `order` only, never falling back to the other
+   * day/month convention (the Import Wizard, which fixes one order per file).
+   * Off by default: the legacy importer tries the other order per row.
+   */
+  strict?: boolean;
 }
 
-export function parseCsvDate(raw: unknown, { order = 'MDY' }: ParseCsvDateOptions = {}): string | null {
+export function parseCsvDate(raw: unknown, { order = 'MDY', strict = false }: ParseCsvDateOptions = {}): string | null {
   if (raw == null) return null;
   const text = String(raw).trim().replace(/^["']|["']$/g, '').trim();
   if (!text) return null;
@@ -93,7 +99,7 @@ export function parseCsvDate(raw: unknown, { order = 'MDY' }: ParseCsvDateOption
   if (isDateOnly(text)) return text;
 
   const reference = new Date(2000, 0, 1);
-  for (const pattern of csvDateFormatsFor(order)) {
+  for (const pattern of strict ? csvDateFormatsStrict(order) : csvDateFormatsFor(order)) {
     const parsed = parse(text, pattern, reference);
     if (isValid(parsed)) {
       const year = parsed.getFullYear();

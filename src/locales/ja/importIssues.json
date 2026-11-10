@@ -1,0 +1,7 @@
+{
+  "severity": {
+    "blocker": "判断が必要",
+    "warning": "確認をおすすめ",
+    "info": "参考情報"
+  }
+}

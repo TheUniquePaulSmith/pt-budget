@@ -1,5 +1,123 @@
 {
-  "placeholder": {
-    "body": "가져오기 기록과 저장된 형식은 아직 사용할 수 없습니다."
+  "page": {
+    "startImport": "가져오기 시작",
+    "loadFailed": "이 목록을 불러올 수 없습니다.",
+    "tryAgain": "다시 시도",
+    "deletedAccount": "삭제된 계좌"
+  },
+  "empty": {
+    "title": "아직 가져온 항목이 없습니다",
+    "body": "처음 가져온 후에는 이 페이지에 다음 내용이 표시됩니다.",
+    "history": "가져오기 기록: 가져온 각 파일, 추가된 내용, 실행 취소 방법.",
+    "formats": "저장된 형식: 각 은행 파일을 읽는 방법. 다음 파일은 설정이 필요 없습니다.",
+    "identifiers": "계좌 번호와 이름: 파일에서 각 계좌를 부르는 방식. 올바른 계좌를 제안하는 데 사용됩니다."
+  },
+  "history": {
+    "title": "가져오기 기록",
+    "description": "가져온 각 파일을 최신순으로 표시합니다. 가져오기를 실행 취소하면 추가된 거래가 제거됩니다.",
+    "empty": "아직 가져오기가 없습니다. 가져온 각 파일은 추가된 내용과 함께 여기에 표시되며 실행 취소할 수 있습니다.",
+    "unnamedFile": "이름 없는 파일",
+    "noAccount": "기록된 계좌 없음",
+    "dateRange": "{{from}}부터 {{to}}까지의 거래",
+    "singleDate": "{{date}}의 거래",
+    "noDates": "추가된 거래가 없습니다",
+    "counts": {
+      "imported": "가져옴",
+      "duplicates": "이미 있음",
+      "skipped": "건너뜀",
+      "rejected": "읽을 수 없음"
+    },
+    "format": {
+      "delimited": "텍스트 파일(CSV)",
+      "ofx": "OFX / QFX 파일"
+    },
+    "savedFormat": "저장된 형식: {{name}}",
+    "findingsLabel": "확인 결과",
+    "finding": "{{title}}: {{count}}",
+    "findingLabels": {
+      "referenceNotUnique": "은행 참조 번호를 중복 확인에 사용하지 않음",
+      "currencyMismatch": "계좌와 통화가 다른 행",
+      "columnNotImported": "가져오지 않은 열"
+    },
+    "assumptions": "확인한 가정: {{count}}",
+    "fixedRows": "직접 수정한 행: {{count}}",
+    "noFindings": "주의할 사항이 없었습니다",
+    "undo": "이 가져오기 실행 취소",
+    "showAll": "모든 가져오기 표시({{count}})",
+    "showFewer": "간략히 보기",
+    "undone": "{{file}} 가져오기를 실행 취소했습니다. 제거된 거래: {{count}}.",
+    "undoneScanFailed": "가져오기는 실행 취소되었지만 구독을 다시 확인하지 못했습니다. 구독을 열고 다시 스캔을 선택하세요."
+  },
+  "undo": {
+    "title": "이 가져오기를 실행 취소하시겠습니까?",
+    "summary": "{{file}}, {{when}}에 가져옴",
+    "loading": "이 가져오기로 추가된 내용을 확인하는 중…",
+    "intro": "실행 취소하면 이 가져오기로 추가된 모든 항목이 제거됩니다.",
+    "transactions": "거래",
+    "edited": "가져온 후 직접 변경한 거래",
+    "loanPayments": "대출 상환",
+    "transferPairs": "이체 쌍",
+    "editedWarning": "가져온 후 이 거래에 지정한 카테고리, 메모 및 기타 변경 사항이 사라집니다.",
+    "transferNote": "각 이체의 상대 거래는 남아 있으며 수입 또는 지출로 돌아갑니다. 유형을 직접 지정한 경우에는 그대로 유지됩니다.",
+    "afterwards": "이후 대출 잔액과 구독이 다시 계산됩니다.",
+    "irreversible": "이 작업은 되돌릴 수 없습니다. 거래를 복구하려면 파일을 다시 가져오세요.",
+    "confirm": "가져오기 실행 취소",
+    "undoing": "실행 취소하는 중…",
+    "impactFailed": "이 가져오기로 추가된 내용을 확인할 수 없어 지금은 실행 취소할 수 없습니다.",
+    "errors": {
+      "generic": "가져오기를 실행 취소하지 못했습니다. 다시 시도하세요. 계속 실패하면 설정의 개발자 콘솔에서 원인을 확인할 수 있습니다.",
+      "notReady": "데이터베이스가 아직 시작되는 중입니다. 잠시 후 다시 시도하세요.",
+      "IMPORT_BATCH_NOT_FOUND": "이 가져오기는 더 이상 기록에 없습니다. 다른 탭 등에서 이미 실행 취소되었을 수 있습니다."
+    }
+  },
+  "formats": {
+    "title": "저장된 형식",
+    "description": "각 은행 파일을 읽는 방법이며 계좌별로 저장됩니다. 해당 계좌용으로 저장된 형식의 파일은 설정 단계를 건너뜁니다.",
+    "empty": "아직 저장된 형식이 없습니다. 가져오기에서 파일 구성을 기억하면 해당 형식이 여기에 보관되어 같은 은행의 다음 파일은 설정이 필요 없습니다.",
+    "fileType": {
+      "delimited": "텍스트 파일(CSV)",
+      "ofx": "OFX / QFX 파일"
+    },
+    "account": "가져올 계좌: {{account}}",
+    "noAccount": "매번 계좌를 묻습니다",
+    "lastUsed": "마지막 사용: {{date}}",
+    "neverUsed": "아직 사용 안 함",
+    "useCount": "사용 횟수: {{count}}",
+    "edit": "{{name}} 형식 편집",
+    "delete": "{{name}} 형식 삭제",
+    "editDialog": {
+      "title": "저장된 형식 편집",
+      "name": "형식 이름",
+      "nameRequired": "이 형식의 이름을 입력하세요.",
+      "account": "계좌",
+      "askEachTime": "매번 묻기",
+      "accountHelp": "이 형식의 파일은 이 계좌에 대해서는 설정 단계를 건너뜁니다. 다른 계좌의 경우 먼저 읽는 방법을 확인합니다.",
+      "saveFailed": "형식을 저장하지 못했습니다. 다시 시도하세요."
+    },
+    "deleteDialog": {
+      "title": "이 저장된 형식을 삭제하시겠습니까?",
+      "body": "'{{name}}' 형식이 삭제됩니다. 다음에 이런 파일을 가져올 때 읽는 방법을 다시 묻습니다.",
+      "note": "이미 가져온 거래에는 영향이 없습니다.",
+      "confirm": "형식 삭제",
+      "failed": "형식을 삭제하지 못했습니다. 다시 시도하세요."
+    }
+  },
+  "identifiers": {
+    "title": "계좌 번호와 이름",
+    "description": "은행 파일에서 각 계좌를 부르는 방식입니다. 가져오기에서 파일이 어느 계좌에 속하는지 판단하는 데 사용됩니다.",
+    "empty": "아직 기억된 항목이 없습니다. 파일이 어느 계좌에 속하는지 확인하면 파일에서 사용하는 번호나 이름이 여기에 보관됩니다.",
+    "numberEnding": "끝자리가 {{lastFour}}인 번호",
+    "shortNumber": "짧은 번호(숨김)",
+    "label": "파일의 이름: '{{text}}'",
+    "fromImport": "{{date}} 가져오기에서 기억됨",
+    "manual": "{{date}}에 직접 추가됨",
+    "remove": "{{account}}에서 {{identifier}} 제거",
+    "cardsNote": "카드 번호는 계좌 페이지에서 각 계좌와 함께 관리됩니다.",
+    "removeDialog": {
+      "title": "{{account}}에서 제거하시겠습니까?",
+      "body": "{{identifier}} 항목이 더 이상 {{account}} 계좌를 가리키지 않습니다. 이를 사용하는 다음 파일은 어느 계좌에 속하는지 묻습니다.",
+      "confirm": "제거",
+      "failed": "제거하지 못했습니다. 다시 시도하세요."
+    }
   }
 }

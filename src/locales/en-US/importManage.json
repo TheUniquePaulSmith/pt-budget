@@ -1,5 +1,123 @@
 {
-  "placeholder": {
-    "body": "Import history and saved formats are not available yet."
+  "page": {
+    "startImport": "Start an import",
+    "loadFailed": "This list could not be loaded.",
+    "tryAgain": "Try again",
+    "deletedAccount": "Deleted account"
+  },
+  "empty": {
+    "title": "Nothing imported yet",
+    "body": "After your first import, this page shows:",
+    "history": "Import history: every file you imported, what it added, and a way to undo it.",
+    "formats": "Saved formats: how each bank's file is read, so the next one needs no setup.",
+    "identifiers": "Account numbers and names: what your files call each account, so the right one is suggested."
+  },
+  "history": {
+    "title": "Import history",
+    "description": "Every file you imported, newest first. Undoing an import removes the transactions it added.",
+    "empty": "No imports yet. Each file you import is listed here with what it added, and can be undone.",
+    "unnamedFile": "Unnamed file",
+    "noAccount": "No account recorded",
+    "dateRange": "Transactions from {{from}} to {{to}}",
+    "singleDate": "Transactions on {{date}}",
+    "noDates": "No transactions were added",
+    "counts": {
+      "imported": "Imported",
+      "duplicates": "Already there",
+      "skipped": "Skipped",
+      "rejected": "Unreadable"
+    },
+    "format": {
+      "delimited": "Text file (CSV)",
+      "ofx": "OFX / QFX file"
+    },
+    "savedFormat": "Saved format: {{name}}",
+    "findingsLabel": "What the check found",
+    "finding": "{{title}}: {{count}}",
+    "findingLabels": {
+      "referenceNotUnique": "Bank reference not used to spot duplicates",
+      "currencyMismatch": "Rows in a different currency from the account",
+      "columnNotImported": "Columns not imported"
+    },
+    "assumptions": "Assumptions confirmed: {{count}}",
+    "fixedRows": "Rows corrected by hand: {{count}}",
+    "noFindings": "Nothing needed attention",
+    "undo": "Undo this import",
+    "showAll": "Show all imports ({{count}})",
+    "showFewer": "Show fewer",
+    "undone": "The import of {{file}} was undone. Transactions removed: {{count}}.",
+    "undoneScanFailed": "The import was undone, but subscriptions could not be checked again. Open Subscriptions and choose Rescan."
+  },
+  "undo": {
+    "title": "Undo this import?",
+    "summary": "{{file}}, imported {{when}}",
+    "loading": "Working out what this import added…",
+    "intro": "Undoing removes everything this import added:",
+    "transactions": "Transactions",
+    "edited": "Changed by you since the import",
+    "loanPayments": "Loan payments",
+    "transferPairs": "Transfer pairs",
+    "editedWarning": "Categories, notes and other changes you made to these transactions after the import will be lost.",
+    "transferNote": "The other side of each transfer stays. It goes back to income or expense, unless you set its type yourself.",
+    "afterwards": "Loan balances and subscriptions are worked out again afterwards.",
+    "irreversible": "This cannot be reversed. To get the transactions back, import the file again.",
+    "confirm": "Undo import",
+    "undoing": "Undoing…",
+    "impactFailed": "Could not work out what this import added, so it cannot be undone right now.",
+    "errors": {
+      "generic": "The import could not be undone. Try again; if it keeps failing, the Developer Console in Settings shows what went wrong.",
+      "notReady": "The database is still starting. Try again in a moment.",
+      "IMPORT_BATCH_NOT_FOUND": "This import is no longer in the history. It may already have been undone, for example in another tab."
+    }
+  },
+  "formats": {
+    "title": "Saved formats",
+    "description": "How each bank's file is read, saved per account. A file in a format saved for its account skips the setup steps.",
+    "empty": "No saved formats yet. When an import remembers how a file is laid out, the format is kept here, so the next file from that bank needs no setup.",
+    "fileType": {
+      "delimited": "Text file (CSV)",
+      "ofx": "OFX / QFX file"
+    },
+    "account": "Goes into: {{account}}",
+    "noAccount": "Asks which account each time",
+    "lastUsed": "Last used: {{date}}",
+    "neverUsed": "Not used yet",
+    "useCount": "Times used: {{count}}",
+    "edit": "Edit format {{name}}",
+    "delete": "Delete format {{name}}",
+    "editDialog": {
+      "title": "Edit saved format",
+      "name": "Format name",
+      "nameRequired": "Enter a name for this format.",
+      "account": "Account",
+      "askEachTime": "Ask each time",
+      "accountHelp": "Files in this format skip the setup steps for this account. For another account, the import checks how to read them first.",
+      "saveFailed": "The format could not be saved. Try again."
+    },
+    "deleteDialog": {
+      "title": "Delete this saved format?",
+      "body": "\"{{name}}\" will be forgotten. The next time you import a file like this, the import will ask how to read it again.",
+      "note": "Transactions you already imported are not affected.",
+      "confirm": "Delete format",
+      "failed": "The format could not be deleted. Try again."
+    }
+  },
+  "identifiers": {
+    "title": "Account numbers and names",
+    "description": "What your bank's files call each account. The import uses these to work out which account a file belongs to.",
+    "empty": "Nothing remembered yet. When you confirm which account a file belongs to, the number or name the file uses is kept here.",
+    "numberEnding": "Number ending in {{lastFour}}",
+    "shortNumber": "Short number (hidden)",
+    "label": "Name in the file: \"{{text}}\"",
+    "fromImport": "Remembered from an import on {{date}}",
+    "manual": "Added by hand on {{date}}",
+    "remove": "Remove {{identifier}} from {{account}}",
+    "cardsNote": "Card numbers are kept with each account on the Accounts page.",
+    "removeDialog": {
+      "title": "Remove from {{account}}?",
+      "body": "{{identifier}} will no longer point to {{account}}. The next file that uses it will ask which account it belongs to.",
+      "confirm": "Remove",
+      "failed": "It could not be removed. Try again."
+    }
   }
 }

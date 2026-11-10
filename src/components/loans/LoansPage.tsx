@@ -167,10 +167,14 @@ export default function LoansPage() {
     }
   }, [applyLoanRules, t]);
 
+  // The loan and project cells are two lines, so the grid sizes rows to their
+  // content (getRowHeight below) and every column is a flex cell that centres
+  // its content in the taller row.
   const columns = useMemo<GridColDef<Loan>[]>(
     () => [
       {
         field: 'name',
+        display: 'flex',
         headerName: t('page.columnLoan'),
         flex: 1.4,
         minWidth: 200,
@@ -179,15 +183,17 @@ export default function LoansPage() {
             <Typography variant="body2" fontWeight={600} noWrap>
               {params.row.name}
             </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap display="block">
+            {/* Wraps rather than truncates: the row grows to fit it. */}
+            <Typography variant="caption" color="text.secondary" display="block">
               {[params.row.lender, loanTypeLabel(t, params.row.loan_type)].filter(Boolean).join(' · ')}
             </Typography>
           </Box>
         ),
       },
-      { field: 'owner_display_name', headerName: t('page.columnOwner'), minWidth: 120, flex: 0.6 },
+      { field: 'owner_display_name', headerName: t('page.columnOwner'), minWidth: 120, flex: 0.6, display: 'flex' },
       {
         field: 'project_name',
+        display: 'flex',
         headerName: t('page.columnProject'),
         minWidth: 150,
         flex: 0.9,
@@ -198,7 +204,7 @@ export default function LoansPage() {
                 {params.row.project_name}
               </Typography>
               {params.row.project_company_name && (
-                <Typography variant="caption" color="text.secondary" noWrap display="block">
+                <Typography variant="caption" color="text.secondary" display="block">
                   {params.row.project_company_name}
                 </Typography>
               )}
@@ -211,6 +217,7 @@ export default function LoansPage() {
       },
       {
         field: 'balance',
+        display: 'flex',
         headerName: t('page.columnBalance'),
         width: 130,
         align: 'right',
@@ -228,6 +235,7 @@ export default function LoansPage() {
       },
       {
         field: 'expected_payment',
+        display: 'flex',
         headerName: t('page.columnPayment'),
         width: 120,
         align: 'right',
@@ -236,6 +244,7 @@ export default function LoansPage() {
       },
       {
         field: 'next_due',
+        display: 'flex',
         headerName: t('page.columnNextDue'),
         width: 120,
         valueGetter: (_, row) => summaries[row.id]?.nextDueDate ?? null,
@@ -243,6 +252,7 @@ export default function LoansPage() {
       },
       {
         field: 'pay_by',
+        display: 'flex',
         headerName: t('page.columnPayBy'),
         width: 170,
         valueGetter: (_, row) => row.promo_end_date ?? null,
@@ -271,6 +281,7 @@ export default function LoansPage() {
       },
       {
         field: 'status',
+        display: 'flex',
         headerName: t('page.columnStatus'),
         width: 110,
         renderCell: (params) => {
@@ -280,6 +291,7 @@ export default function LoansPage() {
       },
       {
         field: 'actions',
+        display: 'flex',
         headerName: '',
         width: 130,
         sortable: false,
@@ -366,6 +378,7 @@ export default function LoansPage() {
               columns={columns}
               height={Math.min(loans.length * 60 + 130, 640)}
               hideFooter={loans.length <= 25}
+              getRowHeight={() => 'auto'}
               onRowClick={(params) => setDetailLoanId(params.row.id)}
               disableVirtualization={process.env.NODE_ENV === 'test'}
               sx={{ '& .MuiDataGrid-row': { cursor: 'pointer' } }}

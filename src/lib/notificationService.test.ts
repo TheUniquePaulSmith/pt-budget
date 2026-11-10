@@ -542,14 +542,33 @@ describe('createRescanController', () => {
 describe('selectOsNotifiable', () => {
   it('fires once per row per session and at most once per day', () => {
     const all = settings({ custom: { os_notify: 1 }, birthday: { os_notify: 0 } });
+    // ISO "…Z" values for 8 am local time today and yesterday, whatever zone the suite runs in.
+    const firedToday = new Date(2026, 9, 24, 8).toISOString();
+    const firedYesterday = new Date(2026, 9, 23, 8).toISOString();
     const classified = [
       classifyNotification(notification({ id: 1, due_date: TODAY }), all, TODAY),
-      classifyNotification(notification({ id: 2, due_date: TODAY, last_notified_at: '2026-10-24T08:00:00.000Z' }), all, TODAY),
-      classifyNotification(notification({ id: 3, due_date: TODAY, last_notified_at: '2026-10-23T08:00:00.000Z' }), all, TODAY),
+      classifyNotification(notification({ id: 2, due_date: TODAY, last_notified_at: firedToday }), all, TODAY),
+      classifyNotification(notification({ id: 3, due_date: TODAY, last_notified_at: firedYesterday }), all, TODAY),
       classifyNotification(notification({ id: 4, due_date: TODAY, type: 'birthday' }), all, TODAY),
       classifyNotification(notification({ id: 5, due_date: TODAY }), all, TODAY),
     ];
     const fired = new Set([5]);
     expect(selectOsNotifiable(classified, all, fired, TODAY).map((entry) => entry.notification.id)).toEqual([1, 3]);
+  });
+
+  it('decides "already fired today" by the local day of the UTC timestamp SQLite stored', () => {
+    // `last_notified_at` is written with CURRENT_TIMESTAMP: UTC text, no zone marker, while
+    // `today` is the device's calendar day. The stored values are built from local wall-clock
+    // times so the expectation is the same in every time zone (late evening / just after
+    // midnight are the hours where the UTC day and the local day differ on most machines).
+    const sqliteUtc = (local: Date) => local.toISOString().slice(0, 19).replace('T', ' ');
+    const all = settings({ custom: { os_notify: 1 } });
+    const classified = [
+      classifyNotification(notification({ id: 1, due_date: TODAY, last_notified_at: sqliteUtc(new Date(2026, 9, 23, 23, 30)) }), all, TODAY),
+      classifyNotification(notification({ id: 2, due_date: TODAY, last_notified_at: sqliteUtc(new Date(2026, 9, 24, 0, 30)) }), all, TODAY),
+      classifyNotification(notification({ id: 3, due_date: TODAY, last_notified_at: sqliteUtc(new Date(2026, 9, 24, 23, 30)) }), all, TODAY),
+      classifyNotification(notification({ id: 4, due_date: TODAY, last_notified_at: 'not a timestamp' }), all, TODAY),
+    ];
+    expect(selectOsNotifiable(classified, all, new Set(), TODAY).map((entry) => entry.notification.id)).toEqual([1, 4]);
   });
 });

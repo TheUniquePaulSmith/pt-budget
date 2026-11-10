@@ -11,6 +11,8 @@ import {
   formatNumber,
   formatPercent,
   formatShortMonth,
+  formatTime,
+  storedTimestampToDate,
 } from './formatting';
 
 describe('formatting', () => {
@@ -136,5 +138,66 @@ describe('formatting', () => {
     expect(formatShortMonth(4)).toBe('Apr');
     expect(formatDateTime('2026-04-06T15:04:00')).toMatch(/Apr 6, 2026, 3:04\s?PM/);
     expect(formatDateTime(null)).toBe('');
+  });
+
+  // SQLite's CURRENT_TIMESTAMP writes UTC with no zone marker ("2026-11-10 22:12:32").
+  // These tests never assert a wall-clock text for such a value: that text depends on
+  // the zone of the machine running the suite. They compare with the same instant
+  // written as ISO "…Z" (formatted in the same zone, so equal on every machine) or
+  // check the instant itself. On a UTC machine the comparisons pass even with the bug,
+  // which is why the instant is also asserted directly.
+  describe('timestamps stored by SQLite (UTC, no zone marker)', () => {
+    const SQLITE = '2026-11-10 22:12:32';
+    const SAME_INSTANT_ISO = '2026-11-10T22:12:32Z';
+    const INSTANT_MS = Date.UTC(2026, 10, 10, 22, 12, 32);
+
+    it('formats a zone-less SQLite timestamp as the same instant as its ISO "Z" form', () => {
+      expect(formatDateTime(SQLITE)).toBe(formatDateTime(SAME_INSTANT_ISO));
+      expect(formatDateTime(SQLITE, { seconds: true })).toBe(formatDateTime(SAME_INSTANT_ISO, { seconds: true }));
+      expect(formatDateTime(SQLITE, { locale: 'de-DE' })).toBe(formatDateTime(SAME_INSTANT_ISO, { locale: 'de-DE' }));
+      expect(formatTime(SQLITE)).toBe(formatTime(SAME_INSTANT_ISO));
+      expect(formatTime(SQLITE, { seconds: true })).toBe(formatTime(SAME_INSTANT_ISO, { seconds: true }));
+    });
+
+    it('reads a zone-less SQLite timestamp as UTC, with or without seconds and fractions', () => {
+      expect(storedTimestampToDate(SQLITE)?.getTime()).toBe(INSTANT_MS);
+      expect(storedTimestampToDate('2026-11-10 22:12')?.getTime()).toBe(Date.UTC(2026, 10, 10, 22, 12));
+      expect(storedTimestampToDate('2026-11-10 22:12:32.5')?.getTime()).toBe(INSTANT_MS + 500);
+      expect(storedTimestampToDate('2026-11-10 22:12:32.123')?.getTime()).toBe(INSTANT_MS + 123);
+      expect(storedTimestampToDate('2026-11-10 22:12:32.123456')?.getTime()).toBe(INSTANT_MS + 123);
+      expect(storedTimestampToDate(' 2026-11-10 22:12:32 ')?.getTime()).toBe(INSTANT_MS);
+    });
+
+    it('leaves values that already say which instant they are untouched', () => {
+      expect(storedTimestampToDate(SAME_INSTANT_ISO)?.getTime()).toBe(INSTANT_MS);
+      expect(storedTimestampToDate('2026-11-10T22:12:32.000Z')?.getTime()).toBe(INSTANT_MS);
+      expect(storedTimestampToDate('2026-11-10T17:12:32-05:00')?.getTime()).toBe(INSTANT_MS);
+      expect(storedTimestampToDate('2026-11-11T07:12:32+09:00')?.getTime()).toBe(INSTANT_MS);
+      expect(storedTimestampToDate(INSTANT_MS)?.getTime()).toBe(INSTANT_MS);
+      const date = new Date(INSTANT_MS);
+      expect(storedTimestampToDate(date)).toBe(date);
+    });
+
+    it('keeps calendar dates and zone-less ISO "T" strings in local time', () => {
+      // A yyyy-MM-dd value is a calendar date: local midnight, as dateOnlyToLocalDate builds it.
+      const day = storedTimestampToDate('2026-04-06');
+      expect(day?.getTime()).toBe(new Date(2026, 3, 6).getTime());
+      expect(day?.getTime()).toBe(dateOnlyToLocalDate('2026-04-06')?.getTime());
+      // ECMAScript reads "yyyy-MM-ddTHH:mm:ss" without a zone as local time; SQLite never writes that shape.
+      expect(storedTimestampToDate('2026-04-06T15:04:00')?.getTime()).toBe(new Date(2026, 3, 6, 15, 4, 0).getTime());
+    });
+
+    it('returns null for missing or unreadable values, which the formatters print as they are', () => {
+      expect(storedTimestampToDate(null)).toBeNull();
+      expect(storedTimestampToDate(undefined)).toBeNull();
+      expect(storedTimestampToDate('')).toBeNull();
+      expect(storedTimestampToDate('not a timestamp')).toBeNull();
+      expect(storedTimestampToDate('2026-13-45 99:99:99')).toBeNull();
+      expect(storedTimestampToDate(Number.NaN)).toBeNull();
+      expect(storedTimestampToDate(new Date(Number.NaN))).toBeNull();
+      expect(formatDateTime('not a timestamp')).toBe('not a timestamp');
+      expect(formatTime('not a timestamp')).toBe('not a timestamp');
+      expect(formatTime(null)).toBe('');
+    });
   });
 });

@@ -20,8 +20,8 @@
 import type { TFunction } from 'i18next';
 
 import { DEFAULT_CURRENCY } from './currencies';
-import { addDaysISO, todayLocalISO } from './dateOnly';
-import { DEFAULT_LOCALE, formatMoney } from './formatting';
+import { addDaysISO, toLocalDateOnly, todayLocalISO } from './dateOnly';
+import { DEFAULT_LOCALE, formatMoney, storedTimestampToDate } from './formatting';
 import { i18n, intlLocaleFor, isLanguageCode } from './i18n';
 import { logger } from './logging';
 import { DEFAULT_NOTIFICATION_SETTINGS } from './databaseServiceNotifications';
@@ -961,8 +961,10 @@ export function selectOsNotifiable(
     const setting = settingFor(settings, entry.notification.type);
     if (!setting?.os_notify) return false;
     if (firedThisSession.has(entry.notification.id)) return false;
-    const last = entry.notification.last_notified_at;
-    return !last || last.slice(0, 10) < today;
+    // `last_notified_at` is SQLite UTC text and `today` is the device's calendar day:
+    // compare days in local time, not the first ten characters of the UTC text.
+    const last = storedTimestampToDate(entry.notification.last_notified_at);
+    return !last || toLocalDateOnly(last) < today;
   });
 }
 

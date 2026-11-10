@@ -226,14 +226,48 @@ export function formatShortMonth(month: number | Date, locale: string = DEFAULT_
   return getDateFormat(locale, { month: 'short' }).format(date);
 }
 
-/** Timestamps (ISO strings or epoch millis) with date and time. */
+const DATE_ONLY_EXACT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+/** `yyyy-MM-dd HH:mm[:ss[.fff…]]` with no zone marker: what SQLite's CURRENT_TIMESTAMP and datetime('now') write. */
+const SQLITE_UTC_TIMESTAMP_PATTERN = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(?::(\d{2})(?:\.(\d+))?)?$/;
+
+/**
+ * The instant a stored timestamp stands for, or null when it cannot be read.
+ *
+ * SQLite writes `CURRENT_TIMESTAMP` columns (`created_at`, `updated_at`, …) as
+ * UTC text without a zone marker ("2026-11-10 22:12:32"). `new Date(text)` reads
+ * that shape as local time, which moves it by the device's UTC offset, so it is
+ * read as UTC here. Everything that already says which instant it is passes
+ * through unchanged: a Date, epoch millis, an ISO string with `Z` or an offset.
+ * A bare `yyyy-MM-dd` is a calendar date and stays local (`dateOnlyToLocalDate`);
+ * a zone-less ISO string with a `T` keeps its ECMAScript meaning (local time).
+ */
+export function storedTimestampToDate(value: string | number | Date | null | undefined): Date | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'string') {
+    const text = value.trim();
+    if (DATE_ONLY_EXACT_PATTERN.test(text)) return dateOnlyToLocalDate(text);
+    const sqlite = SQLITE_UTC_TIMESTAMP_PATTERN.exec(text);
+    if (sqlite) {
+      const [, day, hourMinute, second = '00', fraction = ''] = sqlite;
+      const millis = fraction.slice(0, 3).padEnd(3, '0');
+      const utc = new Date(`${day}T${hourMinute}:${second}.${millis}Z`);
+      return Number.isNaN(utc.getTime()) ? null : utc;
+    }
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Timestamps (SQLite UTC text, ISO strings, epoch millis or a Date) with date and time, in the device's time zone. */
 export function formatDateTime(
   value: string | number | Date | null | undefined,
   { locale = DEFAULT_LOCALE, seconds = false }: { locale?: string; seconds?: boolean } = {}
 ): string {
   if (value === null || value === undefined || value === '') return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
+  const date = storedTimestampToDate(value);
+  if (!date) return String(value);
   return getDateFormat(locale, {
     year: 'numeric',
     month: 'short',
@@ -250,8 +284,8 @@ export function formatTime(
   { locale = DEFAULT_LOCALE, seconds = false }: { locale?: string; seconds?: boolean } = {}
 ): string {
   if (value === null || value === undefined || value === '') return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
+  const date = storedTimestampToDate(value);
+  if (!date) return String(value);
   return getDateFormat(locale, {
     hour: 'numeric',
     minute: '2-digit',

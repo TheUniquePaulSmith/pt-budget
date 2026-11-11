@@ -12,7 +12,7 @@ Step-by-step workflows live in `.claude/skills/`; use them instead of re-derivin
 
 | Skill | For |
 |---|---|
-| `worktree-ready` | First thing in any worktree (`npm run worktree:prepare`): deps, gitignored sample-data fixtures, branch vs `devel/latest`, a private Playwright port |
+| `worktree-ready` | First thing in any worktree (`pnpm run worktree:prepare`): deps, gitignored sample-data fixtures, branch vs `devel/latest`, a private Playwright port |
 | `e2e` | Running, writing and debugging Playwright specs |
 | `schema-bump` | Any new table / column / constraint (schema version N+1) |
 | `new-domain` | Adding a database operation or a whole data domain through every layer |
@@ -26,31 +26,31 @@ Step-by-step workflows live in `.claude/skills/`; use them instead of re-derivin
 ## Commands
 
 ```bash
-npm run worktree:prepare     # fresh worktree: deps, fixtures, branch status, playwright.local.config.ts
-npm run dev:unlocked         # dev server at http://localhost:3000 whose database auto-unlocks on every reload — the default for debugging
+pnpm run worktree:prepare     # fresh worktree: deps, fixtures, branch status, playwright.local.config.ts
+pnpm run dev:unlocked         # dev server at http://localhost:3000 whose database auto-unlocks on every reload — the default for debugging
                              #   (browser pane: preview_start {name: "dev-unlocked"}; gate in src/lib/devUnlock.ts, compiled out of builds)
-npm run dev                  # plain dev server (Turbopack): only for work on the setup password step, the unlock screen or key slots
-npm run build                # static export to dist/, then dist/sw.js (the offline service worker)
-npm run serve:dist           # serve dist/ like the host does at http://localhost:4173 (browser pane: preview_start {name: "dist"})
-npm run lint
+pnpm run dev                  # plain dev server (Turbopack): only for work on the setup password step, the unlock screen or key slots
+pnpm run build                # static export to dist/, then dist/sw.js (the offline service worker)
+pnpm run serve:dist           # serve dist/ like the host does at http://localhost:4173 (browser pane: preview_start {name: "dist"})
+pnpm run lint
 
-npm test                     # default post-change verification: unit coverage + e2e smoke
-npm run test:unit            # Vitest suite (src/**/*.{test,spec}.{ts,tsx})
-npm run test:unit:coverage   # enforces coverage thresholds on src/lib/databaseService.ts
-npm run test:unit:watch
-npm run test:e2e:smoke       # Playwright tests tagged @smoke (what CI runs)
-npm run test:e2e             # full browser suite (tests/e2e/)
-npm run test:e2e:headed      # same suite in a visible Chromium window (smoke tests included); picks playwright.local.config.ts
-npm run test:e2e:smoke:headed  # only @smoke, visible; extra args pass through: npm run test:e2e:headed -- -g "name"
-npm run test:e2e:offline     # builds, serves dist/ and runs tests/e2e/offline.spec.ts with the host down (OFFLINE_E2E_SKIP_BUILD=1 reuses dist/)
+pnpm test                     # default post-change verification: unit coverage + e2e smoke
+pnpm run test:unit            # Vitest suite (src/**/*.{test,spec}.{ts,tsx})
+pnpm run test:unit:coverage   # enforces coverage thresholds on src/lib/databaseService.ts
+pnpm run test:unit:watch
+pnpm run test:e2e:smoke       # Playwright tests tagged @smoke (what CI runs)
+pnpm run test:e2e             # full browser suite (tests/e2e/)
+pnpm run test:e2e:headed      # same suite in a visible Chromium window (smoke tests included); picks playwright.local.config.ts
+pnpm run test:e2e:smoke:headed  # only @smoke, visible; extra args pass through: npm run test:e2e:headed -- -g "name"
+pnpm run test:e2e:offline     # builds, serves dist/ and runs tests/e2e/offline.spec.ts with the host down (OFFLINE_E2E_SKIP_BUILD=1 reuses dist/)
 
-npx vitest run src/lib/databaseService.test.ts        # single unit test file
-npx vitest run -t "test name"                         # single test by name
-npx playwright test --config playwright.local.config.ts tests/e2e/database-smoke.spec.ts  # single e2e file
+pnpm exec vitest run src/lib/databaseService.test.ts        # single unit test file
+pnpm exec vitest run -t "test name"                         # single test by name
+pnpm exec playwright test --config playwright.local.config.ts tests/e2e/database-smoke.spec.ts  # single e2e file
 
-npm run sample-data:generate   # regenerate public/sample-data/ fixtures + expectations.json (schema-aware, non-interactive)
-npm run sample-data:validate   # validate fixtures against current schema
-npx vitest run src/lib/sampleDataExpectations.test.ts   # prove the app's totals/scans match expectations.json (sample-data skill)
+pnpm run sample-data:generate   # regenerate public/sample-data/ fixtures + expectations.json (schema-aware, non-interactive)
+pnpm run sample-data:validate   # validate fixtures against current schema
+pnpx vitest run src/lib/sampleDataExpectations.test.ts   # prove the app's totals/scans match expectations.json (sample-data skill)
 ```
 
 Playwright runs Chromium only, one worker, `maxFailures: 1`. The base config targets `http://localhost:3000` (always localhost, not 127.0.0.1) and **reuses whatever dev server owns :3000** — in parallel worktrees that can be another branch, so pass the untracked `playwright.local.config.ts` that `worktree:prepare` writes (own port, `reuseExistingServer: false`).
@@ -93,7 +93,7 @@ Shared entity contracts live in `src/types/database.ts`. The `@/` import alias m
 - **Page actions and report filters**: a page puts its own controls into the shell with `<PageActions slot="appBar" | "statusBar">` (`Layout/slots/PageActionsSlot.tsx`; inline outside the shell). The report pages (Dashboard, Subscriptions) use `common/Filters/PeriodFilter.tsx` (Filter button in the app bar: optional All time, This week/month/year = calendar, Past week/month/year = rolling to today, custom range; dates from `src/lib/periodRange.ts`) and `common/Filters/ScopeFilters.tsx` (accounts/users section + status-bar chips; the selection lives in `ScopeFiltersProvider` in AppShell so it carries over between those pages). A new report page reuses both instead of its own date chips.
 - Components are organized by feature under `src/components/` (accounts, ai, budget, common, dashboard, data-management, import-wizard, loans, not-found, notifications, projects, settings, setup, sql-query, subscriptions, transactions, trips) — keep new components in the matching folder, or add a folder for a new domain.
 - **Account form**: `src/components/accounts/accountFormModel.ts` + `AccountFormFields.tsx` are the shared field set for the Add/Edit dialog and any inline account form; extend the dialog or the page, not these.
-- **Offline mode**: `npm run build` ends with `scripts/build-service-worker.mjs`, which writes `dist/sw.js` from `scripts/service-worker/sw.template.js` with every file of the build (rules in `scripts/lib/offline-precache.mjs`). The worker saves them all at install (unchanged files are copied from the previous version, not downloaded), answers same-origin GETs cache-first, and a new version waits for the user's Reload. `src/components/common/Offline/OfflineRuntime.tsx` (mounted in `layout.tsx`, logic in `src/lib/serviceWorkerClient.ts`) registers it on production builds only, removes it under `next dev` or with `?noServiceWorker`, and asks once for persistent storage. Anything the app fetches at runtime must be a file in the build (no CDN, no runtime downloads of app code); a new file in `public/` the app never loads belongs in the exclusion list. The host must run `npm run build`, not bare `next build`. Installing: `src/app/manifest.ts` (standalone, `/manifest.webmanifest`) plus `appleWebApp` / `viewport.themeColor` in `layout.tsx`; the install icons (`public/icons/*.png`, `src/app/apple-icon.png`) are written by `npm run favicon:generate` from the same sprite as the favicon. Install controls read one store, `src/lib/appInstall.ts` (pure; kept as a singleton by `common/Offline/useAppInstall.ts`, connected at import so an early `beforeinstallprompt` is kept): Chromium's prompt, a Safari guide (`InstallGuideDialog`, iPhone/iPad and Mac), nothing in Firefox, hidden once installed. They appear in the offline-ready notice, the rail footer (`rail-install-app`), the phone More sheet (`mobile-install-app`) and Settings → Preferences (`settings-install`); e2e fires a fake `beforeinstallprompt` (`tests/e2e/install-app.spec.ts`).
+- **Offline mode**: `pnpm run build` ends with `scripts/build-service-worker.mjs`, which writes `dist/sw.js` from `scripts/service-worker/sw.template.js` with every file of the build (rules in `scripts/lib/offline-precache.mjs`). The worker saves them all at install (unchanged files are copied from the previous version, not downloaded), answers same-origin GETs cache-first, and a new version waits for the user's Reload. `src/components/common/Offline/OfflineRuntime.tsx` (mounted in `layout.tsx`, logic in `src/lib/serviceWorkerClient.ts`) registers it on production builds only, removes it under `next dev` or with `?noServiceWorker`, and asks once for persistent storage. Anything the app fetches at runtime must be a file in the build (no CDN, no runtime downloads of app code); a new file in `public/` the app never loads belongs in the exclusion list. The host must run `pnpm run build`, not bare `next build`. Installing: `src/app/manifest.ts` (standalone, `/manifest.webmanifest`) plus `appleWebApp` / `viewport.themeColor` in `layout.tsx`; the install icons (`public/icons/*.png`, `src/app/apple-icon.png`) are written by `pnpm run favicon:generate` from the same sprite as the favicon. Install controls read one store, `src/lib/appInstall.ts` (pure; kept as a singleton by `common/Offline/useAppInstall.ts`, connected at import so an early `beforeinstallprompt` is kept): Chromium's prompt, a Safari guide (`InstallGuideDialog`, iPhone/iPad and Mac), nothing in Firefox, hidden once installed. They appear in the offline-ready notice, the rail footer (`rail-install-app`), the phone More sheet (`mobile-install-app`) and Settings → Preferences (`settings-install`); e2e fires a fake `beforeinstallprompt` (`tests/e2e/install-app.spec.ts`).
 - Theme lives in `src/theme/theme.tsx`. Preserve the existing Material UI visual language unless the task is explicitly a redesign.
 
 ### Feature domains
@@ -110,7 +110,7 @@ Shared entity contracts live in `src/types/database.ts`. The `@/` import alias m
   - **History & formats** (`src/components/import-wizard/manage/`): import runs newest first with their counts and findings, undo behind a confirmation that shows `getImportBatchImpact` first (then `undoImportBatch`, then `runSubscriptionScan`), saved formats (one per file shape and account: rename, change or clear the account, delete) and account identifiers (a number is shown as its last four only).
   - **Rules**: the file decides the date order and decimal mark, the UI language is only the fallback, and one file is read with one date order (`parseCsvDate(…, { strict: true })`); a saved format takes the fast path only for the account it was saved for; one import batch per statement and no empty batch; the sign is stored per saved format (`amountSign`), `accounts.import_sign_inverted` stays unused; dedup is the SHA-256 hash plus `external_id` (OFX `FITID`). Specs that only need imported rows call `importStatementFile` (`tests/e2e/helpers/importFlow.ts`), never the import UI. Fixtures in `tests/fixtures/statements/` are synthetic and byte-exact (`.gitattributes`); `raw/` is written by `generate-fixtures.mjs` there and every manifest is checked by `corpus.test.ts`.
 - Encryption (envelope / key slots, see `docs/Encryption.md`): a random root key encrypts the live pages (`public/database-encrypted-vfs.js`) and exports; every unlock method is a key slot wrapping that root key (`public/database-key-slots.js`: exactly one master slot — password or 12-word recovery phrase — plus optional passkey/cloud slots). `public/database-encryption.js` is the archive envelope (format v2, master slot embedded). The page never holds key material: `src/lib/encryptionTypes.ts` has the contracts, `src/lib/databaseEncryption.ts` only reads archive headers (parity-tested against the worker module), `src/lib/recoveryPhrase/` decodes the BIP-39 words to the 16 entropy bytes the worker gets. Changing the master re-wraps 32 bytes; nothing is re-encrypted. Header/archive v1 are rejected (reset), and `scripts/convert-archive-v1-to-v2.mjs` re-wraps old fixtures. Passkeys (WebAuthn PRF): `src/lib/passkeyUnlock.ts` runs the ceremony on the page (user verification always required; the 32-byte PRF output goes to the worker's `add_slot` / `unlock_database`; codes `PASSKEY_CANCELLED|PASSKEY_PRF_UNSUPPORTED|PASSKEY_FAILED`). `UnlockScreen` leads with the passkey view when slots exist, `PasskeySlotsSection` (Settings → Security) manages them, and `src/lib/lastUnlockMethod.ts` remembers the last slot type (auto-trigger only after Settings → Lock).
-- 404 page: `src/app/not-found.tsx` → `src/components/not-found/` (static export writes `dist/404.html`; it sits outside `(main)`, so it never boots the database worker): a seeded pixel galaxy (`src/lib/pixelGalaxy.ts`), a SMIL winged-money flock and a local-only "flight recorder" of where the visitor came from (`notFoundOrigin.ts`, nothing sent). The 💸 art is one shared sprite (`pixelMoneySprite.json/.ts`) also used by `WingedMoneySprite.tsx` / `AppLogo.tsx` (sidebar rail, phone app bar, Welcome screen); re-run `npm run favicon:generate` after editing it. Under `prefers-reduced-motion` the animation is calmed, not frozen.
+- 404 page: `src/app/not-found.tsx` → `src/components/not-found/` (static export writes `dist/404.html`; it sits outside `(main)`, so it never boots the database worker): a seeded pixel galaxy (`src/lib/pixelGalaxy.ts`), a SMIL winged-money flock and a local-only "flight recorder" of where the visitor came from (`notFoundOrigin.ts`, nothing sent). The 💸 art is one shared sprite (`pixelMoneySprite.json/.ts`) also used by `WingedMoneySprite.tsx` / `AppLogo.tsx` (sidebar rail, phone app bar, Welcome screen); re-run `pnpm run favicon:generate` after editing it. Under `prefers-reduced-motion` the animation is calmed, not frozen.
 
 ### Cross-cutting rules
 

@@ -13,7 +13,7 @@
     "sample-data:validate": "node scripts/validate-sample-data-schema.mjs",
     "favicon:generate": "node scripts/generate-favicon.mjs",
     "worktree:prepare": "node scripts/prepare-worktree.mjs",
-    "test": "npm run test:unit:coverage && npm run test:e2e:smoke",
+    "test": "pnpm run test:unit:coverage && pnpm run test:e2e:smoke",
     "test:unit": "vitest run",
     "test:unit:coverage": "vitest run --coverage",
     "test:unit:watch": "vitest",

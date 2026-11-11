@@ -25,8 +25,11 @@
   },
   "dependencies": {
     "@azure/msal-browser": "^5.11.0",
+    "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/lint": "^6.9.7",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.6",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.1.2",

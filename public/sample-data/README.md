@@ -16,7 +16,7 @@ skill in `.claude/skills/` documents it and how to validate or extend it.
 ## Generating
 
 ```bash
-npm run sample-data:generate -- --months=12 --seed=review   # what CI and worktree:prepare run
+pnpm run sample-data:generate --months=12 --seed=review   # what CI and worktree:prepare run
 npm run sample-data:validate                                # schema + insert-query check, JSON report
 ```
 

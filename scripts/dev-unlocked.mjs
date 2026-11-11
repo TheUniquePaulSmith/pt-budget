@@ -2,8 +2,9 @@
 // Starts the dev server with automatic database unlock, for local agents and
 // humans who reload the app constantly while editing (see src/lib/devUnlock.ts).
 //
-//   npm run dev:unlocked               next dev --turbopack, auto-unlock on
-//   npm run dev:unlocked -- -p 3005    extra arguments go to next dev
+//   pnpm run dev:unlocked            next dev --turbopack, auto-unlock on
+//   pnpm run dev:unlocked -p 3005    extra arguments go to next dev (a leading
+//                                    `--`, as npm wants it, is dropped)
 //
 // The secret is generated once per repository clone and stored in the shared
 // .git directory (every worktree reads the same file, nothing is ever
@@ -20,6 +21,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { scriptArgs } from './lib/script-args.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SECRET_FILE_NAME = 'budget-dev-unlock-secret';
@@ -77,7 +80,7 @@ function main() {
   // node itself, not an npm/npx shim: on Windows those are .cmd files that
   // need a shell, and the node path usually contains a space.
   const nextBin = path.join(ROOT, 'node_modules', 'next', 'dist', 'bin', 'next');
-  const child = spawn(process.execPath, [nextBin, 'dev', '--turbopack', ...process.argv.slice(2)], {
+  const child = spawn(process.execPath, [nextBin, 'dev', '--turbopack', ...scriptArgs()], {
     cwd: ROOT,
     stdio: 'inherit',
     env: { ...process.env, [ENV_NAME]: secret },

@@ -13,7 +13,7 @@ import { bootstrapDatabase, runQueryAndReadFirstCell } from '../e2e/helpers/boot
 // Run from a checkout of the schema version to capture, with the sample-data
 // fixtures generated at the generator's natural row count so monthly charges
 // stay single rows and the scan produces recurring series:
-//   npm run sample-data:generate -- --months=12 --seed=review
+//   pnpm run sample-data:generate --months=12 --seed=review
 //   npx playwright test --config playwright.fixture-export.config.ts
 // Output: tests/e2e/fixtures/v1-budget-tracker.zip (password: TEST_PASSWORD)
 //

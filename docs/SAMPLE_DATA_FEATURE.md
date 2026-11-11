@@ -9,9 +9,9 @@ The repo also provides schema-aware generation and validation commands so fixtur
 ```bash
 npm run sample-data:validate
 npm run sample-data:generate
-npm run sample-data:generate -- --months 60 --amount 6000
-npm run sample-data:generate -- --months 120 --amount 100000000 --dry-run
-npm run sample-data:generate -- --full-schema
+pnpm run sample-data:generate --months 60 --amount 6000
+pnpm run sample-data:generate --months 120 --amount 100000000 --dry-run
+pnpm run sample-data:generate --full-schema
 ```
 
 ## How It Works
@@ -68,9 +68,9 @@ Before relying on the runtime load path after schema changes, run `npm run sampl
 ### Option 0: Generate from the Live Schema
 1. Run `npm run sample-data:validate`
 2. Run `npm run sample-data:generate` and answer the prompts for how many months back from today the data should cover and roughly how many transactions should be generated for that full period
-3. For scripted runs, pass the same values directly, for example `npm run sample-data:generate -- --months 60 --amount 6000`
+3. For scripted runs, pass the same values directly, for example `pnpm run sample-data:generate --months 60 --amount 6000`
 4. Add `--dry-run` to any scripted run when you want a no-write estimate of the generated date window, output mode, chunk count, approximate disk usage, and runtime import cost before committing to the write
-5. Use `npm run sample-data:generate -- --full-schema` only when you explicitly want schema-only fixtures for currently runtime-incompatible tables
+5. Use `pnpm run sample-data:generate --full-schema` only when you explicitly want schema-only fixtures for currently runtime-incompatible tables
 
 The transaction count is approximate rather than a hard guarantee. The generator keeps the monthly income and expense totals in roughly the same family-budget range and adjusts the transaction granularity to land near the requested count. Extremely large requests may be clipped when a date range does not have enough non-zero currency precision to split the modeled monthly budgets further.
 

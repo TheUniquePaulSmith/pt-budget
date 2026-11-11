@@ -11,12 +11,21 @@ importers:
       '@azure/msal-browser':
         specifier: ^5.11.0
         version: 5.11.0
+      '@codemirror/autocomplete':
+        specifier: ^6.20.3
+        version: 6.20.3
       '@codemirror/lang-sql':
         specifier: ^6.10.0
         version: 6.10.0
       '@codemirror/lint':
         specifier: ^6.9.7
         version: 6.9.7
+      '@codemirror/state':
+        specifier: ^6.7.1
+        version: 6.7.1
+      '@codemirror/view':
+        specifier: ^6.43.6
+        version: 6.43.6
       '@emotion/react':
         specifier: ^11.14.0
         version: 11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@8.1.1)

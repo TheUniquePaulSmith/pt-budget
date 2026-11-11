@@ -166,6 +166,7 @@ test('turning offline mode off removes the saved app', async ({ page }) => {
   await offlineSwitch.uncheck();
   await expect(page.getByTestId('settings-offline-ready')).toHaveCount(0);
   await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
-  expect(await page.evaluate(async () => (await caches.keys()).length)).toBe(0);
+  // The saved files are deleted right after the worker is unregistered.
+  await expect.poll(() => page.evaluate(async () => (await caches.keys()).length)).toBe(0);
   expect(await page.evaluate(() => localStorage.getItem('budgetTracker_offlineMode'))).toBeNull();
 });

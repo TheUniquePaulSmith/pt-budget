@@ -50,3 +50,5 @@ public/sample-data/*.json
 
 # `npm run dev:unlocked` secret (fallback location when the clone has no .git dir)
 .dev-unlock-secret
+test-results/
+playwright-report/

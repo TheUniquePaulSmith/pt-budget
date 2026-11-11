@@ -11,7 +11,7 @@ ways rather than saying what is wrong. Each item below has cost a session real t
 
 | Missing piece | What it looks like |
 |---|---|
-| `node_modules` | `npm run dev` panics: `FATAL: An unexpected Turbopack error occurred … Next.js package not found`. Builds and vitest can still resolve from the parent checkout, which hides the problem. |
+| `node_modules` | `pnpm run dev` panics: `FATAL: An unexpected Turbopack error occurred … Next.js package not found`. Builds and vitest can still resolve from the parent checkout, which hides the problem. |
 | Generated fixtures (`transactions`, `accounts`, `projects`, `trips`, `budget_plans`, `budget_plan_categories`, `income_sources`, `loans`, `loan_match_rules`, `classification_rules`, `account_balance_snapshots`, `expectations` in `public/sample-data/`, all gitignored) | `?loadSampleData` imports 0 rows or no accounts; `sampleDataTools.test.ts` fails; `sampleDataExpectations.test.ts` skips. |
 | Fixtures dated before the current month | The dashboard shows an empty "This Month", the `database-smoke` reopen count is 0, and the `mobile-dashboard` pie never renders. |
 | Own Playwright port | `reuseExistingServer: true` on `:3000` quietly tests **another worktree's** dev server, and the cloud specs fail because the dummy client ids only get injected when Playwright starts the server itself. |
@@ -28,12 +28,12 @@ and it exits 1 if anything fails. Options:
 
 - `--check`: report only, change nothing (fast; use it to diagnose).
 - `--offline`: skip `git fetch`.
-- `--no-install`: never run `npm ci`.
+- `--no-install`: never run `pnpm install --frozen-lockfile`.
 - `--regenerate-fixtures`: regenerate the sample data even if the files look fine.
 - `--port=<n>`: pick the Playwright port yourself.
 - `--json`: also print machine-readable results.
 
-`npm ci` takes a few minutes. Run the script in the background and keep reading the code in the meantime.
+`pnpm install --frozen-lockfile` takes a minute or two. Run the script in the background and keep reading the code in the meantime.
 
 ## What it does and does not change
 

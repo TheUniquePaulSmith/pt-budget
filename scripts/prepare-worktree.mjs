@@ -8,7 +8,8 @@
 //
 // Steps:
 //   1. checkout   — this is the real app (not the stale `main` prototype)
-//   2. deps       — node_modules exists (`npm ci` when it does not)
+//   2. deps       — node_modules exists (`pnpm install --frozen-lockfile` when it does not),
+//                   was installed by pnpm and matches pnpm-lock.yaml
 //   3. branch     — ahead/behind origin/devel/latest (never rebases or merges)
 //   4. fixtures   — the generated sample-data fixtures exist and reach the current month
 //                   and validate against public/database-schema.js
@@ -50,6 +51,7 @@ const GENERATOR_FLAGS = ['--months=12', '--seed=review'];
 const STALE_AFTER_DAYS = 31;
 const LOCAL_CONFIG = 'playwright.local.config.ts';
 const PORT_RANGE = { start: 3100, size: 900 };
+const INSTALL_COMMAND = 'pnpm install --frozen-lockfile';
 
 const args = new Set(process.argv.slice(2));
 if (args.has('--help') || args.has('-h')) {
@@ -57,7 +59,7 @@ if (args.has('--help') || args.has('-h')) {
 
   --check                 report only; install, generate and write nothing
   --offline               skip 'git fetch' (branch status uses the last fetched origin)
-  --no-install            never run 'npm ci'
+  --no-install            never run 'pnpm install --frozen-lockfile'
   --regenerate-fixtures   regenerate sample data even when the files look fine
   --port=<n>              use this Playwright port instead of the per-worktree default
   --json                  print the results as JSON as well`);
@@ -90,7 +92,7 @@ function tryGit(...gitArgs) {
     return null;
   }
 }
-// `npm` is a .cmd shim on Windows and needs a shell; node itself must not go
+// `pnpm` is a .cmd shim on Windows and needs a shell; node itself must not go
 // through one (its path usually contains a space: C:\Program Files\nodejs).
 function run(command, commandArgs, label, { shell = false } = {}) {
   console.log(`          ${' '.repeat(9)} running: ${command} ${commandArgs.join(' ')}`);
@@ -134,28 +136,43 @@ function checkCheckout() {
 function checkDeps() {
   const nextPackage = path.join(ROOT, 'node_modules', 'next', 'package.json');
   if (fs.existsSync(nextPackage)) {
-    const lock = path.join(ROOT, 'package-lock.json');
-    const marker = path.join(ROOT, 'node_modules', '.package-lock.json');
-    if (fs.existsSync(marker) && fs.statSync(lock).mtimeMs > fs.statSync(marker).mtimeMs + 1000) {
-      report('deps', 'WARN', 'package-lock.json is newer than the installed node_modules', 'run `npm ci`');
+    // pnpm keeps a copy of the lockfile it installed from; an npm-era tree has none.
+    // A leftover npm tree hoists transitive packages, so an import of a package that
+    // is not in package.json still resolves here and only fails on a clean pnpm
+    // install (CI, the Cloudflare build).
+    const installedLock = path.join(ROOT, 'node_modules', '.pnpm', 'lock.yaml');
+    if (!fs.existsSync(installedLock)) {
+      report(
+        'deps',
+        'WARN',
+        'node_modules was not installed by pnpm (a leftover npm tree?)',
+        `delete node_modules, then run \`${INSTALL_COMMAND}\``
+      );
+    } else if (readLockfile(installedLock) !== readLockfile(path.join(ROOT, 'pnpm-lock.yaml'))) {
+      report('deps', 'WARN', 'pnpm-lock.yaml differs from the installed node_modules', `run \`${INSTALL_COMMAND}\``);
     } else {
-      report('deps', 'OK', 'node_modules is installed');
+      report('deps', 'OK', 'node_modules is installed and matches pnpm-lock.yaml');
     }
     return true;
   }
-  const why = 'no node_modules: `npm run dev` would panic with "Next.js package not found"';
+  const why = 'no node_modules: `pnpm run dev` would panic with "Next.js package not found"';
   if (CHECK_ONLY || NO_INSTALL) {
-    report('deps', 'FAIL', why, 'run `npm ci`');
+    report('deps', 'FAIL', why, `run \`${INSTALL_COMMAND}\``);
     return false;
   }
   try {
-    run('npm', ['ci', '--no-audit', '--no-fund'], 'npm ci', { shell: true });
-    report('deps', 'FIXED', 'installed node_modules with `npm ci`');
+    run('pnpm', ['install', '--frozen-lockfile'], INSTALL_COMMAND, { shell: true });
+    report('deps', 'FIXED', `installed node_modules with \`${INSTALL_COMMAND}\``);
     return true;
   } catch (error) {
-    report('deps', 'FAIL', `npm ci failed: ${error.message}`);
+    report('deps', 'FAIL', `${INSTALL_COMMAND} failed: ${error.message}`);
     return false;
   }
+}
+
+// Git may check pnpm-lock.yaml out with CRLF line endings; pnpm's own copy is LF.
+function readLockfile(file) {
+  return fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +294,7 @@ function checkFixtures() {
         'fixtures',
         'FAIL',
         'regenerated fixtures do not validate against the schema',
-        'run `npm run sample-data:validate` and read the report; a schema change may need generator updates'
+        'run `pnpm run sample-data:validate` and read the report; a schema change may need generator updates'
       );
       return;
     }
@@ -341,7 +358,7 @@ function localConfigSource(port) {
 // fails loudly instead of silently testing another branch's code, and so the
 // dummy cloud client ids from playwright.config.ts are always injected.
 //
-//   npx playwright test --config ${LOCAL_CONFIG} [spec] [--grep @smoke]
+//   pnpm exec playwright test --config ${LOCAL_CONFIG} [spec] [--grep @smoke]
 import { defineConfig } from '@playwright/test';
 
 import base from './playwright.config';
@@ -354,7 +371,9 @@ export default defineConfig({
   use: { ...base.use, baseURL: \`http://localhost:\${PORT}\` },
   webServer: {
     ...baseWebServer,
-    command: \`npm run dev -- -p \${PORT}\`,
+    // pnpm passes extra arguments straight through; a \`--\` would reach next dev
+    // as a literal argument (it then reads -p as the project directory).
+    command: \`pnpm run dev -p \${PORT}\`,
     url: \`http://localhost:\${PORT}\`,
     reuseExistingServer: false,
   },

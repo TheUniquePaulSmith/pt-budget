@@ -1,5 +1,123 @@
 {
-  "placeholder": {
-    "body": "导入历史记录和已保存的格式尚不可用。"
+  "page": {
+    "startImport": "开始导入",
+    "loadFailed": "无法加载此列表。",
+    "tryAgain": "重试",
+    "deletedAccount": "已删除的账户"
+  },
+  "empty": {
+    "title": "尚未导入任何内容",
+    "body": "首次导入后，此页面将显示：",
+    "history": "导入历史记录：您导入的每个文件、它添加的内容，以及撤销的方法。",
+    "formats": "已保存的格式：每家银行的文件如何读取，下次导入无需再设置。",
+    "identifiers": "账号和账户名称：文件中对每个账户的称呼，便于建议正确的账户。"
+  },
+  "history": {
+    "title": "导入历史记录",
+    "description": "您导入的每个文件，最新的在前。撤销导入会移除它添加的交易。",
+    "empty": "还没有导入记录。您导入的每个文件都会列在这里，显示它添加的内容，并且可以撤销。",
+    "unnamedFile": "未命名文件",
+    "noAccount": "未记录账户",
+    "dateRange": "{{from}} 至 {{to}} 的交易",
+    "singleDate": "{{date}} 的交易",
+    "noDates": "未添加任何交易",
+    "counts": {
+      "imported": "已导入",
+      "duplicates": "已存在",
+      "skipped": "已跳过",
+      "rejected": "无法读取"
+    },
+    "format": {
+      "delimited": "文本文件（CSV）",
+      "ofx": "OFX / QFX 文件"
+    },
+    "savedFormat": "已保存的格式：{{name}}",
+    "findingsLabel": "检查发现的情况",
+    "finding": "{{title}}：{{count}}",
+    "findingLabels": {
+      "referenceNotUnique": "银行参考号未用于识别重复项",
+      "currencyMismatch": "币种与账户不同的行",
+      "columnNotImported": "未导入的列"
+    },
+    "assumptions": "已确认的假设：{{count}}",
+    "fixedRows": "手动更正的行：{{count}}",
+    "noFindings": "没有需要注意的地方",
+    "undo": "撤销此次导入",
+    "showAll": "显示全部导入（{{count}}）",
+    "showFewer": "收起",
+    "undone": "已撤销 {{file}} 的导入。移除的交易：{{count}}。",
+    "undoneScanFailed": "导入已撤销，但无法重新检查订阅。请打开“订阅”并选择“重新扫描”。"
+  },
+  "undo": {
+    "title": "撤销此次导入？",
+    "summary": "{{file}}，导入于 {{when}}",
+    "loading": "正在计算此次导入添加的内容…",
+    "intro": "撤销将移除此次导入添加的所有内容：",
+    "transactions": "交易",
+    "edited": "导入后您修改过的交易",
+    "loanPayments": "贷款还款",
+    "transferPairs": "转账配对",
+    "editedWarning": "导入后您为这些交易设置的分类、备注和其他更改将会丢失。",
+    "transferNote": "每笔转账的另一方会保留，并恢复为收入或支出，除非其类型是您自己设置的。",
+    "afterwards": "之后会重新计算贷款余额和订阅。",
+    "irreversible": "此操作无法恢复。如需找回这些交易，请重新导入该文件。",
+    "confirm": "撤销导入",
+    "undoing": "正在撤销…",
+    "impactFailed": "无法计算此次导入添加的内容，因此暂时不能撤销。",
+    "errors": {
+      "generic": "无法撤销导入。请重试；如果仍然失败，“设置”中的开发者控制台会显示出错原因。",
+      "notReady": "数据库仍在启动。请稍后重试。",
+      "IMPORT_BATCH_NOT_FOUND": "此次导入已不在历史记录中。它可能已被撤销，例如在另一个标签页中。"
+    }
+  },
+  "formats": {
+    "title": "已保存的格式",
+    "description": "每家银行的文件如何读取，按账户保存。文件的格式若已为其账户保存，则会跳过设置步骤。",
+    "empty": "还没有已保存的格式。当导入记住了文件的布局后，该格式会保存在这里，这样该银行的下一个文件就无需设置。",
+    "fileType": {
+      "delimited": "文本文件（CSV）",
+      "ofx": "OFX / QFX 文件"
+    },
+    "account": "导入到：{{account}}",
+    "noAccount": "每次都询问账户",
+    "lastUsed": "上次使用：{{date}}",
+    "neverUsed": "尚未使用",
+    "useCount": "使用次数：{{count}}",
+    "edit": "编辑格式 {{name}}",
+    "delete": "删除格式 {{name}}",
+    "editDialog": {
+      "title": "编辑已保存的格式",
+      "name": "格式名称",
+      "nameRequired": "请为此格式输入名称。",
+      "account": "账户",
+      "askEachTime": "每次都询问",
+      "accountHelp": "此格式的文件导入该账户时会跳过设置步骤。导入其他账户时，会先确认如何读取。",
+      "saveFailed": "无法保存格式。请重试。"
+    },
+    "deleteDialog": {
+      "title": "删除此已保存的格式？",
+      "body": "“{{name}}”将被忘记。下次导入此类文件时，导入会再次询问如何读取。",
+      "note": "已导入的交易不受影响。",
+      "confirm": "删除格式",
+      "failed": "无法删除格式。请重试。"
+    }
+  },
+  "identifiers": {
+    "title": "账号和账户名称",
+    "description": "银行文件中对每个账户的称呼。导入时据此判断文件属于哪个账户。",
+    "empty": "还没有记住任何内容。当您确认文件属于哪个账户后，文件中使用的账号或名称会保存在这里。",
+    "numberEnding": "尾号为 {{lastFour}} 的账号",
+    "shortNumber": "短账号（已隐藏）",
+    "label": "文件中的名称：“{{text}}”",
+    "fromImport": "{{date}} 导入时记住",
+    "manual": "{{date}} 手动添加",
+    "remove": "从{{account}}移除{{identifier}}",
+    "cardsNote": "卡号随各账户保存在“账户”页面。",
+    "removeDialog": {
+      "title": "从{{account}}移除？",
+      "body": "{{identifier}}将不再指向{{account}}。下一个使用它的文件会询问属于哪个账户。",
+      "confirm": "移除",
+      "failed": "无法移除。请重试。"
+    }
   }
 }

@@ -1,5 +1,123 @@
 {
-  "placeholder": {
-    "body": "Der Importverlauf und die gespeicherten Formate sind noch nicht verfügbar."
+  "page": {
+    "startImport": "Import starten",
+    "loadFailed": "Diese Liste konnte nicht geladen werden.",
+    "tryAgain": "Erneut versuchen",
+    "deletedAccount": "Gelöschtes Konto"
+  },
+  "empty": {
+    "title": "Noch nichts importiert",
+    "body": "Nach Ihrem ersten Import zeigt diese Seite:",
+    "history": "Importverlauf: jede importierte Datei, was sie hinzugefügt hat und eine Möglichkeit, den Import rückgängig zu machen.",
+    "formats": "Gespeicherte Formate: wie die Datei jeder Bank gelesen wird, damit die nächste keine Einrichtung braucht.",
+    "identifiers": "Kontonummern und -namen: wie Ihre Dateien jedes Konto nennen, damit das richtige vorgeschlagen wird."
+  },
+  "history": {
+    "title": "Importverlauf",
+    "description": "Jede importierte Datei, die neueste zuerst. Wird ein Import rückgängig gemacht, werden die damit hinzugefügten Transaktionen entfernt.",
+    "empty": "Noch keine Importe. Jede importierte Datei erscheint hier mit dem, was sie hinzugefügt hat, und kann rückgängig gemacht werden.",
+    "unnamedFile": "Datei ohne Namen",
+    "noAccount": "Kein Konto erfasst",
+    "dateRange": "Transaktionen vom {{from}} bis {{to}}",
+    "singleDate": "Transaktionen vom {{date}}",
+    "noDates": "Es wurden keine Transaktionen hinzugefügt",
+    "counts": {
+      "imported": "Importiert",
+      "duplicates": "Bereits vorhanden",
+      "skipped": "Übersprungen",
+      "rejected": "Nicht lesbar"
+    },
+    "format": {
+      "delimited": "Textdatei (CSV)",
+      "ofx": "OFX-/QFX-Datei"
+    },
+    "savedFormat": "Gespeichertes Format: {{name}}",
+    "findingsLabel": "Ergebnis der Prüfung",
+    "finding": "{{title}}: {{count}}",
+    "findingLabels": {
+      "referenceNotUnique": "Bankreferenz nicht zur Erkennung von Duplikaten verwendet",
+      "currencyMismatch": "Zeilen in einer anderen Währung als das Konto",
+      "columnNotImported": "Nicht importierte Spalten"
+    },
+    "assumptions": "Bestätigte Annahmen: {{count}}",
+    "fixedRows": "Von Hand korrigierte Zeilen: {{count}}",
+    "noFindings": "Nichts zu beanstanden",
+    "undo": "Diesen Import rückgängig machen",
+    "showAll": "Alle Importe anzeigen ({{count}})",
+    "showFewer": "Weniger anzeigen",
+    "undone": "Der Import von {{file}} wurde rückgängig gemacht. Entfernte Transaktionen: {{count}}.",
+    "undoneScanFailed": "Der Import wurde rückgängig gemacht, aber die Abonnements konnten nicht erneut geprüft werden. Öffnen Sie Abonnements und wählen Sie „Erneut scannen“."
+  },
+  "undo": {
+    "title": "Diesen Import rückgängig machen?",
+    "summary": "{{file}}, importiert am {{when}}",
+    "loading": "Es wird ermittelt, was dieser Import hinzugefügt hat …",
+    "intro": "Dabei wird alles entfernt, was dieser Import hinzugefügt hat:",
+    "transactions": "Transaktionen",
+    "edited": "Seit dem Import von Ihnen geändert",
+    "loanPayments": "Darlehenszahlungen",
+    "transferPairs": "Umbuchungspaare",
+    "editedWarning": "Kategorien, Notizen und andere Änderungen, die Sie nach dem Import an diesen Transaktionen vorgenommen haben, gehen verloren.",
+    "transferNote": "Die Gegenseite jeder Umbuchung bleibt erhalten. Sie wird wieder zu einer Einnahme oder Ausgabe, sofern Sie den Typ nicht selbst festgelegt haben.",
+    "afterwards": "Darlehenssalden und Abonnements werden anschließend neu berechnet.",
+    "irreversible": "Das kann nicht zurückgenommen werden. Um die Transaktionen wiederzubekommen, importieren Sie die Datei erneut.",
+    "confirm": "Import rückgängig machen",
+    "undoing": "Wird rückgängig gemacht …",
+    "impactFailed": "Es konnte nicht ermittelt werden, was dieser Import hinzugefügt hat. Er kann daher im Moment nicht rückgängig gemacht werden.",
+    "errors": {
+      "generic": "Der Import konnte nicht rückgängig gemacht werden. Versuchen Sie es erneut; bleibt der Fehler bestehen, zeigt die Entwicklerkonsole in den Einstellungen, was schiefgelaufen ist.",
+      "notReady": "Die Datenbank wird noch gestartet. Versuchen Sie es gleich noch einmal.",
+      "IMPORT_BATCH_NOT_FOUND": "Dieser Import ist nicht mehr im Verlauf. Möglicherweise wurde er bereits rückgängig gemacht, zum Beispiel in einem anderen Tab."
+    }
+  },
+  "formats": {
+    "title": "Gespeicherte Formate",
+    "description": "Wie die Datei jeder Bank gelesen wird, je Konto gespeichert. Eine Datei in einem für ihr Konto gespeicherten Format überspringt die Einrichtungsschritte.",
+    "empty": "Noch keine gespeicherten Formate. Wenn sich ein Import den Aufbau einer Datei merkt, wird das Format hier abgelegt, damit die nächste Datei dieser Bank keine Einrichtung braucht.",
+    "fileType": {
+      "delimited": "Textdatei (CSV)",
+      "ofx": "OFX-/QFX-Datei"
+    },
+    "account": "Geht in: {{account}}",
+    "noAccount": "Fragt jedes Mal nach dem Konto",
+    "lastUsed": "Zuletzt verwendet: {{date}}",
+    "neverUsed": "Noch nicht verwendet",
+    "useCount": "Verwendungen: {{count}}",
+    "edit": "Format {{name}} bearbeiten",
+    "delete": "Format {{name}} löschen",
+    "editDialog": {
+      "title": "Gespeichertes Format bearbeiten",
+      "name": "Name des Formats",
+      "nameRequired": "Geben Sie einen Namen für dieses Format ein.",
+      "account": "Konto",
+      "askEachTime": "Jedes Mal fragen",
+      "accountHelp": "Dateien in diesem Format überspringen für dieses Konto die Einrichtungsschritte. Bei einem anderen Konto prüft der Import zuerst, wie sie zu lesen sind.",
+      "saveFailed": "Das Format konnte nicht gespeichert werden. Versuchen Sie es erneut."
+    },
+    "deleteDialog": {
+      "title": "Dieses gespeicherte Format löschen?",
+      "body": "„{{name}}“ wird vergessen. Wenn Sie das nächste Mal eine solche Datei importieren, fragt der Import wieder, wie sie zu lesen ist.",
+      "note": "Bereits importierte Transaktionen sind nicht betroffen.",
+      "confirm": "Format löschen",
+      "failed": "Das Format konnte nicht gelöscht werden. Versuchen Sie es erneut."
+    }
+  },
+  "identifiers": {
+    "title": "Kontonummern und -namen",
+    "description": "Wie die Dateien Ihrer Bank jedes Konto nennen. Der Import ermittelt damit, zu welchem Konto eine Datei gehört.",
+    "empty": "Noch nichts gemerkt. Wenn Sie bestätigen, zu welchem Konto eine Datei gehört, wird die Nummer oder der Name aus der Datei hier abgelegt.",
+    "numberEnding": "Nummer mit den Endziffern {{lastFour}}",
+    "shortNumber": "Kurze Nummer (verborgen)",
+    "label": "Name in der Datei: „{{text}}“",
+    "fromImport": "Bei einem Import am {{date}} gemerkt",
+    "manual": "Am {{date}} von Hand hinzugefügt",
+    "remove": "{{identifier}} von {{account}} entfernen",
+    "cardsNote": "Kartennummern werden bei jedem Konto auf der Seite Konten verwaltet.",
+    "removeDialog": {
+      "title": "Von {{account}} entfernen?",
+      "body": "{{identifier}} verweist dann nicht mehr auf {{account}}. Die nächste Datei, die diese Angabe verwendet, fragt, zu welchem Konto sie gehört.",
+      "confirm": "Entfernen",
+      "failed": "Das Entfernen ist fehlgeschlagen. Versuchen Sie es erneut."
+    }
   }
 }

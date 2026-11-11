@@ -1,5 +1,123 @@
 {
-  "placeholder": {
-    "body": "O histórico de importações e os formatos salvos ainda não estão disponíveis."
+  "page": {
+    "startImport": "Iniciar uma importação",
+    "loadFailed": "Não foi possível carregar esta lista.",
+    "tryAgain": "Tentar novamente",
+    "deletedAccount": "Conta excluída"
+  },
+  "empty": {
+    "title": "Nada foi importado ainda",
+    "body": "Depois da sua primeira importação, esta página mostra:",
+    "history": "Histórico de importações: cada arquivo importado, o que ele adicionou e uma forma de desfazer.",
+    "formats": "Formatos salvos: como o arquivo de cada banco é lido, para que o próximo não precise de configuração.",
+    "identifiers": "Números e nomes de conta: como seus arquivos chamam cada conta, para sugerir a conta certa."
+  },
+  "history": {
+    "title": "Histórico de importações",
+    "description": "Cada arquivo importado, do mais recente ao mais antigo. Desfazer uma importação remove as transações que ela adicionou.",
+    "empty": "Nenhuma importação ainda. Cada arquivo importado aparece aqui com o que adicionou e pode ser desfeito.",
+    "unnamedFile": "Arquivo sem nome",
+    "noAccount": "Nenhuma conta registrada",
+    "dateRange": "Transações de {{from}} a {{to}}",
+    "singleDate": "Transações de {{date}}",
+    "noDates": "Nenhuma transação foi adicionada",
+    "counts": {
+      "imported": "Importadas",
+      "duplicates": "Já existentes",
+      "skipped": "Ignoradas",
+      "rejected": "Ilegíveis"
+    },
+    "format": {
+      "delimited": "Arquivo de texto (CSV)",
+      "ofx": "Arquivo OFX / QFX"
+    },
+    "savedFormat": "Formato salvo: {{name}}",
+    "findingsLabel": "O que a verificação encontrou",
+    "finding": "{{title}}: {{count}}",
+    "findingLabels": {
+      "referenceNotUnique": "Referência do banco não usada para identificar duplicatas",
+      "currencyMismatch": "Linhas em uma moeda diferente da conta",
+      "columnNotImported": "Colunas não importadas"
+    },
+    "assumptions": "Suposições confirmadas: {{count}}",
+    "fixedRows": "Linhas corrigidas à mão: {{count}}",
+    "noFindings": "Nada precisou de atenção",
+    "undo": "Desfazer esta importação",
+    "showAll": "Mostrar todas as importações ({{count}})",
+    "showFewer": "Mostrar menos",
+    "undone": "A importação de {{file}} foi desfeita. Transações removidas: {{count}}.",
+    "undoneScanFailed": "A importação foi desfeita, mas não foi possível verificar as assinaturas novamente. Abra Assinaturas e escolha Verificar novamente."
+  },
+  "undo": {
+    "title": "Desfazer esta importação?",
+    "summary": "{{file}}, importado em {{when}}",
+    "loading": "Calculando o que esta importação adicionou…",
+    "intro": "Desfazer remove tudo o que esta importação adicionou:",
+    "transactions": "Transações",
+    "edited": "Alteradas por você desde a importação",
+    "loanPayments": "Pagamentos de empréstimo",
+    "transferPairs": "Pares de transferências",
+    "editedWarning": "As categorias, as observações e as outras alterações feitas nessas transações depois da importação serão perdidas.",
+    "transferNote": "O outro lado de cada transferência permanece. Ele volta a ser uma receita ou uma despesa, a menos que você tenha definido o tipo.",
+    "afterwards": "Depois, os saldos dos empréstimos e as assinaturas são recalculados.",
+    "irreversible": "Isso não pode ser revertido. Para ter as transações de volta, importe o arquivo novamente.",
+    "confirm": "Desfazer importação",
+    "undoing": "Desfazendo…",
+    "impactFailed": "Não foi possível calcular o que esta importação adicionou, então ela não pode ser desfeita agora.",
+    "errors": {
+      "generic": "Não foi possível desfazer a importação. Tente novamente; se continuar falhando, o Console do desenvolvedor em Configurações mostra o que deu errado.",
+      "notReady": "O banco de dados ainda está iniciando. Tente novamente em instantes.",
+      "IMPORT_BATCH_NOT_FOUND": "Esta importação não está mais no histórico. Talvez já tenha sido desfeita, por exemplo em outra aba."
+    }
+  },
+  "formats": {
+    "title": "Formatos salvos",
+    "description": "Como o arquivo de cada banco é lido, salvo por conta. Um arquivo em um formato salvo para a sua conta pula as etapas de configuração.",
+    "empty": "Nenhum formato salvo ainda. Quando uma importação memoriza como um arquivo é organizado, o formato fica guardado aqui, para que o próximo arquivo desse banco não precise de configuração.",
+    "fileType": {
+      "delimited": "Arquivo de texto (CSV)",
+      "ofx": "Arquivo OFX / QFX"
+    },
+    "account": "Vai para: {{account}}",
+    "noAccount": "Pergunta a conta toda vez",
+    "lastUsed": "Último uso: {{date}}",
+    "neverUsed": "Ainda não usado",
+    "useCount": "Vezes usado: {{count}}",
+    "edit": "Editar o formato {{name}}",
+    "delete": "Excluir o formato {{name}}",
+    "editDialog": {
+      "title": "Editar formato salvo",
+      "name": "Nome do formato",
+      "nameRequired": "Digite um nome para este formato.",
+      "account": "Conta",
+      "askEachTime": "Perguntar toda vez",
+      "accountHelp": "Arquivos neste formato pulam as etapas de configuração para esta conta. Para outra conta, a importação verifica antes como lê-los.",
+      "saveFailed": "Não foi possível salvar o formato. Tente novamente."
+    },
+    "deleteDialog": {
+      "title": "Excluir este formato salvo?",
+      "body": "“{{name}}” será esquecido. Na próxima vez que você importar um arquivo como este, a importação perguntará novamente como lê-lo.",
+      "note": "As transações já importadas não são afetadas.",
+      "confirm": "Excluir formato",
+      "failed": "Não foi possível excluir o formato. Tente novamente."
+    }
+  },
+  "identifiers": {
+    "title": "Números e nomes de conta",
+    "description": "Como os arquivos do seu banco chamam cada conta. A importação usa isso para descobrir a qual conta um arquivo pertence.",
+    "empty": "Nada memorizado ainda. Quando você confirma a qual conta um arquivo pertence, o número ou o nome usado pelo arquivo fica guardado aqui.",
+    "numberEnding": "Número com final {{lastFour}}",
+    "shortNumber": "Número curto (oculto)",
+    "label": "Nome no arquivo: “{{text}}”",
+    "fromImport": "Memorizado em uma importação em {{date}}",
+    "manual": "Adicionado à mão em {{date}}",
+    "remove": "Remover {{identifier}} de {{account}}",
+    "cardsNote": "Os números de cartão ficam com cada conta na página Contas.",
+    "removeDialog": {
+      "title": "Remover de {{account}}?",
+      "body": "{{identifier}} deixará de apontar para {{account}}. O próximo arquivo que usar esse dado perguntará a qual conta pertence.",
+      "confirm": "Remover",
+      "failed": "Não foi possível remover. Tente novamente."
+    }
   }
 }

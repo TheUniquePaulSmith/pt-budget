@@ -76,7 +76,15 @@
     "rateRemove": "Remover",
     "rateRemoveFor": "Remover taxa de {{currency}}",
     "ratesAddLabel": "Adicionar moeda",
-    "ratesAdd": "Adicionar"
+    "ratesAdd": "Adicionar",
+    "install": {
+      "title": "Instalar o aplicativo",
+      "description": "Instalado, o aplicativo abre em uma janela própria ou pela Tela de Início e funciona offline.",
+      "button": "Instalar aplicativo",
+      "guideButton": "Ver como",
+      "installed": "O aplicativo está instalado neste dispositivo.",
+      "unavailable": "Este navegador não está oferecendo a instalação do aplicativo no momento. No Chrome ou no Edge, use o ícone de instalação na barra de endereços. Se o aplicativo já estiver instalado, abra-o pelos seus aplicativos."
+    }
   },
   "storage": {
     "title": "Gerenciamento de armazenamento",

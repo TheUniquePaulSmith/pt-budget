@@ -17,7 +17,8 @@
     "more": "Plus",
     "quickActions": "Actions rapides",
     "addTransaction": "Ajouter une transaction",
-    "manageData": "Gérer les données"
+    "manageData": "Gérer les données",
+    "installApp": "Installer l'application"
   },
   "dataGrid": {
     "noRows": "Aucune ligne à afficher"
@@ -98,5 +99,24 @@
     "resetting": "Réinitialisation…",
     "recoveryLabel": "Phrase de récupération",
     "recoveryHelp": "Saisissez votre phrase de récupération de 12 mots pour confirmer la réinitialisation."
+  },
+  "offline": {
+    "ready": "L'application est enregistrée sur cet appareil et fonctionne hors ligne.",
+    "updateReady": "Une nouvelle version de l'application est prête.",
+    "reload": "Recharger",
+    "close": "Fermer",
+    "install": "Installer"
+  },
+  "installGuide": {
+    "title": "Installer Budget Tracker",
+    "iosIntro": "Ajoutez l'application à votre écran d'accueil pour l'ouvrir comme les autres, même hors ligne.",
+    "iosStep1": "Touchez le bouton Partager dans la barre d’outils du navigateur.",
+    "iosStep2": "Choisissez « Sur l’écran d’accueil ».",
+    "iosStep3": "Touchez Ajouter.",
+    "macIntro": "Ajoutez l'application au Dock pour l'ouvrir dans sa propre fenêtre, même hors ligne.",
+    "macStep1": "Dans la barre des menus de Safari, ouvrez Fichier.",
+    "macStep2": "Choisissez « Ajouter au Dock ».",
+    "macStep3": "Cliquez sur Ajouter.",
+    "close": "Compris"
   }
 }

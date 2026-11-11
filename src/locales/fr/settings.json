@@ -76,7 +76,15 @@
     "rateRemove": "Retirer",
     "rateRemoveFor": "Retirer le taux pour {{currency}}",
     "ratesAddLabel": "Ajouter une devise",
-    "ratesAdd": "Ajouter"
+    "ratesAdd": "Ajouter",
+    "install": {
+      "title": "Installer l'application",
+      "description": "Une fois installée, l'application s'ouvre dans sa propre fenêtre ou depuis l'écran d'accueil, et fonctionne hors ligne.",
+      "button": "Installer l'application",
+      "guideButton": "Voir comment faire",
+      "installed": "L'application est installée sur cet appareil.",
+      "unavailable": "Ce navigateur ne propose pas d'installer l'application pour le moment. Dans Chrome ou Edge, utilisez l'icône d'installation de la barre d'adresse. Si l'application est déjà installée, ouvrez-la depuis vos applications."
+    }
   },
   "storage": {
     "title": "Gestion du stockage",

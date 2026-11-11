@@ -74,7 +74,15 @@
     "rateRemove": "제거",
     "rateRemoveFor": "{{currency}} 환율 제거",
     "ratesAddLabel": "통화 추가",
-    "ratesAdd": "추가"
+    "ratesAdd": "추가",
+    "install": {
+      "title": "앱 설치",
+      "description": "설치하면 앱이 별도의 창이나 홈 화면에서 열리고 오프라인에서도 작동합니다.",
+      "button": "앱 설치",
+      "guideButton": "방법 보기",
+      "installed": "이 기기에 앱이 설치되어 있습니다.",
+      "unavailable": "이 브라우저는 현재 앱 설치를 제공하지 않습니다. Chrome 또는 Edge에서는 주소 표시줄의 설치 아이콘을 사용하세요. 앱이 이미 설치되어 있다면 앱 목록에서 여세요."
+    }
   },
   "storage": {
     "title": "저장 공간 관리",

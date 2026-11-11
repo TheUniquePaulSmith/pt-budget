@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:unlocked"],
       "port": 3000
+    },
+    {
+      "name": "dist",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve-dist.mjs", "--port=4173"],
+      "port": 4173
     }
   ]
 }

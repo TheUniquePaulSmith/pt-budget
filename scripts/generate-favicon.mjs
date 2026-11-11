@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
@@ -7,6 +7,8 @@ import { deflateSync } from 'node:zlib';
 // animates (src/lib/pixelMoneySprite.json) and writes:
 //   src/app/icon.svg      the modern, scalable icon
 //   src/app/favicon.ico   16/32/48 px PNG-in-ICO for browsers that still ask for /favicon.ico
+//   public/icons/*.png    192/512 px install icons ("any" and maskable) for the manifest
+//   src/app/apple-icon.png 180 px home-screen icon for iOS
 // No dependencies: the PNG/ICO encoding below is just zlib plus a CRC table.
 // Usage: npm run favicon:generate [-- --wings=up|mid|down]
 
@@ -75,17 +77,22 @@ function hexToRgb(hex) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-// Nearest-neighbour upscale keeps the pixel art crisp at 32 and 48 px.
-function toPng(scale) {
-  const size = ICON_SIZE * scale;
+// Nearest-neighbour upscale keeps the pixel art crisp at every size. The grid,
+// scaled by `scale`, is centred on a `size` square; `background` fills the
+// rest (transparent when null).
+function toPng(scale, size = ICON_SIZE * scale, background = null) {
+  const offset = Math.floor((size - ICON_SIZE * scale) / 2);
+  const fill = background ? [...hexToRgb(background), 255] : [0, 0, 0, 0];
   const raw = Buffer.alloc((size * 4 + 1) * size);
   for (let y = 0; y < size; y += 1) {
     const rowStart = y * (size * 4 + 1);
     raw[rowStart] = 0;
     for (let x = 0; x < size; x += 1) {
-      const color = grid[Math.floor(y / scale)][Math.floor(x / scale)];
-      const [r, g, b] = color ? hexToRgb(color) : [0, 0, 0];
-      raw.set([r, g, b, color ? 255 : 0], rowStart + 1 + x * 4);
+      const gridX = Math.floor((x - offset) / scale);
+      const gridY = Math.floor((y - offset) / scale);
+      const inside = x >= offset && y >= offset && gridX < ICON_SIZE && gridY < ICON_SIZE;
+      const color = inside ? grid[gridY][gridX] : null;
+      raw.set(color ? [...hexToRgb(color), 255] : fill, rowStart + 1 + x * 4);
     }
   }
   const header = Buffer.alloc(13);
@@ -120,6 +127,26 @@ function toIco() {
   return Buffer.concat([directory, ...images.map(({ png }) => png)]);
 }
 
+// Install icons for the web app manifest (src/app/manifest.ts) and iOS.
+// "any" icons fill the square on transparency; maskable ones keep the sprite
+// inside the central safe circle (80% of the side) on a solid tile, because
+// launchers crop them to their own shape; iOS ignores transparency, so the
+// Apple icon is a solid tile too.
+const TILE_BACKGROUND = '#0f172a'; // the dark theme's background (src/theme/theme.tsx)
+const INSTALL_ICONS = [
+  { file: 'public/icons/icon-192.png', scale: 12, size: 192, background: null },
+  { file: 'public/icons/icon-512.png', scale: 32, size: 512, background: null },
+  { file: 'public/icons/icon-maskable-192.png', scale: 7, size: 192, background: TILE_BACKGROUND },
+  { file: 'public/icons/icon-maskable-512.png', scale: 20, size: 512, background: TILE_BACKGROUND },
+  { file: 'src/app/apple-icon.png', scale: 9, size: 180, background: TILE_BACKGROUND },
+];
+
 writeFileSync(path.join(ROOT, 'src', 'app', 'icon.svg'), toSvg());
 writeFileSync(path.join(ROOT, 'src', 'app', 'favicon.ico'), toIco());
-console.log(`Wrote src/app/icon.svg and src/app/favicon.ico (wings: ${wingsArg}).`);
+mkdirSync(path.join(ROOT, 'public', 'icons'), { recursive: true });
+for (const { file, scale, size, background } of INSTALL_ICONS) {
+  writeFileSync(path.join(ROOT, file), toPng(scale, size, background));
+}
+console.log(
+  `Wrote src/app/icon.svg, src/app/favicon.ico and ${INSTALL_ICONS.map(({ file }) => file).join(', ')} (wings: ${wingsArg}).`,
+);

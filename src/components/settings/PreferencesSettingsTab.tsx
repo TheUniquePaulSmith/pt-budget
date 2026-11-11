@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Settings → Preferences: language (this device), default currency (this
+ * Settings → Preferences: language (this device), installing the app (the
+ * browser's install dialog, Safari's steps, or why it is not offered), default currency (this
  * database; changing it rebases every known exchange rate) and the manual
  * exchange-rate editor for every currency in use by an account.
  */
@@ -24,9 +25,11 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import { InstallDesktop as InstallDesktopIcon } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 
 import CurrencySelect from '@/components/common/CurrencySelect';
+import { canOfferInstall, useAppInstall } from '@/components/common/Offline/useAppInstall';
 import { useOptionalLocale } from '@/contexts/LocaleContext';
 import { useCurrencyPreferencesSlice } from '@/contexts/useDatabaseSlices';
 import { useFormatters } from '@/contexts/useFormatters';
@@ -37,6 +40,7 @@ import ExchangeRatesEditor from './ExchangeRatesEditor';
 
 export default function PreferencesSettingsTab() {
   const { t } = useTranslation('settings');
+  const install = useAppInstall();
   const locale = useOptionalLocale();
   const { locale: localeTag } = useFormatters();
   const {
@@ -113,6 +117,37 @@ export default function PreferencesSettingsTab() {
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           {t('preferences.languageHelp')}
         </Typography>
+      </Box>
+
+      <Divider />
+
+      <Box data-testid="settings-install">
+        <Typography variant="h6" gutterBottom>
+          {t('preferences.install.title')}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          {t('preferences.install.description')}
+        </Typography>
+        {install.status === 'installed' && (
+          <Alert severity="success" data-testid="settings-install-installed">
+            {t('preferences.install.installed')}
+          </Alert>
+        )}
+        {install.status === 'unavailable' && (
+          <Alert severity="info" data-testid="settings-install-unavailable">
+            {t('preferences.install.unavailable')}
+          </Alert>
+        )}
+        {canOfferInstall(install) && (
+          <Button
+            variant="contained"
+            startIcon={<InstallDesktopIcon />}
+            onClick={install.install}
+            data-testid="settings-install-button"
+          >
+            {install.status === 'guide' ? t('preferences.install.guideButton') : t('preferences.install.button')}
+          </Button>
+        )}
       </Box>
 
       <Divider />

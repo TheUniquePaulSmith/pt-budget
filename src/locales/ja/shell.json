@@ -17,7 +17,8 @@
     "more": "その他",
     "quickActions": "クイック操作",
     "addTransaction": "取引を追加",
-    "manageData": "データ管理"
+    "manageData": "データ管理",
+    "installApp": "アプリをインストール"
   },
   "dataGrid": {
     "noRows": "表示する行がありません"
@@ -98,5 +99,24 @@
     "resetting": "リセット中…",
     "recoveryLabel": "リカバリーフレーズ",
     "recoveryHelp": "リセットを確認するには12単語のリカバリーフレーズを入力してください。"
+  },
+  "offline": {
+    "ready": "アプリはこのデバイスに保存され、オフラインでも使用できます。",
+    "updateReady": "アプリの新しいバージョンの準備ができました。",
+    "reload": "再読み込み",
+    "close": "閉じる",
+    "install": "インストール"
+  },
+  "installGuide": {
+    "title": "Budget Tracker をインストール",
+    "iosIntro": "アプリをホーム画面に追加すると、ほかのアプリと同じように開け、オフラインでも使えます。",
+    "iosStep1": "ブラウザのツールバーで共有ボタンをタップします。",
+    "iosStep2": "「ホーム画面に追加」を選びます。",
+    "iosStep3": "「追加」をタップします。",
+    "macIntro": "アプリを Dock に追加すると、専用のウインドウで開け、オフラインでも使えます。",
+    "macStep1": "Safari のメニューバーで「ファイル」を開きます。",
+    "macStep2": "「Dock に追加」を選びます。",
+    "macStep3": "「追加」をクリックします。",
+    "close": "OK"
   }
 }

@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { CustomThemeProvider } from "../theme/theme";
 import { LoggingProvider } from "../contexts/LoggingContext";
 import { LocaleProvider } from "../contexts/LocaleContext";
 import { WllamaProvider } from "../contexts/WllamaContext";
+import OfflineRuntime from "../components/common/Offline/OfflineRuntime";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,6 +20,21 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Budget Tracker - Personal Finance Management",
   description: "Track your income, expenses, and budgets with powerful visualizations and insights.",
+  // Installed on iOS: a standalone home-screen app (icon: src/app/apple-icon.png).
+  // The web app manifest is src/app/manifest.ts.
+  appleWebApp: {
+    capable: true,
+    title: "Budget Tracker", // i18n-ignore: app name, static like <title> and the manifest
+    statusBarStyle: "default",
+  },
+};
+
+// The browser / installed window's title bar follows the app bar colour.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#1976d2" },
+    { media: "(prefers-color-scheme: dark)", color: "#182235" },
+  ],
 };
 
 export default function RootLayout({
@@ -40,6 +56,7 @@ export default function RootLayout({
               <WllamaProvider>
                 {children}
               </WllamaProvider>
+              <OfflineRuntime />
             </CustomThemeProvider>
           </LocaleProvider>
         </LoggingProvider>

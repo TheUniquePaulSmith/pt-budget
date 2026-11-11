@@ -24,9 +24,12 @@ import {
 } from '@mui/material';
 import {
   Add as AddTransactionIcon,
+  InstallMobile as InstallAppIcon,
   MoreHoriz as MoreIcon,
   Storage as ManageDataIcon,
 } from '@mui/icons-material';
+
+import { canOfferInstall, useAppInstall } from '@/components/common/Offline/useAppInstall';
 
 import AiLauncherSlot from './slots/AiLauncherSlot';
 import NotificationBellSlot from './slots/NotificationBellSlot';
@@ -70,6 +73,7 @@ export default function MobileBottomNav({
   const { t } = useTranslation('shell');
   const barHasCurrent = barPages.some((page) => page.id === currentPage);
   const closeSheet = () => onMoreOpenChange(false);
+  const installState = useAppInstall();
 
   return (
     <>
@@ -187,6 +191,22 @@ export default function MobileBottomNav({
           <List dense>
             <NotificationBellSlot variant="menuItem" onNavigate={() => onNavigate('notifications')} />
             <AiLauncherSlot variant="menuItem" onActivate={closeSheet} />
+            {canOfferInstall(installState) && (
+              <ListItem disablePadding>
+                <ListItemButton
+                  onClick={() => {
+                    closeSheet();
+                    installState.install();
+                  }}
+                  data-testid="mobile-install-app"
+                >
+                  <ListItemIcon>
+                    <InstallAppIcon />
+                  </ListItemIcon>
+                  <ListItemText primary={t('nav.installApp')} />
+                </ListItemButton>
+              </ListItem>
+            )}
             <ListItem disablePadding>
               <ListItemButton
                 onClick={() => {

@@ -74,7 +74,15 @@
     "rateRemove": "移除",
     "rateRemoveFor": "移除{{currency}}的汇率",
     "ratesAddLabel": "添加货币",
-    "ratesAdd": "添加"
+    "ratesAdd": "添加",
+    "install": {
+      "title": "安装应用",
+      "description": "安装后，应用会在独立窗口中或从主屏幕打开，并可离线使用。",
+      "button": "安装应用",
+      "guideButton": "查看方法",
+      "installed": "此应用已安装在本设备上。",
+      "unavailable": "此浏览器目前不提供安装此应用。在 Chrome 或 Edge 中，请使用地址栏中的安装图标。如果应用已安装，请从您的应用中打开它。"
+    }
   },
   "storage": {
     "title": "存储管理",

@@ -26,11 +26,13 @@ import {
   Add as AddTransactionIcon,
   ChevronLeft as CollapseIcon,
   ChevronRight as ExpandIcon,
+  InstallDesktop as InstallAppIcon,
   Storage as ManageDataIcon,
 } from '@mui/icons-material';
 import type { SvgIconProps } from '@mui/material';
 
 import AppLogo from '@/components/common/AppLogo';
+import { canOfferInstall, useAppInstall } from '@/components/common/Offline/useAppInstall';
 
 import { useTranslation } from 'react-i18next';
 
@@ -121,6 +123,7 @@ export default function SidebarRail({
   developerConsolePage,
 }: SidebarRailProps) {
   const { t } = useTranslation(['shell', 'common']);
+  const installState = useAppInstall();
   const width = expanded ? RAIL_WIDTH_EXPANDED : RAIL_WIDTH_COLLAPSED;
   const sections = SECTION_ORDER.map((section) => pages.filter((page) => page.section === section)).filter(
     (group) => group.length > 0
@@ -228,6 +231,15 @@ export default function SidebarRail({
 
       <Divider />
       <List dense disablePadding sx={{ py: 0.5 }}>
+        {canOfferInstall(installState) && (
+          <RailItem
+            label={t('nav.installApp')}
+            icon={InstallAppIcon}
+            expanded={expanded}
+            onClick={installState.install}
+            testId="rail-install-app"
+          />
+        )}
         <RailItem label={t('nav.manageData')} icon={ManageDataIcon} expanded={expanded} onClick={onOpenManageData} testId="rail-manage-data" />
         <RailItem
           label={getPageLabel(developerConsolePage, t)}

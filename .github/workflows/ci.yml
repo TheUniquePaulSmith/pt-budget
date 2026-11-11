@@ -26,10 +26,10 @@ jobs:
       - uses: actions/checkout@v4
 
       # pnpm must be on PATH before setup-node, whose `cache: pnpm` asks it
-      # for the store path. Same major as pnpm-lock.yaml was written with.
+      # for the store path. The version comes from package.json's
+      # packageManager field (also what Cloudflare Workers Builds uses);
+      # setting `version:` here as well makes the action fail.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 12
 
       - uses: actions/setup-node@v4
         with:

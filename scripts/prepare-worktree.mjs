@@ -171,8 +171,14 @@ function checkDeps() {
 }
 
 // Git may check pnpm-lock.yaml out with CRLF line endings; pnpm's own copy is LF.
+// With package.json's packageManager set, pnpm-lock.yaml starts with a separate
+// YAML document (`---` … `---`) pinning pnpm itself; the copy in node_modules
+// holds only the dependency document after it, so compare that part.
 function readLockfile(file) {
-  return fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+  const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+  if (!text.startsWith('---\n')) return text;
+  const end = text.indexOf('\n---\n', 3);
+  return end === -1 ? text : text.slice(end + '\n---\n'.length);
 }
 
 // ---------------------------------------------------------------------------

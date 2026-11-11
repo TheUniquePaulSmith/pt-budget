@@ -39,6 +39,8 @@ npm run test:unit:coverage   # enforces coverage thresholds on src/lib/databaseS
 npm run test:unit:watch
 npm run test:e2e:smoke       # Playwright tests tagged @smoke (what CI runs)
 npm run test:e2e             # full browser suite (tests/e2e/)
+npm run test:e2e:headed      # same suite in a visible Chromium window (smoke tests included); picks playwright.local.config.ts
+npm run test:e2e:smoke:headed  # only @smoke, visible; extra args pass through: npm run test:e2e:headed -- -g "name"
 
 npx vitest run src/lib/databaseService.test.ts        # single unit test file
 npx vitest run -t "test name"                         # single test by name

@@ -17,7 +17,9 @@
     "test:unit:coverage": "vitest run --coverage",
     "test:unit:watch": "vitest",
     "test:e2e:smoke": "playwright test --grep @smoke",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "node scripts/test-e2e-headed.mjs",
+    "test:e2e:smoke:headed": "node scripts/test-e2e-headed.mjs --smoke"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.11.0",

@@ -34,11 +34,6 @@
     "savedFormat": "Formato salvo: {{name}}",
     "findingsLabel": "O que a verificação encontrou",
     "finding": "{{title}}: {{count}}",
-    "findingLabels": {
-      "referenceNotUnique": "Referência do banco não usada para identificar duplicatas",
-      "currencyMismatch": "Linhas em uma moeda diferente da conta",
-      "columnNotImported": "Colunas não importadas"
-    },
     "assumptions": "Suposições confirmadas: {{count}}",
     "fixedRows": "Linhas corrigidas à mão: {{count}}",
     "noFindings": "Nada precisou de atenção",

@@ -41,14 +41,3 @@ export function useTransactionTypeActionsSlice() {
   };
 }
 
-/** CSV import: detect transfers / refunds in the staged rows and apply the user's choice. */
-export function useImportClassificationSlice() {
-  const classification = useDatabaseClassification();
-
-  return {
-    previewImportClassification: classification.previewImportClassification,
-    decisionsForTransferPairs: classification.decisionsForTransferPairs,
-    applyStagedClassification: classification.applyStagedClassification,
-    applyClassificationDecisions: classification.applyClassificationDecisions,
-  };
-}

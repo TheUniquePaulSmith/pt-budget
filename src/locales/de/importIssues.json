@@ -89,16 +89,19 @@
     },
     "referenceNotUnique": {
       "title": "„{{column}}“ wird nicht zum Erkennen von Duplikaten verwendet",
-      "detail": "Eine Bankreferenz hilft nur, wenn jede Zeile ihre eigene hat. In dieser Datei ist sie leer, wiederholt oder beschädigt; bereits importierte Zeilen werden daher an Datum, Betrag und Beschreibung erkannt."
+      "detail": "Eine Bankreferenz hilft nur, wenn jede Zeile ihre eigene hat. In dieser Datei ist sie leer, wiederholt oder beschädigt; bereits importierte Zeilen werden daher an Datum, Betrag und Beschreibung erkannt.",
+      "summary": "Bankreferenz nicht zur Erkennung von Duplikaten verwendet"
     },
     "currencyMismatch": {
       "title_one": "{{count}} Zeile ist in {{fileCurrency}}, das Konto aber in {{accountCurrency}}",
       "title_other": "{{count}} Zeilen sind in {{fileCurrency}}, das Konto aber in {{accountCurrency}}",
-      "detail": "Die Beträge werden unverändert importiert und als {{accountCurrency}} gezählt. Es wird nichts umgerechnet. Prüfen Sie, ob Sie das richtige Konto gewählt haben."
+      "detail": "Die Beträge werden unverändert importiert und als {{accountCurrency}} gezählt. Es wird nichts umgerechnet. Prüfen Sie, ob Sie das richtige Konto gewählt haben.",
+      "summary": "Zeilen in einer anderen Währung als das Konto"
     },
     "columnNotImported": {
       "title": "„{{column}}“ wird nicht importiert",
-      "detail": "Der Import übernimmt Datum, Beschreibung und Betrag jeder Transaktion. Andere Spalten, etwa eine Kategorie, eine Schecknummer oder der Tilgungs- und Zinsanteil einer Kreditrate, bleiben außen vor."
+      "detail": "Der Import übernimmt Datum, Beschreibung und Betrag jeder Transaktion. Andere Spalten, etwa eine Kategorie, eine Schecknummer oder der Tilgungs- und Zinsanteil einer Kreditrate, bleiben außen vor.",
+      "summary": "Nicht importierte Spalten"
     },
     "unreadableDate": {
       "title_one": "{{count}} Zeile hat ein Datum, das wir nicht lesen können",
@@ -193,7 +196,8 @@
     },
     "accountUnknown": {
       "title": "Wir wissen nicht, zu welchem Konto diese Datei gehört",
-      "detail": "Nichts in der Datei passt zu einem Ihrer Konten. Wählen Sie ein Konto, oder legen Sie ein neues an."
+      "detail": "Nichts in der Datei passt zu einem Ihrer Konten. Wählen Sie ein Konto, oder legen Sie ein neues an.",
+      "summary": "Nichts in der Datei passte zu einem Konto"
     },
     "gapSinceLastImport": {
       "title_one": "{{count}} Tag ist nicht abgedeckt",

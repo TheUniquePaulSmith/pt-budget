@@ -89,16 +89,19 @@
     },
     "referenceNotUnique": {
       "title": "“{{column}}” não é usada para identificar duplicatas",
-      "detail": "Uma referência do banco só ajuda quando cada linha tem a sua. Neste arquivo ela está vazia, repetida ou danificada, então as linhas que você já importou são reconhecidas pela data, pelo valor e pela descrição."
+      "detail": "Uma referência do banco só ajuda quando cada linha tem a sua. Neste arquivo ela está vazia, repetida ou danificada, então as linhas que você já importou são reconhecidas pela data, pelo valor e pela descrição.",
+      "summary": "Referência do banco não usada para identificar duplicatas"
     },
     "currencyMismatch": {
       "title_one": "{{count}} linha está em {{fileCurrency}}, mas a conta está em {{accountCurrency}}",
       "title_other": "{{count}} linhas estão em {{fileCurrency}}, mas a conta está em {{accountCurrency}}",
-      "detail": "Os valores são importados como estão e contados como {{accountCurrency}}. Nada é convertido. Confira se você escolheu a conta certa."
+      "detail": "Os valores são importados como estão e contados como {{accountCurrency}}. Nada é convertido. Confira se você escolheu a conta certa.",
+      "summary": "Linhas em uma moeda diferente da conta"
     },
     "columnNotImported": {
       "title": "“{{column}}” não é importada",
-      "detail": "A importação guarda a data, a descrição e o valor de cada transação. As outras colunas, como uma categoria, um número de cheque ou as partes de principal e juros de uma parcela de empréstimo, ficam de fora."
+      "detail": "A importação guarda a data, a descrição e o valor de cada transação. As outras colunas, como uma categoria, um número de cheque ou as partes de principal e juros de uma parcela de empréstimo, ficam de fora.",
+      "summary": "Colunas não importadas"
     },
     "unreadableDate": {
       "title_one": "{{count}} linha tem uma data que não conseguimos ler",
@@ -193,7 +196,8 @@
     },
     "accountUnknown": {
       "title": "Não sabemos a que conta este arquivo se refere",
-      "detail": "Nada no arquivo corresponde a uma das suas contas. Escolha uma conta ou adicione uma nova."
+      "detail": "Nada no arquivo corresponde a uma das suas contas. Escolha uma conta ou adicione uma nova.",
+      "summary": "Nada no arquivo correspondia a uma conta"
     },
     "gapSinceLastImport": {
       "title_one": "{{count}} dia sem cobertura",

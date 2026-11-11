@@ -2,11 +2,8 @@
  * The catalog of things the import analysis can find. Each code has a default
  * severity and scope here and a text in `src/locales/<lang>/importIssues.json`
  * (`issues.<code>.title` / `.detail`); `issueCodes.test.ts` keeps the two in
- * step.
- *
- * Ownership during the Import Wizard program: the interpretation agent (B)
- * owns this file; the readers agent (A) may add codes inside the
- * `#region reader codes` block only.
+ * step. The codes a reader raises are in the `#region reader codes` block,
+ * everything else comes from the analysis or the wizard (account findings).
  */
 
 import type { IssueScope, IssueSeverity } from './types';

@@ -34,11 +34,6 @@
     "savedFormat": "Formato salvato: {{name}}",
     "findingsLabel": "Cosa ha rilevato il controllo",
     "finding": "{{title}}: {{count}}",
-    "findingLabels": {
-      "referenceNotUnique": "Riferimento bancario non usato per individuare i duplicati",
-      "currencyMismatch": "Righe in una valuta diversa da quella del conto",
-      "columnNotImported": "Colonne non importate"
-    },
     "assumptions": "Ipotesi confermate: {{count}}",
     "fixedRows": "Righe corrette a mano: {{count}}",
     "noFindings": "Niente da segnalare",

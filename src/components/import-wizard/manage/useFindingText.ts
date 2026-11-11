@@ -13,15 +13,17 @@ const UNFILLED_PLACEHOLDER = /\{\{[^}]*\}\}/;
 /**
  * One finding of an import as the history shows it: what the analysis found
  * and how often. The stored summary keeps a count per issue code and nothing
- * else, so the text is built from the catalog's title
- * (`importIssues:issues.<code>.title`) like this:
+ * else, so the text comes from the issue catalog (`importIssues:issues.<code>`)
+ * like this:
  *
- *   - a plural title gets the count and is complete
+ *   - a code with a `summary` uses it: the catalog's wording for a place that
+ *     has a count and nothing else, written for titles that name a column or
+ *     a currency, or that only make sense while the import is still open
+ *     ("Columns not imported: 2");
+ *   - a plural `title` gets the count and is complete
  *     ("3 rows have a date we cannot read");
- *   - a plain title is followed by the count when there is more than one
+ *   - a plain `title` is followed by the count when there is more than one
  *     ("Rows you have already imported: 3");
- *   - a title that names something the summary does not keep (a column, a
- *     currency) gives way to `importManage:history.findingLabels.<code>`;
  *   - a code with no text (a stored summary can outlive its code) is shown
  *     as the code itself.
  */
@@ -35,6 +37,9 @@ export function useFindingText(): (code: string, count: number) => string {
       const withCount = (title: string) =>
         count > 1 ? translate('importManage:history.finding', { title, count: number(count) }) : title;
 
+      const summaryKey = `importIssues:issues.${code}.summary`;
+      if (i18n.exists(summaryKey)) return withCount(translate(summaryKey));
+
       const titleKey = `importIssues:issues.${code}.title`;
       if (i18n.exists(titleKey, { count })) {
         // `count` picks the plural form; what is printed is the formatted number.
@@ -46,8 +51,6 @@ export function useFindingText(): (code: string, count: number) => string {
         }
       }
 
-      const labelKey = `importManage:history.findingLabels.${code}`;
-      if (i18n.exists(labelKey)) return withCount(translate(labelKey));
       return withCount(code);
     },
     [i18n, number, t]

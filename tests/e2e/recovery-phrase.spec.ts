@@ -14,6 +14,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { validateRecoveryPhrase } from '../../src/lib/recoveryPhrase/bip39';
 import {
   bootstrapDatabase,
   reloadAndUnlock,
@@ -33,6 +34,22 @@ async function readGeneratedWords(page: Page): Promise<string[]> {
     words.push((await page.getByTestId(`recovery-word-${i}`).innerText()).trim());
   }
   return words;
+}
+
+/**
+ * The phrase with its last word replaced by another real word, so that the
+ * checksum fails. The checksum of a 12-word phrase is four bits: a replacement
+ * picked blindly still passes one time in sixteen, so each candidate is checked
+ * with the app's own validator first.
+ */
+async function phraseWithBadChecksum(words: string[]): Promise<string[]> {
+  for (const candidate of ['zoo', 'zone', 'zero', 'youth', 'young', 'yellow', 'year', 'wrong']) {
+    if (candidate === words[11]) continue;
+    const tampered = [...words.slice(0, 11), candidate];
+    const validation = await validateRecoveryPhrase(tampered);
+    if (!validation.ok && validation.invalidPositions.length === 0) return tampered;
+  }
+  throw new Error('No candidate word breaks the checksum of this phrase');
 }
 
 async function confirmGeneratedWords(page: Page, words: string[]) {
@@ -64,8 +81,7 @@ test.describe('Recovery phrase as the master secret', () => {
     await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
 
     // A real word in the wrong place fails the checksum: the worker is never asked.
-    const tampered = [...recoveryWords!];
-    tampered[11] = tampered[11] === 'zoo' ? 'zone' : 'zoo';
+    const tampered = await phraseWithBadChecksum(recoveryWords!);
     await page.getByTestId('recovery-phrase-input').fill(tampered.join(' '));
     await expect(page.getByText(/doesn't check out/)).toBeVisible();
     await expect(page.getByTestId('recovery-unlock')).toBeDisabled();

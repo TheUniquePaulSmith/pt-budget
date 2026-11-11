@@ -9,8 +9,8 @@
  * `window`. The service-side shapes at the bottom of this file are what
  * `databaseService.imports` takes and returns.
  *
- * FROZEN during the Import Wizard feature program: a change here is a
- * foundation patch merged before any agent rebases, never an agent edit.
+ * Readers, interpretation, the service and both views of the Import page are
+ * written against these shapes: change one and all four move with it.
  */
 
 import type { AccountType, ImportProfile } from '@/types/database';

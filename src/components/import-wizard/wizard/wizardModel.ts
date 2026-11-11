@@ -17,6 +17,7 @@
 import {
   analyzeStatement,
   defaultSeverityOf,
+  isExcelMangled,
   proposeLayout,
   scopeOf,
   type AccountCoverage,
@@ -381,7 +382,8 @@ export function identifierKindOf(statement: Pick<StatementSession, 'table' | 'la
 export function accountIssueCode(resolution: AccountResolution): ImportIssueCode {
   if (resolution.status === 'recognised') return 'accountRecognised';
   if (resolution.status === 'ambiguous') return 'accountAmbiguous';
-  if (resolution.status === 'unknown') return 'accountUnknown';
+  // "4.00E+14": a spreadsheet shortened the number, so it can match nothing. Say that, not just "unknown".
+  if (resolution.status === 'unknown') return isExcelMangled(resolution.value) ? 'accountValueMalformed' : 'accountUnknown';
   if (resolution.basis === 'lastFour') return 'accountAssumedByLastFour';
   if (resolution.basis === 'profile') return 'accountAssumedByProfile';
   return 'accountAssumedByName';

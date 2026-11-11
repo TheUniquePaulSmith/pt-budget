@@ -164,6 +164,26 @@ describe('useDatabaseImportsSlice', () => {
     expect(calls.slice(4).sort()).toEqual(['refreshAccounts', 'refreshLoans', 'refreshTransactions']);
   });
 
+  it('still reports the undo and refreshes everything when a loan balance cannot be recomputed', async () => {
+    const { slice, calls, loans } = setup({ loanIds: [2, 5] });
+    loans.syncAccountSnapshot.mockRejectedValueOnce(new Error('database is locked'));
+
+    let result;
+    await act(async () => {
+      result = await slice.current.undoImportBatch(7);
+    });
+
+    // The batch is gone: a failed balance write must not look like a failed undo.
+    expect(result).toEqual(impact({ loanPayments: 2 }));
+    // The second loan is still tried after the first one failed.
+    expect(loans.syncAccountSnapshot.mock.calls).toEqual([[2], [5]]);
+    expect(calls.filter((name) => name.startsWith('refresh')).sort()).toEqual([
+      'refreshAccounts',
+      'refreshLoans',
+      'refreshTransactions',
+    ]);
+  });
+
   it('touches no loan balance and refreshes nothing when the undo fails', async () => {
     const { slice, calls, imports, loans } = setup({ loanIds: [2] });
     imports.undoBatch.mockRejectedValueOnce(new Error('IMPORT_BATCH_NOT_FOUND'));

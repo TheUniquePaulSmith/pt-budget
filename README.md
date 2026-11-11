@@ -235,9 +235,9 @@ budget-tracker/
 │   ├── components/                       # Feature-based React components
 │   │   ├── accounts/
 │   │   ├── common/
-│   │   ├── csv-import/
 │   │   ├── dashboard/
 │   │   ├── data-management/
+│   │   ├── import-wizard/
 │   │   ├── projects/
 │   │   ├── settings/
 │   │   ├── setup/
@@ -254,11 +254,12 @@ budget-tracker/
 │   │   ├── useDatabaseAccountManagementSlices.ts
 │   │   └── useDatabaseCatalogAndPlanningSlices.ts
 │   ├── lib/
-│   │   ├── csvImportService.ts
 │   │   ├── databaseService.ts
+│   │   ├── databaseServiceImports.ts
 │   │   ├── databaseWorkerService.ts
 │   │   ├── sampleDataService.ts
-│   │   └── sqlQueries.ts
+│   │   ├── sqlQueries.ts
+│   │   └── statementImport/              # Reading and analysing bank statement files (see docs/IMPORT_WIZARD.md)
 │   ├── theme/
 │   └── types/
 ├── public/
@@ -298,7 +299,7 @@ React Components
 | **Business Logic** | `src/lib/databaseService.ts`, `src/lib/sqlQueries.ts` | SQL orchestration, row mapping, validation, analytics helpers, duplicate detection, and domain-specific operations |
 | **Transport** | `src/lib/databaseWorkerService.ts` | Message passing, worker lifecycle, timeout handling, heartbeat/status management |
 | **Execution** | `public/database-worker.js` | SharedWorker-hosted database execution and browser persistence integration |
-| **Import / Sample Data Support** | `src/lib/csvImportService.ts`, `src/lib/sampleDataService.ts` | CSV mapping, duplicate grouping, account matching, and sample-data bootstrap/export helpers |
+| **Import / Sample Data Support** | `src/lib/statementImport/`, `src/lib/databaseServiceImports.ts`, `src/lib/sampleDataService.ts` | Reading and analysing statement files (CSV, OFX, QFX), account matching, staging, commit and undo of an import, and sample-data bootstrap/export helpers |
 
 ### Context Architecture
 

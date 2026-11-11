@@ -19,5 +19,29 @@
       "raggedRows"
     ],
     "fingerprint": "delimited:date|description|amount|memo"
+  },
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1,
+        3
+      ],
+      "amount": 2
+    },
+    "dateOrder": "YMD",
+    "decimal": ".",
+    "amountSign": "asIs"
+  },
+  "analysis": {
+    "readyRows": 3,
+    "blockedRows": 1,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-04",
+    "moneyIn": 2000,
+    "moneyOut": 16.49,
+    "issueCodes": [
+      "unreadableAmount"
+    ]
   }
 }

@@ -89,16 +89,19 @@
     },
     "referenceNotUnique": {
       "title": "«{{column}}» non viene usata per individuare i duplicati",
-      "detail": "Un riferimento bancario è utile solo se ogni riga ha il proprio. In questo file è vuoto, ripetuto o danneggiato, quindi le righe che hai già importato vengono riconosciute da data, importo e descrizione."
+      "detail": "Un riferimento bancario è utile solo se ogni riga ha il proprio. In questo file è vuoto, ripetuto o danneggiato, quindi le righe che hai già importato vengono riconosciute da data, importo e descrizione.",
+      "summary": "Riferimento bancario non usato per individuare i duplicati"
     },
     "currencyMismatch": {
       "title_one": "{{count}} riga è in {{fileCurrency}}, ma il conto è in {{accountCurrency}}",
       "title_other": "{{count}} righe sono in {{fileCurrency}}, ma il conto è in {{accountCurrency}}",
-      "detail": "Gli importi vengono importati così come sono e contati come {{accountCurrency}}. Non viene convertito nulla. Controlla di aver scelto il conto giusto."
+      "detail": "Gli importi vengono importati così come sono e contati come {{accountCurrency}}. Non viene convertito nulla. Controlla di aver scelto il conto giusto.",
+      "summary": "Righe in una valuta diversa da quella del conto"
     },
     "columnNotImported": {
       "title": "«{{column}}» non viene importata",
-      "detail": "L'importazione conserva la data, la descrizione e l'importo di ogni transazione. Le altre colonne, come una categoria, un numero di assegno o le quote di capitale e di interessi di una rata di prestito, vengono tralasciate."
+      "detail": "L'importazione conserva la data, la descrizione e l'importo di ogni transazione. Le altre colonne, come una categoria, un numero di assegno o le quote di capitale e di interessi di una rata di prestito, vengono tralasciate.",
+      "summary": "Colonne non importate"
     },
     "unreadableDate": {
       "title_one": "{{count}} riga ha una data che non riusciamo a leggere",
@@ -193,7 +196,8 @@
     },
     "accountUnknown": {
       "title": "Non sappiamo a quale conto si riferisce questo file",
-      "detail": "Nulla nel file corrisponde a uno dei tuoi conti. Scegli un conto oppure aggiungine uno nuovo."
+      "detail": "Nulla nel file corrisponde a uno dei tuoi conti. Scegli un conto oppure aggiungine uno nuovo.",
+      "summary": "Nulla nel file corrispondeva a un conto"
     },
     "gapSinceLastImport": {
       "title_one": "{{count}} giorno non è coperto",

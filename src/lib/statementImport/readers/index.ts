@@ -10,8 +10,6 @@
  * tables and one issue that says why (`unsupportedFormat` carries
  * `params.kind`); everything the reader had to decide on a readable file
  * (encoding guessed, lines skipped, rows padded) is a note on the table.
- *
- * `readStatement`'s signature is part of the frozen contract.
  */
 
 import type { ReadOptions, ReadResult, SourceFile } from '../types';

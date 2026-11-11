@@ -443,8 +443,8 @@ describe.skipIf(!sqlite).each([
 });
 
 describe.skipIf(!sqlite)('ImportsService on SQLite: which account a file means', () => {
-  async function withIdentifiers() {
-    const harness = openDatabase();
+  async function withIdentifiers(options: { foreignKeys?: boolean } = {}) {
+    const harness = openDatabase(options);
     harness.db.exec(`INSERT INTO account_cards (id, account_id, last_four, full_number) VALUES (1, ${CARD_ACCOUNT}, '4821', '4000000000004821')`);
     await harness.imports.addAccountIdentifier({ account_id: CHECKING, kind: 'number', value: 'Acct 0012344821' });
     await harness.imports.addAccountIdentifier({ account_id: SAVINGS, kind: 'number', value: 'XXXX7777' });
@@ -517,6 +517,72 @@ describe.skipIf(!sqlite)('ImportsService on SQLite: which account a file means',
     });
     expect(await one(harness, 'summit-auto-finance_export')).toMatchObject({ status: 'unknown', candidateAccountIds: [LOAN_ACCOUNT] });
     expect(await one(harness, '')).toMatchObject({ status: 'unknown', candidateAccountIds: [] });
+  });
+
+  // A reopened database does not enforce foreign keys, so deleting an account
+  // leaves its card, its identifiers and a layout's account_id behind.
+  it('never matches an account that was deleted, even though its rows are still there', async () => {
+    const harness = await withIdentifiers({ foreignKeys: false });
+    const layoutId = await harness.imports.saveProfile({
+      name: 'Travel Card export',
+      format: 'delimited',
+      fingerprint: 'delimited:date|description|amount',
+      institution: 'Chase',
+      account_id: CARD_ACCOUNT,
+      config: {
+        version: 1,
+        layout: { roles: { date: 0, description: [1], amount: 2 }, dateOrder: 'MDY', decimal: '.', amountSign: 'inverted' },
+      },
+    });
+    await harness.imports.addAccountIdentifier({ account_id: CARD_ACCOUNT, kind: 'label', value: 'Travel Rewards' });
+
+    harness.db.exec(`DELETE FROM accounts WHERE id = ${CARD_ACCOUNT}`);
+    // Nothing cascaded: the leftovers are what the lookups have to ignore.
+    expect(harness.count('account_cards', `account_id = ${CARD_ACCOUNT}`)).toBe(1);
+    expect(harness.count('account_identifiers', `account_id = ${CARD_ACCOUNT}`)).toBe(1);
+
+    expect(await one(harness, '4000 0000 0000 4821')).toMatchObject({
+      // The full number is the deleted card's; only the checking account still ends in 4821.
+      status: 'assumed',
+      basis: 'lastFour',
+      accountId: CHECKING,
+      cardId: null,
+      candidateAccountIds: [CHECKING],
+    });
+    expect(await one(harness, 'Travel Rewards')).toMatchObject({ status: 'unknown', accountId: null });
+    expect((await harness.imports.listAccountIdentifiers()).map((identifier) => identifier.account_id)).not.toContain(CARD_ACCOUNT);
+
+    // The layout survives, but no longer names an account to assume.
+    const [layout] = await harness.imports.findProfilesByFingerprint('delimited:date|description|amount');
+    expect(layout).toMatchObject({ id: layoutId, name: 'Travel Card export', account_id: null, account_name: null });
+    expect((await harness.imports.listProfiles())[0]).toMatchObject({ id: layoutId, account_id: null });
+  });
+});
+
+describe.skipIf(!sqlite)('ImportsService on SQLite: deleting a saved layout', () => {
+  it.each([true, false])('leaves the import that used it in the history without it (foreign keys %s)', async (foreignKeys) => {
+    const harness = openDatabase({ foreignKeys });
+    const layoutId = await harness.imports.saveProfile({
+      name: 'Everyday Checking export',
+      format: 'delimited',
+      fingerprint: 'delimited:date|description|amount',
+      institution: 'Huntington',
+      account_id: CHECKING,
+      config: {
+        version: 1,
+        layout: { roles: { date: 0, description: [1], amount: 2 }, dateOrder: 'MDY', decimal: '.', amountSign: 'asIs' },
+      },
+    });
+    await harness.imports.stageRows([row(0, '2026-09-01', -12.5, 'COFFEE ROASTERS')]);
+    const { batchId } = await harness.imports.commitStaged(commitInput({ profileId: layoutId, totalRows: 1 }));
+    expect((await harness.imports.listImportBatches())[0]).toMatchObject({ id: batchId, profile_id: layoutId, profile_name: 'Everyday Checking export' });
+
+    await harness.imports.deleteProfile(layoutId);
+
+    expect(harness.count('import_profiles')).toBe(0);
+    expect(harness.all('SELECT profile_id FROM import_batches WHERE id = ?', batchId)).toEqual([{ profile_id: null }]);
+    expect((await harness.imports.listImportBatches())[0]).toMatchObject({ id: batchId, profile_id: null });
+    expect(harness.count('transactions', `import_batch_id = ${batchId}`)).toBe(1);
   });
 });
 

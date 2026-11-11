@@ -12,9 +12,9 @@
  *
  * A commit and an undo are each one BEGIN … COMMIT: a failure leaves the
  * database as it was (no empty batch row, no half-removed import). Inside
- * them every write is this class's own statement, because the classification
- * service's writes open transactions of their own. Method signatures are part
- * of the frozen contract of the Import Wizard program.
+ * them every write is this class's own statement (the classification
+ * service's writes open transactions of their own, which cannot nest), so the
+ * type decisions are written here with the classification SQL.
  */
 
 import type { Account, AccountIdentifier, AccountIdentifierInput, ImportBatch } from '../types/database';
@@ -42,17 +42,6 @@ import type {
 import { computeTransactionHash } from './transactionHash';
 
 type ImportsTransport = Pick<DatabaseWorkerTransport, 'query' | 'batchQueryReturning'>;
-
-/**
- * The classification service as the constructor receives it. The commit no
- * longer calls it (its writes open their own transactions, which cannot nest
- * inside the commit's); the parameter stays because the constructor signature
- * is frozen.
- */
-export interface ImportClassificationPort {
-  applyStagedDecisions(decisions: TypeDecision[]): Promise<number>;
-  applyDecisions(decisions: TypeDecision[]): Promise<number>;
-}
 
 /** Thrown by getBatchImpact / undoBatch for an id that is not an import batch. */
 export const IMPORT_BATCH_NOT_FOUND = 'IMPORT_BATCH_NOT_FOUND';
@@ -166,13 +155,7 @@ export function storedDecisionParams(decisions: TypeDecision[]): { full: unknown
 }
 
 export class ImportsService {
-  constructor(
-    private readonly worker: ImportsTransport,
-    // Unused since the commit became one transaction; see ImportClassificationPort.
-    classification: ImportClassificationPort
-  ) {
-    void classification;
-  }
+  constructor(private readonly worker: ImportsTransport) {}
 
   /**
    * Runs `work` between BEGIN and COMMIT, rolling back when it throws. The
@@ -238,8 +221,16 @@ export class ImportsService {
     await this.worker.query(IMPORT_QUERIES.RECORD_PROFILE_USE, [accountId, id]);
   }
 
+  /**
+   * Deletes a saved layout. The import runs that used it stay in the history
+   * without it; that link is cleared here because a reopened database does
+   * not enforce the foreign key's ON DELETE SET NULL.
+   */
   async deleteProfile(id: number): Promise<void> {
-    await this.worker.query(IMPORT_QUERIES.DELETE_PROFILE, [id]);
+    await this.inTransaction(async () => {
+      await this.worker.query(IMPORT_QUERIES.CLEAR_PROFILE_ON_BATCHES, [id]);
+      await this.worker.query(IMPORT_QUERIES.DELETE_PROFILE, [id]);
+    });
   }
 
   // --- account identifiers ---
@@ -655,7 +646,12 @@ export class ImportsService {
       operation.info('Undid import', { ...impact });
       return impact;
     } catch (error) {
-      operation.error('Failed to undo import', { batchId, error });
+      if (error instanceof Error && error.message === IMPORT_BATCH_NOT_FOUND) {
+        // Expected when the import was already undone (another tab, a stale list): the caller tells the user.
+        operation.info('Import to undo no longer exists', { batchId });
+      } else {
+        operation.error('Failed to undo import', { batchId, error });
+      }
       throw error;
     }
   }

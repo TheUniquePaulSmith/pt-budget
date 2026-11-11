@@ -17,5 +17,27 @@
     "rows": 4,
     "notes": [],
     "fingerprint": "delimited:buchungstag|verwendungszweck|betrag|währung"
+  },
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "amount": 2,
+      "currency": 3
+    },
+    "dateOrder": "DMY",
+    "decimal": ",",
+    "amountSign": "asIs"
+  },
+  "analysis": {
+    "readyRows": 4,
+    "blockedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-28",
+    "moneyIn": 3400.5,
+    "moneyOut": 1347.25,
+    "issueCodes": []
   }
 }

@@ -35,12 +35,17 @@ describe('useFindingText', () => {
     expect(text('accountAssumedByLastFour', 2)).toBe('Account assumed from the last four digits: 2');
   });
 
-  it('uses its own label where the title names something the stored summary does not keep', () => {
+  it("uses the catalog's summary where the title names something the stored summary does not keep", () => {
     const text = findingText();
     expect(text('columnNotImported', 2)).toBe('Columns not imported: 2');
     expect(text('columnNotImported', 1)).toBe('Columns not imported');
     expect(text('referenceNotUnique', 1)).toBe('Bank reference not used to spot duplicates');
     expect(text('currencyMismatch', 5)).toBe('Rows in a different currency from the account: 5');
+  });
+
+  it('uses the summary where the title only makes sense while the import is open', () => {
+    // The title asks which account the file is for; in the history the import is long done.
+    expect(findingText()('accountUnknown', 1)).toBe('Nothing in the file matched an account');
   });
 
   it('shows a code the catalog does not know as the code', () => {

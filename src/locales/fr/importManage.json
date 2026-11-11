@@ -34,11 +34,6 @@
     "savedFormat": "Format enregistré : {{name}}",
     "findingsLabel": "Ce que la vérification a relevé",
     "finding": "{{title}} : {{count}}",
-    "findingLabels": {
-      "referenceNotUnique": "Référence bancaire non utilisée pour repérer les doublons",
-      "currencyMismatch": "Lignes dans une autre devise que celle du compte",
-      "columnNotImported": "Colonnes non importées"
-    },
     "assumptions": "Hypothèses confirmées : {{count}}",
     "fixedRows": "Lignes corrigées à la main : {{count}}",
     "noFindings": "Rien à signaler",

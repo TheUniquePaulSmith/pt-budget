@@ -508,6 +508,12 @@ export function analyzeStatement(table: StatementTable, layout: ImportLayout, co
     }
   }
 
+  // What the file says it is (OFX `ACCTTYPE`, a preamble line) against the account the rows are going into.
+  const fileAccountType = accountTypeFor(table, null);
+  if (context.accountType && fileAccountType && fileAccountType !== context.accountType && active.length > 0) {
+    add('accountTypeMismatch');
+  }
+
   if (accountColumn !== null) {
     const accounts = new Set(active.map((row) => (row.accountValue ?? '').trim()).filter(Boolean));
     if (accounts.size > 1) add('multipleAccountsInFile', { column: accountColumn, params: { count: accounts.size } });

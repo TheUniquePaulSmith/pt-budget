@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react';
 
 import type { DatabaseService } from '../lib/databaseService';
+import { logger } from '../lib/logging';
 import type {
   AccountCoverage,
   AccountResolution,
@@ -52,6 +53,8 @@ export interface DatabaseImportsSlice {
 
 // `loans` only for syncAccountSnapshot after an undo that removed loan payments.
 type ImportsDatabaseService = Pick<DatabaseService, 'imports' | 'loans'>;
+
+const log = logger.child({ component: 'useDatabaseImportsSlice' });
 
 interface UseDatabaseImportsSliceOptions {
   databaseService: ImportsDatabaseService | null;
@@ -136,15 +139,30 @@ export function useDatabaseImportsSlice({
       // Asked first: once the batch is gone, nothing says which loans it paid.
       const loanIds = await imports.getBatchLoanIds(batchId);
       const impact = await imports.undoBatch(batchId);
-      // A linked loan / credit account shows the balance the ledger computes;
-      // without this it would still count the payments that were just removed.
-      for (const loanId of loanIds) {
-        await loans.syncAccountSnapshot(loanId);
+      // The batch is gone from here on. Nothing below may turn that into a
+      // failed undo: the caller would offer to undo an import that no longer exists.
+      try {
+        // A linked loan / credit account shows the balance the ledger computes;
+        // without this it would still count the payments that were just removed.
+        for (const loanId of loanIds) {
+          try {
+            await loans.syncAccountSnapshot(loanId);
+          } catch (error) {
+            // The balance is written again by the next change to that loan.
+            log.warn('Loan balance not recomputed after an undone import', {
+              operation: 'undoImportBatch',
+              batchId,
+              loanId,
+              error,
+            });
+          }
+        }
+      } finally {
+        await Promise.all([
+          refreshTransactions(),
+          ...(loanIds.length > 0 ? [refreshLoans(), refreshAccounts()] : []),
+        ]);
       }
-      await Promise.all([
-        refreshTransactions(),
-        ...(loanIds.length > 0 ? [refreshLoans(), refreshAccounts()] : []),
-      ]);
       return impact;
     },
     [refreshAccounts, refreshLoans, refreshTransactions, requireDatabase]

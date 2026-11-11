@@ -15,7 +15,7 @@ const currency = (value: number) =>
 
 async function openBudgetPage(page: Page) {
   await navigateToPage(page, 'budget');
-  await expect(page.getByRole('heading', { name: 'Budget' })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible({ timeout: 120_000 });
 }
 
 async function addTransactionFromDashboard(page: Page, description: string, amount: string) {

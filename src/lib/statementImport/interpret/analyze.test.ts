@@ -564,6 +564,24 @@ describe('analyzeStatement: columns', () => {
     expect(issue(analyse(hinted, { accountCurrency: 'GBP' }), 'currencyMismatch')).toBeUndefined();
   });
 
+  it('accountTypeMismatch: the file says it is one kind of account and the rows go into another', () => {
+    const plain = tableFromCells(CLEAN);
+    const savingsFile = {
+      ...plain,
+      meta: { ...plain.meta, accountHints: [{ kind: 'accountType' as const, value: 'Savings', source: 'ofx' as const }] },
+    };
+
+    expect(issue(analyse(savingsFile, { accountType: 'credit' }), 'accountTypeMismatch')).toEqual({
+      code: 'accountTypeMismatch',
+      severity: 'warning',
+      scope: 'account',
+    });
+    // The same kind, no account chosen yet, or a file that does not say: nothing to compare.
+    expect(issue(analyse(savingsFile, { accountType: 'savings' }), 'accountTypeMismatch')).toBeUndefined();
+    expect(issue(analyse(savingsFile), 'accountTypeMismatch')).toBeUndefined();
+    expect(issue(analyse(plain, { accountType: 'credit' }), 'accountTypeMismatch')).toBeUndefined();
+  });
+
   it('multipleAccountsInFile: a per-row account column with more than one value', () => {
     const table = tableFromCsv(`
       Account Number,Date,Description,Amount

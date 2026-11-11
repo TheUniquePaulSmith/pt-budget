@@ -5,7 +5,6 @@
  * shows it in the confirmation before a remote provider is called), and the
  * prompt is built from that sample and nothing else. The prompt, the reply
  * validation and the mapping to a LayoutProposal live in ./layoutAssist.ts.
- * Both signatures here are part of the frozen contract.
  */
 
 import type { AiComplete, AiLayoutSample, LayoutProposal, StatementTable } from '../types';

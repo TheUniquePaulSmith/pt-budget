@@ -43,10 +43,6 @@ function createWorker(rowsBySql: Record<string, Entry> = {}) {
   return { query, batchQueryReturning, statements };
 }
 
-function createClassification() {
-  return { applyStagedDecisions: vi.fn(async () => 0), applyDecisions: vi.fn(async () => 0) };
-}
-
 const CONFIG: ImportProfileConfig = {
   version: 1,
   layout: { roles: { date: 0, description: [2], amount: 1 }, dateOrder: 'DMY', decimal: ',', amountSign: 'inverted' },
@@ -90,7 +86,7 @@ describe('ImportsService: saved layouts', () => {
 
   it('creates a layout with trimmed text and the layout as JSON', async () => {
     const worker = createWorker({ [IMPORT_QUERIES.CREATE_PROFILE]: [{ id: 9 }] });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     const id = await service.saveProfile({
       name: '  Card export ',
@@ -114,7 +110,7 @@ describe('ImportsService: saved layouts', () => {
 
   it('replaces an existing layout when an id is given', async () => {
     const worker = createWorker();
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
     await expect(
       service.saveProfile({ name: 'X', format: 'ofx', fingerprint: 'ofx:bank:checking', config: CONFIG }, 5)
     ).resolves.toBe(5);
@@ -131,7 +127,7 @@ describe('ImportsService: saved layouts', () => {
 
   it('rejects a layout without a name or a fingerprint before touching the database', async () => {
     const worker = createWorker();
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
     await expect(service.saveProfile({ name: ' ', format: 'delimited', fingerprint: 'f', config: CONFIG })).rejects.toThrow(
       'IMPORT_PROFILE_NAME_REQUIRED'
     );
@@ -146,7 +142,7 @@ describe('ImportsService: saved layouts', () => {
       [IMPORT_QUERIES.FIND_PROFILES_BY_FINGERPRINT]: [{ id: 2, name: 'A', format: 'delimited', fingerprint: 'f', config_json: JSON.stringify(CONFIG) }],
       [IMPORT_QUERIES.LIST_PROFILES]: [],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.findProfilesByFingerprint('')).toEqual([]);
     expect((await service.findProfilesByFingerprint('f')).map((profile) => profile.id)).toEqual([2]);
@@ -155,6 +151,14 @@ describe('ImportsService: saved layouts', () => {
     await service.recordProfileUse(2, 7);
     await service.deleteProfile(2);
     expect(worker.query).toHaveBeenCalledWith(IMPORT_QUERIES.RECORD_PROFILE_USE, [7, 2]);
+    // The runs that used the layout are unlinked first, in the same transaction.
+    expect(worker.statements.slice(-4)).toEqual([
+      'BEGIN TRANSACTION',
+      IMPORT_QUERIES.CLEAR_PROFILE_ON_BATCHES,
+      IMPORT_QUERIES.DELETE_PROFILE,
+      'COMMIT',
+    ]);
+    expect(worker.query).toHaveBeenCalledWith(IMPORT_QUERIES.CLEAR_PROFILE_ON_BATCHES, [2]);
     expect(worker.query).toHaveBeenCalledWith(IMPORT_QUERIES.DELETE_PROFILE, [2]);
   });
 });
@@ -165,7 +169,7 @@ describe('ImportsService: account identifiers', () => {
     expect(normalizeIdentifierValue('label', '  Joint Checking ')).toBe('joint checking');
 
     const worker = createWorker({ [IMPORT_QUERIES.ADD_IDENTIFIER]: [{ id: 11 }] });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     await service.addAccountIdentifier({ account_id: 3, kind: 'number', value: 'Acct ****9034' });
     await service.addAccountIdentifier({ account_id: 3, kind: 'label', value: ' Joint Checking ', source: 'manual' });
@@ -179,7 +183,7 @@ describe('ImportsService: account identifiers', () => {
 
   it('refuses an identifier with nothing usable in it', async () => {
     const worker = createWorker();
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
     await expect(service.addAccountIdentifier({ account_id: 1, kind: 'number', value: 'no digits' })).rejects.toThrow(
       'ACCOUNT_IDENTIFIER_VALUE_REQUIRED'
     );
@@ -192,7 +196,7 @@ describe('ImportsService: account identifiers', () => {
       [IMPORT_QUERIES.LIST_IDENTIFIERS]: [identifier],
       [IMPORT_QUERIES.LIST_IDENTIFIERS_FOR_ACCOUNT]: [{ ...identifier, account_name: undefined, kind: 'label', last_four: null }],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.listAccountIdentifiers()).toEqual([
       { id: 1, account_id: 3, kind: 'number', value: '9034', last_four: '9034', source: 'import', created_at: '', account_name: 'Savings' },
@@ -212,7 +216,7 @@ describe('ImportsService: resolving accounts', () => {
       [IMPORT_QUERIES.FIND_IDENTIFIERS_BY_VALUE]: (params) =>
         params?.[0] === 'number' && params?.[1] === '0012345678' ? [{ account_id: 5 }] : [],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.resolveAccounts(['4000 0000 0000 4821', 'Acct 0012345678'])).toEqual([
       { value: '4000 0000 0000 4821', status: 'recognised', basis: 'fullNumber', accountId: 2, cardId: 8, candidateAccountIds: [2] },
@@ -222,7 +226,7 @@ describe('ImportsService: resolving accounts', () => {
 
   it('assumes an account from the last four digits, and says so', async () => {
     const worker = createWorker({ [IMPORT_QUERIES.FIND_IDENTIFIERS_BY_LAST_FOUR]: [{ account_id: 5 }] });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     // No full-number match for the long value, so its last four decide.
     expect(await service.resolveAccounts(['XXXXXX9034', '9034'])).toEqual([
@@ -236,7 +240,7 @@ describe('ImportsService: resolving accounts', () => {
       [IMPORT_QUERIES.FIND_CARDS_BY_LAST_FOUR]: [{ card_id: 1, account_id: 2 }, { card_id: 2, account_id: 2 }],
       [IMPORT_QUERIES.FIND_IDENTIFIERS_BY_LAST_FOUR]: [{ account_id: 6 }],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.resolveAccounts(['4821'])).toEqual([
       { value: '4821', status: 'ambiguous', basis: 'lastFour', accountId: null, cardId: null, candidateAccountIds: [2, 6] },
@@ -248,7 +252,7 @@ describe('ImportsService: resolving accounts', () => {
       [IMPORT_QUERIES.FIND_IDENTIFIERS_BY_VALUE]: (params) =>
         params?.[0] === 'label' && params?.[1] === 'joint checking' ? [{ account_id: 4 }] : [],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.resolveAccounts([' Joint Checking ', '', 'Mystery'], { profileAccountId: 7 })).toEqual([
       { value: ' Joint Checking ', status: 'assumed', basis: 'label', accountId: 4, cardId: null, candidateAccountIds: [4] },
@@ -268,7 +272,7 @@ describe('ImportsService: resolving accounts', () => {
       [IMPORT_QUERIES.FIND_CARDS_BY_LAST_FOUR]: [{ card_id: 1, account_id: 2 }],
       [IMPORT_QUERIES.FIND_IDENTIFIERS_BY_LAST_FOUR]: [{ account_id: 5 }, { account_id: 6 }],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.resolveAccounts(['0012344821'])).toEqual([
       { value: '0012344821', status: 'recognised', basis: 'fullNumber', accountId: 5, cardId: null, candidateAccountIds: [5] },
@@ -283,7 +287,7 @@ describe('ImportsService: resolving accounts', () => {
       [IMPORT_QUERIES.FIND_CARDS_BY_LAST_FOUR]: [{ card_id: 1, account_id: 2 }, { card_id: 3, account_id: 6 }],
       [IMPORT_QUERIES.FIND_IDENTIFIERS_BY_LAST_FOUR]: [{ account_id: 9 }],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     // Assumed, never recognised, and it says the layout is why.
     expect(await service.resolveAccounts(['4821'], { profileAccountId: 6 })).toEqual([
@@ -308,7 +312,7 @@ describe('ImportsService: resolving accounts', () => {
         { id: 4, name: null, institution: null },
       ],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.resolveAccounts(['Huntington Checking', 'Checking account', 'Chase Sapphire', ''])).toEqual([
       { value: 'Huntington Checking', status: 'unknown', basis: null, accountId: null, cardId: null, candidateAccountIds: [1, 2] },
@@ -323,7 +327,7 @@ describe('ImportsService: resolving accounts', () => {
 
   it('does not read the account list when every value matched', async () => {
     const worker = createWorker({ [IMPORT_QUERIES.FIND_IDENTIFIERS_BY_LAST_FOUR]: [{ account_id: 5 }] });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     await service.resolveAccounts(['9034', ''], { profileAccountId: 5 });
     expect(worker.statements).not.toContain(IMPORT_QUERIES.LIST_ACCOUNTS_FOR_HINTS);
@@ -333,7 +337,7 @@ describe('ImportsService: resolving accounts', () => {
 describe('ImportsService: staging', () => {
   it('stages rows by direction, with content hashes and usable references', async () => {
     const worker = createWorker();
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     const result = await service.stageRows([
       row({ rowIndex: 0, reference: 'R1', cardId: 9 }),
@@ -355,7 +359,7 @@ describe('ImportsService: staging', () => {
 
   it('keeps identical rows apart with variation seeds and reports them as a group', async () => {
     const worker = createWorker();
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     const result = await service.stageRows([row({ rowIndex: 0 }), row({ rowIndex: 1 }), row({ rowIndex: 2, description: 'OTHER' })]);
 
@@ -367,7 +371,7 @@ describe('ImportsService: staging', () => {
 
   it('drops a reference that repeats within one account, so those rows dedupe on content', async () => {
     const worker = createWorker();
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     await service.stageRows([
       row({ rowIndex: 0, reference: 'SAME' }),
@@ -388,7 +392,7 @@ describe('ImportsService: staging', () => {
       stagedHashes = parameterSets.map((params) => String(params[11]));
       return parameterSets.map((_, index) => ({ id: index + 1 }));
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     const result = await service.stageRows([row({ rowIndex: 4 }), row({ rowIndex: 7, description: 'TEA' })]);
     expect(result.alreadyImported).toEqual([7]);
@@ -397,7 +401,7 @@ describe('ImportsService: staging', () => {
 
   it('empties the staging table and stops when there is nothing to stage', async () => {
     const worker = createWorker();
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.stageRows([])).toEqual({ tempIds: [], alreadyImported: [], duplicateGroups: [] });
     expect(worker.query).toHaveBeenCalledTimes(1);
@@ -440,8 +444,7 @@ describe('ImportsService: commit', () => {
       [IMPORT_BATCH_QUERIES.CREATE]: [{ id: 42 }],
       [IMPORT_QUERIES.COUNT_BATCH_TRANSACTIONS]: [{ count: 3 }],
     });
-    const classification = createClassification();
-    const service = new ImportsService(worker, classification);
+    const service = new ImportsService(worker);
 
     const result = await service.commitStaged(
       input({
@@ -501,14 +504,11 @@ describe('ImportsService: commit', () => {
       // Only a transfer with a group can give a locked row its counterpart.
       [CLASSIFICATION_QUERIES.SET_TRANSFER_GROUP_ON_LOCKED_TRANSFER, [['group-1', 9]], { useTransaction: false }],
     ]);
-    // The classification service would open transactions of its own.
-    expect(classification.applyStagedDecisions).not.toHaveBeenCalled();
-    expect(classification.applyDecisions).not.toHaveBeenCalled();
   });
 
   it('sends no decision statements when there are no decisions, and counts nothing as zero', async () => {
     const worker = createWorker({ [IMPORT_BATCH_QUERIES.CREATE]: [{ id: 1 }] });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.commitStaged(input({ profileId: null, format: 'ofx' }))).toEqual({ batchId: 1, inserted: 0, duplicates: 0 });
     expect(worker.batchQueryReturning).not.toHaveBeenCalled();
@@ -540,7 +540,7 @@ describe('ImportsService: commit', () => {
         [IMPORT_QUERIES.GET_STAGED_ROWS]: await stagedRows(),
         [IMPORT_BATCH_QUERIES.CREATE]: [{ id: 1 }],
       });
-      await new ImportsService(worker, createClassification()).commitStaged(input({ excludedTempIds }));
+      await new ImportsService(worker).commitStaged(input({ excludedTempIds }));
       return worker;
     };
 
@@ -589,7 +589,7 @@ describe('ImportsService: commit', () => {
         throw new Error('disk full');
       },
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     await expect(service.commitStaged(input())).rejects.toThrow('disk full');
     expect(worker.statements).toEqual([
@@ -613,7 +613,7 @@ describe('ImportsService: commit', () => {
         throw new Error('no transaction is active');
       },
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     await expect(service.commitStaged(input())).rejects.toThrow('constraint failed');
     expect(worker.query).toHaveBeenLastCalledWith(TRANSACTION_QUERIES.TRUNCATE_IMPORT_TABLE);
@@ -621,7 +621,7 @@ describe('ImportsService: commit', () => {
 
   it('refuses a malformed decision before anything is written, and still empties staging', async () => {
     const worker = createWorker();
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     await expect(service.commitStaged(input({ existingDecisions: [decision({ key: 'nonsense' })] }))).rejects.toThrow(
       'Invalid classification key: nonsense'
@@ -655,7 +655,7 @@ describe('ImportsService: history', () => {
     const worker = createWorker({
       [IMPORT_QUERIES.LIST_BATCHES]: [{ id: 2, imported_at: 'x', source: 'csv', profile_id: 3, file_format: 'ofx', issues_json: '{}', profile_name: 'Bank' }],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
     expect((await service.listImportBatches(10))[0]).toMatchObject({ id: 2, profile_id: 3, file_format: 'ofx', profile_name: 'Bank' });
     expect(worker.query).toHaveBeenCalledWith(IMPORT_QUERIES.LIST_BATCHES, [10]);
     await service.listImportBatches();
@@ -670,7 +670,7 @@ describe('ImportsService: history', () => {
         { account_id: 4, first_date: '2026-09-01', last_date: '2026-09-02', transaction_count: 2, last_import_through: null },
       ],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.getAccountCoverage([4, 2, 4, 9, 1.5, Number.NaN])).toEqual([
       { accountId: 4, firstDate: '2026-09-01', lastDate: '2026-09-02', lastImportThrough: null, transactionCount: 2 },
@@ -683,7 +683,7 @@ describe('ImportsService: history', () => {
 
   it('asks nothing when no usable account id is given', async () => {
     const worker = createWorker();
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
     expect(await service.getAccountCoverage([])).toEqual([]);
     expect(await service.getAccountCoverage([Number.NaN])).toEqual([]);
     expect(worker.query).not.toHaveBeenCalled();
@@ -698,7 +698,7 @@ describe('ImportsService: undo', () => {
       [IMPORT_QUERIES.GET_BATCH]: [{ id: 7 }],
       [IMPORT_QUERIES.BATCH_IMPACT]: [impactRow],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.getBatchImpact(7)).toEqual({
       batchId: 7,
@@ -716,16 +716,16 @@ describe('ImportsService: undo', () => {
       [IMPORT_QUERIES.GET_BATCH]: [{ id: 7 }],
       [IMPORT_QUERIES.BATCH_IMPACT]: [{ transactions: null, edited_since_import: null, loan_payments: null, transfer_pairs: null }],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
     expect(await service.getBatchImpact(7)).toEqual({ batchId: 7, transactions: 0, editedSinceImport: 0, loanPayments: 0, transferPairs: 0 });
 
-    const silent = new ImportsService(createWorker({ [IMPORT_QUERIES.GET_BATCH]: [{ id: 7 }] }), createClassification());
+    const silent = new ImportsService(createWorker({ [IMPORT_QUERIES.GET_BATCH]: [{ id: 7 }] }));
     expect(await silent.getBatchImpact(7)).toMatchObject({ transactions: 0, transferPairs: 0 });
   });
 
   it('refuses an id that is not an import batch', async () => {
     const worker = createWorker();
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     await expect(service.getBatchImpact(99)).rejects.toThrow(IMPORT_BATCH_NOT_FOUND);
     await expect(service.getBatchImpact(1.5)).rejects.toThrow(IMPORT_BATCH_NOT_FOUND);
@@ -736,7 +736,7 @@ describe('ImportsService: undo', () => {
 
   it('lists the loans that have a payment in the batch', async () => {
     const worker = createWorker({ [IMPORT_QUERIES.BATCH_LOAN_IDS]: [{ loan_id: 2 }, { loan_id: '5' }] });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.getBatchLoanIds(7)).toEqual([2, 5]);
     expect(worker.query).toHaveBeenCalledWith(IMPORT_QUERIES.BATCH_LOAN_IDS, [7]);
@@ -749,7 +749,7 @@ describe('ImportsService: undo', () => {
       [IMPORT_QUERIES.GET_BATCH]: [{ id: 7 }],
       [IMPORT_QUERIES.BATCH_IMPACT]: [impactRow],
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     expect(await service.undoBatch(7)).toEqual({
       batchId: 7,
@@ -782,7 +782,7 @@ describe('ImportsService: undo', () => {
         throw new Error('database is locked');
       },
     });
-    const service = new ImportsService(worker, createClassification());
+    const service = new ImportsService(worker);
 
     await expect(service.undoBatch(7)).rejects.toThrow('database is locked');
     expect(worker.statements.at(-1)).toBe('ROLLBACK');

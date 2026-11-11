@@ -8,10 +8,11 @@
  *   analyzeStatement  the rows as they would be imported, with the user's overrides,
  *                     and the findings of the issue catalog (../issueCodes.ts).
  *
- * Pure: no React, no database. The signatures are part of the frozen contract
- * (../types.ts); everything else in this folder is internal to it and to ../ai.
+ * Pure: no React, no database. The two signatures are part of the contract in
+ * ../types.ts; everything else in this folder is internal to it and to ../ai.
  */
 
 export { analyzeStatement } from './analyze';
 export { ASSUMPTION_CODES, type AssumptionCode } from './assumptionCodes';
+export { isExcelMangled } from './cells';
 export { proposeLayout } from './proposeLayout';

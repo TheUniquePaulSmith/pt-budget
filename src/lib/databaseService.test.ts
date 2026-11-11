@@ -789,7 +789,7 @@ describe('DatabaseService batch and import helpers', () => {
       },
     ]);
 
-    // Ordered ids are the contract csvImportService.buildDuplicateGroups relies on.
+    // Ordered ids are the contract: callers map each id back to its input row by position.
     expect(insertedIds).toEqual([101, 102]);
     expect(batchSpy).toHaveBeenCalledTimes(1);
     expect(batchSpy).toHaveBeenCalledWith(

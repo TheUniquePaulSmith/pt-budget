@@ -4,7 +4,7 @@
  * The "History & formats" view of the Import page: import history with undo,
  * saved formats, and what files call each account. Everything is read on
  * demand through `useImportManageSlice`; the history reloads whenever
- * transactions change. The props are the frozen seam defined in ../ImportPage.
+ * transactions change. The props are defined in ../ImportPage.
  */
 
 import React, { useCallback, useState } from 'react';

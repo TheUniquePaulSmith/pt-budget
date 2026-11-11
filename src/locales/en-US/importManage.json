@@ -34,11 +34,6 @@
     "savedFormat": "Saved format: {{name}}",
     "findingsLabel": "What the check found",
     "finding": "{{title}}: {{count}}",
-    "findingLabels": {
-      "referenceNotUnique": "Bank reference not used to spot duplicates",
-      "currencyMismatch": "Rows in a different currency from the account",
-      "columnNotImported": "Columns not imported"
-    },
     "assumptions": "Assumptions confirmed: {{count}}",
     "fixedRows": "Rows corrected by hand: {{count}}",
     "noFindings": "Nothing needed attention",

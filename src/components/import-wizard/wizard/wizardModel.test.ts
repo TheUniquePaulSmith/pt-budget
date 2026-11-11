@@ -186,6 +186,31 @@ describe('account step (D10)', () => {
     expect(importBlockers(statement)).toContainEqual({ kind: 'accounts' });
   });
 
+  it('says the account number is damaged when a spreadsheet shortened it, and still asks for the account', () => {
+    const unknown = (value: string) => ({
+      value,
+      status: 'unknown' as const,
+      basis: null,
+      accountId: null,
+      cardId: null,
+      candidateAccountIds: [],
+    });
+    expect(accountIssueCode(unknown('4.00E+14'))).toBe('accountValueMalformed');
+    expect(accountIssueCode(unknown(' 4,00e+14 '))).toBe('accountValueMalformed');
+    // A number nobody has stored, or a name, is simply unknown.
+    expect(accountIssueCode(unknown('5550001111'))).toBe('accountUnknown');
+    expect(accountIssueCode(unknown('Everyday Checking'))).toBe('accountUnknown');
+
+    const table = makeTable(SIMPLE_ROWS, undefined, {
+      meta: { ...makeTable([]).meta, accountHints: [{ kind: 'number', value: '4.00E+14', source: 'preamble' }] },
+    });
+    const state = activated(withFile(table), ['4.00E+14', {}]);
+    expect(accountIssueCode(current(state).accounts![0].resolution)).toBe('accountValueMalformed');
+    // The finding is a warning; what stops the import is that no account has been chosen.
+    expect(canGoNext(state)).toBe(false);
+    expect(importBlockers(current(state))).toContainEqual({ kind: 'accounts' });
+  });
+
   it('needs no confirmation for a recognised account', () => {
     const state = activated(withFile(), ['', RECOGNISED]);
     expect(accountsSettled(current(state))).toBe(true);

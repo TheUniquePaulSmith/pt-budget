@@ -64,6 +64,18 @@ describe('issue catalog and its English texts', () => {
     if ('title_one' in group || 'detail_one' in group) expect(ISSUE_TEXT_PARAMS[code]).toContain('count');
   });
 
+  // The import history keeps a count per code and nothing else (ImportIssuesSummary).
+  it.each(ALL_IMPORT_ISSUE_CODES)('%s can be worded from a code and a count alone', (code) => {
+    const group = issueTexts[code];
+    if (group.summary !== undefined) {
+      expect(group.summary.trim()).not.toBe('');
+      expect(placeholdersOf(group.summary)).toEqual([]);
+      return;
+    }
+    // No summary: the title must need nothing but the count.
+    expect(placeholdersOf(...variantsOf(group, 'title')).filter((name) => name !== 'count')).toEqual([]);
+  });
+
   it('keeps the texts of codes raised outside the analysis free of placeholders', () => {
     // Readers, the wizard and the service raise these with params of their own choosing.
     const raisedElsewhere = ALL_IMPORT_ISSUE_CODES.filter(

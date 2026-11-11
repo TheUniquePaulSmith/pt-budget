@@ -8,7 +8,6 @@ import {
   useDatabaseCompanies,
   useDatabaseDiagnostics,
   useDatabaseLifecycle,
-  useDatabaseLoans,
   useDatabaseProjects,
   useDatabaseStatus,
   useDatabaseSubscriptions,
@@ -26,11 +25,7 @@ export {
 } from './useNotificationsSlices';
 export { useAiToolsSlice, useAiProviderSlice } from './useAiToolsSlices';
 export { useBudgetFundsSlice } from './useBudgetFundsSlices';
-export {
-  useClassificationRulesSlice,
-  useImportClassificationSlice,
-  useTransactionTypeActionsSlice,
-} from './useClassificationSlices';
+export { useClassificationRulesSlice, useTransactionTypeActionsSlice } from './useClassificationSlices';
 export { useLoansPageSlice, useSubscriptionsLoansSlice } from './useLoansSlices';
 export { useCurrencyPreferencesSlice } from './usePreferencesSlices';
 export { useImportManageSlice, useImportWizardSlice } from './useImportsSlices';
@@ -184,39 +179,6 @@ export function useAiDatabaseToolsSlice() {
     getUnmatchedRecurringClusters: subscriptions.getUnmatchedRecurringClusters,
     addMerchantRule: subscriptions.addMerchantRule,
     runSubscriptionScan: subscriptions.runSubscriptionScan,
-  };
-}
-
-export function useCsvImportSlice() {
-  const collections = useDatabaseCollections();
-  const transactions = useDatabaseTransactions();
-  const accounts = useDatabaseAccounts();
-  const users = useDatabaseUsers();
-  const subscriptions = useDatabaseSubscriptions();
-  const loans = useDatabaseLoans();
-
-  return {
-    accounts: collections.accounts,
-    users: collections.users,
-    defaultCurrency: collections.currencyPreferences.defaultCurrency,
-    // Inline account / person creation during import (mutations refresh the collections).
-    addAccountWithCard: accounts.addAccountWithCard,
-    addUser: users.addUser,
-    generateTransactionHash: transactions.generateTransactionHash,
-    truncateImportTable: transactions.truncateImportTable,
-    insertIntoTempTable: transactions.insertIntoTempTable,
-    deleteFromTempTable: transactions.deleteFromTempTable,
-    updateTempTransactionHashes: transactions.updateTempTransactionHashes,
-    checkDuplicateTransactions: transactions.checkDuplicateTransactions,
-    bulkInsertFromTempTable: transactions.bulkInsertFromTempTable,
-    createImportBatch: transactions.createImportBatch,
-    finalizeImportBatch: transactions.finalizeImportBatch,
-    findAccountsByLastFour: accounts.findAccountsByLastFour,
-    findAccountsByFullNumber: accounts.findAccountsByFullNumber,
-    getAccountCards: accounts.getAccountCards,
-    runSubscriptionScan: subscriptions.runSubscriptionScan,
-    // Loan rules claim their payments before subscription detection sees them.
-    applyLoanRules: loans.applyLoanRules,
   };
 }
 

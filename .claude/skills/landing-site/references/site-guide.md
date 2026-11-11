@@ -101,15 +101,23 @@ The order is not cosmetic: later shots depend on what earlier steps did.
 2. **Scans**: open Loans (applies loan rules), Subscriptions rescan.
 3. **Subscriptions**: confirms every detected series. From here on the bell shows a payment alert and the dashboard
    gets its "Reminders & alerts" card.
-4. **Dashboard** (hero + tabs), **Transactions**, **CSV import** (analysed, never imported), **Budget**,
-   **Accounts**, **Loans**, **Projects**, **Trips**: read-only.
+4. **Dashboard** (hero + tabs), **Transactions**, **Import** (the wizard walked to its Summary and discarded, never
+   imported), **Budget**, **Accounts**, **Loans**, **Projects**, **Trips**: read-only.
 5. **Notifications**: creates three reminders (saved). The bell count changes from here on.
 6. **SQL console**, **AI assistant** (adds a local endpoint profile; saved), **Settings**, **Developer console**.
 7. **Unlock screen**, **light theme**, **languages** (each needs a `reopen`), back to English.
-8. **Phone layout**, then the app's **404 page**.
+8. **Phone layout**, then **Import history**: the one step that imports. It writes the statement's rows, takes the
+   History shot and undoes the import on the same screen, so no other screenshot ever sees them (a saved format and
+   the card's number stay behind). Last of all, the app's **404 page**.
 
 A new read-only page belongs in group 4. A new settings tab goes in the Settings loop. Anything that needs a reload
-goes in group 7 or later.
+goes in group 7 or later. A shot that needs imported rows goes into the Import history step, before its undo.
+
+The import shots use a card statement the spec writes at capture time (`writeCardStatement`), dated in the last four
+weeks and shaped like a real export: lines above the column names with the card's last four digits (which is why the
+account shows as "Assumed"), charges as positive numbers, a category column that is not imported, and one pending row
+without a date (the "Needs a decision" finding). Change the statement there, not with a fixture file, and keep it
+invented.
 
 ## 5. Adding a feature to the tour
 

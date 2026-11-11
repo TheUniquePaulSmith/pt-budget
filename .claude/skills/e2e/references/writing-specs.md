@@ -51,7 +51,7 @@ use other ports. Route mocks intercept every provider request, so no spec contac
 
 ## Fixtures
 
-- `tests/e2e/fixtures/*.csv`: CSV import inputs.
+- `tests/e2e/fixtures/sample-import*.csv` and `sample-import.ofx`: statement files for the import specs (dated 2030, so every row raises `futureDate`). A spec that only needs imported rows calls `importStatementFile` from `helpers/importFlow.ts` instead of clicking through the wizard.
 - `v1-budget-tracker.zip`, `v2-budget-tracker.zip`: encrypted archives from older schema versions (password `TEST_PASSWORD`),
   loaded by `database-upgrade.spec.ts`. Regenerating them is covered by the `schema-bump` skill.
 - Sample data comes from `public/sample-data/` (the Parker household; the `sample-data` skill describes it). Rows are

@@ -89,16 +89,19 @@
     },
     "referenceNotUnique": {
       "title": "« {{column}} » ne sert pas à repérer les doublons",
-      "detail": "Une référence bancaire n'est utile que si chaque ligne a la sienne. Dans ce fichier, elle est vide, répétée ou abîmée ; les lignes déjà importées sont donc reconnues à leur date, leur montant et leur description."
+      "detail": "Une référence bancaire n'est utile que si chaque ligne a la sienne. Dans ce fichier, elle est vide, répétée ou abîmée ; les lignes déjà importées sont donc reconnues à leur date, leur montant et leur description.",
+      "summary": "Référence bancaire non utilisée pour repérer les doublons"
     },
     "currencyMismatch": {
       "title_one": "{{count}} ligne est en {{fileCurrency}}, mais le compte est en {{accountCurrency}}",
       "title_other": "{{count}} lignes sont en {{fileCurrency}}, mais le compte est en {{accountCurrency}}",
-      "detail": "Les montants sont importés tels quels et comptés en {{accountCurrency}}. Rien n'est converti. Vérifiez que vous avez choisi le bon compte."
+      "detail": "Les montants sont importés tels quels et comptés en {{accountCurrency}}. Rien n'est converti. Vérifiez que vous avez choisi le bon compte.",
+      "summary": "Lignes dans une autre devise que celle du compte"
     },
     "columnNotImported": {
       "title": "« {{column}} » n'est pas importée",
-      "detail": "L'importation conserve la date, la description et le montant de chaque transaction. Les autres colonnes, comme une catégorie, un numéro de chèque ou les parts de capital et d'intérêts d'une échéance de prêt, sont laissées de côté."
+      "detail": "L'importation conserve la date, la description et le montant de chaque transaction. Les autres colonnes, comme une catégorie, un numéro de chèque ou les parts de capital et d'intérêts d'une échéance de prêt, sont laissées de côté.",
+      "summary": "Colonnes non importées"
     },
     "unreadableDate": {
       "title_one": "{{count}} ligne a une date que nous ne pouvons pas lire",
@@ -193,7 +196,8 @@
     },
     "accountUnknown": {
       "title": "Nous ne savons pas à quel compte ce fichier correspond",
-      "detail": "Rien dans le fichier ne correspond à l'un de vos comptes. Choisissez un compte ou ajoutez-en un nouveau."
+      "detail": "Rien dans le fichier ne correspond à l'un de vos comptes. Choisissez un compte ou ajoutez-en un nouveau.",
+      "summary": "Rien dans le fichier ne correspondait à un compte"
     },
     "gapSinceLastImport": {
       "title_one": "{{count}} jour n'est pas couvert",

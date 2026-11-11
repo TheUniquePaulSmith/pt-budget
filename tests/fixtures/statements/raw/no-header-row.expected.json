@@ -19,5 +19,28 @@
       "headerMissing"
     ],
     "fingerprint": "delimited:noheader:4"
+  },
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        2
+      ],
+      "amount": 3
+    },
+    "dateOrder": "YMD",
+    "decimal": ".",
+    "amountSign": "asIs"
+  },
+  "analysis": {
+    "readyRows": 3,
+    "blockedRows": 0,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-04",
+    "moneyIn": 980,
+    "moneyOut": 44.39,
+    "issueCodes": [
+      "signAssumed"
+    ]
   }
 }

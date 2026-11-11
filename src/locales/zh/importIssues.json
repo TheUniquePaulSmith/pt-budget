@@ -87,15 +87,18 @@
     },
     "referenceNotUnique": {
       "title": "“{{column}}”不用于识别重复项",
-      "detail": "只有每一行都有各自的银行参考号时，它才有用。在这个文件里，它是空的、重复的或已损坏，因此会根据日期、金额和描述来识别已导入的行。"
+      "detail": "只有每一行都有各自的银行参考号时，它才有用。在这个文件里，它是空的、重复的或已损坏，因此会根据日期、金额和描述来识别已导入的行。",
+      "summary": "银行参考号未用于识别重复项"
     },
     "currencyMismatch": {
       "title_other": "有 {{count}} 行的币种是 {{fileCurrency}}，但账户的币种是 {{accountCurrency}}",
-      "detail": "金额会按原样导入，并按 {{accountCurrency}} 计算，不做任何换算。请确认您选对了账户。"
+      "detail": "金额会按原样导入，并按 {{accountCurrency}} 计算，不做任何换算。请确认您选对了账户。",
+      "summary": "币种与账户不同的行"
     },
     "columnNotImported": {
       "title": "“{{column}}”不会导入",
-      "detail": "导入只保留每笔交易的日期、描述和金额。其他列（例如分类、支票号码，或贷款还款中的本金和利息部分）不会导入。"
+      "detail": "导入只保留每笔交易的日期、描述和金额。其他列（例如分类、支票号码，或贷款还款中的本金和利息部分）不会导入。",
+      "summary": "未导入的列"
     },
     "unreadableDate": {
       "title_other": "有 {{count}} 行的日期无法读取",
@@ -179,7 +182,8 @@
     },
     "accountUnknown": {
       "title": "我们不知道这个文件属于哪个账户",
-      "detail": "文件中没有任何内容与您的账户相符。请选择一个账户，或者添加新账户。"
+      "detail": "文件中没有任何内容与您的账户相符。请选择一个账户，或者添加新账户。",
+      "summary": "文件中没有任何内容与账户相符"
     },
     "gapSinceLastImport": {
       "title_other": "有 {{count}} 天没有覆盖",

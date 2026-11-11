@@ -1,17 +1,16 @@
 /**
- * The parsing helpers in ./shared (amounts, reference columns, account text).
- * These cases lived in csvImportService.test.ts, which went away with the old
- * CSV dialog; the helpers are still what the readers, the analysis and the
- * imports service use, so their tests moved here unchanged.
+ * The parsing helpers in this folder (amounts, reference columns, account text).
+ * They were the parsers of the old CSV dialog and are still what the readers,
+ * the analysis and the imports service use.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import type { Account } from '@/types/database';
 
-import { deriveInstitutionHint, extractDigitsValue, extractLastFourValue, findTextHintedAccounts } from './shared/accountText';
-import { parseCsvAmount } from './shared/amounts';
-import { detectUniqueIdentifierColumn, isPlaceholderReference } from './shared/references';
+import { deriveInstitutionHint, extractDigitsValue, extractLastFourValue, findTextHintedAccounts } from './accountText';
+import { parseCsvAmount } from './amounts';
+import { detectUniqueIdentifierColumn, isPlaceholderReference } from './references';
 
 describe('parseCsvAmount', () => {
   it.each([

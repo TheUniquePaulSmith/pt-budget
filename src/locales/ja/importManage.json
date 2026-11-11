@@ -34,11 +34,6 @@
     "savedFormat": "保存済みの形式：{{name}}",
     "findingsLabel": "チェックで見つかった内容",
     "finding": "{{title}}：{{count}}",
-    "findingLabels": {
-      "referenceNotUnique": "銀行の参照番号は重複の検出に使われませんでした",
-      "currencyMismatch": "口座と通貨が異なる行",
-      "columnNotImported": "インポートされなかった列"
-    },
     "assumptions": "確認済みの推定：{{count}}",
     "fixedRows": "手動で修正した行：{{count}}",
     "noFindings": "注意が必要な点はありませんでした",

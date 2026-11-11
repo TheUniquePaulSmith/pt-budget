@@ -2,8 +2,8 @@
  * Merchant Rules Seed Service
  *
  * Loads the bundled community merchant-rule list from /community-data and
- * upserts it into the merchant_rules table. Pure DI style (like
- * csvImportService): database access is injected so the logic is unit-testable.
+ * upserts it into the merchant_rules table. Pure DI style: database access is
+ * injected so the logic is unit-testable.
  *
  * Reseed semantics:
  * - New community rules always arrive.

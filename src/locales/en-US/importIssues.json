@@ -89,16 +89,19 @@
     },
     "referenceNotUnique": {
       "title": "“{{column}}” is not used to spot duplicates",
-      "detail": "A bank reference only helps when every row has its own. In this file it is blank, repeated or damaged, so rows you already imported are recognised by their date, amount and description instead."
+      "detail": "A bank reference only helps when every row has its own. In this file it is blank, repeated or damaged, so rows you already imported are recognised by their date, amount and description instead.",
+      "summary": "Bank reference not used to spot duplicates"
     },
     "currencyMismatch": {
       "title_one": "{{count}} row is in {{fileCurrency}}, but the account is in {{accountCurrency}}",
       "title_other": "{{count}} rows are in {{fileCurrency}}, but the account is in {{accountCurrency}}",
-      "detail": "Amounts are imported as they are and counted as {{accountCurrency}}. Nothing is converted. Check that you picked the right account."
+      "detail": "Amounts are imported as they are and counted as {{accountCurrency}}. Nothing is converted. Check that you picked the right account.",
+      "summary": "Rows in a different currency from the account"
     },
     "columnNotImported": {
       "title": "“{{column}}” is not imported",
-      "detail": "The import keeps the date, description and amount of each transaction. Other columns, such as a category, a check number or the principal and interest parts of a loan payment, are left out."
+      "detail": "The import keeps the date, description and amount of each transaction. Other columns, such as a category, a check number or the principal and interest parts of a loan payment, are left out.",
+      "summary": "Columns not imported"
     },
     "unreadableDate": {
       "title_one": "{{count}} row has a date we cannot read",
@@ -193,7 +196,8 @@
     },
     "accountUnknown": {
       "title": "We do not know which account this file is for",
-      "detail": "Nothing in the file matches an account you have. Choose an account, or add a new one."
+      "detail": "Nothing in the file matches an account you have. Choose an account, or add a new one.",
+      "summary": "Nothing in the file matched an account"
     },
     "gapSinceLastImport": {
       "title_one": "{{count}} day is not covered",

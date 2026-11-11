@@ -11,7 +11,7 @@ test('creates a budget plan and reports over/under across month, quarter, and ye
   await bootstrapDatabase(page, { sampleDataTransactionLimit: 500 });
 
   await page.getByRole('button', { name: 'Budget', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Budget' })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible({ timeout: 120_000 });
 
   // Create (or update) the plan effective this month.
   await page.getByRole('button', { name: 'Manage Plan' }).click();
@@ -54,7 +54,7 @@ test('adds a recurring salary income source that feeds expected income', async (
   await bootstrapDatabase(page, { sampleDataTransactionLimit: 500 });
 
   await page.getByRole('button', { name: 'Budget', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Budget' })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible({ timeout: 120_000 });
 
   await expect(page.getByRole('heading', { name: 'Income Sources' })).toBeVisible();
   await page.getByRole('button', { name: 'Add', exact: true }).click();

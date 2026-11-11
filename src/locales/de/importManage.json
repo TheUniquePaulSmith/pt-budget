@@ -34,11 +34,6 @@
     "savedFormat": "Gespeichertes Format: {{name}}",
     "findingsLabel": "Ergebnis der Prüfung",
     "finding": "{{title}}: {{count}}",
-    "findingLabels": {
-      "referenceNotUnique": "Bankreferenz nicht zur Erkennung von Duplikaten verwendet",
-      "currencyMismatch": "Zeilen in einer anderen Währung als das Konto",
-      "columnNotImported": "Nicht importierte Spalten"
-    },
     "assumptions": "Bestätigte Annahmen: {{count}}",
     "fixedRows": "Von Hand korrigierte Zeilen: {{count}}",
     "noFindings": "Nichts zu beanstanden",

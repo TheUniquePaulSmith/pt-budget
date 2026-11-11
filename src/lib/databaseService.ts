@@ -224,7 +224,7 @@ export class DatabaseService {
     this.classification = new ClassificationService(workerService, this.appMetadata);
     this.loans = new LoansService(workerService);
     this.preferences = new PreferencesService(workerService, this.appMetadata);
-    this.imports = new ImportsService(workerService, this.classification);
+    this.imports = new ImportsService(workerService);
   }
 
   async initialize(): Promise<void> {
@@ -712,7 +712,7 @@ export class DatabaseService {
       // of a per-row INSERT plus a per-row `SELECT last_insert_rowid()`
       // round-trip (each its own implicit transaction = one encrypted IndexedDB
       // flush). The returned ids stay positionally aligned with `transactions`,
-      // which csvImportService.buildDuplicateGroups depends on.
+      // which callers that map ids back to their input rows depend on.
       const parameterSets = transactions.map((transaction) => [
         transaction.date,
         transaction.amount,

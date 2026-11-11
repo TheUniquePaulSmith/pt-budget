@@ -3,8 +3,16 @@
 // domain; re-exported from the sqlQueries.ts hub. Staging and the bulk insert
 // reuse TRANSACTION_QUERIES / IMPORT_BATCH_QUERIES from the hub.
 
+// PRAGMA foreign_keys is on for a new database only, not for a reopened one,
+// so ON DELETE CASCADE / SET NULL cannot be relied on: a deleted account can
+// leave its cards, identifiers and a saved layout's account_id behind. Every
+// read below therefore goes through `accounts`, so a row that points at an
+// account that no longer exists is never offered (account ids are never
+// reused: AUTOINCREMENT).
 const PROFILE_SELECT = `
-  SELECT p.*, a.name AS account_name
+  SELECT p.id, p.name, p.format, p.fingerprint, p.institution, p.config_json,
+         p.use_count, p.last_used_at, p.created_at, p.updated_at,
+         a.id AS account_id, a.name AS account_name
     FROM import_profiles p
     LEFT JOIN accounts a ON a.id = p.account_id`;
 
@@ -37,6 +45,8 @@ export const IMPORT_QUERIES = {
     UPDATE import_profiles
        SET use_count = use_count + 1, last_used_at = CURRENT_TIMESTAMP, account_id = ?
      WHERE id = ?`,
+  // The import runs that used a layout outlive it; they just no longer name it.
+  CLEAR_PROFILE_ON_BATCHES: `UPDATE import_batches SET profile_id = NULL WHERE profile_id = ?`,
   DELETE_PROFILE: `DELETE FROM import_profiles WHERE id = ?`,
 
   // --- account identifiers ---
@@ -56,11 +66,31 @@ export const IMPORT_QUERIES = {
 
   // --- which account does a value in a file mean? ---
   // Cards are looked up first: they also say which card the rows attach to.
-  FIND_CARDS_BY_FULL_NUMBER: `SELECT id AS card_id, account_id FROM account_cards WHERE full_number = ? ORDER BY id`,
-  FIND_CARDS_BY_LAST_FOUR: `SELECT id AS card_id, account_id FROM account_cards WHERE last_four = ? ORDER BY id`,
-  FIND_IDENTIFIERS_BY_VALUE: `SELECT account_id FROM account_identifiers WHERE kind = ? AND value = ? ORDER BY id`,
+  // Joined to accounts: only an account that still exists can be matched.
+  FIND_CARDS_BY_FULL_NUMBER: `
+    SELECT c.id AS card_id, c.account_id
+      FROM account_cards c
+      JOIN accounts a ON a.id = c.account_id
+     WHERE c.full_number = ?
+     ORDER BY c.id`,
+  FIND_CARDS_BY_LAST_FOUR: `
+    SELECT c.id AS card_id, c.account_id
+      FROM account_cards c
+      JOIN accounts a ON a.id = c.account_id
+     WHERE c.last_four = ?
+     ORDER BY c.id`,
+  FIND_IDENTIFIERS_BY_VALUE: `
+    SELECT i.account_id
+      FROM account_identifiers i
+      JOIN accounts a ON a.id = i.account_id
+     WHERE i.kind = ? AND i.value = ?
+     ORDER BY i.id`,
   FIND_IDENTIFIERS_BY_LAST_FOUR: `
-    SELECT account_id FROM account_identifiers WHERE kind = 'number' AND last_four = ? ORDER BY id`,
+    SELECT i.account_id
+      FROM account_identifiers i
+      JOIN accounts a ON a.id = i.account_id
+     WHERE i.kind = 'number' AND i.last_four = ?
+     ORDER BY i.id`,
 
   // A value that matches nothing is compared with these by name, as a hint only.
   LIST_ACCOUNTS_FOR_HINTS: `SELECT id, name, institution FROM accounts ORDER BY id`,

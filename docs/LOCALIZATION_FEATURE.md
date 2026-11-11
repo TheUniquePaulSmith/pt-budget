@@ -49,9 +49,9 @@ System-generated notifications store their title and body in the language active
 - Changing the default currency rebases every known rate in one transaction (new rate = old rate ÷ the new default's old rate; the old default gets 1 ÷ that rate). When the new default has no known rate, all rates are cleared and must be entered again.
 - Transfers between accounts in different currencies are not paired automatically by the classifier (it matches negated amounts).
 
-## CSV import
+## Statement import
 
-`parseCsvDate` resolves ambiguous numeric dates (`04/06/2026`) by the language's day/month order: month-first for en-US, year-first locales (zh, ja, ko) and everyone else day-first. `parseCsvAmount` understands decimal commas (`1.234,56`) when the language writes them. Unambiguous shapes (ISO, year-first, month names) parse the same in every language.
+The Import Wizard reads the date order and the decimal mark from the file, not from the app language: one unambiguous date (`25/12/2026`) or amount (`1.234,56`) settles it for the whole file, and one file is always read with one date order (`parseCsvDate(…, { strict: true })`). The language's convention (month-first for en-US, year-first for zh, ja and ko, day-first for everyone else; decimal comma where the language writes one) is only the fallback for a file that does not settle it, and the wizard then asks the user to confirm. Unambiguous shapes (ISO, year-first, month names) parse the same in every language. See `docs/IMPORT_WIZARD.md`.
 
 ## Adding a language
 

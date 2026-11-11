@@ -34,11 +34,6 @@
     "savedFormat": "저장된 형식: {{name}}",
     "findingsLabel": "확인 결과",
     "finding": "{{title}}: {{count}}",
-    "findingLabels": {
-      "referenceNotUnique": "은행 참조 번호를 중복 확인에 사용하지 않음",
-      "currencyMismatch": "계좌와 통화가 다른 행",
-      "columnNotImported": "가져오지 않은 열"
-    },
     "assumptions": "확인한 가정: {{count}}",
     "fixedRows": "직접 수정한 행: {{count}}",
     "noFindings": "주의할 사항이 없었습니다",

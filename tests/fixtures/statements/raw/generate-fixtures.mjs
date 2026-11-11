@@ -249,6 +249,22 @@ const fixtures = [
       notes: [],
       fingerprint: 'delimited:buchungstag|verwendungszweck|betrag|währung',
     },
+    // German header names, day-first dates and a decimal comma, all read from the file.
+    layout: {
+      roles: { date: 0, description: [1], amount: 2, currency: 3 },
+      dateOrder: 'DMY',
+      decimal: ',',
+      amountSign: 'asIs',
+    },
+    analysis: {
+      readyRows: 4,
+      blockedRows: 0,
+      firstDate: '2026-09-01',
+      lastDate: '2026-09-28',
+      moneyIn: 3400.5,
+      moneyOut: 1347.25,
+      issueCodes: [],
+    },
   },
   {
     file: 'pipe-delimited.txt',
@@ -371,6 +387,22 @@ const fixtures = [
       notes: ['headerMissing'],
       fingerprint: 'delimited:noheader:4',
     },
+    // No names to go by: the columns are found by what is in them, and the sign stays a question.
+    layout: {
+      roles: { date: 0, description: [2], amount: 3 },
+      dateOrder: 'YMD',
+      decimal: '.',
+      amountSign: 'asIs',
+    },
+    analysis: {
+      readyRows: 3,
+      blockedRows: 0,
+      firstDate: '2026-09-01',
+      lastDate: '2026-09-04',
+      moneyIn: 980,
+      moneyOut: 44.39,
+      issueCodes: ['signAssumed'],
+    },
   },
   {
     file: 'ragged-rows.csv',
@@ -399,6 +431,22 @@ const fixtures = [
       rows: 4,
       notes: ['raggedRows'],
       fingerprint: 'delimited:date|description|amount|memo',
+    },
+    // The row with the unquoted comma has its amount pushed one column over, so it is blocked, not misread.
+    layout: {
+      roles: { date: 0, description: [1, 3], amount: 2 },
+      dateOrder: 'YMD',
+      decimal: '.',
+      amountSign: 'asIs',
+    },
+    analysis: {
+      readyRows: 3,
+      blockedRows: 1,
+      firstDate: '2026-09-01',
+      lastDate: '2026-09-04',
+      moneyIn: 2000,
+      moneyOut: 16.49,
+      issueCodes: ['unreadableAmount'],
     },
   },
   {
@@ -483,6 +531,23 @@ const fixtures = [
       rows: 2,
       notes: ['duplicateHeaderNames'],
       fingerprint: 'delimited:date|description|amount|amount (2)',
+    },
+    // Known limit: two columns both called "Amount" are not taken for a money-out / money-in pair. The first is
+    // the amount, so the row whose value is in the second is blocked until the user assigns the columns.
+    layout: {
+      roles: { date: 0, description: [1], amount: 2 },
+      dateOrder: 'YMD',
+      decimal: '.',
+      amountSign: 'asIs',
+    },
+    analysis: {
+      readyRows: 1,
+      blockedRows: 1,
+      firstDate: '2026-09-01',
+      lastDate: '2026-09-01',
+      moneyIn: 0,
+      moneyOut: 3.5,
+      issueCodes: ['unreadableAmount'],
     },
   },
   {

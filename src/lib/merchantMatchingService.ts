@@ -6,7 +6,7 @@
  *
  * IMPORTANT: normalized text is compute-only. The stored transaction
  * description participates in the duplicate-detection hash and must never
- * be mutated (see csvImportService.generateTransactionHash usage).
+ * be mutated (see computeTransactionHash in transactionHash.ts).
  */
 
 import type { MerchantRule } from '../types/database';

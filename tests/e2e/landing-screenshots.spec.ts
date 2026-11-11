@@ -12,6 +12,7 @@ import {
   confirmReadingSettings,
   nextWizardStep,
   openImportWizard,
+  runImport,
   startImport,
 } from './helpers/importFlow';
 
@@ -45,7 +46,95 @@ const ONLY = new Set(
     .map((name) => name.trim())
     .filter(Boolean)
 );
-const SAMPLE_IMPORT_CSV_PATH = path.join(__dirname, 'fixtures', 'sample-import.csv');
+
+/**
+ * The statement the import shots are taken with: a card export for the sample
+ * household's Travel Mastercard, written at capture time so its dates sit in
+ * the last four weeks. It is shaped like a real one on purpose: lines above
+ * the column names (one of them the card's last four digits, which is how the
+ * wizard ties the file to an account), charges as positive numbers, two date
+ * columns, a category column the import leaves out, and one pending row
+ * without a date for the wizard to point at. Invented data only.
+ */
+function writeCardStatement(directory: string): string {
+  const today = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const day = (daysAgo: number) => {
+    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() - daysAgo);
+    return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}/${date.getFullYear()}`;
+  };
+  const row = (daysAgo: number, description: string, amount: string, category: string) =>
+    `${day(daysAgo)},${day(Math.max(daysAgo - 1, 0))},${description},${amount},${category}`;
+  const lines = [
+    'Bank: Pine State Bank',
+    'Card ending in 7781',
+    `Statement period: ${day(28)} to ${day(1)}`,
+    '',
+    'Trans. Date,Post Date,Description,Amount,Category',
+    row(27, 'HARBOR STREET GROCERY', '84.12', 'Supermarkets'),
+    row(24, 'CITY TRANSIT PASS', '45.00', 'Travel'),
+    row(21, 'LANTERN BOOKS', '23.99', 'Merchandise'),
+    row(19, 'NOODLE HOUSE 14', '31.60', 'Restaurants'),
+    // Money back on a card is a refund in the app's terms; a card payment would need its other half in checking.
+    row(16, 'LANTERN BOOKS REFUND', '-23.99', 'Merchandise'),
+    row(13, 'FUEL STOP 2231', '41.10', 'Gasoline'),
+    row(9, 'HARDWARE DEPOT 77', '64.20', 'Home Improvement'),
+    row(6, 'STREAMING SERVICE', '12.99', 'Services'),
+    row(3, 'CITY PARKING GARAGE', '14.00', 'Travel'),
+    'Pending,,CORNER BAKERY 0091,8.45,Restaurants',
+  ];
+  const file = path.join(directory, 'pine-state-card-statement.csv');
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(file, `${lines.join('\r\n')}\r\n`);
+  return file;
+}
+const STATEMENT_FILE_NAME = 'pine-state-card-statement.csv';
+const STATEMENT_ACCOUNT = 'Travel Mastercard';
+
+type ImportShotNames = Record<'files' | 'account' | 'check' | 'review' | 'summary', string>;
+
+/**
+ * Walks the statement from the Files step to the Summary, taking the import
+ * shots on the way when `names` is given. Leaves the wizard on the Summary
+ * with Import enabled; nothing has been written yet.
+ */
+async function walkImportToSummary(page: Page, statementPath: string, names?: ImportShotNames) {
+  await openImportWizard(page);
+  await addStatementFiles(page, statementPath);
+  await settle(page, 600);
+  // Files: the dropped file and what was recognised in it.
+  if (names) await shot(page, names.files);
+  expect(await startImport(page), 'a new format starts on the Account step').toBe('account');
+  await settle(page, 600);
+  // Account: found from the card's last four digits, shown as a guess to confirm.
+  if (names) await shot(page, names.account);
+  await chooseImportAccount(page, 0, STATEMENT_ACCOUNT);
+  await nextWizardStep(page, 'layout');
+  await settle(page, 800);
+  // Check how we read it: the rows as interpreted, with the worded examples.
+  if (names) await shot(page, names.check);
+  await confirmReadingSettings(page);
+  await nextWizardStep(page, 'review');
+  await settle(page, 800);
+  // Things to check: the pending row that has no date, what was assumed, what is left out.
+  if (names) await shot(page, names.review);
+  const leaveOut = page.getByTestId('import-row-skip');
+  if ((await leaveOut.count()) > 0) await leaveOut.first().click();
+  await nextWizardStep(page, 'summary');
+  await expect(page.getByTestId('import-run')).toBeEnabled({ timeout: 30_000 });
+  await settle(page, 800);
+  // Summary: what pressing Import will do.
+  if (names) await shot(page, names.summary);
+}
+
+/** Leaves the Import page, discarding a loaded file. Safe to call when it is not open. */
+async function leaveImport(page: Page) {
+  if (!(await page.getByTestId('import-page').isVisible())) return;
+  await page.getByTestId('import-close').click();
+  // Asked only while a file is loaded.
+  await page.getByTestId('import-leave-discard').click({ timeout: 5_000 }).catch(() => undefined);
+  await expect(page.getByTestId('import-page')).toBeHidden();
+}
 
 const DESKTOP = { width: 1280, height: 800 };
 const HERO = { width: 1440, height: 900 };
@@ -240,9 +329,10 @@ async function startDemoEndpoint() {
   };
 }
 
-test('capture landing-site screenshots', async ({ page }) => {
+test('capture landing-site screenshots', async ({ page }, testInfo) => {
   test.setTimeout(1_800_000);
   fs.mkdirSync(OUT, { recursive: true });
+  const statementPath = writeCardStatement(testInfo.outputPath('statement'));
 
   await page.addInitScript(() => {
     if (!window.localStorage.getItem('budgetTracker_themePreset')) {
@@ -401,38 +491,20 @@ test('capture landing-site screenshots', async ({ page }) => {
     await closeDialogs(page);
   });
 
-  // --- Import (the guided import; the shot names predate it) ------------------
-  await step('csv import', async () => {
+  // --- Import: the guided import, looked at and discarded --------------------
+  await step('import wizard', async () => {
     try {
-      await openImportWizard(page);
-      await addStatementFiles(page, SAMPLE_IMPORT_CSV_PATH);
-      await settle(page, 600);
-      // Files: the dropped file and what was recognised in it.
-      await shot(page, 'csv-import-start');
-      if ((await startImport(page)) === 'account') {
-        const values = await page.locator('[data-testid^="import-account-"][data-status]').count();
-        for (let index = 0; index < values; index += 1) await chooseImportAccount(page, index, 'Household Checking');
-        await nextWizardStep(page, 'layout');
-        await settle(page, 800);
-        // Check how we read it: the rows as interpreted, with the worded examples.
-        await shot(page, 'csv-import-mapping');
-        await confirmReadingSettings(page);
-        await nextWizardStep(page, 'review');
-        await nextWizardStep(page, 'summary');
-      }
-      await expect(page.getByTestId('import-run')).toBeEnabled({ timeout: 30_000 });
-      await settle(page, 800);
-      // Summary: what pressing Import will do.
-      await shot(page, 'csv-import-analysis');
+      await walkImportToSummary(page, statementPath, {
+        files: 'import-files',
+        account: 'import-account',
+        check: 'import-check',
+        review: 'import-review',
+        summary: 'import-summary',
+      });
     } finally {
-      // The capture imports nothing: leave and discard. The Import page is full-screen, so a step
-      // that failed half-way must not leave it open over the pages the next steps need.
-      if (await page.getByTestId('import-page').isVisible()) {
-        await page.getByTestId('import-close').click();
-        // Asked only while a file is loaded.
-        await page.getByTestId('import-leave-discard').click({ timeout: 5_000 }).catch(() => undefined);
-        await expect(page.getByTestId('import-page')).toBeHidden();
-      }
+      // Nothing is imported here: a saved import would change every total shown after it. The
+      // Import page is full-screen, so a step that failed half-way must not leave it open either.
+      await leaveImport(page);
     }
   });
 
@@ -722,11 +794,34 @@ test('capture landing-site screenshots', async ({ page }) => {
     await step('mobile more sheet', async () => {
       await page.getByTestId('nav-more').click();
       await expect(page.getByTestId('mobile-more-sheet')).toBeVisible();
+      // The sheet opens under the pointer, which would leave its last row looking hovered.
+      await page.mouse.move(Math.round(MOBILE.width / 2), 40);
       await settle(page, 1000);
       await save(page, 'm-more');
       await page.keyboard.press('Escape');
     });
     await page.setViewportSize(DESKTOP);
+  });
+
+  // --- Import history: the one step that imports, kept for last ---------------
+  // It writes the statement's rows, takes the History shot and undoes the import through the
+  // same screen, so nothing above ever sees them. A saved format and the card number stay behind.
+  await step('import history', async () => {
+    try {
+      await walkImportToSummary(page, statementPath);
+      await runImport(page);
+      // "Undo" on the Done step opens History & formats with this import on top.
+      await page.getByTestId('import-undo').click();
+      const newest = page.getByTestId('import-history-row').first();
+      await expect(newest.getByTestId('import-history-file')).toHaveText(STATEMENT_FILE_NAME, { timeout: 30_000 });
+      await settle(page, 1000);
+      await shot(page, 'import-history');
+      await newest.getByTestId('import-history-undo').click();
+      await page.getByTestId('import-undo-confirm').click();
+      await expect(page.getByTestId('import-manage-notice-undone')).toBeVisible({ timeout: 120_000 });
+    } finally {
+      await leaveImport(page);
+    }
   });
 
   // --- The 404 page ---------------------------------------------------------

@@ -34,11 +34,6 @@
     "savedFormat": "已保存的格式：{{name}}",
     "findingsLabel": "检查发现的情况",
     "finding": "{{title}}：{{count}}",
-    "findingLabels": {
-      "referenceNotUnique": "银行参考号未用于识别重复项",
-      "currencyMismatch": "币种与账户不同的行",
-      "columnNotImported": "未导入的列"
-    },
     "assumptions": "已确认的假设：{{count}}",
     "fixedRows": "手动更正的行：{{count}}",
     "noFindings": "没有需要注意的地方",

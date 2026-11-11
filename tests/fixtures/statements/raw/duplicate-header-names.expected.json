@@ -19,5 +19,28 @@
       "duplicateHeaderNames"
     ],
     "fingerprint": "delimited:date|description|amount|amount (2)"
+  },
+  "layout": {
+    "roles": {
+      "date": 0,
+      "description": [
+        1
+      ],
+      "amount": 2
+    },
+    "dateOrder": "YMD",
+    "decimal": ".",
+    "amountSign": "asIs"
+  },
+  "analysis": {
+    "readyRows": 1,
+    "blockedRows": 1,
+    "firstDate": "2026-09-01",
+    "lastDate": "2026-09-01",
+    "moneyIn": 0,
+    "moneyOut": 3.5,
+    "issueCodes": [
+      "unreadableAmount"
+    ]
   }
 }

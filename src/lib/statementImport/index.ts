@@ -6,11 +6,11 @@
  *   analyzeStatement(table, layout, …)   normalised rows + everything worth telling the user
  *
  * Components and services import from here, never from the sub-folders.
- * FROZEN during the Import Wizard feature program (see ./types.ts).
+ * docs/IMPORT_WIZARD.md describes the stages and the issue catalog.
  */
 
 export { buildAiLayoutSample, maskLongDigitRuns, suggestLayoutWithAi } from './ai';
-export { analyzeStatement, proposeLayout } from './interpret';
+export { analyzeStatement, isExcelMangled, proposeLayout } from './interpret';
 export {
   ALL_IMPORT_ISSUE_CODES,
   IMPORT_ISSUE_CODES,

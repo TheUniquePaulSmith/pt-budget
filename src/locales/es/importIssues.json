@@ -89,16 +89,19 @@
     },
     "referenceNotUnique": {
       "title": "«{{column}}» no se usa para detectar duplicados",
-      "detail": "Una referencia bancaria solo sirve cuando cada fila tiene la suya. En este archivo está vacía, repetida o dañada, así que las filas que ya importó se reconocen por su fecha, importe y descripción."
+      "detail": "Una referencia bancaria solo sirve cuando cada fila tiene la suya. En este archivo está vacía, repetida o dañada, así que las filas que ya importó se reconocen por su fecha, importe y descripción.",
+      "summary": "Referencia del banco no usada para detectar duplicados"
     },
     "currencyMismatch": {
       "title_one": "{{count}} fila está en {{fileCurrency}}, pero la cuenta está en {{accountCurrency}}",
       "title_other": "{{count}} filas están en {{fileCurrency}}, pero la cuenta está en {{accountCurrency}}",
-      "detail": "Los importes se importan tal cual y se cuentan como {{accountCurrency}}. No se convierte nada. Compruebe que eligió la cuenta correcta."
+      "detail": "Los importes se importan tal cual y se cuentan como {{accountCurrency}}. No se convierte nada. Compruebe que eligió la cuenta correcta.",
+      "summary": "Filas en una moneda distinta a la de la cuenta"
     },
     "columnNotImported": {
       "title": "«{{column}}» no se importa",
-      "detail": "La importación conserva la fecha, la descripción y el importe de cada transacción. Las demás columnas, como una categoría, un número de cheque o las partes de capital e intereses de un pago de préstamo, se dejan fuera."
+      "detail": "La importación conserva la fecha, la descripción y el importe de cada transacción. Las demás columnas, como una categoría, un número de cheque o las partes de capital e intereses de un pago de préstamo, se dejan fuera.",
+      "summary": "Columnas no importadas"
     },
     "unreadableDate": {
       "title_one": "{{count}} fila tiene una fecha que no podemos leer",
@@ -193,7 +196,8 @@
     },
     "accountUnknown": {
       "title": "No sabemos a qué cuenta corresponde este archivo",
-      "detail": "Nada en el archivo coincide con una de sus cuentas. Elija una cuenta o añada una nueva."
+      "detail": "Nada en el archivo coincide con una de sus cuentas. Elija una cuenta o añada una nueva.",
+      "summary": "Nada en el archivo coincidía con una cuenta"
     },
     "gapSinceLastImport": {
       "title_one": "{{count}} día sin cubrir",

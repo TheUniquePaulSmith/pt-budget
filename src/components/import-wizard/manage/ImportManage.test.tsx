@@ -214,7 +214,7 @@ beforeEach(() => {
     issues: {
       signAssumed: { title: 'Sign was assumed' },
       unreadableDate: { title_one: '{{count}} row has a bad date', title_other: '{{count}} rows have a bad date' },
-      columnNotImported: { title: '“{{column}}” is not imported' },
+      columnNotImported: { title: '“{{column}}” is not imported', summary: 'Columns not imported' },
     },
   });
 });
@@ -291,7 +291,7 @@ describe('ImportManage: import history', () => {
       'Text file (CSV) · Saved format: First Bank checking'
     );
     // Most serious first. A plural title carries its count; a plain title gets one only above 1;
-    // a title that needs a column name gives way to the history's own label; no text → the code.
+    // a title that needs a column name gives way to the catalog's summary; no text → the code.
     const findings = within(newest).getByTestId('import-history-findings');
     expect(within(findings).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
       '2 rows have a bad date',

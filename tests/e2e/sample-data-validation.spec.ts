@@ -139,7 +139,7 @@ test.describe('Sample data validation', () => {
 
     // 8. Budget: the plans and the two savings funds are there and the status panel renders.
     await navigateToPage(page, 'budget');
-    await expect(page.getByRole('heading', { name: 'Budget' })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId('budget-status-panel')).toBeVisible({ timeout: 30_000 });
     const fundsCard = page.getByTestId('budget-funds-card');
     await expect(fundsCard).toBeVisible({ timeout: 30_000 });

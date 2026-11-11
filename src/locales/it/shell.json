@@ -118,5 +118,24 @@
     "macStep2": "Scegli «Aggiungi al Dock».",
     "macStep3": "Fai clic su Aggiungi.",
     "close": "Ho capito"
+  },
+  "network": {
+    "wentOffline": "Sei offline. La sincronizzazione cloud e i modelli di IA cloud sono in pausa e riprendono quando torni online.",
+    "wentOfflineNotSaved": "Sei offline. La sincronizzazione cloud e i modelli di IA cloud restano in pausa finché non torni online, e le pagine che non hai ancora aperto potrebbero non caricarsi. Attiva la modalità offline nelle Impostazioni per usare tutta l’app senza connessione.",
+    "backOnline": "Sei di nuovo online. La sincronizzazione cloud e i modelli di IA cloud sono di nuovo disponibili.",
+    "chip": "Offline",
+    "chipTooltip": "Nessuna connessione a internet. La sincronizzazione cloud e i modelli di IA cloud attendono che tu torni online; tutto ciò che è salvato su questo dispositivo continua a funzionare.",
+    "feature": {
+      "cloudSync": "La sincronizzazione cloud richiede una connessione a internet. Le tue modifiche restano su questo dispositivo e vengono sincronizzate quando torni online.",
+      "cloudOpen": "Per aprire o creare un database cloud serve una connessione a internet. Sarà di nuovo disponibile quando torni online.",
+      "cloudAi": "I modelli di IA cloud richiedono una connessione a internet. La chat torna disponibile quando torni online; un modello eseguito in questo browser funziona offline."
+    }
+  },
+  "pageUnavailable": {
+    "offlineTitle": "Non ancora disponibile offline",
+    "offlineBody": "Questa pagina non è ancora salvata su questo dispositivo, quindi non si apre senza connessione. Si aprirà appena torni online. Per avere tutte le pagine disponibili offline, attiva la modalità offline in Impostazioni → Preferenze.",
+    "failedTitle": "Impossibile caricare questa pagina",
+    "failedBody": "Controlla la connessione e riprova.",
+    "retry": "Riprova"
   }
 }

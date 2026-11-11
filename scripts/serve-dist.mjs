@@ -87,7 +87,7 @@ const server = http.createServer((req, res) => {
 });
 
 if (!fs.existsSync(path.join(DIST, 'index.html'))) {
-  console.error(`serve-dist: ${DIST} has no index.html. Run \`npm run build\` first.`);
+  console.error(`serve-dist: ${DIST} has no index.html. Run \`pnpm run build\` first.`);
   process.exit(1);
 }
 if (!fs.existsSync(path.join(DIST, 'sw.js'))) {

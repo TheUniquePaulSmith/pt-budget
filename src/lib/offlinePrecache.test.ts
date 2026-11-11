@@ -9,6 +9,7 @@ import {
   buildPrecacheManifest,
   CACHE_PREFIX,
   manifestVersion,
+  offlineSummary,
   renderServiceWorker,
   shouldPrecache,
   urlForFile,
@@ -37,6 +38,7 @@ describe('offline precache rules', () => {
     }
     for (const dropped of [
       'sw.js',
+      'offline.json',
       '_next/static/chunks/main.js.map',
       'test-wa-sqlite.html',
       'sql-wasm/sql-wasm.wasm',
@@ -101,6 +103,15 @@ describe('buildPrecacheManifest', () => {
     expect(manifestVersion(after)).not.toBe(before);
   });
 
+  it('summarises what offline mode downloads', () => {
+    const entries = buildPrecacheManifest(dist);
+    expect(offlineSummary(entries)).toEqual({
+      version: manifestVersion(entries),
+      files: 4,
+      bytes: entries.reduce((sum: number, entry: { size: number }) => sum + entry.size, 0),
+    });
+  });
+
   it('refuses a template without the manifest marker', () => {
     expect(() => renderServiceWorker('const CONFIG = {};', [])).toThrow(/marker/);
   });
@@ -155,6 +166,8 @@ interface Harness {
   claimCalls: number;
   online: boolean;
   version: string;
+  /** What the worker posted to the open tabs. */
+  messages: Array<{ type: string; done: number; total: number }>;
 }
 
 /** Files the fake host serves; `/404.html` answers with status 404 like some hosts do. */
@@ -177,6 +190,7 @@ function loadWorker(entries = ENTRIES, caches = new FakeCacheStorage()): Harness
     claimCalls: 0,
     online: true,
     version: manifestVersion(entries),
+    messages: [],
   };
   const fetchImpl = async (input: RequestInfo | URL) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, ORIGIN);
@@ -198,6 +212,9 @@ function loadWorker(entries = ENTRIES, caches = new FakeCacheStorage()): Harness
       claim: async () => {
         harness.claimCalls += 1;
       },
+      matchAll: async () => [
+        { postMessage: (message: Harness['messages'][number]) => harness.messages.push(message) },
+      ],
     },
   };
   vm.runInNewContext(renderServiceWorker(TEMPLATE, entries), {
@@ -242,6 +259,11 @@ describe('generated service worker', () => {
     const notFound = (await cache.match('/404.html'))!;
     expect(await notFound.text()).toBe('not found page');
     expect(notFound.headers.get('Document-Isolation-Policy')).toBe('isolate-and-require-corp');
+
+    // The open tabs hear where the download is: from 0 to every file, every 5 files.
+    const total = Object.keys(HOST).length;
+    expect(harness.messages[0]).toMatchObject({ type: 'PRECACHE_PROGRESS', done: 0, total });
+    expect(harness.messages.at(-1)).toMatchObject({ type: 'PRECACHE_PROGRESS', done: total, total });
   });
 
   it('fails the install when a file cannot be downloaded', async () => {

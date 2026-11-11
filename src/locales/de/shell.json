@@ -118,5 +118,24 @@
     "macStep2": "Wähle „Zum Dock hinzufügen“.",
     "macStep3": "Klicke auf „Hinzufügen“.",
     "close": "Verstanden"
+  },
+  "network": {
+    "wentOffline": "Du bist offline. Cloud-Synchronisierung und Cloud-KI-Modelle sind pausiert und laufen weiter, sobald du wieder online bist.",
+    "wentOfflineNotSaved": "Du bist offline. Cloud-Synchronisierung und Cloud-KI-Modelle sind pausiert, bis du wieder online bist, und Seiten, die du noch nicht geöffnet hast, laden eventuell nicht. Aktiviere den Offline-Modus in den Einstellungen, um die ganze App ohne Verbindung zu nutzen.",
+    "backOnline": "Du bist wieder online. Cloud-Synchronisierung und Cloud-KI-Modelle sind wieder verfügbar.",
+    "chip": "Offline",
+    "chipTooltip": "Keine Internetverbindung. Cloud-Synchronisierung und Cloud-KI-Modelle warten, bis du wieder online bist; alles, was auf diesem Gerät gespeichert ist, funktioniert weiter.",
+    "feature": {
+      "cloudSync": "Die Cloud-Synchronisierung braucht eine Internetverbindung. Deine Änderungen bleiben auf diesem Gerät und werden synchronisiert, sobald du wieder online bist.",
+      "cloudOpen": "Zum Öffnen oder Anlegen einer Cloud-Datenbank ist eine Internetverbindung nötig. Das geht wieder, sobald du online bist.",
+      "cloudAi": "Cloud-KI-Modelle brauchen eine Internetverbindung. Der Chat ist wieder verfügbar, sobald du online bist; ein Modell, das in diesem Browser läuft, funktioniert offline."
+    }
+  },
+  "pageUnavailable": {
+    "offlineTitle": "Offline noch nicht verfügbar",
+    "offlineBody": "Diese Seite ist noch nicht auf diesem Gerät gespeichert und kann deshalb ohne Verbindung nicht geöffnet werden. Sie öffnet sich, sobald du wieder online bist. Damit alle Seiten offline verfügbar sind, aktiviere den Offline-Modus unter Einstellungen → Voreinstellungen.",
+    "failedTitle": "Diese Seite konnte nicht geladen werden",
+    "failedBody": "Prüfe deine Verbindung und versuche es erneut.",
+    "retry": "Erneut versuchen"
   }
 }

@@ -51,6 +51,8 @@ import {
 } from '@mui/icons-material';
 import type { TFunction } from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
+import OfflineFeatureNotice from '@/components/common/Offline/OfflineFeatureNotice';
+import { useOnlineStatus } from '@/components/common/Offline/useOnlineStatus';
 import StorageQuota from '@/components/common/Storage/StorageQuota';
 import { CloudConflictDialog } from './CloudConflictDialog';
 import { SecurityKeySlotsSection } from './SecurityKeySlotsSection';
@@ -134,6 +136,7 @@ interface SettingsPageProps {
 const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const { t } = useTranslation(['settings', 'common']);
   const { dateTime } = useFormatters();
+  const online = useOnlineStatus();
   const [tabValue, setTabValue] = useState<SettingsTabId>('preferences');
   const debugMode = isDebugMode();
 
@@ -457,6 +460,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                 <Typography variant="body2" color="text.secondary" paragraph>
                   {t('source.description')}
                 </Typography>
+                <OfflineFeatureNotice feature="cloudSync" />
               </Box>
 
               <Divider />
@@ -646,6 +650,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     onClick={() => {
                       void handleConnectCloudSource('gdrive');
                     }}
+                    disabled={!online}
                   >
                     {t('source.openFromGoogleDrive')}
                   </Button>
@@ -655,6 +660,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     onClick={() => {
                       void handleConnectCloudSource('onedrive');
                     }}
+                    disabled={!online}
                   >
                     {t('source.openFromOneDrive')}
                   </Button>
@@ -677,7 +683,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     onClick={() => {
                       void handleMigrateToCloud('gdrive');
                     }}
-                    disabled={!isDatabaseLoaded || migratingProvider !== null}
+                    disabled={!isDatabaseLoaded || migratingProvider !== null || !online}
                   >
                     {migratingProvider === 'gdrive' ? t('source.converting') : t('source.convertToGoogleDrive')}
                   </Button>
@@ -687,7 +693,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     onClick={() => {
                       void handleMigrateToCloud('onedrive');
                     }}
-                    disabled={!isDatabaseLoaded || migratingProvider !== null}
+                    disabled={!isDatabaseLoaded || migratingProvider !== null || !online}
                   >
                     {migratingProvider === 'onedrive' ? t('source.converting') : t('source.convertToOneDrive')}
                   </Button>
@@ -714,8 +720,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                       }
                     }}
                     disabled={
-                      !isDatabaseLoaded || databaseSource === 'local' || syncStatus.state === 'syncing'
+                      !isDatabaseLoaded || databaseSource === 'local' || syncStatus.state === 'syncing' || !online
                     }
+                    data-testid="settings-sync-now"
                   >
                     {syncStatus.state === 'syncing'
                       ? t('source.syncing')
@@ -729,7 +736,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
                     onClick={() => {
                       void saveDatabaseToCurrentCloud();
                     }}
-                    disabled={!isDatabaseLoaded || databaseSource === 'local'}
+                    disabled={!isDatabaseLoaded || databaseSource === 'local' || !online}
                   >
                     {t('source.saveCloudCopy')}
                   </Button>

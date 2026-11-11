@@ -77,11 +77,25 @@
     "ratesAdd": "添加",
     "install": {
       "title": "安装应用",
-      "description": "安装后，应用会在独立窗口中或从主屏幕打开，并可离线使用。",
+      "description": "安装后，应用会在独立窗口中或从主屏幕打开。",
       "button": "安装应用",
       "guideButton": "查看方法",
       "installed": "此应用已安装在本设备上。",
       "unavailable": "此浏览器目前不提供安装此应用。在 Chrome 或 Edge 中，请使用地址栏中的安装图标。如果应用已安装，请从您的应用中打开它。"
+    },
+    "offline": {
+      "title": "离线模式",
+      "description": "关闭时，应用会在您首次打开每个页面时从网络加载。开启后，整个应用会保存在本设备上，所有页面都可在无网络时打开。无论哪种方式，您的数据都保存在本设备上。",
+      "switchLabel": "保存应用以供离线使用",
+      "size": "一次性下载约 {{size}} MB（{{files}} 个文件）；之后的更新只下载有变化的部分。",
+      "downloadingStart": "正在将应用保存到本设备…",
+      "downloading": "正在将应用保存到本设备… 已完成 {{done}}/{{total}} 个文件",
+      "ready": "应用已保存在本设备上，无网络时也能打开。",
+      "error": "应用未能保存完成。请检查网络连接后重试。",
+      "retry": "重试",
+      "needsConnection": "请连接网络以开启离线模式。",
+      "unsupported": "此浏览器无法保存应用以供离线使用。",
+      "devBuild": "离线模式仅适用于应用的生产构建（pnpm run build），不适用于开发服务器。"
     }
   },
   "storage": {

@@ -118,5 +118,24 @@
     "macStep2": "Choose “Add to Dock”.",
     "macStep3": "Click Add.",
     "close": "Got it"
+  },
+  "network": {
+    "wentOffline": "You're offline. Cloud sync and cloud AI models are paused and resume when you're back online.",
+    "wentOfflineNotSaved": "You're offline. Cloud sync and cloud AI models are paused until you're back online, and pages you haven't opened yet may not load. Turn on offline mode in Settings to use the whole app without a connection.",
+    "backOnline": "You're back online. Cloud sync and cloud AI models are available again.",
+    "chip": "Offline",
+    "chipTooltip": "No internet connection. Cloud sync and cloud AI models wait until you're back online; everything stored on this device keeps working.",
+    "feature": {
+      "cloudSync": "Cloud sync needs an internet connection. Your changes are kept on this device and sync when you're back online.",
+      "cloudOpen": "Opening or creating a cloud database needs an internet connection. It's available again when you're back online.",
+      "cloudAi": "Cloud AI models need an internet connection. Chat is available again when you're back online; a model running in this browser works offline."
+    }
+  },
+  "pageUnavailable": {
+    "offlineTitle": "Not available offline yet",
+    "offlineBody": "This page hasn't been saved on this device, so it can't open without a connection. It opens as soon as you're back online. To keep every page available offline, turn on offline mode in Settings → Preferences.",
+    "failedTitle": "This page couldn't be loaded",
+    "failedBody": "Check your connection and try again.",
+    "retry": "Try again"
   }
 }

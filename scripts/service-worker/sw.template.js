@@ -1,11 +1,14 @@
 /* Offline service worker for the static export.
  *
  * Template: scripts/build-service-worker.mjs fills in the manifest after
- * `next build` and writes dist/sw.js. Never served by `next dev`.
+ * `next build` and writes dist/sw.js. Never served by `next dev`, and only
+ * registered once the user turns on offline mode in Settings → Preferences
+ * (until then the app loads lazily, straight from the host).
  *
  * - install: saves every file of the build (pages, chunks, languages, wasm,
- *   worker modules) in one versioned cache. A file whose content hash did not
- *   change is copied from the previous version's cache instead of downloaded.
+ *   worker modules) in one versioned cache, posting PRECACHE_PROGRESS to the
+ *   open tabs. A file whose content hash did not change is copied from the
+ *   previous version's cache instead of downloaded.
  * - activate: deletes the other versions' caches.
  * - fetch: same-origin GETs are answered from the cache first, anything not in
  *   it goes to the network. A page load for an unknown address tries the
@@ -20,6 +23,7 @@ const CONFIG = /*__PRECACHE_MANIFEST__*/;
 const CACHE_NAME = CONFIG.cachePrefix + CONFIG.version;
 const REVISION_HEADER = 'X-Precache-Revision';
 const DOWNLOAD_CONCURRENCY = 6;
+const PROGRESS_EVERY = 5;
 const REVISIONS = new Map(CONFIG.entries);
 
 function resolvePath(pathname) {
@@ -69,17 +73,32 @@ async function download(url, revision) {
   return storable(response, revision);
 }
 
+/** Tells every open tab (controlled or not yet) how far the download is. */
+async function announceProgress(done) {
+  const total = CONFIG.entries.length;
+  if (done !== 0 && done !== total && done % PROGRESS_EVERY !== 0) return;
+  const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+  for (const client of clients) {
+    client.postMessage({ type: 'PRECACHE_PROGRESS', version: CONFIG.version, done, total });
+  }
+}
+
 async function precache() {
   const cache = await caches.open(CACHE_NAME);
   const previous = await previousCopies();
   const queue = CONFIG.entries.slice();
+  let done = 0;
+  await announceProgress(0);
   const work = async () => {
     while (queue.length > 0) {
       const [url, revision] = queue.shift();
       const existing = await cache.match(url);
-      if (existing && existing.headers.get(REVISION_HEADER) === revision) continue;
-      const copy = await fromPreviousCache(previous, url, revision);
-      await cache.put(url, copy || (await download(url, revision)));
+      if (!existing || existing.headers.get(REVISION_HEADER) !== revision) {
+        const copy = await fromPreviousCache(previous, url, revision);
+        await cache.put(url, copy || (await download(url, revision)));
+      }
+      done += 1;
+      await announceProgress(done);
     }
   };
   await Promise.all(Array.from({ length: DOWNLOAD_CONCURRENCY }, work));

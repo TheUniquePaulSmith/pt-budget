@@ -79,11 +79,25 @@
     "ratesAdd": "Aggiungi",
     "install": {
       "title": "Installa l'app",
-      "description": "Una volta installata, l'app si apre in una finestra dedicata o dalla schermata Home e funziona offline.",
+      "description": "Una volta installata, l’app si apre in una finestra dedicata o dalla schermata Home.",
       "button": "Installa l'app",
       "guideButton": "Mostrami come",
       "installed": "L'app è installata su questo dispositivo.",
       "unavailable": "Questo browser al momento non offre l'installazione dell'app. In Chrome o Edge, usa l'icona di installazione nella barra degli indirizzi. Se l'app è già installata, aprila dalle tue app."
+    },
+    "offline": {
+      "title": "Modalità offline",
+      "description": "Disattivata, l’app carica ogni pagina da internet la prima volta che la apri. Attivata, salva l’intera app su questo dispositivo così ogni pagina si apre senza connessione. In entrambi i casi i tuoi dati restano su questo dispositivo.",
+      "switchLabel": "Salva l’app per l’uso offline",
+      "size": "Scarica circa {{size}} MB ({{files}} file) una sola volta; gli aggiornamenti scaricano solo ciò che è cambiato.",
+      "downloadingStart": "Salvataggio dell’app su questo dispositivo…",
+      "downloading": "Salvataggio dell’app su questo dispositivo… {{done}} di {{total}} file",
+      "ready": "L’app è salvata su questo dispositivo e si apre senza connessione.",
+      "error": "Il salvataggio dell’app non è stato completato. Controlla la connessione e riprova.",
+      "retry": "Riprova",
+      "needsConnection": "Connettiti a internet per attivare la modalità offline.",
+      "unsupported": "Questo browser non può salvare l’app per l’uso offline.",
+      "devBuild": "La modalità offline funziona in una build di produzione dell’app (pnpm run build), non sul server di sviluppo."
     }
   },
   "storage": {

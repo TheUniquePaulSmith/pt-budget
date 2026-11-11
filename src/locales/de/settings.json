@@ -79,11 +79,25 @@
     "ratesAdd": "Hinzufügen",
     "install": {
       "title": "App installieren",
-      "description": "Installiert öffnet sich die App in einem eigenen Fenster oder vom Home-Bildschirm und funktioniert offline.",
+      "description": "Installiert öffnet sich die App in einem eigenen Fenster oder vom Home-Bildschirm.",
       "button": "App installieren",
       "guideButton": "So geht’s",
       "installed": "Die App ist auf diesem Gerät installiert.",
       "unavailable": "Dieser Browser bietet die Installation gerade nicht an. Verwende in Chrome oder Edge das Installationssymbol in der Adressleiste. Wenn die App bereits installiert ist, öffne sie über deine Apps."
+    },
+    "offline": {
+      "title": "Offline-Modus",
+      "description": "Aus: Die App lädt jede Seite aus dem Internet, wenn du sie zum ersten Mal öffnest. An: Die ganze App wird auf diesem Gerät gespeichert, sodass jede Seite ohne Verbindung öffnet. Deine Daten bleiben in beiden Fällen auf diesem Gerät.",
+      "switchLabel": "App für die Offline-Nutzung speichern",
+      "size": "Lädt einmalig etwa {{size}} MB ({{files}} Dateien) herunter; Updates laden nur, was sich geändert hat.",
+      "downloadingStart": "App wird auf diesem Gerät gespeichert…",
+      "downloading": "App wird auf diesem Gerät gespeichert… {{done}} von {{total}} Dateien",
+      "ready": "Die App ist auf diesem Gerät gespeichert und öffnet ohne Verbindung.",
+      "error": "Das Speichern der App wurde nicht abgeschlossen. Prüfe deine Verbindung und versuche es erneut.",
+      "retry": "Erneut versuchen",
+      "needsConnection": "Verbinde dich mit dem Internet, um den Offline-Modus zu aktivieren.",
+      "unsupported": "Dieser Browser kann die App nicht für die Offline-Nutzung speichern.",
+      "devBuild": "Der Offline-Modus funktioniert in einem Produktions-Build der App (pnpm run build), nicht auf dem Entwicklungsserver."
     }
   },
   "storage": {

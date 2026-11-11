@@ -79,11 +79,25 @@
     "ratesAdd": "Adicionar",
     "install": {
       "title": "Instalar o aplicativo",
-      "description": "Instalado, o aplicativo abre em uma janela própria ou pela Tela de Início e funciona offline.",
+      "description": "Instalado, o aplicativo abre em uma janela própria ou pela Tela de Início.",
       "button": "Instalar aplicativo",
       "guideButton": "Ver como",
       "installed": "O aplicativo está instalado neste dispositivo.",
       "unavailable": "Este navegador não está oferecendo a instalação do aplicativo no momento. No Chrome ou no Edge, use o ícone de instalação na barra de endereços. Se o aplicativo já estiver instalado, abra-o pelos seus aplicativos."
+    },
+    "offline": {
+      "title": "Modo offline",
+      "description": "Desativado, o aplicativo carrega cada página da internet na primeira vez que você a abre. Ativado, ele salva o aplicativo inteiro neste dispositivo para que todas as páginas abram sem conexão. Seus dados ficam neste dispositivo em ambos os casos.",
+      "switchLabel": "Salvar o aplicativo para uso offline",
+      "size": "Baixa cerca de {{size}} MB ({{files}} arquivos) uma vez; as atualizações baixam apenas o que mudou.",
+      "downloadingStart": "Salvando o aplicativo neste dispositivo…",
+      "downloading": "Salvando o aplicativo neste dispositivo… {{done}} de {{total}} arquivos",
+      "ready": "O aplicativo está salvo neste dispositivo e abre sem conexão.",
+      "error": "O salvamento do aplicativo não terminou. Verifique sua conexão e tente novamente.",
+      "retry": "Tentar novamente",
+      "needsConnection": "Conecte-se à internet para ativar o modo offline.",
+      "unsupported": "Este navegador não consegue salvar o aplicativo para uso offline.",
+      "devBuild": "O modo offline funciona em um build de produção do aplicativo (pnpm run build), não no servidor de desenvolvimento."
     }
   },
   "storage": {

@@ -25,6 +25,7 @@ import { PageActionsOutlet, PageActionsProvider } from './slots/PageActionsSlot'
 import { ScopeFiltersProvider } from '@/components/common/Filters/ScopeFilters';
 import MobileBottomNav, { MOBILE_BOTTOM_NAV_SLOTS } from './MobileBottomNav';
 import PageFallback from './PageFallback';
+import PageLoadBoundary from './PageLoadBoundary';
 import SidebarRail from './SidebarRail';
 import {
   DEFAULT_PAGE_ID,
@@ -111,8 +112,11 @@ export default function AppShell() {
   }
 
   const page = getPage(currentPage);
+  // A page whose code cannot be fetched (offline, without offline mode) explains itself instead of taking the app down.
   const pageContent = (
-    <Suspense fallback={<PageFallback />}>{page.render({ navigate, goBack })}</Suspense>
+    <PageLoadBoundary key={page.id} pageId={page.id}>
+      <Suspense fallback={<PageFallback />}>{page.render({ navigate, goBack })}</Suspense>
+    </PageLoadBoundary>
   );
 
   const railWidth = sidebarExpanded ? RAIL_WIDTH_EXPANDED : RAIL_WIDTH_COLLAPSED;

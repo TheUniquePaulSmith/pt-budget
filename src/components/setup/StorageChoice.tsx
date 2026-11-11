@@ -6,6 +6,8 @@ import { Cloud, Computer, Storage } from '@mui/icons-material';
 import { Alert, Box, ButtonBase, Paper, Stack, Tooltip, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
+import OfflineFeatureNotice from '@/components/common/Offline/OfflineFeatureNotice';
+import { useOnlineStatus } from '@/components/common/Offline/useOnlineStatus';
 import { createCloudProviderClient } from '@/lib/cloudProviderClients';
 import type { CloudProvider } from '@/lib/databaseSourceStorage';
 
@@ -32,6 +34,7 @@ export function StorageChoice({ onChoiceSelected, isLoading, error }: StorageCho
   const googleConfigured = createCloudProviderClient('gdrive').isConfigured();
   const oneDriveConfigured = createCloudProviderClient('onedrive').isConfigured();
 
+  const online = useOnlineStatus();
   const isOptionConfigured = (id: StorageOption['id']): boolean => {
     if (id === 'local') return true;
     return id === 'gdrive' ? googleConfigured : oneDriveConfigured;
@@ -74,7 +77,7 @@ export function StorageChoice({ onChoiceSelected, isLoading, error }: StorageCho
                 <Box component="span" sx={{ display: 'flex', flex: 1 }}>
                   <ButtonBase
                     onClick={() => void onChoiceSelected(option.id)}
-                    disabled={isLoading || !configured}
+                    disabled={isLoading || !configured || (option.id !== 'local' && !online)}
                     data-testid={`storage-choice-${option.id}`}
                     sx={{
                       flex: 1,
@@ -110,6 +113,7 @@ export function StorageChoice({ onChoiceSelected, isLoading, error }: StorageCho
             );
           })}
         </Stack>
+        <OfflineFeatureNotice feature="cloudOpen" sx={{ mt: 3, textAlign: 'left' }} />
       </Paper>
     </Box>
   );

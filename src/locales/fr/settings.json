@@ -79,11 +79,25 @@
     "ratesAdd": "Ajouter",
     "install": {
       "title": "Installer l'application",
-      "description": "Une fois installée, l'application s'ouvre dans sa propre fenêtre ou depuis l'écran d'accueil, et fonctionne hors ligne.",
+      "description": "Une fois installée, l’application s’ouvre dans sa propre fenêtre ou depuis l’écran d’accueil.",
       "button": "Installer l'application",
       "guideButton": "Voir comment faire",
       "installed": "L'application est installée sur cet appareil.",
       "unavailable": "Ce navigateur ne propose pas d'installer l'application pour le moment. Dans Chrome ou Edge, utilisez l'icône d'installation de la barre d'adresse. Si l'application est déjà installée, ouvrez-la depuis vos applications."
+    },
+    "offline": {
+      "title": "Mode hors ligne",
+      "description": "Désactivé, l’application charge chaque page depuis internet la première fois que vous l’ouvrez. Activé, elle enregistre toute l’application sur cet appareil pour que chaque page s’ouvre sans connexion. Vos données restent sur cet appareil dans les deux cas.",
+      "switchLabel": "Enregistrer l’application pour une utilisation hors ligne",
+      "size": "Télécharge environ {{size}} Mo ({{files}} fichiers) une seule fois ; les mises à jour ne téléchargent que ce qui a changé.",
+      "downloadingStart": "Enregistrement de l’application sur cet appareil…",
+      "downloading": "Enregistrement de l’application sur cet appareil… {{done}} fichiers sur {{total}}",
+      "ready": "L’application est enregistrée sur cet appareil et s’ouvre sans connexion.",
+      "error": "L’enregistrement de l’application n’a pas abouti. Vérifiez votre connexion et réessayez.",
+      "retry": "Réessayer",
+      "needsConnection": "Connectez-vous à internet pour activer le mode hors ligne.",
+      "unsupported": "Ce navigateur ne peut pas enregistrer l’application pour une utilisation hors ligne.",
+      "devBuild": "Le mode hors ligne fonctionne dans une version de production de l’application (pnpm run build), pas sur le serveur de développement."
     }
   },
   "storage": {

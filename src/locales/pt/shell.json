@@ -118,5 +118,24 @@
     "macStep2": "Escolha “Adicionar ao Dock”.",
     "macStep3": "Clique em Adicionar.",
     "close": "Entendi"
+  },
+  "network": {
+    "wentOffline": "Você está offline. A sincronização na nuvem e os modelos de IA na nuvem estão pausados e voltam quando a conexão retornar.",
+    "wentOfflineNotSaved": "Você está offline. A sincronização na nuvem e os modelos de IA na nuvem ficam pausados até a conexão voltar, e as páginas que você ainda não abriu podem não carregar. Ative o modo offline em Configurações para usar o aplicativo inteiro sem conexão.",
+    "backOnline": "Você está online de novo. A sincronização na nuvem e os modelos de IA na nuvem estão disponíveis novamente.",
+    "chip": "Off-line",
+    "chipTooltip": "Sem conexão com a internet. A sincronização na nuvem e os modelos de IA na nuvem aguardam a conexão voltar; tudo o que está salvo neste dispositivo continua funcionando.",
+    "feature": {
+      "cloudSync": "A sincronização na nuvem precisa de conexão com a internet. Suas alterações ficam neste dispositivo e são sincronizadas quando a conexão voltar.",
+      "cloudOpen": "Abrir ou criar um banco de dados na nuvem precisa de conexão com a internet. Isso volta a ficar disponível quando a conexão retornar.",
+      "cloudAi": "Os modelos de IA na nuvem precisam de conexão com a internet. O chat volta a ficar disponível quando a conexão retornar; um modelo executado neste navegador funciona offline."
+    }
+  },
+  "pageUnavailable": {
+    "offlineTitle": "Ainda não disponível offline",
+    "offlineBody": "Esta página ainda não foi salva neste dispositivo, por isso não abre sem conexão. Ela abre assim que a conexão voltar. Para ter todas as páginas disponíveis offline, ative o modo offline em Configurações → Preferências.",
+    "failedTitle": "Não foi possível carregar esta página",
+    "failedBody": "Verifique sua conexão e tente novamente.",
+    "retry": "Tentar novamente"
   }
 }

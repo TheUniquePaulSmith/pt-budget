@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Settings → Preferences: language (this device), installing the app (the
- * browser's install dialog, Safari's steps, or why it is not offered), default currency (this
+ * Settings → Preferences: language (this device), offline mode (this device:
+ * OfflineModeSection), installing the app (the browser's install dialog,
+ * Safari's steps, or why it is not offered), default currency (this
  * database; changing it rebases every known exchange rate) and the manual
  * exchange-rate editor for every currency in use by an account.
  */
@@ -37,6 +38,7 @@ import { currencyDisplayName } from '@/lib/currencies';
 import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, type LanguageCode } from '@/lib/i18n';
 
 import ExchangeRatesEditor from './ExchangeRatesEditor';
+import OfflineModeSection from './OfflineModeSection';
 
 export default function PreferencesSettingsTab() {
   const { t } = useTranslation('settings');
@@ -118,6 +120,10 @@ export default function PreferencesSettingsTab() {
           {t('preferences.languageHelp')}
         </Typography>
       </Box>
+
+      <Divider />
+
+      <OfflineModeSection />
 
       <Divider />
 

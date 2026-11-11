@@ -1,25 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  PERSIST_REQUESTED_KEY,
-  registerServiceWorker,
-  requestPersistentStorage,
-  serviceWorkerMode,
-  unregisterServiceWorkers,
-} from './serviceWorkerClient';
-
-describe('serviceWorkerMode', () => {
-  it('registers only on a production build of a browser that supports it', () => {
-    expect(serviceWorkerMode({ supported: true, production: true, search: '' })).toBe('register');
-    expect(serviceWorkerMode({ supported: true, production: true, search: '?loadSampleData' })).toBe('register');
-    expect(serviceWorkerMode({ supported: false, production: true, search: '' })).toBe('none');
-  });
-
-  it('removes the worker under next dev and with ?noServiceWorker', () => {
-    expect(serviceWorkerMode({ supported: true, production: false, search: '' })).toBe('unregister');
-    expect(serviceWorkerMode({ supported: true, production: true, search: '?noServiceWorker' })).toBe('unregister');
-  });
-});
+import { registerServiceWorker, requestPersistentStorage, unregisterServiceWorkers } from './serviceWorkerClient';
 
 class FakeWorker extends EventTarget {
   state: ServiceWorkerState = 'installing';
@@ -31,38 +12,73 @@ class FakeWorker extends EventTarget {
   }
 }
 
-function setup(options: { controller?: boolean; waiting?: boolean; installing?: boolean } = {}) {
+function setup(options: { active?: boolean; waiting?: boolean; installing?: boolean } = {}) {
   const registration = Object.assign(new EventTarget(), {
+    active: options.active ? new FakeWorker() : null,
     installing: options.installing ? new FakeWorker() : null,
     waiting: options.waiting ? new FakeWorker() : null,
     update: vi.fn().mockResolvedValue(undefined),
   });
   const container = Object.assign(new EventTarget(), {
-    controller: options.controller ? ({} as ServiceWorker) : null,
+    controller: options.active ? ({} as ServiceWorker) : null,
     register: vi.fn().mockResolvedValue(registration),
   });
-  const callbacks = { onOfflineReady: vi.fn(), onUpdateReady: vi.fn() };
+  const callbacks = {
+    onOfflineReady: vi.fn(),
+    onAlreadyActive: vi.fn(),
+    onUpdateReady: vi.fn(),
+    onProgress: vi.fn(),
+    onInstallFailed: vi.fn(),
+  };
   const reload = vi.fn();
   return { registration, container, callbacks, reload };
 }
 
+const progress = (done: number, total: number) =>
+  new MessageEvent('message', { data: { type: 'PRECACHE_PROGRESS', version: 'v', done, total } });
+
 describe('registerServiceWorker', () => {
-  it('registers /sw.js at the root and reports the first install once it is active', async () => {
+  it('registers /sw.js at the root, reports progress, and reports the first install once it is active', async () => {
     const { registration, container, callbacks, reload } = setup({ installing: true });
     const stop = await registerServiceWorker(container as never, callbacks, reload);
 
     expect(container.register).toHaveBeenCalledWith('/sw.js', { scope: '/', updateViaCache: 'none' });
+    expect(callbacks.onAlreadyActive).not.toHaveBeenCalled();
+    container.dispatchEvent(progress(10, 335));
+    container.dispatchEvent(new MessageEvent('message', { data: { type: 'SOMETHING_ELSE' } }));
+    expect(callbacks.onProgress).toHaveBeenCalledTimes(1);
+    expect(callbacks.onProgress).toHaveBeenCalledWith(10, 335);
+
     const worker = registration.installing as unknown as FakeWorker;
     worker.moveTo('installed');
     expect(callbacks.onOfflineReady).not.toHaveBeenCalled();
     worker.moveTo('activated');
     expect(callbacks.onOfflineReady).toHaveBeenCalledTimes(1);
     expect(callbacks.onUpdateReady).not.toHaveBeenCalled();
+
+    stop();
+    container.dispatchEvent(progress(20, 335));
+    expect(callbacks.onProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a first install that did not finish', async () => {
+    const { registration, container, callbacks, reload } = setup({ installing: true });
+    const stop = await registerServiceWorker(container as never, callbacks, reload);
+    (registration.installing as unknown as FakeWorker).moveTo('redundant');
+    expect(callbacks.onInstallFailed).toHaveBeenCalledTimes(1);
+    expect(callbacks.onOfflineReady).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('says so when the app was already saved on an earlier visit', async () => {
+    const { container, callbacks, reload } = setup({ active: true });
+    const stop = await registerServiceWorker(container as never, callbacks, reload);
+    expect(callbacks.onAlreadyActive).toHaveBeenCalledTimes(1);
     stop();
   });
 
   it('reports a waiting update and activates it only when applied, then reloads', async () => {
-    const { registration, container, callbacks, reload } = setup({ controller: true, waiting: true });
+    const { registration, container, callbacks, reload } = setup({ active: true, waiting: true });
     const stop = await registerServiceWorker(container as never, callbacks, reload);
 
     expect(callbacks.onUpdateReady).toHaveBeenCalledTimes(1);
@@ -79,7 +95,7 @@ describe('registerServiceWorker', () => {
   });
 
   it('reports an update found while the page is open', async () => {
-    const { registration, container, callbacks, reload } = setup({ controller: true });
+    const { registration, container, callbacks, reload } = setup({ active: true });
     const stop = await registerServiceWorker(container as never, callbacks, reload);
 
     const worker = new FakeWorker();
@@ -112,6 +128,19 @@ describe('registerServiceWorker', () => {
     stop();
     expect(clearIntervalFn).toHaveBeenCalledWith(7);
   });
+
+  it('stops listening when the registration itself fails', async () => {
+    const container = Object.assign(new EventTarget(), {
+      controller: null,
+      register: vi.fn().mockRejectedValue(new Error('blocked')),
+    });
+    const onProgress = vi.fn();
+    await expect(
+      registerServiceWorker(container as never, { onOfflineReady: vi.fn(), onUpdateReady: vi.fn(), onProgress }, vi.fn()),
+    ).rejects.toThrow('blocked');
+    container.dispatchEvent(progress(1, 2));
+    expect(onProgress).not.toHaveBeenCalled();
+  });
 });
 
 describe('unregisterServiceWorkers', () => {
@@ -134,30 +163,21 @@ describe('unregisterServiceWorkers', () => {
 });
 
 describe('requestPersistentStorage', () => {
-  function memoryStore() {
-    const data = new Map<string, string>();
-    return { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => void data.set(key, value) };
-  }
-
-  it('asks once per device and remembers that it asked', async () => {
-    const storage = { persisted: vi.fn().mockResolvedValue(false), persist: vi.fn().mockResolvedValue(false) };
-    const store = memoryStore();
-
-    expect(await requestPersistentStorage(storage, store)).toBe(false);
-    expect(store.getItem(PERSIST_REQUESTED_KEY)).not.toBeNull();
-    expect(await requestPersistentStorage(storage, store)).toBe(false);
+  it('asks when storage is not yet persistent', async () => {
+    const storage = { persisted: vi.fn().mockResolvedValue(false), persist: vi.fn().mockResolvedValue(true) };
+    expect(await requestPersistentStorage(storage)).toBe(true);
     expect(storage.persist).toHaveBeenCalledTimes(1);
   });
 
   it('does not ask when storage is already persistent or the API is missing', async () => {
     const storage = { persisted: vi.fn().mockResolvedValue(true), persist: vi.fn() };
-    expect(await requestPersistentStorage(storage, memoryStore())).toBe(true);
+    expect(await requestPersistentStorage(storage)).toBe(true);
     expect(storage.persist).not.toHaveBeenCalled();
-    expect(await requestPersistentStorage(undefined, memoryStore())).toBeNull();
+    expect(await requestPersistentStorage(undefined)).toBeNull();
   });
 
   it('survives a browser that throws', async () => {
     const storage = { persisted: vi.fn().mockRejectedValue(new Error('denied')), persist: vi.fn() };
-    expect(await requestPersistentStorage(storage, memoryStore())).toBeNull();
+    expect(await requestPersistentStorage(storage)).toBeNull();
   });
 });

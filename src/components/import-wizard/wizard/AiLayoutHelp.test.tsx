@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { LayoutProposal } from '@/lib/statementImport';
@@ -113,6 +113,38 @@ describe('AiLayoutHelp (D11)', () => {
         ],
       })
     );
+  });
+
+  it('holds a cloud provider while offline and offers it again once back online; a local model keeps working', async () => {
+    provider('anthropic', 'Anthropic (work)');
+    const { unmount } = render(<AiLayoutHelp table={table} onProposal={vi.fn()} />);
+    expect(screen.queryByTestId('offline-feature-cloudAi')).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new Event('offline'));
+    });
+    expect(screen.getByTestId('import-ask-ai')).toBeDisabled();
+    expect(screen.getByTestId('offline-feature-cloudAi')).toHaveTextContent(
+      'Cloud AI models need an internet connection.'
+    );
+
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
+    expect(screen.getByTestId('import-ask-ai')).toBeEnabled();
+    expect(screen.queryByTestId('offline-feature-cloudAi')).toBeNull();
+    unmount();
+
+    provider('local', 'Local AI');
+    render(<AiLayoutHelp table={table} onProposal={vi.fn()} />);
+    act(() => {
+      window.dispatchEvent(new Event('offline'));
+    });
+    expect(screen.getByTestId('import-ask-ai')).toBeEnabled();
+    expect(screen.queryByTestId('offline-feature-cloudAi')).toBeNull();
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
   });
 
   it('says so when the provider cannot be reached', async () => {

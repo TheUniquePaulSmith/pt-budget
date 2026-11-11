@@ -118,5 +118,24 @@
     "macStep2": "Choisissez « Ajouter au Dock ».",
     "macStep3": "Cliquez sur Ajouter.",
     "close": "Compris"
+  },
+  "network": {
+    "wentOffline": "Vous êtes hors ligne. La synchronisation cloud et les modèles d’IA cloud sont en pause et reprennent dès le retour de la connexion.",
+    "wentOfflineNotSaved": "Vous êtes hors ligne. La synchronisation cloud et les modèles d’IA cloud sont en pause jusqu’au retour de la connexion, et les pages que vous n’avez pas encore ouvertes risquent de ne pas se charger. Activez le mode hors ligne dans les Paramètres pour utiliser toute l’application sans connexion.",
+    "backOnline": "Vous êtes de nouveau en ligne. La synchronisation cloud et les modèles d’IA cloud sont de nouveau disponibles.",
+    "chip": "Hors ligne",
+    "chipTooltip": "Pas de connexion internet. La synchronisation cloud et les modèles d’IA cloud attendent le retour de la connexion ; tout ce qui est stocké sur cet appareil continue de fonctionner.",
+    "feature": {
+      "cloudSync": "La synchronisation cloud nécessite une connexion internet. Vos modifications sont conservées sur cet appareil et se synchronisent dès le retour de la connexion.",
+      "cloudOpen": "Ouvrir ou créer une base de données cloud nécessite une connexion internet. Ce sera de nouveau possible dès le retour de la connexion.",
+      "cloudAi": "Les modèles d’IA cloud nécessitent une connexion internet. Le chat sera de nouveau disponible dès le retour de la connexion ; un modèle exécuté dans ce navigateur fonctionne hors ligne."
+    }
+  },
+  "pageUnavailable": {
+    "offlineTitle": "Pas encore disponible hors ligne",
+    "offlineBody": "Cette page n’a pas été enregistrée sur cet appareil, elle ne peut donc pas s’ouvrir sans connexion. Elle s’ouvrira dès le retour de la connexion. Pour garder toutes les pages disponibles hors ligne, activez le mode hors ligne dans Paramètres → Préférences.",
+    "failedTitle": "Impossible de charger cette page",
+    "failedBody": "Vérifiez votre connexion et réessayez.",
+    "retry": "Réessayer"
   }
 }

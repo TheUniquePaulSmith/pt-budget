@@ -118,5 +118,24 @@
     "macStep2": "Elija «Añadir al Dock».",
     "macStep3": "Haga clic en Añadir.",
     "close": "Entendido"
+  },
+  "network": {
+    "wentOffline": "No hay conexión. La sincronización en la nube y los modelos de IA en la nube están en pausa y se reanudan cuando vuelva la conexión.",
+    "wentOfflineNotSaved": "No hay conexión. La sincronización en la nube y los modelos de IA en la nube están en pausa hasta que vuelva la conexión, y es posible que no carguen las páginas que aún no ha abierto. Active el modo sin conexión en Configuración para usar toda la aplicación sin conexión.",
+    "backOnline": "Vuelve a tener conexión. La sincronización en la nube y los modelos de IA en la nube vuelven a estar disponibles.",
+    "chip": "Sin conexión",
+    "chipTooltip": "Sin conexión a internet. La sincronización en la nube y los modelos de IA en la nube esperan a que vuelva la conexión; todo lo guardado en este dispositivo sigue funcionando.",
+    "feature": {
+      "cloudSync": "La sincronización en la nube necesita conexión a internet. Sus cambios se guardan en este dispositivo y se sincronizan cuando vuelva la conexión.",
+      "cloudOpen": "Abrir o crear una base de datos en la nube necesita conexión a internet. Volverá a estar disponible cuando vuelva la conexión.",
+      "cloudAi": "Los modelos de IA en la nube necesitan conexión a internet. El chat vuelve a estar disponible cuando vuelva la conexión; un modelo que se ejecuta en este navegador funciona sin conexión."
+    }
+  },
+  "pageUnavailable": {
+    "offlineTitle": "Aún no disponible sin conexión",
+    "offlineBody": "Esta página no se ha guardado en este dispositivo, así que no puede abrirse sin conexión. Se abrirá en cuanto vuelva la conexión. Para tener todas las páginas disponibles sin conexión, active el modo sin conexión en Configuración → Preferencias.",
+    "failedTitle": "No se pudo cargar esta página",
+    "failedBody": "Compruebe su conexión e inténtelo de nuevo.",
+    "retry": "Reintentar"
   }
 }

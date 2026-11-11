@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
   // Needs the production build and the service worker: playwright.offline.config.ts.
-  testIgnore: /offline\.spec\.ts$/,
+  testIgnore: /(^|[\\/])offline\.spec\.ts$/,
   timeout: 120_000,
   expect: {
     timeout: 20_000,

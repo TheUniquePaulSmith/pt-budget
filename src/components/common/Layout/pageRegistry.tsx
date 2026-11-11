@@ -15,7 +15,7 @@
  *     the e2e suite keeps clicking `getByRole('button', { name: 'SQL Query' })`).
  */
 
-import React, { lazy, type ComponentType } from 'react';
+import React, { type ComponentType } from 'react';
 import type { TFunction } from 'i18next';
 import type { SvgIconProps } from '@mui/material';
 import {
@@ -35,6 +35,8 @@ import {
 } from '@mui/icons-material';
 
 import { useAiPanel } from '@/components/ai/AiPanelProvider';
+
+import { retryableLazy } from './retryableLazy';
 
 export type PageId =
   | 'dashboard'
@@ -76,19 +78,19 @@ export interface PageDefinition {
   render: (props: PageProps) => React.ReactNode;
 }
 
-const DashboardPage = lazy(() => import('@/components/dashboard/Dashboard'));
-const ManageProjectsPage = lazy(() => import('@/components/projects/ManageProjects'));
-const ManageTripsPage = lazy(() => import('@/components/trips/ManageTrips'));
-const BudgetPage = lazy(() => import('@/components/budget/BudgetPage'));
-const ManageAccountsPage = lazy(() => import('@/components/accounts/ManageAccounts'));
-const LoansPage = lazy(() => import('@/components/loans/LoansPage'));
-const TransactionReportPage = lazy(() => import('@/components/transactions/TransactionReport'));
-const ImportPage = lazy(() => import('@/components/import-wizard/ImportPage'));
-const SubscriptionsPage = lazy(() => import('@/components/subscriptions/SubscriptionsPage'));
-const NotificationsPage = lazy(() => import('@/components/notifications/NotificationsPage'));
-const SQLQueryPage = lazy(() => import('@/components/sql-query/SQLQueryPage'));
-const SettingsPage = lazy(() => import('@/components/settings/SettingsPage'));
-const DeveloperConsolePage = lazy(() => import('@/components/common/Console/DeveloperConsolePage'));
+const DashboardPage = retryableLazy(() => import('@/components/dashboard/Dashboard'));
+const ManageProjectsPage = retryableLazy(() => import('@/components/projects/ManageProjects'));
+const ManageTripsPage = retryableLazy(() => import('@/components/trips/ManageTrips'));
+const BudgetPage = retryableLazy(() => import('@/components/budget/BudgetPage'));
+const ManageAccountsPage = retryableLazy(() => import('@/components/accounts/ManageAccounts'));
+const LoansPage = retryableLazy(() => import('@/components/loans/LoansPage'));
+const TransactionReportPage = retryableLazy(() => import('@/components/transactions/TransactionReport'));
+const ImportPage = retryableLazy(() => import('@/components/import-wizard/ImportPage'));
+const SubscriptionsPage = retryableLazy(() => import('@/components/subscriptions/SubscriptionsPage'));
+const NotificationsPage = retryableLazy(() => import('@/components/notifications/NotificationsPage'));
+const SQLQueryPage = retryableLazy(() => import('@/components/sql-query/SQLQueryPage'));
+const SettingsPage = retryableLazy(() => import('@/components/settings/SettingsPage'));
+const DeveloperConsolePage = retryableLazy(() => import('@/components/common/Console/DeveloperConsolePage'));
 
 /** Subscriptions can open the AI panel; the panel state lives in AiPanelProvider. */
 function SubscriptionsPageAdapter({ navigate }: Pick<PageProps, 'navigate'>) {

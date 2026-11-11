@@ -79,11 +79,25 @@
     "ratesAdd": "Add",
     "install": {
       "title": "Install the app",
-      "description": "Installed, the app opens in its own window or from your Home Screen, and works offline.",
+      "description": "Installed, the app opens in its own window or from your Home Screen.",
       "button": "Install app",
       "guideButton": "Show me how",
       "installed": "The app is installed on this device.",
       "unavailable": "This browser is not offering to install the app right now. In Chrome or Edge, use the install icon in the address bar. If the app is already installed, open it from your apps."
+    },
+    "offline": {
+      "title": "Offline mode",
+      "description": "Off, the app loads each page from the internet the first time you open it. On, it saves the whole app on this device so every page opens without a connection. Your data stays on this device either way.",
+      "switchLabel": "Save the app for offline use",
+      "size": "Downloads about {{size}} MB ({{files}} files) once; updates download only what changed.",
+      "downloadingStart": "Saving the app on this device…",
+      "downloading": "Saving the app on this device… {{done}} of {{total}} files",
+      "ready": "The app is saved on this device and opens without a connection.",
+      "error": "Saving the app didn't finish. Check your connection and try again.",
+      "retry": "Try again",
+      "needsConnection": "Connect to the internet to turn on offline mode.",
+      "unsupported": "This browser can't save the app for offline use.",
+      "devBuild": "Offline mode works in a production build of the app (pnpm run build), not on the development server."
     }
   },
   "storage": {

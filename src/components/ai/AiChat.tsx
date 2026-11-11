@@ -22,7 +22,10 @@ import {
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 
+import OfflineFeatureNotice from '@/components/common/Offline/OfflineFeatureNotice';
+import { useOnlineStatus } from '@/components/common/Offline/useOnlineStatus';
 import { useAiToolExecutionSlice } from '@/contexts/useAiToolsSlices';
+import { isCloudKind } from '@/lib/aiProviderConfig';
 import { useOptionalLocale } from '@/contexts/LocaleContext';
 import { useFormatters } from '@/contexts/useFormatters';
 import { useAiChatRuntimeSlice } from '@/contexts/useWllamaSlices';
@@ -167,6 +170,7 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
     addMerchantRuleSuggestions,
   } = useAiPanel();
   const { provider, isProviderReady, isLocalProvider, providerLabel } = useAiProviderContext();
+  const online = useOnlineStatus();
   const { registry, evaluateConsent, consentManager, setToolConsent, toolCallLimit } = useAiToolsContext();
   const { showTokenUsage, maxOutputTokens } = useAiChatRuntimeSlice();
   const databaseToolContext = useAiToolExecutionSlice(writeMode);
@@ -240,7 +244,7 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
 
   const submitPrompt = async (prompt: string) => {
     const trimmed = prompt.trim();
-    if (!trimmed || running) {
+    if (!trimmed || running || cloudOffline) {
       return;
     }
 
@@ -370,7 +374,9 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
     void submitPrompt(prompt);
   };
 
-  const inputDisabled = !isProviderReady || running;
+  // A cloud provider cannot answer without a connection; a model in this browser (or a local endpoint) can.
+  const cloudOffline = !online && isCloudKind(provider.kind);
+  const inputDisabled = !isProviderReady || running || cloudOffline;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
@@ -480,6 +486,7 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
       </Box>
 
       <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+        {cloudOffline && <OfflineFeatureNotice feature="cloudAi" sx={{ mb: 1.5 }} />}
         <Stack direction="row" spacing={1} alignItems="flex-end">
           <TextField
             value={input}
@@ -519,7 +526,7 @@ export default function AiChat({ onReviewableAutomation, onOpenSetup }: AiChatPr
                 <AnimatedStopIcon />
               </IconButton>
             ) : (
-              <IconButton color="primary" onClick={() => void submitPrompt(input)} disabled={!isProviderReady || !input.trim()} aria-label={t('chat.send')}>
+              <IconButton color="primary" onClick={() => void submitPrompt(input)} disabled={!isProviderReady || cloudOffline || !input.trim()} aria-label={t('chat.send')}>
                 <Send />
               </IconButton>
             )}

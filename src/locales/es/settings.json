@@ -79,11 +79,25 @@
     "ratesAdd": "Añadir",
     "install": {
       "title": "Instalar la aplicación",
-      "description": "Una vez instalada, la aplicación se abre en su propia ventana o desde la pantalla de inicio, y funciona sin conexión.",
+      "description": "Una vez instalada, la aplicación se abre en su propia ventana o desde la pantalla de inicio.",
       "button": "Instalar aplicación",
       "guideButton": "Ver cómo",
       "installed": "La aplicación está instalada en este dispositivo.",
       "unavailable": "Este navegador no ofrece instalar la aplicación en este momento. En Chrome o Edge, use el icono de instalación de la barra de direcciones. Si la aplicación ya está instalada, ábrala desde sus aplicaciones."
+    },
+    "offline": {
+      "title": "Modo sin conexión",
+      "description": "Desactivado, la aplicación carga cada página de internet la primera vez que la abre. Activado, guarda toda la aplicación en este dispositivo para que todas las páginas se abran sin conexión. Sus datos permanecen en este dispositivo en ambos casos.",
+      "switchLabel": "Guardar la aplicación para usarla sin conexión",
+      "size": "Descarga unos {{size}} MB ({{files}} archivos) una vez; las actualizaciones solo descargan lo que cambió.",
+      "downloadingStart": "Guardando la aplicación en este dispositivo…",
+      "downloading": "Guardando la aplicación en este dispositivo… {{done}} de {{total}} archivos",
+      "ready": "La aplicación está guardada en este dispositivo y se abre sin conexión.",
+      "error": "No se terminó de guardar la aplicación. Compruebe su conexión e inténtelo de nuevo.",
+      "retry": "Reintentar",
+      "needsConnection": "Conéctese a internet para activar el modo sin conexión.",
+      "unsupported": "Este navegador no puede guardar la aplicación para usarla sin conexión.",
+      "devBuild": "El modo sin conexión funciona en una compilación de producción de la aplicación (pnpm run build), no en el servidor de desarrollo."
     }
   },
   "storage": {

@@ -18,6 +18,8 @@ import {
 
 import AppLogo from '@/components/common/AppLogo';
 import LanguageMenu from '@/components/common/LanguageMenu';
+import OfflineFeatureNotice from '@/components/common/Offline/OfflineFeatureNotice';
+import { useOnlineStatus } from '@/components/common/Offline/useOnlineStatus';
 import { useFormatters } from '@/contexts/useFormatters';
 import AppLoadingScreen from './AppLoadingScreen';
 import { PasswordSetup } from './PasswordSetup';
@@ -155,6 +157,7 @@ export function DatabaseInitializationGate({
 }: DatabaseInitializationGateProps) {
   const { t } = useTranslation(['setup', 'common']);
   const { number } = useFormatters();
+  const online = useOnlineStatus();
 
   const handleCreateNew = useCallback(async () => {
     try {
@@ -393,7 +396,7 @@ export function DatabaseInitializationGate({
                   variant="outlined"
                   startIcon={<CloudSync />}
                   onClick={() => handleOpenFromCloud('gdrive')}
-                  disabled={isLoading || !googleConfigured}
+                  disabled={isLoading || !googleConfigured || !online}
                 >
                   {t('gate.openFromProvider', { provider: t('provider.gdrive') })}
                 </Button>
@@ -407,13 +410,14 @@ export function DatabaseInitializationGate({
                   variant="outlined"
                   startIcon={<CloudSync />}
                   onClick={() => handleOpenFromCloud('onedrive')}
-                  disabled={isLoading || !oneDriveConfigured}
+                  disabled={isLoading || !oneDriveConfigured || !online}
                 >
                   {t('gate.openFromProvider', { provider: t('provider.onedrive') })}
                 </Button>
               </span>
             </Tooltip>
           </Box>
+          <OfflineFeatureNotice feature="cloudOpen" sx={{ mt: 2, textAlign: 'left' }} />
 
           {isLoading && (
             <Box sx={{ mt: 3 }}>

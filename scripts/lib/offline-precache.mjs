@@ -16,6 +16,9 @@ export const MANIFEST_PLACEHOLDER = '/*__PRECACHE_MANIFEST__*/';
 /** The export's not-found page: the offline answer for an unknown address. */
 export const NOT_FOUND_URL = '/404.html';
 
+/** Summary of the precache (src/lib/offlineMode.ts reads it as OFFLINE_SUMMARY_URL). */
+export const OFFLINE_SUMMARY_FILE = 'offline.json';
+
 /**
  * Files in dist/ the app never loads at runtime. Everything else is saved,
  * because the pages, languages, wasm and worker modules are all fetched lazily
@@ -23,6 +26,7 @@ export const NOT_FOUND_URL = '/404.html';
  */
 const EXCLUDED = [
   /^sw\.js$/, // the worker itself is never precached
+  /^offline\.json$/, // the precache summary written next to it
   /\.map$/, // source maps (NEXT_DEBUG_BUILD only)
   /^test-wa-sqlite\.html$/, // manual wa-sqlite test page
   /^sql-wasm\//, // sql.js, superseded by wa-sqlite and referenced by nothing
@@ -81,6 +85,15 @@ export function buildPrecacheManifest(distDir) {
 /** One version string for the whole set: it changes whenever any file does. */
 export function manifestVersion(entries) {
   return shortHash(entries.map((entry) => `${entry.url} ${entry.revision}`).join('\n'));
+}
+
+/** What offline mode downloads: `{ version, files, bytes }`. */
+export function offlineSummary(entries) {
+  return {
+    version: manifestVersion(entries),
+    files: entries.length,
+    bytes: entries.reduce((sum, entry) => sum + entry.size, 0),
+  };
 }
 
 /** The sw.js text: the template with the manifest and version filled in. */

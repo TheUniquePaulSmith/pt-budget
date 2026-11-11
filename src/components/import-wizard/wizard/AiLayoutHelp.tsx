@@ -31,6 +31,8 @@ import { AutoAwesome } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 
 import { AiProviderContextProvider, useAiProviderContext } from '@/components/ai/AiProviderContext';
+import OfflineFeatureNotice from '@/components/common/Offline/OfflineFeatureNotice';
+import { useOnlineStatus } from '@/components/common/Offline/useOnlineStatus';
 import { isCloudKind } from '@/lib/aiProviderConfig';
 import { logger } from '@/lib/logging';
 import {
@@ -66,6 +68,8 @@ function AiLayoutHelpButton({ table, onProposal }: AiLayoutHelpProps) {
   const abortRef = useRef<AbortController | null>(null);
   const sample = useMemo(() => buildAiLayoutSample(table), [table]);
   const remote = isCloudKind(provider.kind);
+  const online = useOnlineStatus();
+  const cloudOffline = remote && !online;
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -117,7 +121,7 @@ function AiLayoutHelpButton({ table, onProposal }: AiLayoutHelpProps) {
           <Button
             color="inherit"
             size="small"
-            disabled={working}
+            disabled={working || cloudOffline}
             startIcon={working ? <CircularProgress size={14} color="inherit" /> : undefined}
             onClick={() => (remote ? setConsentOpen(true) : void ask())}
             data-testid="import-ask-ai"
@@ -128,6 +132,7 @@ function AiLayoutHelpButton({ table, onProposal }: AiLayoutHelpProps) {
       >
         {t('ai.offer', { provider: providerLabel })}
       </Alert>
+      {cloudOffline && <OfflineFeatureNotice feature="cloudAi" sx={{ mt: 1 }} />}
       {outcome && (
         <Alert severity={outcome === 'applied' ? 'success' : 'warning'} sx={{ mt: 1 }} data-testid="import-ai-outcome">
           {t(`ai.outcome.${outcome}`)}

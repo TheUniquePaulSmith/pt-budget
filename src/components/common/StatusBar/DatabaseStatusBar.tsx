@@ -14,7 +14,9 @@ import {
   CloudQueue,
   CloudSync,
   CloudOff,
+  WifiOff,
 } from '@mui/icons-material';
+import { useOnlineStatus } from '@/components/common/Offline/useOnlineStatus';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { databaseWorkerService, WorkerStatus } from '@/lib/databaseWorkerService';
@@ -134,7 +136,9 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({
     });
   };
 
-  const syncChipConfig = syncStatus
+  const online = useOnlineStatus();
+  // Offline, the network chip below says it for cloud sync too.
+  const syncChipConfig = syncStatus && !(syncStatus.state === 'offline' && !online)
     ? getSyncChipConfig(
         syncStatus,
         {
@@ -199,6 +203,23 @@ const DatabaseStatusBar: React.FC<DatabaseStatusBarProps> = ({
         <PageActionsOutlet slot="statusBar" sx={{ gap: 1, flex: 1, overflow: 'hidden', mr: 1 }} />
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {!online && (
+            <Tooltip title={t('network.chipTooltip')} arrow>
+              <Chip
+                data-testid="network-offline-chip"
+                icon={<WifiOff fontSize="small" />}
+                label={t('network.chip')}
+                size="small"
+                sx={{
+                  backgroundColor: '#9e9e9e',
+                  color: 'white',
+                  '& .MuiChip-icon': { color: 'white' },
+                  fontSize: '0.75rem',
+                  height: 24,
+                }}
+              />
+            </Tooltip>
+          )}
           {syncChipConfig && (
             <Tooltip
               title={syncStatus ? getSyncTooltipText(syncStatus, t, dateTime) : ''}

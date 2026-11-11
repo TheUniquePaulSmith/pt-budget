@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Serves the static export (dist/) the way the production host does, so the
-// offline service worker can be tried locally: `npm run build`, then
+// offline service worker can be tried locally: `pnpm run build`, then
 //
-//   npm run serve:dist                     http://localhost:4173
-//   npm run serve:dist -- --port=4180
-//   npm run serve:dist -- --test-controls  adds /__serve-dist/offline|online
+//   pnpm run serve:dist                    http://localhost:4173
+//   pnpm run serve:dist --port=4180
+//   pnpm run serve:dist --test-controls    adds /__serve-dist/offline|online
 //
 // The default port is deliberately not 3000: a service worker installed here
 // controls its whole origin, and must never answer for `next dev`.

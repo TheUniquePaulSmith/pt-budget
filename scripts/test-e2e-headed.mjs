@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Runs the Playwright e2e suite in a visible (non-headless) Chromium window.
 //
-//   npm run test:e2e:headed                    the full suite (every spec, smoke tests included)
-//   npm run test:e2e:smoke:headed              only the @smoke tests, what CI runs
-//   npm run test:e2e:headed -- loans.spec.ts   extra arguments go to `playwright test`
-//   npm run test:e2e:headed -- -g "test name"  a single test
+//   pnpm run test:e2e:headed                   the full suite (every spec, smoke tests included)
+//   pnpm run test:e2e:smoke:headed             only the @smoke tests, what CI runs
+//   pnpm run test:e2e:headed loans.spec.ts     extra arguments go to `playwright test`
+//   pnpm run test:e2e:headed -g "test name"    a single test
 //
-// Config: uses the untracked playwright.local.config.ts that `npm run worktree:prepare`
+// Config: uses the untracked playwright.local.config.ts that `pnpm run worktree:prepare`
 // writes (own port, reuseExistingServer: false), so the run can never silently test
 // whichever sibling worktree owns :3000. Without it the base config is used and a
 // warning says why that is risky. An explicit --config in the arguments wins.
@@ -18,6 +18,8 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { scriptArgs } from './lib/script-args.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LOCAL_CONFIG = 'playwright.local.config.ts';
@@ -40,7 +42,7 @@ function buildPlaywrightArgs(argv, { localConfigExists }) {
 
 function main() {
   const localConfigExists = fs.existsSync(path.join(ROOT, LOCAL_CONFIG));
-  const { args, usesLocalConfig, hasConfig } = buildPlaywrightArgs(process.argv.slice(2), {
+  const { args, usesLocalConfig, hasConfig } = buildPlaywrightArgs(scriptArgs(), {
     localConfigExists,
   });
 

@@ -41,7 +41,7 @@ pnpm run test:unit:watch
 pnpm run test:e2e:smoke       # Playwright tests tagged @smoke (what CI runs)
 pnpm run test:e2e             # full browser suite (tests/e2e/)
 pnpm run test:e2e:headed      # same suite in a visible Chromium window (smoke tests included); picks playwright.local.config.ts
-pnpm run test:e2e:smoke:headed  # only @smoke, visible; extra args pass through: npm run test:e2e:headed -- -g "name"
+pnpm run test:e2e:smoke:headed  # only @smoke, visible; extra args pass through: pnpm run test:e2e:headed -g "name"
 pnpm run test:e2e:offline     # builds, serves dist/ and runs tests/e2e/offline.spec.ts with the host down (OFFLINE_E2E_SKIP_BUILD=1 reuses dist/)
 
 pnpm exec vitest run src/lib/databaseService.test.ts        # single unit test file

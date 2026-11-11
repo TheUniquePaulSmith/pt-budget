@@ -2,7 +2,7 @@ name: CI
 
 # Lint, unit coverage gate, static build and the Playwright smoke suite for
 # every pull request into the integration branch, and for pushes to it.
-# The full e2e suite (`npm run test:e2e`) stays a local / release-time run:
+# The full e2e suite (`pnpm run test:e2e`) stays a local / release-time run:
 # it takes several minutes and exercises the cloud-sync mocks.
 
 on:
@@ -25,13 +25,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # pnpm must be on PATH before setup-node, whose `cache: pnpm` asks it
+      # for the store path. Same major as pnpm-lock.yaml was written with.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # transactions.json is gitignored and the committed fixtures are
       # time-stale, so generate a current-dated set (same flags the e2e docs
@@ -40,24 +46,24 @@ jobs:
         run: node scripts/generate-sample-data.mjs --months=12 --seed=review
 
       - name: Validate fixtures against the schema
-        run: npm run sample-data:validate
+        run: pnpm run sample-data:validate
 
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Unit tests with coverage gate
-        run: npm run test:unit:coverage
+        run: pnpm run test:unit:coverage
 
       - name: Static export build
-        run: npm run build
+        run: pnpm run build
 
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       # playwright.config.ts starts `npm run dev` on localhost:3000 with dummy
       # cloud client ids; nothing is listening in CI, so it always starts fresh.
       - name: E2E smoke suite
-        run: npm run test:e2e:smoke
+        run: pnpm run test:e2e:smoke
 
       - name: Upload Playwright artifacts
         if: failure()

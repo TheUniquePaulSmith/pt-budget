@@ -13,6 +13,7 @@ import {
   writeTransactionFixtureEnvelope,
   writeFixtureEnvelopes,
 } from './lib/sample-data-tools.mjs';
+import { scriptArgs } from './lib/script-args.mjs';
 
 // Maps `--flag=value` / `--flag value` argument pairs to the option key they
 // set. Aliases share a key (e.g. --count/--transactions/--amount all set the
@@ -36,7 +37,7 @@ const BOOLEAN_FLAGS = {
 };
 
 const repoRoot = process.cwd();
-const cliOptions = parseCliOptions(process.argv.slice(2));
+const cliOptions = parseCliOptions(scriptArgs());
 
 if (cliOptions.help) {
   printUsage();
@@ -296,10 +297,10 @@ Options:
   -h, --help              Show this help and exit.
 
 Examples:
-  npm run sample-data:generate -- --months=12 --seed=review
-  npm run sample-data:generate -- --months=12 --count=5000
-  npm run sample-data:generate -- --count=250000 --seed=perf --reference-date=2026-01-01
-  npm run sample-data:generate -- --dry-run --count=1000000`);
+  pnpm run sample-data:generate --months=12 --seed=review
+  pnpm run sample-data:generate --months=12 --count=5000
+  pnpm run sample-data:generate --count=250000 --seed=perf --reference-date=2026-01-01
+  pnpm run sample-data:generate --dry-run --count=1000000`);
 }
 
 function parseOptionalPositiveInteger(value, label = 'value') {

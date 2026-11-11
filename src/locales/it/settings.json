@@ -76,7 +76,15 @@
     "rateRemove": "Rimuovi",
     "rateRemoveFor": "Rimuovi il tasso per {{currency}}",
     "ratesAddLabel": "Aggiungi valuta",
-    "ratesAdd": "Aggiungi"
+    "ratesAdd": "Aggiungi",
+    "install": {
+      "title": "Installa l'app",
+      "description": "Una volta installata, l'app si apre in una finestra dedicata o dalla schermata Home e funziona offline.",
+      "button": "Installa l'app",
+      "guideButton": "Mostrami come",
+      "installed": "L'app è installata su questo dispositivo.",
+      "unavailable": "Questo browser al momento non offre l'installazione dell'app. In Chrome o Edge, usa l'icona di installazione nella barra degli indirizzi. Se l'app è già installata, aprila dalle tue app."
+    }
   },
   "storage": {
     "title": "Gestione dello spazio",

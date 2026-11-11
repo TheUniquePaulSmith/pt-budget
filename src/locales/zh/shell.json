@@ -17,7 +17,8 @@
     "more": "更多",
     "quickActions": "快捷操作",
     "addTransaction": "添加交易",
-    "manageData": "管理数据"
+    "manageData": "管理数据",
+    "installApp": "安装应用"
   },
   "dataGrid": {
     "noRows": "没有可显示的行"
@@ -98,5 +99,24 @@
     "resetting": "正在重置…",
     "recoveryLabel": "恢复短语",
     "recoveryHelp": "输入你的 12 个单词恢复短语以确认重置。"
+  },
+  "offline": {
+    "ready": "应用已保存在此设备上，可离线使用。",
+    "updateReady": "应用的新版本已就绪。",
+    "reload": "重新加载",
+    "close": "关闭",
+    "install": "安装"
+  },
+  "installGuide": {
+    "title": "安装 Budget Tracker",
+    "iosIntro": "将应用添加到主屏幕，即可像其他应用一样打开，离线也可使用。",
+    "iosStep1": "轻点浏览器工具栏中的“共享”按钮。",
+    "iosStep2": "选择“添加到主屏幕”。",
+    "iosStep3": "轻点“添加”。",
+    "macIntro": "将应用添加到程序坞，即可在独立窗口中打开，离线也可使用。",
+    "macStep1": "在 Safari 浏览器菜单栏中打开“文件”。",
+    "macStep2": "选择“添加到程序坞”。",
+    "macStep3": "点击“添加”。",
+    "close": "知道了"
   }
 }

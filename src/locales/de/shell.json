@@ -17,7 +17,8 @@
     "more": "Mehr",
     "quickActions": "Schnellaktionen",
     "addTransaction": "Transaktion hinzufügen",
-    "manageData": "Daten verwalten"
+    "manageData": "Daten verwalten",
+    "installApp": "App installieren"
   },
   "dataGrid": {
     "noRows": "Keine Zeilen vorhanden"
@@ -98,5 +99,24 @@
     "resetting": "Wird zurückgesetzt…",
     "recoveryLabel": "Wiederherstellungsphrase",
     "recoveryHelp": "Gib deine Wiederherstellungsphrase aus 12 Wörtern ein, um das Zurücksetzen zu bestätigen."
+  },
+  "offline": {
+    "ready": "Die App ist auf diesem Gerät gespeichert und funktioniert offline.",
+    "updateReady": "Eine neue Version der App ist bereit.",
+    "reload": "Neu laden",
+    "close": "Schließen",
+    "install": "Installieren"
+  },
+  "installGuide": {
+    "title": "Budget Tracker installieren",
+    "iosIntro": "Füge die App zum Home-Bildschirm hinzu, um sie wie jede andere App zu öffnen, auch offline.",
+    "iosStep1": "Tippe in der Symbolleiste des Browsers auf „Teilen“.",
+    "iosStep2": "Wähle „Zum Home-Bildschirm“.",
+    "iosStep3": "Tippe auf „Hinzufügen“.",
+    "macIntro": "Füge die App zum Dock hinzu, um sie in einem eigenen Fenster zu öffnen, auch offline.",
+    "macStep1": "Öffne in der Safari-Menüleiste „Ablage“.",
+    "macStep2": "Wähle „Zum Dock hinzufügen“.",
+    "macStep3": "Klicke auf „Hinzufügen“.",
+    "close": "Verstanden"
   }
 }

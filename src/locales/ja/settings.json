@@ -74,7 +74,15 @@
     "rateRemove": "削除",
     "rateRemoveFor": "{{currency}} のレートを削除",
     "ratesAddLabel": "通貨を追加",
-    "ratesAdd": "追加"
+    "ratesAdd": "追加",
+    "install": {
+      "title": "アプリをインストール",
+      "description": "インストールすると、アプリは専用のウインドウやホーム画面から開き、オフラインでも使えます。",
+      "button": "アプリをインストール",
+      "guideButton": "手順を見る",
+      "installed": "このデバイスにアプリがインストールされています。",
+      "unavailable": "このブラウザでは現在、アプリのインストールが提供されていません。Chrome または Edge では、アドレスバーのインストールアイコンを使用してください。すでにインストール済みの場合は、アプリ一覧から開いてください。"
+    }
   },
   "storage": {
     "title": "ストレージ管理",

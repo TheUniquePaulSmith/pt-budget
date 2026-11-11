@@ -30,7 +30,8 @@ npm run worktree:prepare     # fresh worktree: deps, fixtures, branch status, pl
 npm run dev:unlocked         # dev server at http://localhost:3000 whose database auto-unlocks on every reload — the default for debugging
                              #   (browser pane: preview_start {name: "dev-unlocked"}; gate in src/lib/devUnlock.ts, compiled out of builds)
 npm run dev                  # plain dev server (Turbopack): only for work on the setup password step, the unlock screen or key slots
-npm run build                # static export to dist/
+npm run build                # static export to dist/, then dist/sw.js (the offline service worker)
+npm run serve:dist           # serve dist/ like the host does at http://localhost:4173 (browser pane: preview_start {name: "dist"})
 npm run lint
 
 npm test                     # default post-change verification: unit coverage + e2e smoke
@@ -41,6 +42,7 @@ npm run test:e2e:smoke       # Playwright tests tagged @smoke (what CI runs)
 npm run test:e2e             # full browser suite (tests/e2e/)
 npm run test:e2e:headed      # same suite in a visible Chromium window (smoke tests included); picks playwright.local.config.ts
 npm run test:e2e:smoke:headed  # only @smoke, visible; extra args pass through: npm run test:e2e:headed -- -g "name"
+npm run test:e2e:offline     # builds, serves dist/ and runs tests/e2e/offline.spec.ts with the host down (OFFLINE_E2E_SKIP_BUILD=1 reuses dist/)
 
 npx vitest run src/lib/databaseService.test.ts        # single unit test file
 npx vitest run -t "test name"                         # single test by name
@@ -91,6 +93,7 @@ Shared entity contracts live in `src/types/database.ts`. The `@/` import alias m
 - **Page actions and report filters**: a page puts its own controls into the shell with `<PageActions slot="appBar" | "statusBar">` (`Layout/slots/PageActionsSlot.tsx`; inline outside the shell). The report pages (Dashboard, Subscriptions) use `common/Filters/PeriodFilter.tsx` (Filter button in the app bar: optional All time, This week/month/year = calendar, Past week/month/year = rolling to today, custom range; dates from `src/lib/periodRange.ts`) and `common/Filters/ScopeFilters.tsx` (accounts/users section + status-bar chips; the selection lives in `ScopeFiltersProvider` in AppShell so it carries over between those pages). A new report page reuses both instead of its own date chips.
 - Components are organized by feature under `src/components/` (accounts, ai, budget, common, dashboard, data-management, import-wizard, loans, not-found, notifications, projects, settings, setup, sql-query, subscriptions, transactions, trips) — keep new components in the matching folder, or add a folder for a new domain.
 - **Account form**: `src/components/accounts/accountFormModel.ts` + `AccountFormFields.tsx` are the shared field set for the Add/Edit dialog and any inline account form; extend the dialog or the page, not these.
+- **Offline mode**: `npm run build` ends with `scripts/build-service-worker.mjs`, which writes `dist/sw.js` from `scripts/service-worker/sw.template.js` with every file of the build (rules in `scripts/lib/offline-precache.mjs`). The worker saves them all at install (unchanged files are copied from the previous version, not downloaded), answers same-origin GETs cache-first, and a new version waits for the user's Reload. `src/components/common/Offline/OfflineRuntime.tsx` (mounted in `layout.tsx`, logic in `src/lib/serviceWorkerClient.ts`) registers it on production builds only, removes it under `next dev` or with `?noServiceWorker`, and asks once for persistent storage. Anything the app fetches at runtime must be a file in the build (no CDN, no runtime downloads of app code); a new file in `public/` the app never loads belongs in the exclusion list. The host must run `npm run build`, not bare `next build`. Installing: `src/app/manifest.ts` (standalone, `/manifest.webmanifest`) plus `appleWebApp` / `viewport.themeColor` in `layout.tsx`; the install icons (`public/icons/*.png`, `src/app/apple-icon.png`) are written by `npm run favicon:generate` from the same sprite as the favicon. Install controls read one store, `src/lib/appInstall.ts` (pure; kept as a singleton by `common/Offline/useAppInstall.ts`, connected at import so an early `beforeinstallprompt` is kept): Chromium's prompt, a Safari guide (`InstallGuideDialog`, iPhone/iPad and Mac), nothing in Firefox, hidden once installed. They appear in the offline-ready notice, the rail footer (`rail-install-app`), the phone More sheet (`mobile-install-app`) and Settings → Preferences (`settings-install`); e2e fires a fake `beforeinstallprompt` (`tests/e2e/install-app.spec.ts`).
 - Theme lives in `src/theme/theme.tsx`. Preserve the existing Material UI visual language unless the task is explicitly a redesign.
 
 ### Feature domains

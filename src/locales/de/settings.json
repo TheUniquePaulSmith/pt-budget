@@ -76,7 +76,15 @@
     "rateRemove": "Entfernen",
     "rateRemoveFor": "Kurs für {{currency}} entfernen",
     "ratesAddLabel": "Währung hinzufügen",
-    "ratesAdd": "Hinzufügen"
+    "ratesAdd": "Hinzufügen",
+    "install": {
+      "title": "App installieren",
+      "description": "Installiert öffnet sich die App in einem eigenen Fenster oder vom Home-Bildschirm und funktioniert offline.",
+      "button": "App installieren",
+      "guideButton": "So geht’s",
+      "installed": "Die App ist auf diesem Gerät installiert.",
+      "unavailable": "Dieser Browser bietet die Installation gerade nicht an. Verwende in Chrome oder Edge das Installationssymbol in der Adressleiste. Wenn die App bereits installiert ist, öffne sie über deine Apps."
+    }
   },
   "storage": {
     "title": "Speicherverwaltung",

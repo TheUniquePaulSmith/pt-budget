@@ -32,6 +32,8 @@ tail -40 "$LOG"
 - The summary line counts "failed" and "did not run". With `maxFailures: 1` the run stops at the first failure, so
   "N did not run" means "not tested", not "passed".
 - Use `--grep @smoke` for the smoke set, `-g "test name"` for a single test, `--debug`/`--ui` only when a human is watching.
+- A human who wants to watch a run in a visible browser uses `npm run test:e2e:headed` (full suite, smoke included) or
+  `npm run test:e2e:smoke:headed`; both pick `playwright.local.config.ts` automatically and forward extra arguments.
 - Anything that takes more than a minute or two (the full suite, the smoke set): run it in the background and wait for the
   completion notice, instead of polling.
 - Don't edit source files while a run is in progress. Next Fast Refresh does a full page reload mid-test, and the

@@ -67,7 +67,8 @@ beforeEach(() => {
   Object.defineProperty(globalThis, 'SharedWorker', {
     configurable: true,
     writable: true,
-    value: vi.fn((url: string, options?: unknown) => {
+    // A function, not an arrow: the service calls it with `new`.
+    value: vi.fn(function (url: string, options?: unknown) {
       mockWorkerInstance = new MockSharedWorker(url, options);
       return mockWorkerInstance;
     }),

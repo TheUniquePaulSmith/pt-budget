@@ -65,7 +65,10 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     setLanguageState((current) => (current === stored ? current : stored));
   }, []);
 
-  // Apply the language: i18next bundles, <html lang>, date-fns locale, storage.
+  // Apply the language: i18next bundles, <html lang>, date-fns locale. Storage
+  // is written by setLanguage only: writing it here would save the default
+  // before the stored preference is read, and when React runs mount effects
+  // twice (Strict Mode under `next dev`) the second read would get the default.
   useEffect(() => {
     let cancelled = false;
     void changeLanguage(language);
@@ -73,7 +76,6 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = definition.intlLocale;
     }
-    storeLanguage(language);
     DATE_FNS_LOADERS[language]()
       .then((loaded) => {
         if (!cancelled) setDateFnsLocale(loaded);
@@ -100,6 +102,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
   const setLanguage = useCallback((next: LanguageCode) => {
     if (!isLanguageCode(next)) return;
+    storeLanguage(next);
     setLanguageState(next);
   }, []);
 

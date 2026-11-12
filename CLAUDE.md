@@ -53,7 +53,7 @@ pnpm run sample-data:validate   # validate fixtures against current schema
 pnpx vitest run src/lib/sampleDataExpectations.test.ts   # prove the app's totals/scans match expectations.json (sample-data skill)
 ```
 
-Playwright runs Chromium only, one worker, `maxFailures: 1`. The base config targets `http://localhost:3000` (always localhost, not 127.0.0.1) and **reuses whatever dev server owns :3000** — in parallel worktrees that can be another branch, so pass the untracked `playwright.local.config.ts` that `worktree:prepare` writes (own port, `reuseExistingServer: false`).
+Playwright runs Chromium only, 4 workers (2 on CI; one per spec file at a time, every test in its own browser context), `maxFailures: 1`. The base config targets `http://localhost:3000` (always localhost, not 127.0.0.1) and **reuses whatever dev server owns :3000** — in parallel worktrees that can be another branch, so pass the untracked `playwright.local.config.ts` that `worktree:prepare` writes (own port, `reuseExistingServer: false`).
 
 `sample-data:generate` never prompts; every input is a flag (`--months`, `--seed`, `--reference-date`, `--full-schema`, `--dry-run`, and `--count`/`--transactions`/`--amount` for volume fixtures only; see `--help`), so agents and CI can run it unattended. CI and `worktree:prepare` use `--months=12 --seed=review` (natural mode: one row per household event, newest month first, with the `expectations.json` manifest the validation layers compare against; `--count` turns the manifest off).
 

@@ -49,7 +49,6 @@ test('with offline mode turned on, the built app reloads, unlocks and opens ever
   context,
   baseURL,
 }) => {
-  test.setTimeout(300_000);
   await bootstrapDatabase(page, { loadSampleData: true, sampleDataTransactionLimit: 200 });
 
   // Off by default: the app loads lazily and nothing is saved for offline use.
@@ -61,7 +60,7 @@ test('with offline mode turned on, the built app reloads, unlocks and opens ever
   await page.getByTestId('settings-tab-preferences').click();
   await expect(page.getByTestId('settings-offline-size')).toContainText(/Downloads about \d+ MB \(\d+ files\) once/);
   await page.getByTestId('settings-offline-switch').locator('input').check();
-  await expect(page.getByTestId('settings-offline-ready')).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId('settings-offline-ready')).toBeVisible();
   await expect(page.getByTestId('offline-notice')).toContainText('works offline');
   expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
   expect(await page.evaluate(() => localStorage.getItem('budgetTracker_offlineMode'))).toBe('on');
@@ -110,7 +109,7 @@ test('with offline mode turned on, the built app reloads, unlocks and opens ever
   await page.getByTestId('settings-language-option-de').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'de-DE');
   await page.getByRole('button', { name: GERMAN_CLOSE_SETTINGS }).click();
-  await expect(page.getByTestId('nav-dashboard').first()).toHaveAccessibleName(GERMAN_DASHBOARD, { timeout: 30_000 });
+  await expect(page.getByTestId('nav-dashboard').first()).toHaveAccessibleName(GERMAN_DASHBOARD);
 
   await navigateToPage(page, 'developer-console');
   await expect(page.getByTestId('developer-console')).toBeVisible();
@@ -124,7 +123,6 @@ test('without offline mode, a page never opened explains itself offline and load
   page,
   context,
 }) => {
-  test.setTimeout(300_000);
   await bootstrapDatabase(page, { loadSampleData: false });
   expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
 
@@ -147,20 +145,19 @@ test('without offline mode, a page never opened explains itself offline and load
   // Back online: the page loads by itself.
   await page.request.get('/__serve-dist/online');
   await context.setOffline(false);
-  await expect(unavailable).toHaveCount(0, { timeout: 30_000 });
+  await expect(unavailable).toHaveCount(0);
   await expect(page.getByTestId('app-bar-title')).toHaveText('Loans');
   await expect(page.getByTestId('offline-notice')).toHaveAttribute('data-notice', 'backOnline');
 });
 
 test('turning offline mode off removes the saved app', async ({ page }) => {
-  test.setTimeout(300_000);
   await bootstrapDatabase(page, { loadSampleData: false });
   await navigateToPage(page, 'settings');
   await page.getByTestId('settings-tab-preferences').click();
 
   const offlineSwitch = page.getByTestId('settings-offline-switch').locator('input');
   await offlineSwitch.check();
-  await expect(page.getByTestId('settings-offline-ready')).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId('settings-offline-ready')).toBeVisible();
   expect(await page.evaluate(async () => (await caches.keys()).length)).toBe(1);
 
   await offlineSwitch.uncheck();

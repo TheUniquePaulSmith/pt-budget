@@ -54,11 +54,11 @@ test('a pre-key-slot (v1) header leads to the reset notice, and resetting return
 
   await page.goto('/');
 
-  await expect(page.getByText('This database needs to be set up again')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText('This database needs to be set up again')).toBeVisible();
   await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
 
   await page.getByTestId('legacy-reset').click();
   await page.getByTestId('legacy-reset-confirm').click();
 
-  await expect(page.getByRole('button', { name: 'Create New Database' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: 'Create New Database' })).toBeVisible();
 });

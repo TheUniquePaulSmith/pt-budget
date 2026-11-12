@@ -48,7 +48,6 @@ test.describe('Sample data validation', () => {
   test.skip(Boolean(manifest && !manifest.natural), `fixtures are not natural (${manifest?.reason ?? 'regenerate without --count'})`);
 
   test('the full sample set imports, classifies, links loans, detects series and matches the expectations manifest', async ({ page }) => {
-    test.setTimeout(300_000);
     const expected = manifest as Manifest;
     const cell = (sql: string) => runQueryAndReadFirstCell(page, sql);
 
@@ -108,10 +107,10 @@ test.describe('Sample data validation', () => {
     await navigateToPage(page, 'loans');
     const grid = page.getByTestId('loans-grid');
     for (const loan of expected.loans) {
-      await expect(grid.getByText(loan.name)).toBeVisible({ timeout: 30_000 });
+      await expect(grid.getByText(loan.name)).toBeVisible();
     }
     for (const loan of expected.loans.filter((candidate) => candidate.ruleLinked)) {
-      await expect(page.getByTestId(`loan-balance-${loan.id}`)).not.toHaveText(formatUsd(loan.originalPrincipal), { timeout: 30_000 });
+      await expect(page.getByTestId(`loan-balance-${loan.id}`)).not.toHaveText(formatUsd(loan.originalPrincipal));
     }
     for (const loan of expected.loans) {
       expect(
@@ -122,9 +121,9 @@ test.describe('Sample data validation', () => {
 
     // 7. Subscriptions: a rescan detects every fixed series and skips the linked loan payments.
     await navigateToPage(page, 'subscriptions');
-    await expect(page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })).toBeVisible();
     await page.getByRole('button', { name: 'Rescan' }).click();
-    await expect(page.getByText(/Scan complete/)).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText(/Scan complete/)).toBeVisible();
     const detectable = expected.subscriptions.filter((series) => series.detectable);
     expect(Number(await cell('SELECT COUNT(*) FROM recurring_series'))).toBeGreaterThanOrEqual(detectable.length);
     for (const series of detectable) {
@@ -139,17 +138,17 @@ test.describe('Sample data validation', () => {
 
     // 8. Budget: the plans and the two savings funds are there and the status panel renders.
     await navigateToPage(page, 'budget');
-    await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId('budget-status-panel')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible();
+    await expect(page.getByTestId('budget-status-panel')).toBeVisible();
     const fundsCard = page.getByTestId('budget-funds-card');
-    await expect(fundsCard).toBeVisible({ timeout: 30_000 });
+    await expect(fundsCard).toBeVisible();
     for (const fund of expected.budget.funds) {
       await expect(fundsCard).toContainText(fund.name);
     }
 
     // 9. Dashboard renders income and expense totals for the default range.
     await navigateToPage(page, 'dashboard');
-    await expect(page.getByRole('heading', { name: 'Total Income' })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('heading', { name: 'Total Income' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Total Expenses' })).toBeVisible();
   });
 });

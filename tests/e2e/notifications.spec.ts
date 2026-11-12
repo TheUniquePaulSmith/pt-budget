@@ -47,7 +47,7 @@ test('a reminder due in 3 days with a 7-day lead shows on the dashboard card and
   await editor.getByTestId('reminder-lead-override').check();
   await editor.getByTestId('reminder-lead-days').fill('7');
   await editor.getByTestId('reminder-save').click();
-  await expect(editor).toBeHidden({ timeout: 30_000 });
+  await expect(editor).toBeHidden();
 
   // Due tab lists it as due in 3 days; the bell shows one due item.
   await expect(page.getByTestId('notifications-tab-due')).toContainText('Due (1)');
@@ -67,13 +67,13 @@ test('a reminder due in 3 days with a 7-day lead shows on the dashboard card and
   // The dashboard card shows it with inline actions.
   await navigateToPage(page, 'dashboard');
   const card = page.getByTestId('notifications-dashboard-card');
-  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(card).toBeVisible();
   await expect(card).toContainText(title);
   await expect(card).toContainText('1 due');
 
   // Dismiss from the card: the card disappears and the badge clears.
   await card.getByRole('button', { name: `Dismiss ${title}` }).click();
-  await expect(card).toBeHidden({ timeout: 30_000 });
+  await expect(card).toBeHidden();
   await expect(badgeOf(page)).toHaveClass(/MuiBadge-invisible/);
 
   const dismissedCount = Number(
@@ -95,10 +95,10 @@ test('a manually paid series with a due day in range raises a payment alert, whi
 
   // Detect recurring series from the sample data.
   await page.getByRole('button', { name: 'Subscriptions' }).click();
-  await expect(page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })).toBeVisible();
   await page.getByRole('button', { name: 'Rescan' }).click();
-  await expect(page.getByText(/Scan complete/)).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByRole('columnheader', { name: 'Payment' }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/Scan complete/)).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Payment' }).first()).toBeVisible();
 
   // The scan counts a bill as paid when a linked payment lands within half a
   // cycle of its due date (src/lib/notificationService.ts, hasPaymentInWindow),
@@ -130,7 +130,7 @@ test('a manually paid series with a due day in range raises a payment alert, whi
     .getByRole('button', { name: 'View transactions' })
     .click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible({ timeout: 30_000 });
+  await expect(dialog).toBeVisible();
   await expect(dialog.locator('h2').first()).toHaveText(seriesName);
 
   await dialog.getByRole('combobox', { name: 'Status' }).click();
@@ -139,15 +139,15 @@ test('a manually paid series with a due day in range raises a payment alert, whi
   const todayDay = String(new Date().getDate());
   await dialog.getByTestId('series-due-day').fill(todayDay);
   await dialog.getByRole('button', { name: 'Save' }).click();
-  await expect(dialog).toBeHidden({ timeout: 30_000 });
+  await expect(dialog).toBeHidden();
 
-  await expect(page.getByText(`Manual · day ${todayDay}`).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(`Manual · day ${todayDay}`).first()).toBeVisible();
 
   // The notifications scan (on change, or via Rescan) raises the alert.
   await navigateToPage(page, 'notifications');
   await page.getByTestId('notifications-rescan').click();
   const alertTitle = `${seriesName} due today`;
-  await expect(page.getByText(alertTitle, { exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(alertTitle, { exact: true })).toBeVisible();
   await expect(badgeOf(page)).toHaveText('1');
 
   const alertCount = Number(
@@ -163,7 +163,7 @@ test('a manually paid series with a due day in range raises a payment alert, whi
   // A second scan is idempotent: still exactly one row for the key.
   await navigateToPage(page, 'notifications');
   await page.getByTestId('notifications-rescan').click();
-  await expect(page.getByTestId('notifications-rescan')).toBeEnabled({ timeout: 60_000 });
+  await expect(page.getByTestId('notifications-rescan')).toBeEnabled();
   const afterRescan = Number(
     await runQueryAndReadFirstCell(page, `SELECT COUNT(*) AS count FROM notifications WHERE type = 'overdue_payment';`)
   );
@@ -172,7 +172,7 @@ test('a manually paid series with a due day in range raises a payment alert, whi
   // Done closes the alert and clears the badge.
   await navigateToPage(page, 'notifications');
   await page.getByRole('button', { name: `Mark ${alertTitle} done` }).click();
-  await expect(page.getByTestId('notifications-tab-due')).toContainText('Due (0)', { timeout: 30_000 });
+  await expect(page.getByTestId('notifications-tab-due')).toContainText('Due (0)');
   await expect(badgeOf(page)).toHaveClass(/MuiBadge-invisible/);
 });
 
@@ -199,8 +199,7 @@ test('notification settings persist across a reload', async ({ page }) => {
   await expect
     .poll(
       async () =>
-        Number(await runQueryAndReadFirstCell(page, `SELECT lead_days FROM notification_settings WHERE type = 'birthday';`)),
-      { timeout: 30_000 }
+        Number(await runQueryAndReadFirstCell(page, `SELECT lead_days FROM notification_settings WHERE type = 'birthday';`))
     )
     .toBe(21);
 
@@ -208,7 +207,7 @@ test('notification settings persist across a reload', async ({ page }) => {
 
   await navigateToPage(page, 'settings');
   await page.getByRole('tab', { name: 'Notifications' }).click();
-  await expect(page.getByTestId('notification-setting-birthday-lead')).toHaveValue('21', { timeout: 30_000 });
+  await expect(page.getByTestId('notification-setting-birthday-lead')).toHaveValue('21');
   await expect(page.getByTestId('notification-setting-seasonal-enabled')).not.toBeChecked();
   await page.getByRole('button', { name: 'Close settings' }).click();
 

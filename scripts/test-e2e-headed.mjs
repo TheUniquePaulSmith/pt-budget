@@ -5,6 +5,7 @@
 //   pnpm run test:e2e:smoke:headed             only the @smoke tests, what CI runs
 //   pnpm run test:e2e:headed loans.spec.ts     extra arguments go to `playwright test`
 //   pnpm run test:e2e:headed -g "test name"    a single test
+//   pnpm run test:e2e:headed --workers=4       several windows at once (default: one worker)
 //
 // Config: uses the untracked playwright.local.config.ts that `pnpm run worktree:prepare`
 // writes (own port, reuseExistingServer: false), so the run can never silently test
@@ -33,9 +34,12 @@ function buildPlaywrightArgs(argv, { localConfigExists }) {
     else args.push(arg);
   }
   const hasConfig = args.some((a) => a === '-c' || a === '--config' || a.startsWith('--config='));
+  const hasWorkers = args.some((a) => a === '-j' || a === '--workers' || a.startsWith('--workers=') || /^-j\d+$/.test(a));
   const out = ['test'];
   if (!hasConfig && localConfigExists) out.push('--config', LOCAL_CONFIG);
   if (smoke) out.push('--grep', '@smoke');
+  // One window to watch: the configs run several workers, i.e. several windows at once.
+  if (!hasWorkers) out.push('--workers=1');
   out.push('--headed', ...args);
   return { args: out, usesLocalConfig: !hasConfig && localConfigExists, hasConfig };
 }

@@ -11,25 +11,23 @@ test('creates a budget plan and reports over/under across month, quarter, and ye
   await bootstrapDatabase(page, { sampleDataTransactionLimit: 500 });
 
   await page.getByRole('button', { name: 'Budget', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible();
 
   // Create (or update) the plan effective this month.
   await page.getByRole('button', { name: 'Manage Plan' }).click();
   const planDialog = page.getByRole('dialog', { name: 'Budget Plan' });
   await planDialog.getByLabel('Total Amount').fill('2500');
   await planDialog.getByRole('button', { name: 'Save' }).click();
-  await expect(planDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(planDialog).not.toBeVisible();
 
   // The status panel reflects the saved plan with an over/under chip.
-  await expect(page.getByText('Budget Status')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Budget Status')).toBeVisible();
   await expect(page.getByText('$2,500.00').first()).toBeVisible();
   await expect(page.getByText(/(left|over)$/).first()).toBeVisible();
 
   // History shows previous months with over/under (or no plan) chips.
   await expect(page.getByText('History')).toBeVisible();
-  await expect(
-    page.getByText(new RegExp(`${currentMonthKey()}: .*(under|over)$`)).first()
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(new RegExp(`${currentMonthKey()}: .*(under|over)$`)).first()).toBeVisible();
 
   // Quarter and year viewpoints roll up the monthly budgets.
   await page.getByRole('button', { name: 'Quarter' }).click();
@@ -54,7 +52,7 @@ test('adds a recurring salary income source that feeds expected income', async (
   await bootstrapDatabase(page, { sampleDataTransactionLimit: 500 });
 
   await page.getByRole('button', { name: 'Budget', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible();
 
   await expect(page.getByRole('heading', { name: 'Income Sources' })).toBeVisible();
   await page.getByRole('button', { name: 'Add', exact: true }).click();
@@ -63,9 +61,9 @@ test('adds a recurring salary income source that feeds expected income', async (
   await incomeDialog.getByLabel('Name').fill('Playwright Salary');
   await incomeDialog.getByLabel('Amount', { exact: true }).fill('1234');
   await incomeDialog.getByRole('button', { name: 'Add' }).click();
-  await expect(incomeDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(incomeDialog).not.toBeVisible();
 
-  await expect(page.getByText('Playwright Salary')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Playwright Salary')).toBeVisible();
 
   const sourceCount = Number(
     await runQueryAndReadFirstCell(

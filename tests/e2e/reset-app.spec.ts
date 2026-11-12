@@ -30,7 +30,7 @@ async function lockFromSettings(page: Page) {
   await navigateToPage(page, 'settings');
   await page.getByRole('tab', { name: 'Security' }).click();
   await page.getByRole('button', { name: 'Lock Database' }).click();
-  await expect(page.getByText('Enter Password')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Enter Password')).toBeVisible();
 }
 
 test('Reset App on the lock screen needs the correct database password', async ({ page }) => {
@@ -56,7 +56,7 @@ test('Reset App on the lock screen needs the correct database password', async (
   // The database survived: the real password still unlocks it, data intact.
   await page.getByLabel('Password', { exact: true }).fill(FIRST_PASSWORD);
   await page.getByRole('button', { name: 'Unlock' }).click();
-  await expect(page.getByTestId('database-status-text')).toHaveText('Connected', { timeout: 60_000 });
+  await expect(page.getByTestId('database-status-text')).toHaveText('Connected');
   const primaryUser = await runQueryAndReadFirstCell(
     page,
     `SELECT display_name FROM users WHERE is_primary = 1;`
@@ -69,9 +69,7 @@ test('Reset App on the lock screen needs the correct database password', async (
   await dialog.getByLabel('Database password').fill(FIRST_PASSWORD);
   await dialog.getByRole('button', { name: 'Reset App' }).click();
 
-  await expect(page.getByRole('button', { name: 'Create New Database' })).toBeVisible({
-    timeout: 60_000,
-  });
+  await expect(page.getByRole('button', { name: 'Create New Database' })).toBeVisible();
 });
 
 test('Reset App terminates the shared worker for every tab and comes back as a fresh install', async ({
@@ -99,9 +97,7 @@ test('Reset App terminates the shared worker for every tab and comes back as a f
   });
 
   // The reloaded tab starts a brand-new worker with no database and no key.
-  await expect(page.getByRole('button', { name: 'Create New Database' })).toBeVisible({
-    timeout: 60_000,
-  });
+  await expect(page.getByRole('button', { name: 'Create New Database' })).toBeVisible();
   const leftovers = await page.evaluate(async () => {
     const names = (await indexedDB.databases()).map((database) => database.name);
     return names.filter((name) => name === 'ptbudgetapp-keys');
@@ -116,7 +112,7 @@ test('Reset App terminates the shared worker for every tab and comes back as a f
   await page.getByTestId('skip-initial-account').click();
   await page.getByTestId('storage-choice-local').click();
 
-  await expect(page.getByTestId('database-status-text')).toHaveText('Connected', { timeout: 60_000 });
+  await expect(page.getByTestId('database-status-text')).toHaveText('Connected');
   const primaryUser = await runQueryAndReadFirstCell(
     page,
     `SELECT display_name FROM users WHERE is_primary = 1;`

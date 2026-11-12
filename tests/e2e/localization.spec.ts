@@ -23,7 +23,7 @@ test('@smoke stays English by default even when the browser prefers another lang
   await seedBrowserCompatibility(page);
   await page.goto('/');
 
-  await expect(page.getByRole('button', { name: 'Create New Database' })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('button', { name: 'Create New Database' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
   await context.close();
 });
@@ -31,7 +31,7 @@ test('@smoke stays English by default even when the browser prefers another lang
 test('the globe menu on the welcome screen switches the setup flow to Spanish and the choice persists', async ({ page }) => {
   await seedBrowserCompatibility(page);
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Create New Database' })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('button', { name: 'Create New Database' })).toBeVisible();
 
   await page.getByTestId('language-menu-button').click();
   await page.getByTestId('language-option-es').click();
@@ -39,7 +39,7 @@ test('the globe menu on the welcome screen switches the setup flow to Spanish an
   await expect(page.getByTestId('language-menu-button')).toHaveAccessibleName(/idioma/i);
 
   await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'es-ES', { timeout: 60_000 });
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es-ES');
 
   // Back to English for the rest of the suite (the preference is per browser context, but be tidy).
   await page.getByTestId('language-menu-button').click();
@@ -61,7 +61,7 @@ test('Settings → Preferences changes the language, translating the navigation;
 
   // Settings is full-screen (no navigation rail); leave it to see the translated nav labels.
   await page.getByRole('button', { name: SPANISH_CLOSE_SETTINGS }).click();
-  await expect(page.getByTestId('nav-dashboard').first()).toHaveAccessibleName(SPANISH_DASHBOARD, { timeout: 30_000 });
+  await expect(page.getByTestId('nav-dashboard').first()).toHaveAccessibleName(SPANISH_DASHBOARD);
   expect(await page.evaluate(() => window.localStorage.getItem('budgetTracker_language'))).toBe('es');
 
   // The settings page is still reachable by test id in any language; switch back to English.
@@ -71,7 +71,7 @@ test('Settings → Preferences changes the language, translating the navigation;
   await page.getByTestId('settings-language-option-en-US').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
   await page.getByRole('button', { name: 'Close settings' }).click();
-  await expect(page.getByTestId('nav-dashboard').first()).toHaveAccessibleName('Dashboard', { timeout: 30_000 });
+  await expect(page.getByTestId('nav-dashboard').first()).toHaveAccessibleName('Dashboard');
 });
 
 test('the setup Preferences step applies the language immediately', async ({ page }) => {
@@ -83,7 +83,7 @@ test('the setup Preferences step applies the language immediately', async ({ pag
   await page.getByLabel('Confirm Password').fill('TestPassword1!');
   await page.getByRole('button', { name: 'Create Database' }).click();
 
-  await expect(page.getByTestId('preferences-setup')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('preferences-setup')).toBeVisible();
   await page.getByTestId('preferences-language').locator('..').click();
   await page.getByRole('option', { name: 'Español' }).click();
   await expect(page.getByTestId('preferences-setup')).toContainText(SPANISH_PREFERENCES_TITLE);

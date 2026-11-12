@@ -27,7 +27,7 @@ async function loadArchiveAndUnlock(page: Page, archivePath: string = V1_ARCHIVE
   await page.goto('/');
 
   const loadButton = page.getByRole('button', { name: 'Load from File' });
-  await expect(loadButton).toBeVisible({ timeout: 60_000 });
+  await expect(loadButton).toBeVisible();
 
   // The app opens a native file picker from a detached input element, so
   // intercept the file chooser rather than looking for an input in the DOM.
@@ -37,14 +37,12 @@ async function loadArchiveAndUnlock(page: Page, archivePath: string = V1_ARCHIVE
   ]);
   await fileChooser.setFiles(archivePath);
 
-  await expect(page.getByText('Enter Password')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Enter Password')).toBeVisible();
   await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
   await page.getByRole('button', { name: 'Unlock' }).click();
 
-  await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByTestId('database-status-text')).toHaveText('Connected', {
-    timeout: 120_000,
-  });
+  await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible();
+  await expect(page.getByTestId('database-status-text')).toHaveText('Connected');
 }
 
 test('@smoke upgrades a schema v1 archive to the current schema without losing rows', async ({ page }) => {

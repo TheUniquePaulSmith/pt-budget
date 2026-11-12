@@ -10,13 +10,13 @@ import { bootstrapDatabase, navigateToPage, runQueryAndReadFirstCell } from './h
 async function openPreferencesTab(page: Page) {
   await navigateToPage(page, 'settings');
   await page.getByRole('tab', { name: 'Preferences' }).click();
-  await expect(page.getByTestId('settings-default-currency')).toBeAttached({ timeout: 30_000 });
+  await expect(page.getByTestId('settings-default-currency')).toBeAttached();
 }
 
 /** Settings is a full-screen page with no navigation rail; leave it before using the SQL page. */
 async function closeSettings(page: Page) {
   await page.getByRole('button', { name: 'Close settings' }).click();
-  await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible();
 }
 
 async function addAccount(page: Page, name: string, currency: string) {
@@ -28,7 +28,7 @@ async function addAccount(page: Page, name: string, currency: string) {
   await page.getByRole('option', { name: new RegExp(`^${currency}`) }).click();
   await dialog.getByLabel(/Card \/ Account Number/).fill('7777');
   await dialog.getByRole('button', { name: 'Add' }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(dialog).not.toBeVisible();
 }
 
 test('@smoke a fresh database stores accounts in USD with no exchange rates and no notice', async ({ page }) => {
@@ -53,7 +53,7 @@ test('a foreign-currency account is excluded from totals until a rate is entered
 
   // The dashboard says the EUR account is left out while no rate exists.
   await navigateToPage(page, 'dashboard');
-  await expect(page.getByTestId('missing-rates-notice')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('missing-rates-notice')).toBeVisible();
   await expect(page.getByTestId('missing-rates-notice')).toContainText('EUR');
 
   // A EUR expense contributes nothing to spending yet (NULL rate → skipped by SUM).
@@ -64,7 +64,7 @@ test('a foreign-currency account is excluded from totals until a rate is entered
   await dialog.getByRole('combobox', { name: 'Account' }).click();
   await page.getByRole('option', { name: /Euro Wallet/ }).click();
   await dialog.getByRole('button', { name: 'Add Transaction' }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 60_000 });
+  await expect(dialog).not.toBeVisible();
 
   const spendSql = (where: string) =>
     `SELECT COALESCE(SUM(CASE WHEN t.type IN ('expense', 'refund') AND t.is_excluded = 0 THEN -t.amount * (SELECT CASE WHEN xa.currency = COALESCE((SELECT value FROM app_metadata WHERE key = 'preferences.defaultCurrency'), 'USD') THEN 1.0 ELSE xr.rate END FROM accounts xa LEFT JOIN exchange_rates xr ON xr.currency = xa.currency WHERE xa.id = t.account_id) ELSE 0 END), 0) FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE ${where}`;
@@ -75,7 +75,7 @@ test('a foreign-currency account is excluded from totals until a rate is entered
   await expect(page.getByTestId('exchange-rate-EUR')).toBeVisible();
   await page.getByTestId('exchange-rate-input-EUR').fill('1.25');
   await page.getByTestId('exchange-rate-save-EUR').click();
-  await expect(page.getByTestId('settings-missing-rates')).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId('settings-missing-rates')).toHaveCount(0);
   await closeSettings(page);
   expect(await runQueryAndReadFirstCell(page, "SELECT rate FROM exchange_rates WHERE currency = 'EUR'")).toBe('1.25');
 
@@ -99,7 +99,7 @@ test('the currency picker lists symbols and a CAD account never passes for USD',
   await page.getByRole('option', { name: 'CAD – Canadian Dollar (CA$)' }).click();
   await accountDialog.getByLabel(/Card \/ Account Number/).fill('7777');
   await accountDialog.getByRole('button', { name: 'Add' }).click();
-  await expect(accountDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(accountDialog).not.toBeVisible();
 
   // A transaction on that account is shown with the Canadian-dollar symbol, not a bare "$".
   await page.getByRole('button', { name: 'Add Transaction' }).first().click();
@@ -109,11 +109,11 @@ test('the currency picker lists symbols and a CAD account never passes for USD',
   await dialog.getByRole('combobox', { name: 'Account' }).click();
   await page.getByRole('option', { name: /Maple Chequing/ }).click();
   await dialog.getByRole('button', { name: 'Add Transaction' }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 60_000 });
+  await expect(dialog).not.toBeVisible();
 
   await navigateToPage(page, 'dashboard');
   const recent = page.getByText('Tim Hortons').first();
-  await expect(recent).toBeVisible({ timeout: 30_000 });
+  await expect(recent).toBeVisible();
   await expect(page.getByText('-CA$7.50').first()).toBeVisible();
 });
 
@@ -124,13 +124,13 @@ test('changing the default currency rebases the known rates and re-expresses the
   await openPreferencesTab(page);
   await page.getByTestId('exchange-rate-input-EUR').fill('1.25');
   await page.getByTestId('exchange-rate-save-EUR').click();
-  await expect(page.getByTestId('settings-missing-rates')).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId('settings-missing-rates')).toHaveCount(0);
 
   // Switch the default to EUR: USD gets 1 / 1.25 = 0.8, EUR's own row disappears.
   await page.getByTestId('settings-default-currency').locator('..').click();
   await page.getByRole('option', { name: /^EUR/ }).click();
   await page.getByTestId('confirm-default-currency').click();
-  await expect(page.getByTestId('exchange-rate-USD')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('exchange-rate-USD')).toBeVisible();
   await closeSettings(page);
 
   expect(
@@ -142,5 +142,5 @@ test('changing the default currency rebases the known rates and re-expresses the
   // Dashboard totals now carry the "Totals in EUR" caption and no notice (USD has a rate).
   await navigateToPage(page, 'dashboard');
   await expect(page.getByTestId('missing-rates-notice')).toHaveCount(0);
-  await expect(page.getByText('Totals in EUR')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Totals in EUR')).toBeVisible();
 });

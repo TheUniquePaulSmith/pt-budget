@@ -15,7 +15,7 @@ const currency = (value: number) =>
 
 async function openBudgetPage(page: Page) {
   await navigateToPage(page, 'budget');
-  await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Budget', exact: true })).toBeVisible();
 }
 
 async function addTransactionFromDashboard(page: Page, description: string, amount: string) {
@@ -28,7 +28,7 @@ async function addTransactionFromDashboard(page: Page, description: string, amou
   await transactionDialog.getByRole('combobox', { name: 'Account' }).click();
   await page.getByRole('option', { name: new RegExp(DEFAULT_SAMPLE_DATA_EXPENSE_ACCOUNT_NAME, 'i') }).click();
   await transactionDialog.getByRole('button', { name: 'Add Transaction' }).click();
-  await expect(transactionDialog).not.toBeVisible({ timeout: 120_000 });
+  await expect(transactionDialog).not.toBeVisible();
 }
 
 test('a category set to carry surplus rolls last month\'s unspent budget into this month', async ({ page }) => {
@@ -46,11 +46,11 @@ test('a category set to carry surplus rolls last month\'s unspent budget into th
   await firstRow.getByRole('combobox', { name: 'Carry-over' }).click();
   await page.getByRole('option', { name: 'Carry surplus' }).click();
   await planDialog.getByRole('button', { name: 'Save' }).click();
-  await expect(planDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(planDialog).not.toBeVisible();
 
   // This month (month 2): the unspent part of last month's 100,000 is carried in.
   const groceriesRow = page.getByTestId('budget-category-table').getByRole('row').filter({ hasText: 'Groceries' });
-  await expect(groceriesRow).toBeVisible({ timeout: 60_000 });
+  await expect(groceriesRow).toBeVisible();
   await expect(groceriesRow.getByTestId('budget-category-carry-badge')).toHaveText('Carries surplus');
   await expect(groceriesRow.getByTestId('budget-category-budgeted')).toHaveText('$100,000.00');
   await expect(groceriesRow.getByTestId('budget-category-carried-in')).toHaveText(/^\+\$[\d,]+\.\d{2}$/);
@@ -68,7 +68,7 @@ test('a category set to carry surplus rolls last month\'s unspent budget into th
   // Month 1 (the plan's own month) starts from the plan amount: nothing carried in yet.
   await page.getByRole('button', { name: 'Previous period' }).click();
   const previousRow = page.getByTestId('budget-category-table').getByRole('row').filter({ hasText: 'Groceries' });
-  await expect(previousRow.getByTestId('budget-category-carried-in')).toHaveText('$0.00', { timeout: 60_000 });
+  await expect(previousRow.getByTestId('budget-category-carried-in')).toHaveText('$0.00');
   await expect(previousRow.getByTestId('budget-category-effective')).toHaveText('$100,000.00');
 
   // Switching the category back to no carry-over drops the carried balance.
@@ -79,8 +79,8 @@ test('a category set to carry surplus rolls last month\'s unspent budget into th
   await planDialog.getByTestId('budget-plan-row-0').getByRole('combobox', { name: 'Carry-over' }).click();
   await page.getByRole('option', { name: 'No carry-over' }).click();
   await planDialog.getByRole('button', { name: 'Save' }).click();
-  await expect(planDialog).not.toBeVisible({ timeout: 30_000 });
-  await expect(groceriesRow.getByTestId('budget-category-carried-in')).toHaveText('—', { timeout: 60_000 });
+  await expect(planDialog).not.toBeVisible();
+  await expect(groceriesRow.getByTestId('budget-category-carried-in')).toHaveText('—');
   await expect(groceriesRow.getByTestId('budget-category-effective')).toHaveText('$100,000.00');
 
   // Persisted through the worker.
@@ -96,7 +96,7 @@ test('a trip linked to a budget category builds a fund that its spend draws down
 
   // A trip saving $100/month into Travel for the last four months (incl. this one).
   await navigateToPage(page, 'trips');
-  await expect(page.getByRole('heading', { name: 'Manage Trips' })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Manage Trips' })).toBeVisible();
   await page.getByRole('button', { name: 'Add Trip' }).click();
   const tripDialog = page.getByRole('dialog', { name: 'Add New Trip' });
   await tripDialog.getByLabel('Trip Name').fill('Fund Trip');
@@ -106,10 +106,10 @@ test('a trip linked to a budget category builds a fund that its spend draws down
   await tripDialog.getByLabel('Monthly Contribution').fill('100');
   await tripDialog.getByLabel('Contribution Start Month').fill(monthKey(-3));
   await tripDialog.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(tripDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(tripDialog).not.toBeVisible();
 
   const tripCard = page.locator('[data-testid^="fund-summary-trip-"]').first();
-  await expect(tripCard).toBeVisible({ timeout: 60_000 });
+  await expect(tripCard).toBeVisible();
   await expect(tripCard.getByTestId('fund-summary-balance')).toHaveText(`balance ${currency(400)}`);
   await expect(tripCard).toContainText(`Saved ${currency(400)}`);
   await expect(tripCard).toContainText(`${currency(800)} to goal`);
@@ -119,7 +119,7 @@ test('a trip linked to a budget category builds a fund that its spend draws down
   await addTransactionFromDashboard(page, description, '65.5');
   await navigateToPage(page, 'transactions');
   const row = page.getByRole('row').filter({ has: page.getByText(description) }).first();
-  await expect(row).toBeVisible({ timeout: 60_000 });
+  await expect(row).toBeVisible();
   await row.getByTitle('Label Transaction').click();
   const labelDialog = page.getByRole('dialog', { name: 'Label Transaction' });
   // The Label Type select (not owned here) has no accessible name; it is the only combobox showing 'No Label'.
@@ -128,10 +128,10 @@ test('a trip linked to a budget category builds a fund that its spend draws down
   await labelDialog.getByLabel('Select Trip').fill('Fund Trip');
   await page.getByRole('option', { name: 'Fund Trip' }).click();
   await labelDialog.getByRole('button', { name: 'Update Label' }).click();
-  await expect(labelDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(labelDialog).not.toBeVisible();
 
   await navigateToPage(page, 'trips');
-  await expect(tripCard.getByTestId('fund-summary-balance')).toHaveText(`balance ${currency(334.5)}`, { timeout: 60_000 });
+  await expect(tripCard.getByTestId('fund-summary-balance')).toHaveText(`balance ${currency(334.5)}`);
 
   // The sample data seeds its own Travel fund (the Spring Break trip); the
   // contributions total below adds this trip's 100 to whatever it contributes this month.
@@ -152,7 +152,7 @@ test('a trip linked to a budget category builds a fund that its spend draws down
   // The Budget page's Funds card agrees, and Travel shows the contribution as planned spend.
   await openBudgetPage(page);
   const fundCard = page.getByTestId('budget-funds-card').locator('[data-testid^="budget-fund-trip-"]').first();
-  await expect(fundCard).toBeVisible({ timeout: 60_000 });
+  await expect(fundCard).toBeVisible();
   await expect(fundCard.getByTestId('budget-fund-balance')).toHaveText(`Balance ${currency(334.5)}`);
   await expect(fundCard.getByTestId('budget-fund-contributed')).toContainText(`Saved ${currency(400)}`);
   await expect(fundCard.getByTestId('budget-fund-goal')).toContainText(`${currency(800)} to goal · 8 months to go`);
@@ -164,10 +164,10 @@ test('a trip linked to a budget category builds a fund that its spend draws down
   await page.getByRole('option', { name: 'Travel' }).click();
   await firstRow.getByRole('spinbutton', { name: 'Amount' }).fill('500');
   await planDialog.getByRole('button', { name: 'Save' }).click();
-  await expect(planDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(planDialog).not.toBeVisible();
 
   const travelRow = page.getByTestId('budget-category-table').getByRole('row').filter({ hasText: 'Travel' });
-  await expect(travelRow.getByTestId('budget-category-fund-badge')).toBeVisible({ timeout: 60_000 });
+  await expect(travelRow.getByTestId('budget-category-fund-badge')).toBeVisible();
   await expect(page.getByTestId('budget-fund-contributions-total')).toContainText(currency(100 + seededTravelContributions));
 
   const linked = await runQueryAndReadFirstCell(

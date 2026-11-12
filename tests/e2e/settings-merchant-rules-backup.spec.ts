@@ -11,21 +11,19 @@ test('exports custom merchant rules to JSON and re-imports them from Settings', 
 
   // Create one user rule via the Subscriptions page rule editor.
   await page.getByRole('button', { name: 'Subscriptions' }).click();
-  await expect(page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })).toBeVisible({
-    timeout: 120_000,
-  });
+  await expect(page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })).toBeVisible();
 
   await page.getByRole('button', { name: 'Add Rule' }).click();
   const ruleDialog = page.getByRole('dialog', { name: 'Create Merchant Rule' });
   await ruleDialog.getByLabel('Pattern').fill('BACKUPTESTCO');
   await ruleDialog.getByLabel('Merchant').fill('Backup Test Co');
   await ruleDialog.getByRole('button', { name: 'Create Rule' }).click();
-  await expect(ruleDialog).not.toBeVisible({ timeout: 120_000 });
+  await expect(ruleDialog).not.toBeVisible();
 
   // Open Settings -> Data & Backup -> Merchant Rules.
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.getByRole('tab', { name: /data & backup/i }).click();
-  await expect(page.getByText(/1 of your own/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/1 of your own/)).toBeVisible();
 
   const exportButton = page.getByRole('button', { name: 'Export Custom Rules' });
   await expect(exportButton).toBeEnabled();
@@ -59,7 +57,7 @@ test('exports custom merchant rules to JSON and re-imports them from Settings', 
   writeFileSync(importedPath, JSON.stringify(exported));
 
   await page.locator('#import-custom-rules-input').setInputFiles(importedPath);
-  await expect(page.getByText(/Imported 1 rule\.?$/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/Imported 1 rule\.?$/)).toBeVisible();
   await expect(page.getByText(/2 of your own/)).not.toBeVisible();
 
   // Leave Settings to reach the SQL Query page for verification.

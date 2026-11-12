@@ -31,7 +31,7 @@ async function goToSetupPage(page: Page) {
   const createDatabaseButton = page.getByRole('button', {
     name: 'Create New Database',
   });
-  await expect(createDatabaseButton).toBeVisible({ timeout: 30_000 });
+  await expect(createDatabaseButton).toBeVisible();
   return createDatabaseButton;
 }
 
@@ -118,13 +118,8 @@ test.describe('Password setup screen', () => {
     await page.getByTestId('storage-choice-local').click();
 
     // After successful creation the main app shell should load.
-    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({
-      timeout: 60_000,
-    });
-    await expect(page.getByTestId('database-status-text')).toHaveText(
-      'Connected',
-      { timeout: 60_000 }
-    );
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible();
+    await expect(page.getByTestId('database-status-text')).toHaveText('Connected');
   });
 });
 
@@ -146,9 +141,7 @@ test.describe('Initial account screen', () => {
     await page.getByTestId('skip-initial-account').click();
     await page.getByTestId('storage-choice-local').click();
 
-    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({
-      timeout: 60_000,
-    });
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible();
   });
 
   test('creates the account and card tied to the primary user', async ({ page }) => {
@@ -166,9 +159,7 @@ test.describe('Initial account screen', () => {
     await page.getByRole('button', { name: 'Continue' }).click();
 
     await page.getByTestId('storage-choice-local').click();
-    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({
-      timeout: 60_000,
-    });
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible();
 
     const accountName = await runQueryAndReadFirstCell(
       page,
@@ -203,7 +194,7 @@ test.describe('Loading an encrypted archive', () => {
 
     // Step 1: Create a new database so we can export it.
     const createButton = page.getByRole('button', { name: 'Create New Database' });
-    await expect(createButton).toBeVisible({ timeout: 30_000 });
+    await expect(createButton).toBeVisible();
     await createButton.click();
 
     await expect(page.getByText('Set Up Your Database')).toBeVisible({
@@ -219,14 +210,12 @@ test.describe('Loading an encrypted archive', () => {
     // Then the storage-choice screen next.
     await page.getByTestId('storage-choice-local').click();
 
-    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({
-      timeout: 60_000,
-    });
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible();
 
     // Step 2: Export the database and capture the downloaded file.
     // The export button lives on the Data & Backup tab of the Settings page.
     const [download] = await Promise.all([
-      page.waitForEvent('download', { timeout: 60_000 }),
+      page.waitForEvent('download'),
       (async () => {
         await page.getByRole('button', { name: 'Settings' }).click();
         await page
@@ -262,7 +251,7 @@ test.describe('Loading an encrypted archive', () => {
 
       await expect(
         freshPage.getByRole('button', { name: 'Load from File' })
-      ).toBeVisible({ timeout: 30_000 });
+      ).toBeVisible();
 
       // Step 4: Load the exported encrypted file. The app opens a native
       // file picker from a detached input element, so intercept the
@@ -300,7 +289,7 @@ test.describe('Loading an encrypted archive', () => {
     await bootstrapDatabase(page, { loadSampleData: false, password: TEST_PASSWORD });
 
     const [download] = await Promise.all([
-      page.waitForEvent('download', { timeout: 60_000 }),
+      page.waitForEvent('download'),
       (async () => {
         await page.getByRole('button', { name: 'Settings' }).click();
         await page.getByRole('tab', { name: 'Data & Backup' }).click({ timeout: 10_000 });
@@ -332,9 +321,7 @@ test.describe('Loading an encrypted archive', () => {
     });
 
     await page.reload();
-    await expect(page.getByRole('button', { name: 'Load from File' })).toBeVisible({
-      timeout: 30_000,
-    });
+    await expect(page.getByRole('button', { name: 'Load from File' })).toBeVisible();
 
     const [fileChooser] = await Promise.all([
       page.waitForEvent('filechooser', { timeout: 10_000 }),
@@ -348,10 +335,8 @@ test.describe('Loading an encrypted archive', () => {
     await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
     await page.getByRole('button', { name: 'Unlock' }).click();
 
-    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId('database-status-text')).toHaveText('Connected', {
-      timeout: 60_000,
-    });
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible();
+    await expect(page.getByTestId('database-status-text')).toHaveText('Connected');
 
     // The exported data (not just a blank database) is what came back.
     const primaryUserName = await runQueryAndReadFirstCell(
@@ -375,7 +360,7 @@ test.describe('Loading an encrypted archive', () => {
     await page.goto('/');
 
     const createButton = page.getByRole('button', { name: 'Create New Database' });
-    await expect(createButton).toBeVisible({ timeout: 30_000 });
+    await expect(createButton).toBeVisible();
     await createButton.click();
 
     await expect(page.getByText('Set Up Your Database')).toBeVisible({
@@ -411,7 +396,7 @@ test.describe('Changing the database password', () => {
     await page.getByLabel('Confirm New Password').fill(NEW_PASSWORD);
     await page.getByRole('button', { name: 'Change Password' }).click();
 
-    await expect(page.getByText('Password updated.')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Password updated.')).toBeVisible();
 
     await page.getByRole('button', { name: 'Close settings' }).click();
 
@@ -420,23 +405,21 @@ test.describe('Changing the database password', () => {
     await page.reload();
 
     const passwordInput = page.getByLabel('Password', { exact: true });
-    await expect(passwordInput).toBeVisible({ timeout: 30_000 });
+    await expect(passwordInput).toBeVisible();
 
     // The old password must no longer work — every physically-stored block
     // was re-encrypted under the new key.
     await passwordInput.fill(TEST_PASSWORD);
     await page.getByRole('button', { name: 'Unlock' }).click();
-    await expect(page.getByText(/incorrect password/i)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/incorrect password/i)).toBeVisible();
     await expect(page.getByRole('button', { name: 'SQL Query' })).not.toBeVisible();
 
     // The new password unlocks it, and the data survived re-encryption intact.
     await passwordInput.fill(NEW_PASSWORD);
     await page.getByRole('button', { name: 'Unlock' }).click();
 
-    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId('database-status-text')).toHaveText('Connected', {
-      timeout: 60_000,
-    });
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible();
+    await expect(page.getByTestId('database-status-text')).toHaveText('Connected');
 
     const primaryUserName = await runQueryAndReadFirstCell(
       page,

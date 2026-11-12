@@ -8,6 +8,9 @@ import {
 } from './helpers/bootstrap';
 
 const SAMPLE_DATA_TRANSACTION_LIMIT = 500;
+/** CADENCE_HALF_WINDOW_DAYS.monthly in src/lib/notificationService.ts. */
+const MONTHLY_PAYMENT_HALF_WINDOW_DAYS = 15;
+const NO_UNPAID_SERIES = '(none)';
 
 async function bootstrapDatabase(page: Page) {
   await bootstrapDatabaseWithOptions(page, { sampleDataTransactionLimit: SAMPLE_DATA_TRANSACTION_LIMIT });
@@ -97,12 +100,38 @@ test('a manually paid series with a due day in range raises a payment alert, whi
   await expect(page.getByText(/Scan complete/)).toBeVisible({ timeout: 120_000 });
   await expect(page.getByRole('columnheader', { name: 'Payment' }).first()).toBeVisible({ timeout: 30_000 });
 
-  // Open the first series and make it an active, manually paid bill due today.
-  await page.getByRole('button', { name: 'View transactions' }).first().click();
+  // The scan counts a bill as paid when a linked payment lands within half a
+  // cycle of its due date (src/lib/notificationService.ts, hasPaymentInWindow),
+  // so a series charged in the last 15 days raises no alert when made due
+  // today. Pick the monthly series whose latest payment is the oldest and
+  // check it is outside that window. The sample bills fall on days spread
+  // across the month, so one always is, whatever today's date.
+  const seriesName = await runQueryAndReadFirstCell(
+    page,
+    `SELECT COALESCE((
+       SELECT rs.name FROM recurring_series rs
+         JOIN transaction_series_links tsl ON tsl.series_id = rs.id
+         JOIN transactions t ON t.id = tsl.transaction_id
+        WHERE rs.cadence = 'monthly'
+        GROUP BY rs.id
+       HAVING MAX(t.date) < '${localDatePlusDays(-MONTHLY_PAYMENT_HALF_WINDOW_DAYS)}'
+        ORDER BY MAX(t.date) ASC, rs.id ASC
+        LIMIT 1
+     ), '${NO_UNPAID_SERIES}') AS name;`
+  );
+  expect(seriesName, 'a monthly sample series with no payment in the last 15 days').not.toBe(NO_UNPAID_SERIES);
+
+  // Open that series and make it an active, manually paid bill due today.
+  await navigateToPage(page, 'subscriptions');
+  await page
+    .getByRole('row')
+    .filter({ has: page.getByText(seriesName, { exact: true }) })
+    .first()
+    .getByRole('button', { name: 'View transactions' })
+    .click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible({ timeout: 30_000 });
-  const seriesName = (await dialog.locator('h2').first().textContent())?.trim() ?? '';
-  expect(seriesName.length).toBeGreaterThan(0);
+  await expect(dialog.locator('h2').first()).toHaveText(seriesName);
 
   await dialog.getByRole('combobox', { name: 'Status' }).click();
   await page.getByRole('option', { name: 'Active', exact: true }).click();

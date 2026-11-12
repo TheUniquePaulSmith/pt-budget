@@ -81,6 +81,15 @@ type MockService = {
 };
 
 const mockedDatabaseService = vi.mocked(DatabaseService);
+
+// The hook constructs the service with `new`, and Vitest 4 calls a mock's
+// implementation with `new` too, so it must be a function, not an arrow.
+function constructDatabaseServiceAs(service: unknown) {
+  mockedDatabaseService.mockImplementation(function () {
+    return service as DatabaseService;
+  });
+}
+
 const mockedShouldLoadSampleData = vi.mocked(
   SampleDataService.shouldLoadSampleData
 );
@@ -232,7 +241,7 @@ describe('useDatabaseInitialization', () => {
         dbExistsBeforeInit: true,
         isEncryptionReady: vi.fn().mockResolvedValue(false),
       });
-      mockedDatabaseService.mockImplementation(() => service as unknown as DatabaseService);
+      constructDatabaseServiceAs(service);
       const loadAllData = vi.fn().mockResolvedValue(undefined);
       const states: string[] = [];
 
@@ -259,7 +268,7 @@ describe('useDatabaseInitialization', () => {
         isEncryptionReady: vi.fn().mockResolvedValue(false),
         unlockDatabase: vi.fn().mockRejectedValue(new Error('Incorrect password')),
       });
-      mockedDatabaseService.mockImplementation(() => service as unknown as DatabaseService);
+      constructDatabaseServiceAs(service);
       const loadAllData = vi.fn().mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useDatabaseInitialization({ loadAllData }));
@@ -279,7 +288,7 @@ describe('useDatabaseInitialization', () => {
         dbExistsBeforeInit: false,
         isEncryptionReady: vi.fn().mockResolvedValue(false),
       });
-      mockedDatabaseService.mockImplementation(() => service as unknown as DatabaseService);
+      constructDatabaseServiceAs(service);
       mockedShouldLoadSampleData.mockReturnValue(false);
       const loadAllData = vi.fn().mockResolvedValue(undefined);
 
@@ -309,7 +318,7 @@ describe('useDatabaseInitialization', () => {
         dbExistsBeforeInit: true,
         isEncryptionReady: vi.fn().mockResolvedValue(false),
       });
-      mockedDatabaseService.mockImplementation(() => service as unknown as DatabaseService);
+      constructDatabaseServiceAs(service);
       const loadAllData = vi.fn().mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useDatabaseInitialization({ loadAllData }));
@@ -345,9 +354,7 @@ describe('useDatabaseInitialization', () => {
       dbExistsBeforeInit: true,
       isEncryptionReady: vi.fn().mockResolvedValue(false),
     });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
@@ -383,9 +390,7 @@ describe('useDatabaseInitialization', () => {
       dbExistsBeforeInit: true,
       isEncryptionReady: vi.fn().mockResolvedValue(true),
     });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
@@ -414,9 +419,7 @@ describe('useDatabaseInitialization', () => {
         terminate,
       })),
     });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
 
     const { result } = renderHook(() =>
       useDatabaseInitialization({ loadAllData: vi.fn().mockResolvedValue(undefined) })
@@ -454,9 +457,7 @@ describe('useDatabaseInitialization', () => {
         })),
         ...overrides,
       });
-      mockedDatabaseService.mockImplementation(
-        () => service as unknown as DatabaseService
-      );
+      constructDatabaseServiceAs(service);
 
       const rendered = renderHook(() =>
         useDatabaseInitialization({ loadAllData: vi.fn().mockResolvedValue(undefined) })
@@ -512,9 +513,7 @@ describe('useDatabaseInitialization', () => {
       isEncryptionReady: vi.fn().mockResolvedValue(false),
       unlockDatabase: vi.fn().mockRejectedValue(new Error('Incorrect password')),
     });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
@@ -539,9 +538,7 @@ describe('useDatabaseInitialization', () => {
       dbExistsBeforeInit: false,
       isEncryptionReady: vi.fn().mockResolvedValue(false),
     });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
@@ -563,9 +560,7 @@ describe('useDatabaseInitialization', () => {
 
   it('handlePasswordSetupConfirmed creates the database with the password and loads sample data when requested', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedShouldLoadSampleData.mockReturnValue(true);
     mockedLoadAllSampleData.mockResolvedValue(undefined);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
@@ -601,9 +596,7 @@ describe('useDatabaseInitialization', () => {
 
   it('cancels sample data import and recreates the database, then proceeds to needs-preferences', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedShouldLoadSampleData.mockReturnValue(true);
     mockedLoadAllSampleData.mockImplementation(
       ({ signal, onProgress } = {}) =>
@@ -669,9 +662,7 @@ describe('useDatabaseInitialization', () => {
 
   it('loads a database file through the initialized service', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
     // Use a mock file whose arrayBuffer returns non-encrypted bytes so the
     // hook falls through to the service without showing the password screen.
@@ -703,9 +694,7 @@ describe('useDatabaseInitialization', () => {
 
   it('goes to needs-preferences after password setup completes, right after password entry', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedShouldLoadSampleData.mockReturnValue(false);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
@@ -728,9 +717,7 @@ describe('useDatabaseInitialization', () => {
 
   it('handleInitialAccountConfirmed creates the account for the newly-created primary user, then goes to needs-storage-choice', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedShouldLoadSampleData.mockReturnValue(false);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
@@ -762,9 +749,7 @@ describe('useDatabaseInitialization', () => {
 
   it('handlePreferencesConfirmed saves the default currency and the initial account starts with it', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedShouldLoadSampleData.mockReturnValue(false);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
@@ -803,9 +788,7 @@ describe('useDatabaseInitialization', () => {
       dbExistsBeforeInit: false,
       preferences: { setDefaultCurrency: vi.fn().mockRejectedValue(new Error('locked')) },
     });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedShouldLoadSampleData.mockReturnValue(false);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
@@ -830,9 +813,7 @@ describe('useDatabaseInitialization', () => {
 
   it('skipInitialAccount goes to needs-storage-choice without creating an account', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedShouldLoadSampleData.mockReturnValue(false);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
@@ -860,9 +841,7 @@ describe('useDatabaseInitialization', () => {
 
   it('handleStorageChoiceSelected(local) goes straight to initialized without touching cloud sync', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedShouldLoadSampleData.mockReturnValue(false);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
@@ -895,9 +874,7 @@ describe('useDatabaseInitialization', () => {
 
   it('handleStorageChoiceSelected(gdrive) authenticates interactively then syncs, landing on initialized', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedShouldLoadSampleData.mockReturnValue(false);
     const authenticate = vi.fn().mockResolvedValue(undefined);
     mockedCreateCloudProviderClient.mockReturnValue({ authenticate } as any);
@@ -935,9 +912,7 @@ describe('useDatabaseInitialization', () => {
 
   it('a storage-choice sync failure stays on needs-storage-choice with an error, not initialized', async () => {
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedShouldLoadSampleData.mockReturnValue(false);
     mockedCreateCloudProviderClient.mockReturnValue({
       authenticate: vi.fn().mockRejectedValue(new Error('popup blocked')),
@@ -973,9 +948,7 @@ describe('useDatabaseInitialization', () => {
   it('needs-cloud-auth: connectCloudSource lists files into the cloud file picker', async () => {
     document.cookie = 'budgetTrackerDatabaseSource=gdrive; path=/';
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedReconcileOnOpen.mockResolvedValue('no-link');
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
@@ -1011,9 +984,7 @@ describe('useDatabaseInitialization', () => {
     // stays 'local' for both this failed attempt and the retry below, since neither
     // ever persists a source change.
     const service = createServiceMock({ dbExistsBeforeInit: false });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
@@ -1070,9 +1041,7 @@ describe('useDatabaseInitialization', () => {
       dbExistsBeforeInit: false,
       isEncryptionReady: vi.fn().mockResolvedValue(false),
     });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedReconcileOnOpen.mockResolvedValue('no-link');
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
@@ -1151,9 +1120,7 @@ describe('useDatabaseInitialization', () => {
       isEncryptionReady: vi.fn().mockResolvedValue(false),
       unlockDatabase: vi.fn().mockRejectedValue(new Error('Incorrect password')),
     });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
@@ -1191,9 +1158,7 @@ describe('useDatabaseInitialization', () => {
       dbExistsBeforeInit: true,
       isEncryptionReady: vi.fn().mockResolvedValue(false),
     });
-    mockedDatabaseService.mockImplementation(
-      () => service as unknown as DatabaseService
-    );
+    constructDatabaseServiceAs(service);
     mockedReconcileOnOpen.mockResolvedValue('in-sync');
     const loadAllData = vi.fn().mockResolvedValue(undefined);
 

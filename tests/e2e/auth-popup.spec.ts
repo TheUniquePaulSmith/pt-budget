@@ -80,7 +80,8 @@ test('@smoke opens a Google Drive backup through the popup OAuth + file picker f
     await expect(picker).toBeVisible();
     await expect(picker.getByText(BACKUP_FILE_NAME)).toBeVisible();
 
-    await freshPage.getByRole('button', { name: 'Open' }).click();
+    // exact: the dev server's "Open Next.js Dev Tools" button also contains "Open".
+    await freshPage.getByRole('button', { name: 'Open', exact: true }).click();
 
     // This is a brand-new worker with no encryption key yet, and the
     // downloaded archive is encrypted, so the password screen must appear

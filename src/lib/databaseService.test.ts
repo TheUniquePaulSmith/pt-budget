@@ -626,6 +626,111 @@ describe('DatabaseService file operations', () => {
     );
   });
 
+  it('importDatabaseArchiveData decrypts with the given options and imports the snapshot', async () => {
+    const innerBytes = await buildInnerArchive();
+    const encryptedBytes = await buildEncryptedEnvelope(innerBytes);
+    const decryptArchive = vi.fn().mockResolvedValue(innerBytes);
+    const importDatabaseSnapshot = vi.fn().mockResolvedValue({ isSuccessful: true });
+    const service = new DatabaseService(
+      createWorkerTransportStub({ decryptArchive, importDatabaseSnapshot })
+    );
+
+    await service.importDatabaseArchiveData(encryptedBytes, { adoptMasterSlot: true });
+
+    expect(decryptArchive).toHaveBeenCalledWith(encryptedBytes, { adoptMasterSlot: true });
+    expect(importDatabaseSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ format: 'wa-sqlite-idb-batch-atomic-v1', idbName: 'ptbudgetapp' })
+    );
+  });
+
+  it('importDatabaseArchiveData refuses an unencrypted archive before reaching the worker', async () => {
+    const decryptArchive = vi.fn();
+    const importDatabaseSnapshot = vi.fn();
+    const service = new DatabaseService(
+      createWorkerTransportStub({ decryptArchive, importDatabaseSnapshot })
+    );
+
+    await expect(service.importDatabaseArchiveData(await buildInnerArchive())).rejects.toThrow(
+      'Unencrypted archives are no longer supported'
+    );
+    expect(decryptArchive).not.toHaveBeenCalled();
+    expect(importDatabaseSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('importDatabaseArchiveData falls back to a generic error when the worker gives none', async () => {
+    const innerBytes = await buildInnerArchive();
+    const encryptedBytes = await buildEncryptedEnvelope(innerBytes);
+    const service = new DatabaseService(
+      createWorkerTransportStub({
+        decryptArchive: vi.fn().mockResolvedValue(innerBytes),
+        importDatabaseSnapshot: vi.fn().mockResolvedValue({ isSuccessful: false }),
+      })
+    );
+
+    await expect(service.importDatabaseArchiveData(encryptedBytes)).rejects.toThrow(
+      'Failed to import database archive'
+    );
+  });
+
+  it('canDecryptArchive is true only when the worker opens the archive with that master', async () => {
+    const encryptedBytes = await buildEncryptedEnvelope(await buildInnerArchive());
+    const master = { type: 'password', secret: 'test-password' } as const;
+    const decryptArchive = vi
+      .fn()
+      .mockResolvedValueOnce(new Uint8Array([1]))
+      .mockRejectedValueOnce(new Error('wrong password'));
+    const service = new DatabaseService(createWorkerTransportStub({ decryptArchive }));
+
+    await expect(service.canDecryptArchive(encryptedBytes, master)).resolves.toBe(true);
+    expect(decryptArchive).toHaveBeenLastCalledWith(encryptedBytes, { master });
+    await expect(service.canDecryptArchive(encryptedBytes, master)).resolves.toBe(false);
+  });
+
+  it('canDecryptArchive is false for bytes that are not an encrypted archive, without asking the worker', async () => {
+    const decryptArchive = vi.fn();
+    const service = new DatabaseService(createWorkerTransportStub({ decryptArchive }));
+
+    await expect(
+      service.canDecryptArchive(await buildInnerArchive(), { type: 'password', secret: 'test-password' })
+    ).resolves.toBe(false);
+    expect(decryptArchive).not.toHaveBeenCalled();
+  });
+
+  it('getDatabaseStatus counts rows per table and takes the newest created_at/updated_at', async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.startsWith('SELECT name FROM sqlite_master')) {
+        return [{ name: 'accounts' }, { name: 'app_metadata' }, { name: 'notes' }];
+      }
+      if (sql.startsWith('SELECT COUNT(*)')) {
+        return [{ count: sql.includes('"accounts"') ? 2 : 1 }];
+      }
+      if (sql === 'PRAGMA table_info("accounts")') {
+        return [{ name: 'id' }, { name: 'created_at' }, { name: 'updated_at' }];
+      }
+      if (sql === 'PRAGMA table_info("app_metadata")') {
+        return [{ name: 'key' }, { name: 'updated_at' }];
+      }
+      if (sql.startsWith('PRAGMA table_info')) {
+        return [{ name: 'id' }, { name: 'body' }];
+      }
+      if (sql.includes('FROM "accounts"')) {
+        return [{ created_at: '2026-03-01T00:00:00.000Z', updated_at: '2026-04-02T00:00:00.000Z' }];
+      }
+      if (sql.includes('FROM "app_metadata"')) {
+        return [{ updated_at: '2026-05-03T00:00:00.000Z' }];
+      }
+      return [];
+    });
+    const service = new DatabaseService(createWorkerTransportStub({ query }));
+
+    await expect(service.getDatabaseStatus()).resolves.toEqual({
+      lastWriteTimestamp: '2026-05-03T00:00:00.000Z',
+      tableStats: { accounts: 2, app_metadata: 1, notes: 1 },
+    });
+    // A table with neither timestamp column is never asked for one.
+    expect(query.mock.calls.some(([sql]) => sql.includes('MAX(') && sql.includes('"notes"'))).toBe(false);
+  });
+
   it('exports an encrypted archive whose inner ZIP contains the snapshot and dbstatus', async () => {
     // Capture the inner archive bytes that encryptArchive receives.
     let capturedInnerBytes: Uint8Array | null = null;

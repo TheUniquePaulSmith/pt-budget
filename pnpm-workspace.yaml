@@ -3,3 +3,10 @@ allowBuilds:
   esbuild: true
   sharp: true
   unrs-resolver: true
+
+# Security patches the parent packages' own ranges cannot reach. Drop each one
+# once its parent moves past it.
+overrides:
+  # Next 15.5 pins postcss 8.4.31 (sourceMappingURL file-read advisories);
+  # Next 16 ships 8.5.23 itself.
+  'next>postcss': 8.5.23

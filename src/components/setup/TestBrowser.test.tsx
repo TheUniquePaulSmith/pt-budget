@@ -21,7 +21,8 @@ class SharedWorkerMock {
 
 let lastWorker: SharedWorkerMock | null = null;
 
-const sharedWorkerConstructor = vi.fn(() => {
+// A function, not an arrow: the component calls it with `new`.
+const sharedWorkerConstructor = vi.fn(function () {
   lastWorker = new SharedWorkerMock();
   return lastWorker as unknown as SharedWorker;
 });

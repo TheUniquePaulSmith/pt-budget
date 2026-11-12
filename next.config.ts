@@ -67,7 +67,12 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  // This folder is the workspace root. Without these, Next 15.5 picks the
+  // outermost lockfile it finds above the project (a stray one in a parent
+  // folder, or the main checkout's when running in .claude/worktrees/*).
+  outputFileTracingRoot: __dirname,
   turbopack: {
+    root: __dirname,
     resolveAlias: {
       fs: {browser: './empty.js'},
       path: {browser: './empty.js'},

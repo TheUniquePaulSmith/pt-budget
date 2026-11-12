@@ -91,7 +91,7 @@ test('@smoke imports a card file: the assumed account is confirmed and positive 
   await expect(page.getByTestId('import-summary-accounts')).toContainText('Rewards Visa');
   await expect(page.getByTestId('import-summary-money-out')).toHaveText(/\$86\.55/);
   await expect(page.getByTestId('import-remember')).toBeChecked();
-  await expect(page.getByTestId('import-run')).toHaveText('Import 3 transactions', { timeout: 30_000 });
+  await expect(page.getByTestId('import-run')).toHaveText('Import 3 transactions');
 
   await runImport(page);
   await expect(page.getByTestId('import-result-0')).toContainText('3 transactions imported');
@@ -136,7 +136,7 @@ test('takes a file in a known format straight to the summary, with the details o
   await expect(page.getByTestId('import-fast-path')).toContainText('Same format as last time');
   await expect(page.getByTestId('import-summary-accounts')).toContainText(CHECKING);
   await expect(page.getByTestId('import-summary-total')).toHaveText(/5$/);
-  await expect(page.getByTestId('import-summary-already')).toHaveText(/3$/, { timeout: 30_000 });
+  await expect(page.getByTestId('import-summary-already')).toHaveText(/3$/);
   await expect(page.getByTestId('import-run')).toHaveText('Import 2 transactions');
   await runImport(page);
   expect(await readImportResult(page)).toEqual({ inserted: 2, duplicates: 3 });
@@ -156,7 +156,7 @@ test('takes a file in a known format straight to the summary, with the details o
   await openImportWizard(page);
   await addStatementFiles(page, REPEAT_CSV);
   expect(await startImport(page)).toBe('summary');
-  await expect(page.getByTestId('import-nothing-new')).toContainText('All 5 rows in this file are already imported.', { timeout: 30_000 });
+  await expect(page.getByTestId('import-nothing-new')).toContainText('All 5 rows in this file are already imported.');
   await page.getByTestId('import-review-details').click();
   await waitForWizardStep(page, 'account');
   // Off the fast path the remembered account is shown as what it is: an assumption to confirm.
@@ -223,7 +223,7 @@ test('keeps Import out of reach until unreadable rows are fixed or left out', as
 
   await nextWizardStep(page, 'summary');
   await expect(page.getByTestId('import-summary-skipped')).toHaveText(/1$/);
-  await expect(page.getByTestId('import-run')).toHaveText('Import 2 transactions', { timeout: 30_000 });
+  await expect(page.getByTestId('import-run')).toHaveText('Import 2 transactions');
   await runImport(page);
   expect(await readImportResult(page)).toEqual({ inserted: 2, duplicates: 0 });
   await expect(page.getByTestId('import-result-0')).toContainText('1 row was left out');
@@ -389,15 +389,15 @@ test('imports two files in one run, one batch per file, with one combined result
   await confirmReadingSettings(page);
   await nextWizardStep(page, 'review');
   await nextWizardStep(page, 'summary');
-  await expect(page.getByTestId('import-run')).toHaveText('Import 3 transactions', { timeout: 30_000 });
+  await expect(page.getByTestId('import-run')).toHaveText('Import 3 transactions');
   await page.getByTestId('import-run').click();
 
   // ...and is committed before the second is touched, which then finds the
   // format the first one just saved and the rows it just wrote.
-  await expect(page.getByTestId('import-queue-label')).toHaveText('File 2 of 2: sample-import-repeat.csv', { timeout: 60_000 });
+  await expect(page.getByTestId('import-queue-label')).toHaveText('File 2 of 2: sample-import-repeat.csv');
   await waitForWizardStep(page, 'summary');
   await expect(page.getByTestId('import-fast-path')).toBeVisible();
-  await expect(page.getByTestId('import-run')).toHaveText('Import 2 transactions', { timeout: 30_000 });
+  await expect(page.getByTestId('import-run')).toHaveText('Import 2 transactions');
   await runImport(page);
 
   expect(await readImportResult(page)).toEqual({ inserted: 5, duplicates: 3 });
@@ -450,7 +450,7 @@ test('creates an account (and a person) without leaving the import, and leaves a
   await expect(form.getByRole('combobox').first()).toHaveText('Import Person');
   await form.getByLabel(/Account Name/).fill('Imported Checking');
   await form.getByTestId('import-account-create').click();
-  await expect(first).toHaveAttribute('data-status', 'chosen', { timeout: 30_000 });
+  await expect(first).toHaveAttribute('data-status', 'chosen');
   await expect(page.getByTestId('import-account-0-select')).toContainText('Imported Checking');
   await expect(form).toBeHidden();
 
@@ -466,7 +466,7 @@ test('creates an account (and a person) without leaving the import, and leaves a
   await nextWizardStep(page, 'summary');
   await expect(page.getByTestId('import-summary-accounts')).toContainText('Imported Checking');
   await expect(page.getByTestId('import-summary-skipped')).toHaveText(/1$/);
-  await expect(page.getByTestId('import-run')).toHaveText('Import 2 transactions', { timeout: 30_000 });
+  await expect(page.getByTestId('import-run')).toHaveText('Import 2 transactions');
   await runImport(page);
   expect(await readImportResult(page)).toEqual({ inserted: 2, duplicates: 0 });
   await closeImport(page);
@@ -485,11 +485,11 @@ test('creates an account (and a person) without leaving the import, and leaves a
   // And the Accounts page lists it under its owner (grouped per person; expand when collapsed).
   await navigateToPage(page, 'accounts');
   const accountName = page.getByText('Imported Checking').first();
-  await expect(accountName).toBeAttached({ timeout: 30_000 });
+  await expect(accountName).toBeAttached();
   if (!(await accountName.isVisible())) {
     await page.getByRole('button', { name: /Import Person/ }).first().click();
   }
-  await expect(accountName).toBeVisible({ timeout: 30_000 });
+  await expect(accountName).toBeVisible();
 });
 
 test('works on a phone: every step fits a 390 px screen', async ({ page }) => {

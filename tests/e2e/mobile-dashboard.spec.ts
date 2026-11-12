@@ -39,9 +39,7 @@ test('@smoke dashboard charts and tabs fit a phone viewport without horizontal o
 
   // Sample data reaches into the current month, so the default "This Month"
   // range renders real pie slices rather than the empty state.
-  await expect(page.locator('[class*="MuiPieArc"]').first()).toBeVisible({
-    timeout: 120_000,
-  });
+  await expect(page.locator('[class*="MuiPieArc"]').first()).toBeVisible();
 
   await page.setViewportSize(MOBILE_VIEWPORT);
 

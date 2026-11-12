@@ -52,8 +52,8 @@ async function openSecurityTab(page: Page) {
 }
 
 async function expectConnected(page: Page) {
-  await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByTestId('database-status-text')).toHaveText('Connected', { timeout: 120_000 });
+  await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible();
+  await expect(page.getByTestId('database-status-text')).toHaveText('Connected');
 }
 
 async function unlockWithPassword(page: Page) {
@@ -134,7 +134,7 @@ test.describe('Passkey unlock (WebAuthn PRF via virtual authenticator)', () => {
     await expect(page.getByTestId('passkeys-section')).toBeVisible();
     await expect(page.getByTestId('passkey-slot')).toHaveCount(0);
     await page.getByTestId('add-passkey').click();
-    await expect(page.getByTestId('passkey-slot')).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.getByTestId('passkey-slot')).toHaveCount(1);
     await expect(page.getByTestId('passkey-label')).toHaveText(/^Passkey added /);
     await expect(page.getByText('Passkey added. You can now use it to unlock this database on this device.')).toBeVisible();
     expect(prfOutputs.length).toBeGreaterThan(0);
@@ -150,7 +150,7 @@ test.describe('Passkey unlock (WebAuthn PRF via virtual authenticator)', () => {
     // --- first load after a reload: passkey view leads, nothing auto-runs ---
     await page.reload();
     const passkeyButton = page.getByTestId('unlock-method-passkey');
-    await expect(passkeyButton).toBeVisible({ timeout: 60_000 });
+    await expect(passkeyButton).toBeVisible();
     await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
     // Still locked a moment later: no prompt was started by itself at load.
     await page.waitForTimeout(1_000);
@@ -168,7 +168,7 @@ test.describe('Passkey unlock (WebAuthn PRF via virtual authenticator)', () => {
 
     // --- fallback to the master form and back -------------------------------
     await page.reload();
-    await expect(passkeyButton).toBeVisible({ timeout: 60_000 });
+    await expect(passkeyButton).toBeVisible();
     await page.getByTestId('unlock-method-master').click();
     const passwordInput = page.getByLabel('Password', { exact: true });
     await expect(passwordInput).toBeVisible();
@@ -180,7 +180,7 @@ test.describe('Passkey unlock (WebAuthn PRF via virtual authenticator)', () => {
 
     // After a password unlock the master form leads next time.
     await page.reload();
-    await expect(passwordInput).toBeVisible({ timeout: 60_000 });
+    await expect(passwordInput).toBeVisible();
     await expect(passkeyButton).toHaveCount(0);
     await expect(page.getByTestId('unlock-method-passkey-switch')).toBeVisible();
     await page.getByTestId('unlock-method-passkey-switch').click();
@@ -197,7 +197,7 @@ test.describe('Passkey unlock (WebAuthn PRF via virtual authenticator)', () => {
     await openSecurityTab(page);
     await page.getByRole('button', { name: 'Lock Database' }).click();
     // The remembered passkey starts by itself, fails, and leaves the button.
-    await expect(page.getByText('The passkey request was cancelled.')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('The passkey request was cancelled.')).toBeVisible();
     await expect(passkeyButton).toBeEnabled();
     await passkeyButton.click();
     await expect(page.getByText('The passkey request was cancelled.')).toBeVisible();
@@ -214,7 +214,7 @@ test.describe('Passkey unlock (WebAuthn PRF via virtual authenticator)', () => {
     await page.getByRole('button', { name: 'Close settings' }).click();
 
     await page.reload();
-    await expect(passwordInput).toBeVisible({ timeout: 60_000 });
+    await expect(passwordInput).toBeVisible();
     await expect(passkeyButton).toHaveCount(0);
     await expect(page.getByTestId('unlock-method-passkey-switch')).toHaveCount(0);
     await unlockWithPassword(page);

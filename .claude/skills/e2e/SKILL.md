@@ -7,10 +7,13 @@ argument-hint: "[spec file or --grep pattern]"
 # E2E tests (Playwright)
 
 Facts about the setup:
-- Chromium only, `workers: 1`, `maxFailures: 1`.
+- Chromium only, `maxFailures: 1`, 4 workers locally and 2 on CI (spec files run side by side; tests within a
+  file stay in order). Every test has its own browser context, so its own SharedWorker and database.
 - `playwright.config.ts` targets `http://localhost:3000` with `reuseExistingServer: true`, and that file is frozen.
 - Specs tagged `@smoke` in the test title make up `npm run test:e2e:smoke`, which is what CI runs.
-- The full suite takes several minutes.
+- On 4 workers the smoke set takes about a minute and the full suite about four (with `--workers=1`: 2 and 10.5).
+- Assertions, actions and `waitFor*` give up after 20 s (config defaults; specs pass no timeouts of their own), the
+  setup and unlock helpers after 30 s (`APP_READY_TIMEOUT_MS`). A healthy setup takes 2–3 s.
 
 ## 1. Before running
 
@@ -66,6 +69,8 @@ Look in `test-results/<spec>-<test>-chromium/`: `error-context.md` (an accessibi
 6. **Cloud buttons disabled**: the server wasn't started by Playwright (see above).
 7. **Passes alone, fails in the suite**: state is leaking between tests in the same worker. Every test gets a new context,
    but a failed WebAuthn UV assertion poisons the virtual authenticator (see the reference).
+8. **Fails only when several workers run**: rerun it with `--workers=1`. If it passes then, the test depends on timing
+   under load; wait for a condition (`expect(...)`, `aria-expanded`, a test id appearing) instead of a fixed delay.
 
 Then reproduce the narrowest case: a single test with `-g`, and add `--headed` only if you can look at it.
 
@@ -83,3 +88,6 @@ The rules that matter most:
 - Tests match **English** text. The app language is a device preference that defaults to en-US, so don't set it in e2e
   unless the test is about localization.
 - Add `@smoke` to a test title only for a fast, high-value path. CI runs every `@smoke` test on every PR.
+- Don't pass `{ timeout }` to assertions, actions or `waitFor*`. The config gives each 20 s, and no step outside the
+  setup helpers has measured above ~7 s, so a long override only makes a failure slower to report. A step that
+  really needs longer gets a named constant with a comment on why, like `APP_READY_TIMEOUT_MS`.

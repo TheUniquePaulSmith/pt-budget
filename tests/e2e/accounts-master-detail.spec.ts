@@ -16,7 +16,7 @@ test('edits an account and its cards through the master-detail form', async ({ p
   // Sample data ships several accounts; pick the Rewards Visa row.
   const grid = layout.getByRole('grid');
   const visaRow = grid.getByRole('row').filter({ hasText: 'Rewards Visa' }).first();
-  await expect(visaRow).toBeVisible({ timeout: 30_000 });
+  await expect(visaRow).toBeVisible();
   await visaRow.click();
 
   const form = page.getByTestId('account-detail-form');

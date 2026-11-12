@@ -76,7 +76,7 @@ test.describe('Recovery phrase as the master secret', () => {
     await page.getByRole('button', { name: 'Close settings' }).click();
 
     await page.reload();
-    await expect(page.getByText('Enter Recovery Phrase')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Enter Recovery Phrase')).toBeVisible();
     // The password form is not offered for a phrase-protected database.
     await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
 
@@ -95,8 +95,8 @@ test.describe('Recovery phrase as the master secret', () => {
     await expect(page.getByTestId('recovery-unlock')).toBeEnabled();
     await page.getByTestId('recovery-unlock').click();
 
-    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId('database-status-text')).toHaveText('Connected', { timeout: 60_000 });
+    await expect(page.getByRole('button', { name: 'SQL Query' })).toBeVisible();
+    await expect(page.getByTestId('database-status-text')).toHaveText('Connected');
     expect(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM users')).toBe('1');
   });
 
@@ -111,20 +111,20 @@ test.describe('Recovery phrase as the master secret', () => {
     const words = await readGeneratedWords(page);
     await confirmGeneratedWords(page, words);
     // The wrong current password is rejected and the dialog returns to step 1.
-    await expect(page.getByText(/incorrect/i)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/incorrect/i)).toBeVisible();
     await expect(page.getByTestId('switch-master-current-password')).toBeVisible();
 
     await page.getByTestId('switch-master-current-password').fill(TEST_PASSWORD);
     await page.getByTestId('switch-master-next').click();
     const words2 = await readGeneratedWords(page);
     await confirmGeneratedWords(page, words2);
-    await expect(page.getByText(/now protected by the recovery phrase/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/now protected by the recovery phrase/)).toBeVisible();
     await expect(page.getByTestId('master-type-description')).toHaveText(/recovery phrase/i);
     await page.getByRole('button', { name: 'Close settings' }).click();
 
     // The old password cannot be entered anymore: the lock screen asks for the phrase.
     await page.reload();
-    await expect(page.getByText('Enter Recovery Phrase')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Enter Recovery Phrase')).toBeVisible();
     await reloadAndUnlock(page, words2);
     expect(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM transactions')).toBe(transactionCount);
 
@@ -136,7 +136,7 @@ test.describe('Recovery phrase as the master secret', () => {
     await page.getByTestId('switch-master-new-password').fill('BackToPassword1!');
     await page.getByTestId('switch-master-confirm-password').fill('BackToPassword1!');
     await page.getByTestId('switch-master-submit').click();
-    await expect(page.getByText(/now protected by the new password/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/now protected by the new password/)).toBeVisible();
     // The switch dialog (whose own field is also labelled Current Password) must be gone before the Change Password form is checked.
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.getByLabel('Current Password')).toBeVisible();
@@ -150,7 +150,7 @@ test.describe('Recovery phrase as the master secret', () => {
     const { recoveryWords } = await bootstrapDatabase(page, { loadSampleData: false, masterType: 'recovery' });
 
     const [download] = await Promise.all([
-      page.waitForEvent('download', { timeout: 60_000 }),
+      page.waitForEvent('download'),
       (async () => {
         await page.getByRole('button', { name: 'Settings' }).click();
         await page.getByRole('tab', { name: 'Data & Backup' }).click({ timeout: 10_000 });
@@ -167,7 +167,7 @@ test.describe('Recovery phrase as the master secret', () => {
       await freshPage.goto('/');
 
       const loadButton = freshPage.getByRole('button', { name: 'Load from File' });
-      await expect(loadButton).toBeVisible({ timeout: 30_000 });
+      await expect(loadButton).toBeVisible();
       const [fileChooser] = await Promise.all([
         freshPage.waitForEvent('filechooser', { timeout: 10_000 }),
         loadButton.click(),
@@ -175,12 +175,12 @@ test.describe('Recovery phrase as the master secret', () => {
       await fileChooser.setFiles(exportedPath!);
 
       // The archive header says which secret it needs: the phrase form, not the password form.
-      await expect(freshPage.getByText('Enter Recovery Phrase')).toBeVisible({ timeout: 30_000 });
+      await expect(freshPage.getByText('Enter Recovery Phrase')).toBeVisible();
       await freshPage.getByTestId('recovery-phrase-input').fill(recoveryWords!.join(' '));
       await freshPage.getByTestId('recovery-unlock').click();
 
-      await expect(freshPage.getByRole('button', { name: 'SQL Query' })).toBeVisible({ timeout: 120_000 });
-      await expect(freshPage.getByTestId('database-status-text')).toHaveText('Connected', { timeout: 120_000 });
+      await expect(freshPage.getByRole('button', { name: 'SQL Query' })).toBeVisible();
+      await expect(freshPage.getByTestId('database-status-text')).toHaveText('Connected');
       expect(await runQueryAndReadFirstCell(freshPage, 'SELECT COUNT(*) FROM users')).toBe('1');
 
       // The restored copy shares the backup's master slot: the same phrase unlocks it after a reload.

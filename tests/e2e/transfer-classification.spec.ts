@@ -48,7 +48,7 @@ test('@smoke detects transfer pairs and a refund while importing a file, and let
   // wording on both sides); the lone merchant credit on the card is a refund.
   // The pairs are listed with their legs; both are checked by default.
   const transfers = page.getByTestId('import-review-transfers');
-  await expect(transfers).toBeVisible({ timeout: 30_000 });
+  await expect(transfers).toBeVisible();
   const pairs = transfers.getByTestId('import-transfer-pair');
   await expect(pairs).toHaveCount(2);
   await expect(pairs.first()).toContainText('PYMT BY FUNDS TRANSFER');
@@ -58,7 +58,7 @@ test('@smoke detects transfer pairs and a refund while importing a file, and let
 
   await nextWizardStep(page, 'summary');
   await expect(page.getByTestId('import-summary-transfers')).toHaveText(/2$/);
-  await expect(page.getByTestId('import-run')).toHaveText('Import 6 transactions', { timeout: 30_000 });
+  await expect(page.getByTestId('import-run')).toHaveText('Import 6 transactions');
   await runImport(page);
   const result = page.getByTestId('import-result-0');
   await expect(result).toContainText('6 transactions imported');
@@ -97,14 +97,14 @@ test('@smoke detects transfer pairs and a refund while importing a file, and let
   // The Transactions page points at the automatically typed rows for review...
   await navigateToPage(page, 'transactions');
   const banner = page.getByTestId('type-review-banner');
-  await expect(banner).toBeVisible({ timeout: 30_000 });
+  await expect(banner).toBeVisible();
   await expect(banner).toContainText('typed automatically');
   await banner.getByRole('button', { name: 'Review' }).click();
   await expect(page.getByRole('checkbox', { name: 'Needs type review' })).toBeChecked();
 
   // ...where an unconfirmed transfer carries a dashed "Transfer?" chip and can be confirmed from its menu.
   const row = page.getByRole('row').filter({ has: page.getByText('PAYMENT - THANK YOU') }).first();
-  await expect(row).toBeVisible({ timeout: 30_000 });
+  await expect(row).toBeVisible();
   await expect(row.getByTestId('indicator-transfer')).toHaveText(/Transfer\?/);
   await row.getByTitle('More Actions').click();
   await page.getByTestId('row-action-confirm-type').click();
@@ -130,7 +130,7 @@ test('applies a type rule created from the Transactions page on the next auto-cl
   await addDialog.getByRole('combobox', { name: 'Account' }).click();
   await page.getByRole('option', { name: new RegExp(CHECKING_ACCOUNT_NAME, 'i') }).click();
   await addDialog.getByRole('button', { name: 'Add Transaction' }).click();
-  await expect(addDialog).not.toBeVisible({ timeout: 120_000 });
+  await expect(addDialog).not.toBeVisible();
 
   await navigateToPage(page, 'transactions');
   await page.getByTestId('transactions-type-rules').click();
@@ -141,15 +141,15 @@ test('applies a type rule created from the Transactions page on the next auto-cl
   const editor = page.getByRole('dialog', { name: 'Create Type Rule' });
   await editor.getByLabel('Description pattern').fill('Playwright Zelle To Self');
   // Transfer is the default type; the preview counts the row entered above.
-  await expect(editor.getByTestId('type-rule-preview')).toContainText('would apply to 1 existing transaction', { timeout: 30_000 });
+  await expect(editor.getByTestId('type-rule-preview')).toContainText('would apply to 1 existing transaction');
   await editor.getByRole('button', { name: 'Create Rule' }).click();
-  await expect(editor).not.toBeVisible({ timeout: 30_000 });
+  await expect(editor).not.toBeVisible();
   await expect(rulesDialog).toContainText('PLAYWRIGHT ZELLE TO SELF');
   await rulesDialog.getByRole('button', { name: 'Close' }).click();
 
   await page.getByTestId('transactions-auto-classify').click();
   const scanSummary = page.getByTestId('auto-classify-summary');
-  await expect(scanSummary).toBeVisible({ timeout: 60_000 });
+  await expect(scanSummary).toBeVisible();
   await expect(scanSummary).toContainText(/1 typed by rules/);
 
   expect(

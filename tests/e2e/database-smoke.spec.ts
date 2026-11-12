@@ -23,8 +23,8 @@ async function addTrip(page: Page, tripName: string) {
   await tripDialog.getByLabel('Trip Name').fill(tripName);
   await tripDialog.getByRole('button', { name: 'Add' }).click();
 
-  await expect(tripDialog).not.toBeVisible({ timeout: 120_000 });
-  await expect(page.getByText(tripName)).toBeVisible({ timeout: 120_000 });
+  await expect(tripDialog).not.toBeVisible();
+  await expect(page.getByText(tripName)).toBeVisible();
 }
 
 async function addTransactionFromDashboard(
@@ -55,7 +55,7 @@ async function addTransactionFromDashboard(
   await page.getByRole('option', { name: new RegExp(accountName, 'i') }).click();
   await transactionDialog.getByRole('button', { name: 'Add Transaction' }).click();
 
-  await expect(transactionDialog).not.toBeVisible({ timeout: 120_000 });
+  await expect(transactionDialog).not.toBeVisible();
 }
 
 async function createProject(page: Page, projectName: string) {
@@ -68,8 +68,8 @@ async function createProject(page: Page, projectName: string) {
   await projectDialog.getByLabel('Contact Details').fill('builder@example.com');
   await projectDialog.getByRole('button', { name: 'Add Project' }).click();
 
-  await expect(projectDialog).not.toBeVisible({ timeout: 120_000 });
-  await expect(page.getByText(projectName)).toBeVisible({ timeout: 120_000 });
+  await expect(projectDialog).not.toBeVisible();
+  await expect(page.getByText(projectName)).toBeVisible();
 }
 
 test('@smoke creates and reopens the browser-backed database', async ({ page }) => {
@@ -128,10 +128,7 @@ test('shares the browser-backed database across two pages in one context', async
 
   await addTrip(page, tripName);
 
-  await expect(secondPage.getByTestId('database-status-text')).toHaveText(
-    'Connected',
-    { timeout: 120_000 }
-  );
+  await expect(secondPage.getByTestId('database-status-text')).toHaveText('Connected');
 
   const secondPageCount = Number(
     await runQueryAndReadFirstCell(secondPage, verifyTripQuery)
@@ -196,10 +193,8 @@ test('updates a transaction label from the report and can clear it again', async
   await page.getByRole('option', { name: new RegExp(projectName, 'i') }).click();
   await labelDialog.getByRole('button', { name: 'Update Label' }).click();
 
-  await expect(labelDialog).not.toBeVisible({ timeout: 120_000 });
-  await expect(page.getByText(`Project: ${projectName}`)).toBeVisible({
-    timeout: 120_000,
-  });
+  await expect(labelDialog).not.toBeVisible();
+  await expect(page.getByText(`Project: ${projectName}`)).toBeVisible();
 
   transactionRow = page.getByRole('row').filter({
     has: page.getByText(description),
@@ -211,7 +206,7 @@ test('updates a transaction label from the report and can clear it again', async
   await page.getByRole('option', { name: 'No Label' }).click();
   await labelDialog.getByRole('button', { name: 'Update Label' }).click();
 
-  await expect(labelDialog).not.toBeVisible({ timeout: 120_000 });
+  await expect(labelDialog).not.toBeVisible();
   await expect(page.getByText(`Project: ${projectName}`)).toHaveCount(0);
 });
 
@@ -233,8 +228,8 @@ test('creates a project-linked transaction and shows the project label in the re
   await page.getByRole('button', { name: 'Transactions' }).click();
   await page.getByRole('textbox', { name: 'Search' }).fill(description);
 
-  await expect(page.getByText(description)).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByText(`Project: ${projectName}`)).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(description)).toBeVisible();
+  await expect(page.getByText(`Project: ${projectName}`)).toBeVisible();
 });
 
 test('shows worker disconnection and recovers after reload', async ({ page }) => {
@@ -244,9 +239,7 @@ test('shows worker disconnection and recovers after reload', async ({ page }) =>
     window.__budgetTrackerTestApi?.disconnectWorker();
   });
 
-  await expect(page.getByTestId('database-status-text')).toHaveText('Disconnected', {
-    timeout: 120_000,
-  });
+  await expect(page.getByTestId('database-status-text')).toHaveText('Disconnected');
 
   // The encrypting VFS requires the password again once the SharedWorker is
   // torn down, so re-enter it if prompted.

@@ -49,7 +49,7 @@ async function addTransactionFromDashboard(
   await page.getByRole('option', { name: new RegExp(accountName, 'i') }).click();
   await transactionDialog.getByRole('button', { name: 'Add Transaction' }).click();
 
-  await expect(transactionDialog).not.toBeVisible({ timeout: 120_000 });
+  await expect(transactionDialog).not.toBeVisible();
 }
 
 async function closeSettings(page: Page) {
@@ -77,12 +77,12 @@ test('@smoke syncs edits to Google Drive automatically and resolves a conflict',
   await convertButton.click();
   // While migrating, the button's accessible name changes to "Converting…",
   // so this locator only resolves again once the migration has finished.
-  await expect(convertButton).toBeEnabled({ timeout: 60_000 });
+  await expect(convertButton).toBeEnabled();
 
   await closeSettings(page);
 
   const syncChip = page.getByTestId('cloud-sync-chip');
-  await expect(syncChip).toHaveText('Synced', { timeout: 30_000 });
+  await expect(syncChip).toHaveText('Synced');
   expect(store.uploads).toHaveLength(1);
   expect(looksLikeEncryptedArchive(store.uploads[0].bytes)).toBe(true);
 
@@ -95,7 +95,7 @@ test('@smoke syncs edits to Google Drive automatically and resolves a conflict',
   await addTransactionFromDashboard(page, description, '12.34', DEFAULT_SAMPLE_DATA_EXPENSE_ACCOUNT_NAME);
 
   await expect(syncChip).toHaveText('Pending changes', { timeout: 15_000 });
-  await expect(syncChip).toHaveText('Synced', { timeout: 30_000 });
+  await expect(syncChip).toHaveText('Synced');
   expect(store.uploads.length).toBeGreaterThanOrEqual(2);
 
   // Simulate the file changing on another device — conflict detection
@@ -107,7 +107,7 @@ test('@smoke syncs edits to Google Drive automatically and resolves a conflict',
   const secondDescription = `${description} v2`;
   await addTransactionFromDashboard(page, secondDescription, '5.00', DEFAULT_SAMPLE_DATA_EXPENSE_ACCOUNT_NAME);
 
-  await expect(syncChip).toHaveText('Resolve conflict', { timeout: 30_000 });
+  await expect(syncChip).toHaveText('Resolve conflict');
 
   await syncChip.click();
   await page.getByRole('tab', { name: 'Database Source' }).click();
@@ -119,10 +119,10 @@ test('@smoke syncs edits to Google Drive automatically and resolves a conflict',
   await conflictDialog
     .getByRole('button', { name: 'Confirm: Discard Local Changes' })
     .click();
-  await expect(conflictDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(conflictDialog).not.toBeVisible();
 
   await closeSettings(page);
-  await expect(syncChip).toHaveText('Synced', { timeout: 30_000 });
+  await expect(syncChip).toHaveText('Synced');
 
   // The restored cloud copy predates both local-only edits above, so neither
   // transaction should still be present — proving real data was reloaded

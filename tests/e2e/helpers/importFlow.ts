@@ -42,13 +42,13 @@ export async function addStatementFiles(page: Page, filePaths: string | string[]
   const before = await cards.count();
   await page.getByTestId('import-file-input').setInputFiles(paths);
   await expect(cards).toHaveCount(before + paths.length);
-  await expect(page.locator('[data-testid="import-file-card"][data-status="reading"]')).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.locator('[data-testid="import-file-card"][data-status="reading"]')).toHaveCount(0);
 }
 
 /** Waits until the wizard shows `step` and is not busy (looking up accounts, importing). */
-export async function waitForWizardStep(page: Page, step: ImportWizardStep, timeout = 30_000) {
-  await expect(page.getByTestId('import-wizard')).toHaveAttribute('data-step', step, { timeout });
-  await expect(page.getByTestId('import-busy')).toBeHidden({ timeout });
+export async function waitForWizardStep(page: Page, step: ImportWizardStep) {
+  await expect(page.getByTestId('import-wizard')).toHaveAttribute('data-step', step);
+  await expect(page.getByTestId('import-busy')).toBeHidden();
 }
 
 /**
@@ -59,13 +59,13 @@ export async function startImport(page: Page): Promise<ImportWizardStep> {
   const wizard = page.getByTestId('import-wizard');
   await page.getByTestId('import-next').click();
   await expect(wizard).not.toHaveAttribute('data-step', 'files');
-  await expect(page.getByTestId('import-busy')).toBeHidden({ timeout: 30_000 });
+  await expect(page.getByTestId('import-busy')).toBeHidden();
   return (await wizard.getAttribute('data-step')) as ImportWizardStep;
 }
 
 /** Presses Next and waits for the step that follows. */
 export async function nextWizardStep(page: Page, step: ImportWizardStep) {
-  await expect(page.getByTestId('import-next')).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByTestId('import-next')).toBeEnabled();
   await page.getByTestId('import-next').click();
   await waitForWizardStep(page, step);
 }
@@ -89,7 +89,7 @@ export async function chooseImportAccount(page: Page, index: number, accountName
     // The option reads "<owner> - <account name>", then its type and bank.
     await page.getByRole('option', { name: new RegExp(`(^| - )${escapeRegExp(accountName)}`) }).first().click();
   }
-  await expect(card).toHaveAttribute('data-status', /^(chosen|recognised)$/, { timeout: 30_000 });
+  await expect(card).toHaveAttribute('data-status', /^(chosen|recognised)$/);
 }
 
 /** On "Check how we read it": accepts every reading setting the wizard asks about. */
@@ -103,9 +103,9 @@ export async function confirmReadingSettings(page: Page) {
 
 /** Presses Import on the Summary and waits for the Done step (the scans run before it shows). */
 export async function runImport(page: Page) {
-  await expect(page.getByTestId('import-run')).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByTestId('import-run')).toBeEnabled();
   await page.getByTestId('import-run').click();
-  await waitForWizardStep(page, 'done', 120_000);
+  await waitForWizardStep(page, 'done');
 }
 
 /** The combined result on the Done step. */

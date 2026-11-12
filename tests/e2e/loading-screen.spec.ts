@@ -31,7 +31,7 @@ test('a first visit shows the quiet loading screen, never the compatibility pane
   await expect(loadingScreen).toHaveAttribute('role', 'status');
   await expect(page.getByRole('progressbar')).toHaveCount(0);
 
-  await expect(page.getByRole('heading', { name: 'Welcome to Budget Tracker' })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Welcome to Budget Tracker' })).toBeVisible();
   await expect(loadingScreen).toHaveCount(0);
   await expect(page.getByTestId('browser-compatibility-panel')).toHaveCount(0);
   expect(await page.evaluate(() => window.__compatPanelSeen)).toBe(false);
@@ -41,10 +41,10 @@ test('?debug shows the compatibility panel with every check passing', async ({ p
   await page.goto('/?debug');
 
   const panel = page.getByTestId('browser-compatibility-panel');
-  await expect(panel).toBeVisible({ timeout: 120_000 });
+  await expect(panel).toBeVisible();
   await expect(panel.getByText('Browser Compatibility Test')).toBeVisible();
-  await expect(panel.getByText('Compatible', { exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(panel.getByText('Compatible', { exact: true })).toBeVisible();
   await expect(panel.getByText('Passed')).toHaveCount(5);
 
-  await expect(page.getByRole('heading', { name: 'Welcome to Budget Tracker' })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Welcome to Budget Tracker' })).toBeVisible();
 });

@@ -25,14 +25,14 @@ async function addTransactionFromDashboard(
     .click();
   await transactionDialog.getByRole('button', { name: 'Add Transaction' }).click();
 
-  await expect(transactionDialog).not.toBeVisible({ timeout: 120_000 });
+  await expect(transactionDialog).not.toBeVisible();
 }
 
 test('renders the recent transactions grid with user, account, and card columns', async ({ page }) => {
   await bootstrapDatabase(page);
 
   const grid = page.getByRole('grid').first();
-  await expect(grid).toBeVisible({ timeout: 120_000 });
+  await expect(grid).toBeVisible();
   await expect(grid.getByRole('columnheader', { name: 'User' })).toBeVisible();
   await expect(grid.getByRole('columnheader', { name: 'Account' })).toBeVisible();
   await expect(grid.getByRole('columnheader', { name: 'Card' })).toBeVisible();
@@ -50,7 +50,7 @@ test('quick-applies a category and a newly created company from the row menu', a
   await addTransactionFromDashboard(page, description, '55.25');
 
   const row = page.getByRole('row').filter({ has: page.getByText(description) }).first();
-  await expect(row).toBeVisible({ timeout: 30_000 });
+  await expect(row).toBeVisible();
 
   // Quick-apply a category through the row menu.
   await row.getByTitle('More Actions').click();
@@ -59,19 +59,19 @@ test('quick-applies a category and a newly created company from the row menu', a
   await categoryDialog.getByLabel('Category').click();
   await page.getByRole('option', { name: 'Groceries' }).click();
   await categoryDialog.getByRole('button', { name: 'Apply' }).click();
-  await expect(categoryDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(categoryDialog).not.toBeVisible();
 
   // Quick-apply a company that does not exist yet (search-or-create modal).
   const companyName = `Playwright Widgets ${Date.now()}`;
   const refreshedRow = page.getByRole('row').filter({ has: page.getByText(description) }).first();
-  await expect(refreshedRow).toBeVisible({ timeout: 30_000 });
+  await expect(refreshedRow).toBeVisible();
   await refreshedRow.getByTitle('More Actions').click();
   await page.getByRole('menuitem', { name: 'Set Company' }).click();
   const companyDialog = page.getByRole('dialog', { name: 'Set Company' });
   await companyDialog.getByLabel('Company').fill(companyName);
   await page.getByRole('option', { name: `Create "${companyName}"` }).click();
   await companyDialog.getByRole('button', { name: /Apply/ }).click();
-  await expect(companyDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(companyDialog).not.toBeVisible();
 
   // Both quick-applies persisted through the worker.
   const categoryCount = Number(
@@ -100,7 +100,7 @@ test('marks the primary user and blocks deleting them', async ({ page }) => {
   // carries a star and a disabled delete control.
   const peoplePanel = page.getByTestId('people-panel');
   const primaryRow = peoplePanel.locator('[data-testid^="person-row-"]').filter({ hasText: TEST_PRIMARY_USER_NAME });
-  await expect(primaryRow).toBeVisible({ timeout: 30_000 });
+  await expect(primaryRow).toBeVisible();
   await expect(primaryRow.getByTestId('primary-user-star')).toBeVisible();
 
   const deleteControl = primaryRow.getByTitle('Delete User');
@@ -114,7 +114,7 @@ test('edits, flags and deletes a transaction from the right-click row menu', asy
   await addTransactionFromDashboard(page, description, '42.10');
 
   const rowFor = () => page.getByRole('row').filter({ has: page.getByText(description) }).first();
-  await expect(rowFor()).toBeVisible({ timeout: 30_000 });
+  await expect(rowFor()).toBeVisible();
 
   // Edit the amount through the context menu (right-click on the row).
   await rowFor().click({ button: 'right' });
@@ -123,7 +123,7 @@ test('edits, flags and deletes a transaction from the right-click row menu', asy
   await expect(editDialog.getByRole('textbox', { name: 'Description' })).toHaveValue(description);
   await editDialog.getByRole('spinbutton', { name: 'Amount' }).fill('60.75');
   await editDialog.getByRole('button', { name: 'Save Changes' }).click();
-  await expect(editDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(editDialog).not.toBeVisible();
 
   expect(
     await runQueryAndReadFirstCell(page, `SELECT amount FROM transactions WHERE description = '${description}';`)
@@ -131,10 +131,10 @@ test('edits, flags and deletes a transaction from the right-click row menu', asy
 
   // Flag it for review.
   await page.getByRole('button', { name: 'Dashboard' }).click();
-  await expect(rowFor()).toBeVisible({ timeout: 30_000 });
+  await expect(rowFor()).toBeVisible();
   await rowFor().click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Flag for review' }).click();
-  await expect(rowFor().getByText('Flagged')).toBeVisible({ timeout: 30_000 });
+  await expect(rowFor().getByText('Flagged')).toBeVisible();
 
   expect(
     await runQueryAndReadFirstCell(page, `SELECT is_flagged FROM transactions WHERE description = '${description}';`)
@@ -142,13 +142,13 @@ test('edits, flags and deletes a transaction from the right-click row menu', asy
 
   // Delete it, confirming in the dialog.
   await page.getByRole('button', { name: 'Dashboard' }).click();
-  await expect(rowFor()).toBeVisible({ timeout: 30_000 });
+  await expect(rowFor()).toBeVisible();
   await rowFor().click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Delete…' }).click();
   const deleteDialog = page.getByRole('dialog', { name: 'Delete transaction?' });
   await expect(deleteDialog.getByText(description)).toBeVisible();
   await deleteDialog.getByRole('button', { name: 'Delete' }).click();
-  await expect(deleteDialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(deleteDialog).not.toBeVisible();
 
   expect(
     await runQueryAndReadFirstCell(page, `SELECT COUNT(*) FROM transactions WHERE description = '${description}';`)

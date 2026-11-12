@@ -12,7 +12,7 @@ test('welcome screen shows the animated logo', async ({ page }) => {
   await seedBrowserCompatibility(page);
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Welcome to Budget Tracker' })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole('heading', { name: 'Welcome to Budget Tracker' })).toBeVisible();
   const logo = page.getByTestId('app-logo');
   await expect(logo).toBeVisible();
   await expect(logo).toHaveAttribute('data-animated', 'true');

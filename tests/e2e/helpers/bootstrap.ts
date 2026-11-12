@@ -3,6 +3,14 @@ import { expect, type Page } from '@playwright/test';
 export const TEST_PASSWORD = 'TestPassword1!';
 export const TEST_PRIMARY_USER_NAME = 'TestUser';
 
+/**
+ * How long the setup and unlock helpers wait for the app to reach each
+ * screen. A healthy database setup or unlock takes 2–3 s (about 6 s at most
+ * with four workers), so this leaves ample headroom while a broken setup
+ * fails in seconds rather than after two minutes.
+ */
+export const APP_READY_TIMEOUT_MS = 30_000;
+
 const browserCompatibilityResults = {
   sharedWorkerSupport: true,
   wasmSupport: true,
@@ -117,8 +125,8 @@ export async function bootstrapDatabase(
   const sqlQueryButton = page.getByRole('button', { name: 'SQL Query' });
 
   await Promise.race([
-    createDatabaseButton.waitFor({ state: 'visible', timeout: 120_000 }),
-    sqlQueryButton.waitFor({ state: 'visible', timeout: 120_000 }),
+    createDatabaseButton.waitFor({ state: 'visible', timeout: APP_READY_TIMEOUT_MS }),
+    sqlQueryButton.waitFor({ state: 'visible', timeout: APP_READY_TIMEOUT_MS }),
   ]);
 
   if (await createDatabaseButton.isVisible().catch(() => false)) {
@@ -156,10 +164,10 @@ export async function bootstrapDatabase(
     }
   }
 
-  await expect(sqlQueryButton).toBeVisible({ timeout: 120_000 });
+  await expect(sqlQueryButton).toBeVisible({ timeout: APP_READY_TIMEOUT_MS });
   await expect(page.getByTestId('database-status-text')).toHaveText(
     'Connected',
-    { timeout: 120_000 }
+    { timeout: APP_READY_TIMEOUT_MS }
   );
   return result;
 }
@@ -181,9 +189,9 @@ export async function reloadAndUnlock(page: Page, secret: string | string[] = TE
   const sqlQueryButton = page.getByRole('button', { name: 'SQL Query' });
 
   await Promise.race([
-    passwordInput.waitFor({ state: 'visible', timeout: 120_000 }),
-    phraseInput.waitFor({ state: 'visible', timeout: 120_000 }),
-    sqlQueryButton.waitFor({ state: 'visible', timeout: 120_000 }),
+    passwordInput.waitFor({ state: 'visible', timeout: APP_READY_TIMEOUT_MS }),
+    phraseInput.waitFor({ state: 'visible', timeout: APP_READY_TIMEOUT_MS }),
+    sqlQueryButton.waitFor({ state: 'visible', timeout: APP_READY_TIMEOUT_MS }),
   ]);
 
   if (await phraseInput.isVisible().catch(() => false)) {
@@ -194,10 +202,10 @@ export async function reloadAndUnlock(page: Page, secret: string | string[] = TE
     await page.getByRole('button', { name: 'Unlock' }).click();
   }
 
-  await expect(sqlQueryButton).toBeVisible({ timeout: 120_000 });
+  await expect(sqlQueryButton).toBeVisible({ timeout: APP_READY_TIMEOUT_MS });
   await expect(page.getByTestId('database-status-text')).toHaveText(
     'Connected',
-    { timeout: 120_000 }
+    { timeout: APP_READY_TIMEOUT_MS }
   );
 }
 
@@ -228,22 +236,27 @@ export type AppPageId =
  */
 export async function navigateToPage(page: Page, id: AppPageId) {
   const controls = page.getByTestId(`nav-${id}`);
+  // Items of a "More" sheet that is sliding shut still count as visible, and a
+  // click on one waits out its whole timeout while the sheet leaves the
+  // screen. `aria-expanded` on the More button flips at once, so sheet items
+  // are only candidates while it says the sheet is open.
+  const moreButton = page.getByTestId('nav-more');
+  const sheetOpen =
+    (await moreButton.count()) > 0 && (await moreButton.first().getAttribute('aria-expanded')) === 'true';
   const count = await controls.count();
   for (let index = 0; index < count; index += 1) {
     const control = controls.nth(index);
-    if (await control.isVisible().catch(() => false)) {
-      try {
-        await control.click({ timeout: 10_000 });
-        return;
-      } catch {
-        // The control was inside a "More" sheet that was still sliding shut;
-        // fall through and reopen the sheet.
-      }
-    }
+    if (!(await control.isVisible().catch(() => false))) continue;
+    const inSheet = await control
+      .evaluate((element) => element.closest('[data-testid="mobile-more-sheet"]') !== null)
+      .catch(() => false);
+    if (inSheet && !sheetOpen) continue;
+    await control.click();
+    return;
   }
-  // Nothing visible: on phones the remaining pages live in the "More" sheet.
+  // Nothing usable: on phones the remaining pages live in the "More" sheet.
   await openMobileMoreSheet(page);
-  await controls.first().click();
+  await page.getByTestId('mobile-more-sheet').getByTestId(`nav-${id}`).click();
 }
 
 /** Opens the phone bottom-navigation "More" sheet (no-op when it is already open). */
@@ -292,6 +305,6 @@ export async function runQueryAndReadFirstCell(page: Page, sql: string) {
     .getByTestId('sql-query-results')
     .getByRole('gridcell')
     .first();
-  await firstCell.waitFor({ state: 'visible', timeout: 30_000 });
+  await firstCell.waitFor({ state: 'visible' });
   return (await firstCell.textContent())?.trim() ?? '';
 }

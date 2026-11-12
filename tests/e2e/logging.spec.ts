@@ -29,7 +29,7 @@ test('@smoke app and worker log rows share a correlation id and the export downl
     .locator('[data-testid="log-row"][data-source="worker"]')
     .filter({ has: page.getByTestId('log-correlation-chip') })
     .first();
-  await expect(workerRow).toBeVisible({ timeout: 30_000 });
+  await expect(workerRow).toBeVisible();
   const correlationId = (await workerRow.getAttribute('data-correlation-id')) ?? '';
   expect(correlationId).toMatch(CORRELATION_ID_PATTERN);
 
@@ -49,7 +49,7 @@ test('@smoke app and worker log rows share a correlation id and the export downl
   const downloads: Download[] = [];
   page.on('download', (download) => downloads.push(download));
   await page.getByTestId('log-export').click();
-  await expect.poll(() => downloads.length, { timeout: 30_000 }).toBe(2);
+  await expect.poll(() => downloads.length).toBe(2);
 
   const names = downloads.map((download) => download.suggestedFilename()).sort();
   expect(names[0]).toMatch(EXPORT_NAME_PATTERN);
@@ -81,7 +81,7 @@ test('records UI interactions and lets Settings manage retention and clear the s
   // The capture-phase tracer recorded the nav click with the control's test id.
   await page.getByTestId('log-search-input').fill('ui.interaction');
   const interactionRow = page.locator('[data-testid="log-row"]').filter({ hasText: 'nav-budget' }).first();
-  await expect(interactionRow).toBeVisible({ timeout: 30_000 });
+  await expect(interactionRow).toBeVisible();
 
   // Settings → Developer: retention controls and clear.
   await page.getByRole('button', { name: 'Back to application' }).click();

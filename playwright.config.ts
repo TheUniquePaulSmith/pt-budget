@@ -5,16 +5,28 @@ export default defineConfig({
   // Needs the production build and the service worker: playwright.offline.config.ts.
   testIgnore: /(^|[\\/])offline\.spec\.ts$/,
   timeout: 120_000,
+  // Specs use these defaults rather than their own per-call timeouts: outside
+  // the setup helpers (APP_READY_TIMEOUT_MS) no single step was measured above
+  // ~7 s, so a broken step fails in 20 s instead of one or two minutes.
   expect: {
     timeout: 20_000,
   },
   fullyParallel: false,
   maxFailures: 1,
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
+  // Every test gets a fresh browser context, so its own SharedWorker and
+  // IndexedDB database: spec files run side by side without sharing state.
+  // Measured on 4 workers: the smoke set in about 1 minute instead of 2, the
+  // full suite in about 4 instead of 10.5. CI runners have 2–4 cores.
+  // `--workers=N` overrides (a big machine can take 6 or more).
+  workers: process.env.CI ? 2 : 4,
   reporter: 'list',
   use: {
     baseURL: 'http://localhost:3000',
+    // Clicks, fills, waitFor, waitForEvent/URL: the same 20 s as assertions
+    // instead of Playwright's default of no limit (the whole test timeout).
+    actionTimeout: 20_000,
+    navigationTimeout: 30_000,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

@@ -28,8 +28,8 @@ async function addLoan(
     await dialog.getByTestId('loan-promo-end').fill(options.promoEnd);
   }
   await dialog.getByTestId('loan-form-save').click();
-  await expect(dialog).not.toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId('loans-grid').getByText(options.name)).toBeVisible({ timeout: 30_000 });
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByTestId('loans-grid').getByText(options.name)).toBeVisible();
 }
 
 test.describe('Loans', () => {
@@ -39,7 +39,7 @@ test.describe('Loans', () => {
     await navigateToPage(page, 'loans');
     await expect(page.getByRole('heading', { name: 'Loans', exact: true })).toBeVisible();
     const grid = page.getByTestId('loans-grid');
-    await expect(grid.getByText('Home mortgage')).toBeVisible({ timeout: 30_000 });
+    await expect(grid.getByText('Home mortgage')).toBeVisible();
     await expect(grid.getByText(AUTO_LOAN_NAME)).toBeVisible();
 
     // Opening the page applied the seeded rules: the mortgage already has linked payments.
@@ -51,8 +51,7 @@ test.describe('Loans', () => {
               page,
               "SELECT COUNT(*) FROM loan_payments lp JOIN loans l ON l.id = lp.loan_id WHERE l.name = 'Home mortgage' AND lp.match_source = 'rule'"
             )
-          ),
-        { timeout: 30_000 }
+          )
       )
       .toBeGreaterThan(0);
     await navigateToPage(page, 'loans');
@@ -69,7 +68,7 @@ test.describe('Loans', () => {
       await runQueryAndReadFirstCell(page, "SELECT id FROM loans WHERE name = 'Kitchen remodel financing'")
     );
     await navigateToPage(page, 'loans');
-    await expect(page.getByTestId(`loan-balance-${kitchenLoanId}`)).toHaveText('$3,000.00', { timeout: 30_000 });
+    await expect(page.getByTestId(`loan-balance-${kitchenLoanId}`)).toHaveText('$3,000.00');
     await expect(page.getByTestId('loans-grid').getByText('2030-12-31', { exact: false })).toBeVisible();
 
     // 2. Detail view: record a manual payment and watch the balance fall.
@@ -84,7 +83,7 @@ test.describe('Loans', () => {
     await paymentDialog.getByTestId('loan-payment-amount').fill('500');
     await paymentDialog.getByTestId('loan-payment-save').click();
     await expect(paymentDialog).not.toBeVisible();
-    await expect(detail.getByTestId('loan-detail-balance')).toHaveText('$2,500.00', { timeout: 30_000 });
+    await expect(detail.getByTestId('loan-detail-balance')).toHaveText('$2,500.00');
     await expect(detail.getByTestId('loan-principal-interest-chart')).toBeVisible();
     await detail.getByTestId('loan-detail-close').click();
 
@@ -95,11 +94,11 @@ test.describe('Loans', () => {
     await detail.getByTestId('loan-add-rule').click();
     const ruleDialog = page.getByRole('dialog', { name: `Track payments for ${AUTO_LOAN_NAME}` });
     await ruleDialog.getByTestId('loan-rule-pattern').fill(AUTO_LOAN_DESCRIPTION_FRAGMENT);
-    await expect(ruleDialog.getByTestId('loan-rule-preview')).toBeVisible({ timeout: 30_000 });
+    await expect(ruleDialog.getByTestId('loan-rule-preview')).toBeVisible();
     await ruleDialog.getByTestId('loan-rule-save').click();
-    await expect(ruleDialog).not.toBeVisible({ timeout: 30_000 });
+    await expect(ruleDialog).not.toBeVisible();
     await expect(detail.getByTestId('loan-rules-list')).toContainText('LAKESIDE AUTO');
-    await expect(detail.getByText(/Payments \((\d+)\)/)).not.toHaveText('Payments (0)', { timeout: 30_000 });
+    await expect(detail.getByText(/Payments \((\d+)\)/)).not.toHaveText('Payments (0)');
     await detail.getByTestId('loan-detail-close').click();
 
     const linkedPayments = Number(
@@ -121,7 +120,7 @@ test.describe('Loans', () => {
     //    auto payments are no longer offered as a recurring charge.
     await navigateToPage(page, 'subscriptions');
     const loansSection = page.getByTestId('subscriptions-loans-section');
-    await expect(loansSection).toBeVisible({ timeout: 30_000 });
+    await expect(loansSection).toBeVisible();
     await expect(loansSection).toContainText(AUTO_LOAN_NAME);
     await expect(loansSection).toContainText('LAKESIDE AUTO');
     await expect(page.getByText(AUTO_LOAN_DESCRIPTION, { exact: true })).toHaveCount(0);

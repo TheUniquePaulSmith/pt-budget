@@ -32,7 +32,7 @@ test('@smoke opens a Google Drive backup through the popup OAuth + file picker f
   await bootstrapDatabase(page, { loadSampleData: false, password: TEST_PASSWORD });
 
   const [download] = await Promise.all([
-    page.waitForEvent('download', { timeout: 60_000 }),
+    page.waitForEvent('download'),
     (async () => {
       await page.getByRole('button', { name: 'Settings' }).click();
       await page.getByRole('tab', { name: 'Data & Backup' }).click({ timeout: 10_000 });
@@ -63,7 +63,7 @@ test('@smoke opens a Google Drive backup through the popup OAuth + file picker f
     const openFromGoogleDriveButton = freshPage.getByRole('button', {
       name: 'Open from Google Drive',
     });
-    await expect(openFromGoogleDriveButton).toBeVisible({ timeout: 30_000 });
+    await expect(openFromGoogleDriveButton).toBeVisible();
     await expect(openFromGoogleDriveButton).toBeEnabled();
 
     const [popup] = await Promise.all([
@@ -74,10 +74,10 @@ test('@smoke opens a Google Drive backup through the popup OAuth + file picker f
     // The popup does /auth/start/ -> (intercepted) accounts.google.com ->
     // /auth/complete/, posts the result over BroadcastChannel, then closes
     // itself — all real navigations, only the Google request is mocked.
-    await popup.waitForEvent('close', { timeout: 30_000 });
+    await popup.waitForEvent('close');
 
     const picker = freshPage.getByTestId('cloud-file-picker-list');
-    await expect(picker).toBeVisible({ timeout: 30_000 });
+    await expect(picker).toBeVisible();
     await expect(picker.getByText(BACKUP_FILE_NAME)).toBeVisible();
 
     await freshPage.getByRole('button', { name: 'Open' }).click();
@@ -85,20 +85,16 @@ test('@smoke opens a Google Drive backup through the popup OAuth + file picker f
     // This is a brand-new worker with no encryption key yet, and the
     // downloaded archive is encrypted, so the password screen must appear
     // before anything is imported.
-    await expect(freshPage.getByText('Enter Password')).toBeVisible({ timeout: 30_000 });
+    await expect(freshPage.getByText('Enter Password')).toBeVisible();
     await freshPage.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
     await freshPage.getByRole('button', { name: 'Unlock' }).click();
 
-    await expect(freshPage.getByRole('button', { name: 'SQL Query' })).toBeVisible({
-      timeout: 60_000,
-    });
-    await expect(freshPage.getByTestId('database-status-text')).toHaveText('Connected', {
-      timeout: 60_000,
-    });
+    await expect(freshPage.getByRole('button', { name: 'SQL Query' })).toBeVisible();
+    await expect(freshPage.getByTestId('database-status-text')).toHaveText('Connected');
 
     // The cloud link should be recorded, not just the data imported — the
     // sync status chip only appears once the source is a cloud provider.
-    await expect(freshPage.getByTestId('cloud-sync-chip')).toBeVisible({ timeout: 30_000 });
+    await expect(freshPage.getByTestId('cloud-sync-chip')).toBeVisible();
   } finally {
     await freshContext.close();
   }
@@ -126,14 +122,14 @@ test('reports a cancelled sign-in when the user closes the popup mid-flow', asyn
     await page.goto('/');
 
     const openFromGoogleDriveButton = page.getByRole('button', { name: 'Open from Google Drive' });
-    await expect(openFromGoogleDriveButton).toBeEnabled({ timeout: 30_000 });
+    await expect(openFromGoogleDriveButton).toBeEnabled();
 
     const [popup] = await Promise.all([
       context.waitForEvent('page'),
       openFromGoogleDriveButton.click(),
     ]);
 
-    await popup.waitForURL(/accounts\.google\.com/, { timeout: 30_000 });
+    await popup.waitForURL(/accounts\.google\.com/);
     await popup.close();
 
     // The watchdog polls .closed every 500ms plus a 1.5s late-broadcast
@@ -166,17 +162,17 @@ test('shows a clear error when Google sign-in is denied', async ({ browser }) =>
     await page.goto('/');
 
     const openFromGoogleDriveButton = page.getByRole('button', { name: 'Open from Google Drive' });
-    await expect(openFromGoogleDriveButton).toBeEnabled({ timeout: 30_000 });
+    await expect(openFromGoogleDriveButton).toBeEnabled();
 
     const [popup] = await Promise.all([
       context.waitForEvent('page'),
       openFromGoogleDriveButton.click(),
     ]);
-    await popup.waitForEvent('close', { timeout: 30_000 });
+    await popup.waitForEvent('close');
 
     // The welcome screen (still needs-setup — nothing was ever authenticated)
     // should surface the failure instead of hanging silently.
-    await expect(page.getByText(/sign-in|access_denied|denied/i)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/sign-in|access_denied|denied/i)).toBeVisible();
   } finally {
     await context.close();
   }

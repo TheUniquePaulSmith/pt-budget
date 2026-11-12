@@ -29,7 +29,7 @@ test('@smoke seeds community merchant rules and renders the Subscriptions page',
   await page.getByRole('button', { name: 'Subscriptions' }).click();
   await expect(
     page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })
-  ).toBeVisible({ timeout: 120_000 });
+  ).toBeVisible();
 });
 
 test('runs a subscription scan and persists a user-created merchant rule', async ({ page }) => {
@@ -38,12 +38,12 @@ test('runs a subscription scan and persists a user-created merchant rule', async
   await page.getByRole('button', { name: 'Subscriptions' }).click();
   await expect(
     page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })
-  ).toBeVisible({ timeout: 120_000 });
+  ).toBeVisible();
 
   // The header Rescan button always exists (the empty-state CTA can detach
   // while unmatched clusters load, so it is not a stable click target)
   await page.getByRole('button', { name: 'Rescan' }).click();
-  await expect(page.getByText(/Scan complete/)).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(/Scan complete/)).toBeVisible();
 
   // Create a user rule via the rule editor
   // The page header's Add Rule (the seeded loans each carry one too).
@@ -52,7 +52,7 @@ test('runs a subscription scan and persists a user-created merchant rule', async
   await ruleDialog.getByLabel('Pattern').fill('PLAYWRIGHTFLIX');
   await ruleDialog.getByLabel('Merchant').fill('Playwrightflix');
   await ruleDialog.getByRole('button', { name: 'Create Rule' }).click();
-  await expect(ruleDialog).not.toBeVisible({ timeout: 120_000 });
+  await expect(ruleDialog).not.toBeVisible();
 
   const userRuleCount = Number(
     await runQueryAndReadFirstCell(
@@ -80,29 +80,27 @@ test('shows a Card column on the series table and links a series to a newly crea
   await page.getByRole('button', { name: 'Subscriptions' }).click();
   await expect(
     page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })
-  ).toBeVisible({ timeout: 120_000 });
+  ).toBeVisible();
 
   await page.getByRole('button', { name: 'Rescan' }).click();
-  await expect(page.getByText(/Scan complete/)).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(/Scan complete/)).toBeVisible();
 
   // The series grid renders a Card column header (proves cardColumn wiring
   // survives a real render, even though sample data has no cards assigned).
-  await expect(page.getByRole('columnheader', { name: 'Card' }).first()).toBeVisible({
-    timeout: 30_000,
-  });
+  await expect(page.getByRole('columnheader', { name: 'Card' }).first()).toBeVisible();
 
   // Open the first series' detail dialog via its "View transactions" action.
   await page.getByRole('button', { name: 'View transactions' }).first().click();
 
   const companyField = page.getByRole('combobox', { name: 'Company' });
-  await expect(companyField).toBeVisible({ timeout: 30_000 });
+  await expect(companyField).toBeVisible();
 
   const newCompanyName = `Playwright Merge Co ${Date.now()}`;
   await companyField.fill(newCompanyName);
   await companyField.press('Enter');
 
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('dialog')).not.toBeVisible();
 
   const linkedCount = Number(
     await runQueryAndReadFirstCell(
@@ -121,27 +119,27 @@ test('stores autopay and due day from the series dialog and shows them in the Pa
   await page.getByRole('button', { name: 'Subscriptions' }).click();
   await expect(
     page.getByRole('heading', { name: 'Subscriptions', exact: true, level: 4 })
-  ).toBeVisible({ timeout: 120_000 });
+  ).toBeVisible();
 
   await page.getByRole('button', { name: 'Rescan' }).click();
-  await expect(page.getByText(/Scan complete/)).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(/Scan complete/)).toBeVisible();
 
   // Every series starts as manually paid (schema default is_autopay = 0).
-  await expect(page.getByRole('columnheader', { name: 'Payment' }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('columnheader', { name: 'Payment' }).first()).toBeVisible();
   await expect(page.getByText('Manual', { exact: true }).first()).toBeVisible();
 
   await page.getByRole('button', { name: 'View transactions' }).first().click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible({ timeout: 30_000 });
+  await expect(dialog).toBeVisible();
 
   const autopay = dialog.getByTestId('series-autopay-switch');
   await expect(autopay).not.toBeChecked();
   await autopay.check();
   await dialog.getByTestId('series-due-day').fill('15');
   await dialog.getByRole('button', { name: 'Save' }).click();
-  await expect(dialog).toBeHidden({ timeout: 30_000 });
+  await expect(dialog).toBeHidden();
 
-  await expect(page.getByText('Autopay', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Autopay', { exact: true }).first()).toBeVisible();
 
   const storedCount = Number(
     await runQueryAndReadFirstCell(
@@ -154,6 +152,6 @@ test('stores autopay and due day from the series dialog and shows them in the Pa
   // Reopening the dialog shows the stored values.
   await page.getByRole('button', { name: 'Subscriptions' }).click();
   await page.getByRole('button', { name: 'View transactions' }).first().click();
-  await expect(page.getByRole('dialog').getByTestId('series-autopay-switch')).toBeChecked({ timeout: 30_000 });
+  await expect(page.getByRole('dialog').getByTestId('series-autopay-switch')).toBeChecked();
   await expect(page.getByRole('dialog').getByTestId('series-due-day')).toHaveValue('15');
 });

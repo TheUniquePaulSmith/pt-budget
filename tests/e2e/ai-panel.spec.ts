@@ -178,8 +178,8 @@ test('cloud profile with Test Connection, consent card with Deny, and the pop-ou
   await popup.waitForLoadState('domcontentloaded');
   expect(new URL(popup.url()).pathname).toBe('/ai/');
 
-  await expect(popup.getByTestId('ai-popout-page')).toBeVisible({ timeout: 120_000 });
-  await expect(popup.getByTestId('ai-panel-title')).toHaveText('Mock cloud', { timeout: 60_000 });
+  await expect(popup.getByTestId('ai-popout-page')).toBeVisible();
+  await expect(popup.getByTestId('ai-panel-title')).toHaveText('Mock cloud');
   await expect(popup.getByTestId('ai-panel')).toContainText('Add a Fuel category');
   await expect(popup.getByTestId('ai-panel')).toContainText(DENIED_REPLY);
 

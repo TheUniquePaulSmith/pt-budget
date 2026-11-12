@@ -122,8 +122,7 @@ test('an import shows up in the history with its counts, and undoing it removes 
 
     // The subscription rescan runs before the confirmation closes.
     await expect(page.getByTestId('import-manage-notice-undone')).toContainText(
-      'The import of sample-import.csv was undone. Transactions removed: 3.',
-      { timeout: 120_000 }
+      'The import of sample-import.csv was undone. Transactions removed: 3.'
     );
     await expect(dialog).toHaveCount(0);
     await expect(row).toHaveCount(0);

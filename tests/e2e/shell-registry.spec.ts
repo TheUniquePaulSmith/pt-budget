@@ -18,14 +18,17 @@ const NAVIGATION_PAGES: AppPageId[] = [
 ];
 
 test('@smoke every registry page is reachable and the shell slots render', async ({ page }) => {
-  await bootstrapDatabase(page);
+  // No sample data: nothing here reads it, and the sample household raises
+  // budget-overspend alerts from about the middle of each month, so only a new
+  // database is sure to show the empty Notifications page checked below.
+  await bootstrapDatabase(page, { loadSampleData: false });
 
   for (const id of NAVIGATION_PAGES) {
     await navigateToPage(page, id);
     await expect(page.getByTestId(`nav-${id}`).first()).toHaveAttribute('aria-current', 'page');
   }
 
-  // The notifications page is registered by the foundation as a stub.
+  // The notifications page renders its own body: empty on a new database.
   await navigateToPage(page, 'notifications');
   await expect(page.getByTestId('notifications-page')).toBeVisible();
   await expect(page.getByTestId('notifications-empty')).toHaveText('No notifications yet.');

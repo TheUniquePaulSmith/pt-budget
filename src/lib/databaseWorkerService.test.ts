@@ -53,6 +53,30 @@ function createService() {
   return { service, port: mockWorkerInstance.port };
 }
 
+function workerTerminatedMessage() {
+  return {
+    type: 'worker_terminated',
+    isSuccessful: true,
+    dbStatus: 'disconnected',
+    version: '1.0.0',
+    sqlResponse: { message: 'Database worker terminated' },
+  };
+}
+
+function respondWith(port: MockPort, id: string, sqlResponse: unknown) {
+  port.dispatch('message', { id, type: 'ok', isSuccessful: true, dbStatus: 'connected', version: '1.0.0', sqlResponse });
+}
+
+/** Has the worker answer one request, as every running page has. */
+async function useConnection(service: DatabaseWorkerService, port: MockPort) {
+  const pinged = service.ping();
+  const ping = port.postMessage.mock.calls
+    .map((call) => call[0] as { id: string; type: string })
+    .find((message) => message.type === 'ping');
+  respondWith(port, ping!.id, {});
+  await pinged;
+}
+
 function databaseChangedMessage(sqlResponse: DatabaseChangeEvent) {
   return {
     type: 'database_changed',
@@ -198,8 +222,9 @@ describe('DatabaseWorkerService.terminate', () => {
     expect(port.close).toHaveBeenCalledTimes(1);
   });
 
-  it('marks the worker dead at once when any tab terminates it', () => {
+  it('marks the worker dead at once when any tab terminates it', async () => {
     const { service, port } = createService();
+    await useConnection(service, port);
     const statuses: boolean[] = [];
     service.onStatusChange((status) => statuses.push(status.isWorkerAlive));
     port.dispatch('message', {
@@ -210,16 +235,167 @@ describe('DatabaseWorkerService.terminate', () => {
       sqlResponse: { timestamp: Date.now() },
     });
 
-    port.dispatch('message', {
-      type: 'worker_terminated',
-      isSuccessful: true,
-      dbStatus: 'disconnected',
-      version: '1.0.0',
-      sqlResponse: {},
-    });
+    port.dispatch('message', workerTerminatedMessage());
 
     expect(service.getStatus()).toMatchObject({ isWorkerAlive: false, isConnected: false, dbStatus: 'disconnected' });
     expect(statuses.at(-1)).toBe(false);
+  });
+
+  it('never reconnects the tab that asked for the termination', async () => {
+    const { service, port } = createService();
+    const pending = service.terminate();
+    respondTo(port, port.postMessage.mock.calls[0][0] as { id: string });
+    port.dispatch('close', undefined);
+    await pending;
+
+    expect(globalThis.SharedWorker).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * A page that connects while another tab's Reset App is shutting the shared
+ * worker down is attached to that worker, which exits moments later. The
+ * reloaded tab used to send `initialize` into the dead port and fail after
+ * 30 s ("Heartbeat timeout - worker appears dead", then the initialize timeout).
+ */
+describe('DatabaseWorkerService reconnect after another tab terminates the worker', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function requestsOn(port: MockPort) {
+    return port.postMessage.mock.calls
+      .map((call) => call[0] as { id: string; type: string })
+      .filter((message) => message.type !== 'set_debug');
+  }
+
+  it('connects to a new worker once the shutting-down one exits and sends the waiting request there', async () => {
+    const { service, port: dyingPort } = createService();
+    const initialized = service.initialize();
+    const [initialize] = requestsOn(dyingPort);
+
+    dyingPort.dispatch('message', workerTerminatedMessage());
+    expect(globalThis.SharedWorker).toHaveBeenCalledTimes(1);
+
+    dyingPort.dispatch('close', undefined);
+
+    expect(globalThis.SharedWorker).toHaveBeenCalledTimes(2);
+    const freshPort = mockWorkerInstance.port;
+    expect(freshPort).not.toBe(dyingPort);
+    expect(dyingPort.close).toHaveBeenCalled();
+    expect(requestsOn(freshPort)).toEqual([initialize]);
+
+    freshPort.dispatch('message', {
+      id: initialize.id,
+      type: 'initialize_response',
+      isSuccessful: true,
+      dbStatus: 'initialized',
+      version: '1.0.0',
+      sqlResponse: {},
+    });
+    await expect(initialized).resolves.toMatchObject({ type: 'initialize_response' });
+    service.destroy();
+  });
+
+  it('holds requests made while the worker shuts down and connects again after a wait when no close event comes', async () => {
+    vi.useFakeTimers();
+    const { service, port: dyingPort } = createService();
+    dyingPort.dispatch('message', workerTerminatedMessage());
+
+    const queried = service.query('SELECT 1');
+    expect(requestsOn(dyingPort)).toEqual([]);
+
+    vi.advanceTimersByTime(249);
+    expect(globalThis.SharedWorker).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1);
+    expect(globalThis.SharedWorker).toHaveBeenCalledTimes(2);
+
+    const freshPort = mockWorkerInstance.port;
+    const [query] = requestsOn(freshPort);
+    expect(query.type).toBe('query');
+    respondWith(freshPort, query.id, { results: [{ one: 1 }] });
+    await expect(queried).resolves.toEqual([{ one: 1 }]);
+    service.destroy();
+  });
+
+  it('sends a request the shutting-down worker refused to the new worker', async () => {
+    const { service, port: dyingPort } = createService();
+    const initialized = service.initialize();
+    const [initialize] = requestsOn(dyingPort);
+
+    dyingPort.dispatch('message', {
+      id: initialize.id,
+      type: 'error',
+      isSuccessful: false,
+      dbStatus: 'disconnected',
+      version: '1.0.0',
+      sqlResponse: { error: 'Database worker has been terminated — reload the app', code: 'WORKER_TERMINATED' },
+    });
+    dyingPort.dispatch('close', undefined);
+
+    const freshPort = mockWorkerInstance.port;
+    expect(requestsOn(freshPort)).toEqual([initialize]);
+    respondWith(freshPort, initialize.id, {});
+    await expect(initialized).resolves.toMatchObject({ isSuccessful: true });
+    service.destroy();
+  });
+
+  it('keeps trying with longer waits, then fails the waiting requests', async () => {
+    vi.useFakeTimers();
+    const { service } = createService();
+    const initialized = service.initialize();
+    const outcome = initialized.then(
+      () => 'resolved',
+      (error: Error) => error.message
+    );
+
+    // Every connection reaches a worker that is still shutting down.
+    for (const waitMs of [250, 500, 1000, 2000, 4000]) {
+      mockWorkerInstance.port.dispatch('message', workerTerminatedMessage());
+      vi.advanceTimersByTime(waitMs);
+    }
+    mockWorkerInstance.port.dispatch('message', workerTerminatedMessage());
+    vi.advanceTimersByTime(8000);
+
+    await expect(outcome).resolves.toBe('Could not connect to the database worker — reload the app');
+    expect(globalThis.SharedWorker).toHaveBeenCalledTimes(6);
+    service.destroy();
+  });
+
+  it('replaces a worker that went silent before this page used it', async () => {
+    vi.useFakeTimers();
+    const { service } = createService();
+    vi.advanceTimersByTime(15_000);
+
+    expect(globalThis.SharedWorker).toHaveBeenCalledTimes(2);
+    service.destroy();
+  });
+
+  it('leaves a worker this page has used alone and fails its open requests as soon as it exits', async () => {
+    const { service, port } = createService();
+    await useConnection(service, port);
+    const queried = service.query('SELECT 1');
+
+    port.dispatch('message', workerTerminatedMessage());
+    port.dispatch('close', undefined);
+
+    await expect(queried).rejects.toThrow('Database worker stopped — reload the app');
+    expect(globalThis.SharedWorker).toHaveBeenCalledTimes(1);
+    expect(service.getStatus().isWorkerAlive).toBe(false);
+  });
+
+  it('treats a new worker that has answered like any worker the page has used', async () => {
+    const { service, port: dyingPort } = createService();
+    const initialized = service.initialize();
+    dyingPort.dispatch('message', workerTerminatedMessage());
+    dyingPort.dispatch('close', undefined);
+    const freshPort = mockWorkerInstance.port;
+    respondWith(freshPort, requestsOn(freshPort)[0].id, {});
+    await initialized;
+
+    // The page now has state in this worker: a later exit is not papered over.
+    freshPort.dispatch('close', undefined);
+    expect(globalThis.SharedWorker).toHaveBeenCalledTimes(2);
   });
 });
 

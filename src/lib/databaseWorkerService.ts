@@ -72,6 +72,32 @@ export interface DatabaseChangeEvent {
 
 const log = logger.child({ component: 'DatabaseWorkerService' });
 
+/**
+ * Refusal code of a worker that Reset App has terminated: the request was not
+ * executed, so it can be sent again to a new worker.
+ */
+const WORKER_TERMINATED_CODE = 'WORKER_TERMINATED';
+
+/**
+ * A page that connects while another tab's Reset App is shutting the worker
+ * down is attached to that worker, not to a new one. Waiting this long (doubled
+ * on each further attempt) for it to exit before connecting again covers
+ * browsers without the MessagePort `close` event, which ends the wait early.
+ */
+const TERMINATED_WORKER_EXIT_WAIT_MS = 250;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+interface PendingMessage {
+  resolve: (value: any) => void;
+  reject: (reason?: any) => void;
+  timeout: ReturnType<typeof setTimeout> | null;
+  type: string;
+  startedAt: number;
+  /** Kept so the request can be posted again to a new worker (see reconnect). */
+  message: DatabaseMessage;
+  transfer?: Transferable[];
+}
+
 /** Builds the `meta` block for a request from the ambient log context (current page, component, operation). */
 export function buildMessageMeta(correlationId: string, type: string, ambient: LogContext = getAmbientLogContext()): DatabaseMessageMeta {
   const meta: DatabaseMessageMeta = { correlationId };
@@ -84,10 +110,25 @@ export function buildMessageMeta(correlationId: string, type: string, ambient: L
 export class DatabaseWorkerService {
   private worker: SharedWorker | null = null;
   private port: MessagePort | null = null;
-  private pendingMessages = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timeout: NodeJS.Timeout | null; type: string; startedAt: number }>();
+  private pendingMessages = new Map<string, PendingMessage>();
   private statusCallbacks = new Set<(status: WorkerStatus) => void>();
   private changeCallbacks = new Set<(event: DatabaseChangeEvent) => void>();
   private heartbeatTimeout: NodeJS.Timeout | null = null;
+  /**
+   * The worker has answered a request on the current connection. Until then
+   * this page has nothing in that worker (no unlocked database, no work in
+   * flight), so a worker that turns out to be ending is simply replaced. After
+   * that, a worker that ends takes this page's state with it: the status goes
+   * to disconnected and the user reloads.
+   */
+  private hasUsedConnection = false;
+  /** The current connection's worker said it is shutting down; requests wait for the next connection. */
+  private isAwaitingWorkerExit = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
+  /** This tab asked the worker to terminate (Reset App) and is about to reload. */
+  private isTerminating = false;
+  private isDestroyed = false;
   private status: WorkerStatus = {
     isWorkerAlive: false,
     isConnected: false,
@@ -113,20 +154,33 @@ export class DatabaseWorkerService {
 
     try {
       //Define the worker & port
-      this.worker = new SharedWorker('/database-worker.js', { name: 'wa-SQLite' });
-      this.port = this.worker.port;
+      const worker = new SharedWorker('/database-worker.js', { name: 'wa-SQLite' });
+      const port = worker.port;
+      this.worker = worker;
+      this.port = port;
+      this.hasUsedConnection = false;
+      this.isAwaitingWorkerExit = false;
 
-      //Add event listeners for messages and errors
-      this.port.addEventListener('message', this.handleMessage.bind(this));
-      this.port.addEventListener('messageerror', this.handleError.bind(this));
+      // Events from a connection this service has since replaced are ignored.
+      port.addEventListener('message', (event) => {
+        if (port === this.port) this.handleMessage(event);
+      });
+      port.addEventListener('messageerror', (event) => {
+        if (port === this.port) this.handleError(event);
+      });
+      // Fired when the worker on the other end has exited (MessagePort
+      // `close`; Chromium 122+). Elsewhere the heartbeat timeout notices.
+      port.addEventListener('close', () => {
+        if (port === this.port) this.handleWorkerExit();
+      });
 
       //Start the worker
-      this.port.start();
+      port.start();
 
       // Per-port debug flag: the worker logs debug-level rows for this tab's
       // requests only while this tab asked for it.
       if (this.isDebugMode()) {
-        this.port.postMessage({ id: 'debug_config', type: 'set_debug', payload: { debug: true } });
+        port.postMessage({ id: 'debug_config', type: 'set_debug', payload: { debug: true } });
       }
 
       // Start monitoring heartbeat
@@ -136,6 +190,111 @@ export class DatabaseWorkerService {
     } catch (error) {
       log.error('Failed to initialize worker', { error });
       this.updateStatus({ isWorkerAlive: false });
+    }
+  }
+
+  /** Whether a worker that is ending may be replaced by a new one (see hasUsedConnection). */
+  private canReconnect(): boolean {
+    return !this.hasUsedConnection && !this.isTerminating && !this.isDestroyed;
+  }
+
+  /**
+   * The current connection's worker is shutting down (another tab's Reset
+   * App). Connect again once it has exited — its port's `close` event, or
+   * after a wait for browsers without that event.
+   */
+  private reconnectAfterWorkerExit(reason: string) {
+    this.isAwaitingWorkerExit = true;
+    if (this.reconnectTimer) return;
+    const waitMs = TERMINATED_WORKER_EXIT_WAIT_MS * 2 ** this.reconnectAttempts;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.reconnect(reason);
+    }, waitMs);
+  }
+
+  /** Replaces the current connection with one to a new worker and posts every waiting request to it. */
+  private reconnect(reason: string) {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (!this.canReconnect()) return;
+
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      log.error('Could not reach a running database worker', {
+        process: 'connection',
+        reason,
+        attempts: this.reconnectAttempts,
+      });
+      this.isAwaitingWorkerExit = false;
+      this.rejectPendingMessages(new Error('Could not connect to the database worker — reload the app'));
+      return;
+    }
+
+    this.reconnectAttempts += 1;
+    log.warn('Connecting to a new database worker', {
+      process: 'connection',
+      reason,
+      attempt: this.reconnectAttempts,
+      waitingRequests: this.pendingMessages.size,
+    });
+
+    this.port?.close();
+    this.port = null;
+    this.worker = null;
+    this.initializeWorker();
+
+    // If the new connection could not be made, postToWorker throws and each
+    // request fails at once.
+    for (const [id, pending] of this.pendingMessages) {
+      try {
+        this.postToWorker(pending.message, pending.transfer);
+      } catch (error) {
+        if (pending.timeout) clearTimeout(pending.timeout);
+        this.pendingMessages.delete(id);
+        log.error('Failed to post message to worker', { correlationId: id, operation: pending.type, error });
+        pending.reject(error);
+      }
+    }
+  }
+
+  /** The worker on the other end of the current connection has exited. */
+  private handleWorkerExit() {
+    if (this.heartbeatTimeout) {
+      clearTimeout(this.heartbeatTimeout);
+      this.heartbeatTimeout = null;
+    }
+    this.updateStatus({ isWorkerAlive: false, isConnected: false, dbStatus: 'disconnected' });
+
+    if (this.canReconnect()) {
+      this.reconnect('worker_exited');
+      return;
+    }
+
+    log.warn('Database worker exited', { process: 'connection', pendingRequests: this.pendingMessages.size });
+    // Nothing sent to it will be answered: fail now rather than at each timeout.
+    this.rejectPendingMessages(new Error('Database worker stopped — reload the app'));
+  }
+
+  private rejectPendingMessages(error: Error) {
+    this.pendingMessages.forEach(({ timeout, reject }) => {
+      if (timeout) clearTimeout(timeout);
+      reject(error);
+    });
+    this.pendingMessages.clear();
+  }
+
+  private postToWorker(message: DatabaseMessage, transfer?: Transferable[]) {
+    if (!this.port) {
+      throw new Error('Worker not available (server-side or not initialized)');
+    }
+    // Secret buffers (PRF outputs, cloud shares) are transferred rather
+    // than copied so this tab's copy is detached the moment it is sent.
+    if (transfer && transfer.length > 0) {
+      this.port.postMessage(message, transfer);
+    } else {
+      this.port.postMessage(message);
     }
   }
 
@@ -169,9 +328,11 @@ export class DatabaseWorkerService {
       return;
     }
 
-    // The worker released its storage and is exiting (a debug-only Reset App,
-    // possibly started from another tab). Mark it dead now rather than waiting
-    // for the heartbeat to time out.
+    // The worker released its storage and is exiting (Reset App, possibly
+    // started from another tab). Mark it dead now rather than waiting for the
+    // heartbeat to time out. If this page has not used it yet — it was loaded
+    // (or reloaded by that Reset App) while the worker was shutting down —
+    // connect to a new worker once this one is gone.
     if (response.type === 'worker_terminated') {
       if (this.heartbeatTimeout) {
         clearTimeout(this.heartbeatTimeout);
@@ -182,6 +343,9 @@ export class DatabaseWorkerService {
         isConnected: false,
         dbStatus: 'disconnected',
       });
+      if (this.canReconnect()) {
+        this.reconnectAfterWorkerExit('worker_terminated');
+      }
       return;
     }
 
@@ -225,6 +389,17 @@ export class DatabaseWorkerService {
     if (response.id) {
       const pending = this.pendingMessages.get(response.id);
       if (pending) {
+        // Refused, not executed, by a worker that is shutting down: keep the
+        // request for the new worker this page is about to connect to.
+        if (!response.isSuccessful && response.sqlResponse?.code === WORKER_TERMINATED_CODE && this.canReconnect()) {
+          this.reconnectAfterWorkerExit('request_refused');
+          return;
+        }
+        if (!this.hasUsedConnection) {
+          this.hasUsedConnection = true;
+          this.reconnectAttempts = 0;
+        }
+
         if (pending.timeout) clearTimeout(pending.timeout);
         this.pendingMessages.delete(response.id);
 
@@ -273,12 +448,18 @@ export class DatabaseWorkerService {
 
     // If no heartbeat received within 15 seconds, mark worker as dead
     this.heartbeatTimeout = setTimeout(() => {
+      this.heartbeatTimeout = null;
       log.warn('Heartbeat timeout - worker appears dead', { process: 'heartbeat' });
       this.updateStatus({
         isWorkerAlive: false,
         isConnected: false,
         dbStatus: 'disconnected'
       });
+      // A silent worker this page never used (one that exited without the
+      // port's `close` event reaching us) is replaced.
+      if (this.canReconnect()) {
+        this.reconnect('heartbeat_timeout');
+      }
     }, 15000);
   }
 
@@ -394,16 +575,17 @@ export class DatabaseWorkerService {
         reject(new Error(`Database operation timed out after ${timeoutMs}ms: ${type}`));
       }, timeoutMs);
 
-      this.pendingMessages.set(id, { resolve, reject, timeout, type, startedAt: Date.now() });
+      this.pendingMessages.set(id, { resolve, reject, timeout, type, startedAt: Date.now(), message, transfer });
+
+      // The current worker is shutting down: the request is posted to the
+      // next one by reconnect().
+      if (this.isAwaitingWorkerExit) {
+        log.debug('Worker request waits for a new worker', { correlationId: id, operation: type });
+        return;
+      }
 
       try {
-        // Secret buffers (PRF outputs, cloud shares) are transferred rather
-        // than copied so this tab's copy is detached the moment it is sent.
-        if (transfer && transfer.length > 0) {
-          this.port.postMessage(message, transfer);
-        } else {
-          this.port.postMessage(message);
-        }
+        this.postToWorker(message, transfer);
         log.debug('Worker request', {
           correlationId: id,
           operation: type,
@@ -640,6 +822,7 @@ export class DatabaseWorkerService {
    * must not stop the reset, and the caller wipes storage regardless.
    */
   public async terminate(options: { includeLogs?: boolean } = {}): Promise<void> {
+    this.isTerminating = true;
     try {
       await this.sendMessage('terminate_worker', { includeLogs: options.includeLogs === true });
     } catch (error) {
@@ -651,16 +834,18 @@ export class DatabaseWorkerService {
 
   // Cleanup
   public destroy() {
+    this.isDestroyed = true;
+    this.isAwaitingWorkerExit = false;
     if (this.heartbeatTimeout) {
       clearTimeout(this.heartbeatTimeout);
     }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
 
     // Clear all pending messages
-    this.pendingMessages.forEach(({ timeout, reject }) => {
-      if (timeout) clearTimeout(timeout);
-      reject(new Error('Service destroyed'));
-    });
-    this.pendingMessages.clear();
+    this.rejectPendingMessages(new Error('Service destroyed'));
 
     // Clear status callbacks
     this.statusCallbacks.clear();

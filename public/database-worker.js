@@ -647,9 +647,7 @@ class DatabaseWorker {
 
     await this.log.close({ discard: includeLogs });
 
-    // Exit once the reply to the requesting tab has been posted.
-    setTimeout(() => self.close(), 100);
-
+    // handleMessage exits the worker in the task that posts this reply.
     return {
       type: 'terminate_worker_response',
       isSuccessful: true,
@@ -1922,6 +1920,12 @@ class DatabaseWorker {
   addPort(port) {
     this.ports.add(port);
     this.log.info('Port added', { process: 'connection', portCount: this.ports.size });
+    // removePort() stops the heartbeat when the last port goes; a tab that
+    // connects afterwards (the worker outlived its last page) needs it back,
+    // or it declares this worker dead after 15 s.
+    if (!this.heartbeatInterval && !this.isTerminated) {
+      this.startHeartbeat();
+    }
   }
 
   removePort(port) {
@@ -1982,13 +1986,15 @@ class DatabaseWorker {
     log.debug('Received message', { payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload) : [] });
 
     if (this.isTerminated) {
+      // WORKER_TERMINATED means "not executed": a tab that connected while
+      // this worker was shutting down re-sends the request to a new worker.
       port.postMessage({
         id,
         type: 'error',
         isSuccessful: false,
         dbStatus: 'disconnected',
         version: this.dbVersion,
-        sqlResponse: { error: 'Database worker has been terminated — reload the app' },
+        sqlResponse: { error: 'Database worker has been terminated — reload the app', code: 'WORKER_TERMINATED' },
       });
       return;
     }
@@ -2275,6 +2281,18 @@ class DatabaseWorker {
       durationMs: Date.now() - startedAt,
     });
     port.postMessage(response);
+
+    // Reset App: exit now, in the task that posted the reply (it is still
+    // delivered), also when terminating failed part-way — a terminated worker
+    // refuses everything, so staying alive only strands the next page. The
+    // requesting tab reloads as soon as it reads the reply, and a page that
+    // connects while this worker is still running is attached to it, not to
+    // a new one: with another tab keeping this worker alive, the 100 ms this
+    // used to wait was enough for the reloaded tab to connect and be left
+    // with a dead port.
+    if (type === 'terminate_worker' && this.isTerminated) {
+      self.close();
+    }
   }
 }
 
@@ -2296,7 +2314,21 @@ self.addEventListener('connect', (event) => {
   });
   
   port.start();
-  
+
+  // A page that connects while Reset App is shutting this worker down is
+  // told at once, so it connects again once this worker has exited instead
+  // of sending its requests to a worker that is about to disappear.
+  if (dbWorker.isTerminated) {
+    port.postMessage({
+      type: 'worker_terminated',
+      isSuccessful: true,
+      dbStatus: 'disconnected',
+      version: dbWorker.dbVersion,
+      sqlResponse: { message: 'Database worker terminated' },
+    });
+    return;
+  }
+
   // Send initial status
   port.postMessage({
     type: 'worker_connected',

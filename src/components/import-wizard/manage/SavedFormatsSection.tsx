@@ -30,8 +30,11 @@ import {
   Typography,
 } from '@mui/material';
 import { DeleteOutline, EditOutlined } from '@mui/icons-material';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
+import AccountLabel from '@/components/accounts/AccountLabel';
+import AccountOptionContent from '@/components/accounts/AccountOptionContent';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { useFormatters } from '@/contexts/useFormatters';
 import { storedTimestampToDate } from '@/lib/formatting';
 import { logger } from '@/lib/logging';
@@ -73,7 +76,10 @@ function EditFormatDialog({ profile, accounts, saveImportProfile, onClose, onSav
   const [error, setError] = useState<string | null>(null);
 
   const trimmedName = name.trim();
-  const sortedAccounts = [...accounts].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  const labels = useAccountLabels(accounts);
+  const sortedAccounts = [...accounts].sort(
+    (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || a.id - b.id
+  );
 
   const handleSave = useCallback(async () => {
     if (!trimmedName) return;
@@ -128,7 +134,16 @@ function EditFormatDialog({ profile, accounts, saveImportProfile, onClose, onSav
             disabled={saving}
             fullWidth
             slotProps={{
-              select: { displayEmpty: true },
+              select: {
+                displayEmpty: true,
+                // The open menu shows each account's second line; the closed field its compact name.
+                renderValue: (value: unknown) =>
+                  value === '' ? (
+                    <em>{t('formats.editDialog.askEachTime')}</em>
+                  ) : (
+                    (labels.get(Number(value))?.text ?? '')
+                  ),
+              },
               inputLabel: { shrink: true },
               htmlInput: { 'data-testid': 'import-format-account-input' },
             }}
@@ -138,7 +153,7 @@ function EditFormatDialog({ profile, accounts, saveImportProfile, onClose, onSav
             </MenuItem>
             {sortedAccounts.map((account) => (
               <MenuItem key={account.id} value={String(account.id)}>
-                {account.name}
+                <AccountOptionContent label={labels.get(account.id)} fallback={account.name} />
               </MenuItem>
             ))}
           </TextField>
@@ -182,12 +197,19 @@ export default function SavedFormatsSection({
 
   const rowIdPrefix = useId();
 
-  const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
-  /** "Goes into: …", or that the format asks each time. */
-  const accountLine = (profile: SavedImportProfile): string => {
-    const accountName =
-      profile.account_id === null ? null : (accountNames.get(profile.account_id) ?? profile.account_name ?? null);
-    return accountName ? t('formats.account', { account: accountName }) : t('formats.noAccount');
+  const labels = useAccountLabels(accounts);
+  /** "Goes into: …" with the account as a label (details on hover or click), or that the format asks each time. */
+  const accountLine = (profile: SavedImportProfile): React.ReactNode => {
+    const label = profile.account_id === null ? undefined : labels.get(profile.account_id);
+    const accountName = label?.text ?? (profile.account_id === null ? null : (profile.account_name ?? null));
+    if (!accountName) return t('formats.noAccount');
+    return (
+      <Trans
+        i18nKey="formats.account"
+        ns="importManage"
+        components={{ account: <AccountLabel label={label} fallback={accountName} /> }}
+      />
+    );
   };
 
   const handleDelete = useCallback(async () => {

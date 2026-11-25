@@ -230,6 +230,7 @@ export default function AccountsPage() {
     <AccountDetailForm
       key={selectedAccount.id}
       account={selectedAccount}
+      accounts={accounts}
       users={users}
       cards={cardsByAccountId[selectedAccount.id] ?? []}
       onSave={handleSaveAccount}
@@ -311,6 +312,7 @@ export default function AccountsPage() {
         editingAccount={null}
         defaultOwnerUserId={users.find((user) => user.is_primary === 1)?.id ?? users[0]?.id ?? null}
         users={users}
+        accounts={accounts}
         onClose={() => setAccountDialogOpen(false)}
         onAdd={handleAddAccount}
         onUpdate={updateAccount}

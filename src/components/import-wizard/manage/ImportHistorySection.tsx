@@ -12,7 +12,10 @@ import { Box, Button, Chip, Stack, Typography } from '@mui/material';
 import { Undo as UndoIcon } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 
+import AccountLabel from '@/components/accounts/AccountLabel';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { useFormatters } from '@/contexts/useFormatters';
+import type { AccountLabels } from '@/lib/accountLabels';
 import type { Account, ImportBatch } from '@/types/database';
 
 import ManageSection from './ManageSection';
@@ -102,15 +105,16 @@ interface HistoryRowProps {
   batch: ImportBatch;
   fileName: string;
   accounts: readonly Account[];
+  labels: AccountLabels;
   onUndo: () => void;
 }
 
-function HistoryRow({ batch, fileName, accounts, onUndo }: HistoryRowProps) {
+function HistoryRow({ batch, fileName, accounts, labels, onUndo }: HistoryRowProps) {
   const { t } = useTranslation('importManage');
   const { number, date, dateTime } = useFormatters();
   const fileId = useId();
 
-  const accountNames = batchAccounts(batch, accounts).map((account) => account.name ?? t('page.deletedAccount'));
+  const intoAccounts = batchAccounts(batch, accounts);
   const findings = parseIssuesSummary(batch.issues_json);
 
   let range: string;
@@ -164,7 +168,18 @@ function HistoryRow({ batch, fileName, accounts, onUndo }: HistoryRowProps) {
           {dateTime(batch.imported_at)}
         </Typography>
         <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }} data-testid="import-history-accounts">
-          {accountNames.length > 0 ? accountNames.join(', ') : t('history.noAccount')}
+          {intoAccounts.length > 0
+            ? intoAccounts.map((account, accountIndex) => (
+                <React.Fragment key={account.id}>
+                  {accountIndex > 0 && ', '}
+                  {account.name === null ? (
+                    t('page.deletedAccount')
+                  ) : (
+                    <AccountLabel label={labels.get(account.id)} fallback={account.name} />
+                  )}
+                </React.Fragment>
+              ))
+            : t('history.noAccount')}
         </Typography>
         <Typography variant="body2" color="text.secondary" data-testid="import-history-range">
           {range}
@@ -238,6 +253,7 @@ export default function ImportHistorySection({
   const { t } = useTranslation('importManage');
   const { number } = useFormatters();
   const [showAll, setShowAll] = useState(false);
+  const labels = useAccountLabels(accounts);
 
   const all = batches ?? [];
   const visible = showAll ? all : all.slice(0, HISTORY_PREVIEW_COUNT);
@@ -261,6 +277,7 @@ export default function ImportHistorySection({
             batch={batch}
             fileName={nameOf(batch)}
             accounts={accounts}
+            labels={labels}
             onUndo={() => onUndo(batch, nameOf(batch))}
           />
         ))}

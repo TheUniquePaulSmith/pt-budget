@@ -556,7 +556,7 @@ describe('ImportManage: saved formats', () => {
 
     fireEvent.change(within(dialog).getByLabelText('Format name'), { target: { value: '  Joint account export ' } });
     fireEvent.mouseDown(within(dialog).getByRole('combobox', { name: /Account/ }));
-    fireEvent.click(await screen.findByRole('option', { name: 'Rewards Visa' }));
+    fireEvent.click(await screen.findByRole('option', { name: /^Rewards Visa/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -715,7 +715,7 @@ describe('ImportManage: saved formats', () => {
     fireEvent.click(within(checking).getByRole('button', { name: 'Edit format First Bank checking' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit saved format' });
     fireEvent.mouseDown(within(dialog).getByRole('combobox', { name: /Account/ }));
-    fireEvent.click(await screen.findByRole('option', { name: 'Rainy Day Savings' }));
+    fireEvent.click(await screen.findByRole('option', { name: /^Rainy Day Savings/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(saveImportProfile).toHaveBeenCalledTimes(1));
@@ -745,6 +745,52 @@ describe('ImportManage: saved formats', () => {
 
     expect(await within(dialog).findByText('The format could not be deleted. Try again.')).toBeTruthy();
     expect(screen.getAllByTestId('import-format-row')).toHaveLength(2);
+  });
+});
+
+describe('ImportManage: accounts with the same name', () => {
+  // Two accounts called "Huntington": the history, the formats and the identifiers each say which one.
+  beforeEach(() => {
+    store.accounts = [
+      { ...account(1, 'Huntington'), owner_display_name: 'Avery', cards: [] },
+      { ...account(2, 'Huntington'), owner_display_name: 'Jordan', cards: [] },
+    ];
+    store.batches = [batch({ id: 12, account_ids_json: '[2]' })];
+    store.profiles = [profile({ id: 5, account_id: 1, account_name: 'Huntington' })];
+    store.identifiers = [identifier({ id: 31, account_id: 2, account_name: 'Huntington' })];
+  });
+
+  it('adds the owner to each mention, and to the names a screen reader hears', async () => {
+    renderManage();
+
+    const [row] = await historyRows();
+    expect(within(row).getByTestId('import-history-accounts').textContent).toBe('Huntington · Jordan');
+
+    await screen.findByTestId('import-formats-list');
+    expect(screen.getByTestId('import-format-account').textContent).toBe('Goes into: Huntington · Avery');
+
+    const group = await screen.findByTestId('import-identifier-group');
+    expect(within(group).getByRole('heading', { name: 'Huntington · Jordan' })).toBeTruthy();
+    expect(within(group).getByRole('button', { name: 'Remove Number ending in 4821 from Huntington · Jordan' })).toBeTruthy();
+  });
+
+  it('shows the second line of each account when a format is pointed at one', async () => {
+    renderManage();
+    await screen.findByTestId('import-formats-list');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit format First Bank checking' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit saved format' });
+
+    // Closed, the field shows the compact name of the account the format goes into.
+    expect(within(dialog).getByRole('combobox', { name: /Account/ }).textContent).toBe('Huntington · Avery');
+
+    fireEvent.mouseDown(within(dialog).getByRole('combobox', { name: /Account/ }));
+    const theirs = await screen.findByRole('option', { name: /^Huntington · Jordan/ });
+    // The owner is on the first line; the second has what is left.
+    expect(within(theirs).getByTestId('account-detail-line').textContent).toBe('Checking');
+    fireEvent.click(theirs);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(saveImportProfile).toHaveBeenCalledWith(expect.objectContaining({ account_id: 2 }), 5));
   });
 });
 

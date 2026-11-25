@@ -11,6 +11,14 @@
     "accountOwner": "口座名義人",
     "unknownUser": "不明なユーザー"
   },
+  "label": {
+    "moreCards": "他 {{count}} 枚",
+    "details": "口座の詳細：{{name}}"
+  },
+  "preview": {
+    "title": "表示のされ方",
+    "sameName": "「{{name}}」という名前の口座がすでにあります。一覧では名義人、種類、またはカード番号を添えて区別します。"
+  },
   "validation": {
     "nameRequired": "口座名は必須です",
     "numbersInvalid": "期首残高と利用限度額は数値で入力してください",
@@ -18,6 +26,7 @@
   },
   "formFields": {
     "nameLabel": "口座名",
+    "nameHelp": "任意。空欄のままにすると「{{name}}」になります。自分で入力することもできます。",
     "typeLabel": "口座の種類",
     "currencyLabel": "通貨",
     "ownershipLabel": "名義",

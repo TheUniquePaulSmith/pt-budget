@@ -11,8 +11,12 @@ import { Alert, Box, Button, Paper, Stack, Typography } from '@mui/material';
 import { CheckCircle, InfoOutlined } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 
+import AccountLabel from '@/components/accounts/AccountLabel';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
+import type { AccountLabel as AccountLabelModel } from '@/lib/accountLabels';
+import type { User } from '@/types/database';
+
 import type { ImportWizardController } from './useImportWizard';
-import { accountDisplayName, findAccount } from './wizardFormat';
 import type { StatementSession } from './wizardModel';
 
 interface DoneStepProps {
@@ -23,6 +27,7 @@ interface DoneStepProps {
 export default function DoneStep({ wizard, onOpenHistory }: DoneStepProps) {
   const { t } = useTranslation(['importWizard', 'common']);
   const { state, slice } = wizard;
+  const labels = useAccountLabels(slice.accounts, slice.users);
   const finished = state.statements.filter((statement) => statement.result);
   const inserted = finished.reduce((sum, statement) => sum + (statement.result?.inserted ?? 0), 0);
   const duplicates = finished.reduce((sum, statement) => sum + (statement.result?.duplicates ?? 0), 0);
@@ -39,7 +44,15 @@ export default function DoneStep({ wizard, onOpenHistory }: DoneStepProps) {
       </Box>
 
       {finished.map((statement, index) => (
-        <ResultCard key={statement.id} statement={statement} index={index} accountNames={accountNamesOf(statement, slice.accounts)} />
+        <ResultCard
+          key={statement.id}
+          statement={statement}
+          index={index}
+          users={slice.users}
+          accountLabels={(statement.result?.accountIds ?? [])
+            .map((id) => labels.get(id))
+            .filter((label) => label !== undefined)}
+        />
       ))}
 
       <Alert
@@ -57,21 +70,15 @@ export default function DoneStep({ wizard, onOpenHistory }: DoneStepProps) {
   );
 }
 
-function accountNamesOf(statement: StatementSession, accounts: ImportWizardController['slice']['accounts']): string {
-  return (statement.result?.accountIds ?? [])
-    .map((id) => findAccount(accounts, id))
-    .filter((account) => account !== undefined)
-    .map((account) => accountDisplayName(account))
-    .join(', ');
-}
-
 interface ResultCardProps {
   statement: StatementSession;
   index: number;
-  accountNames: string;
+  /** The accounts the statement went into (one that no longer exists is left out). */
+  accountLabels: AccountLabelModel[];
+  users: User[];
 }
 
-function ResultCard({ statement, index, accountNames }: ResultCardProps) {
+function ResultCard({ statement, index, accountLabels, users }: ResultCardProps) {
   const { t } = useTranslation(['importWizard', 'common']);
   const result = statement.result;
   if (!result) return null;
@@ -95,9 +102,14 @@ function ResultCard({ statement, index, accountNames }: ResultCardProps) {
               ? ` · ${t('files.accountPart', { index: statement.tableIndex + 1, total: statement.tableCount })}`
               : ''}
           </Typography>
-          {accountNames && (
+          {accountLabels.length > 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
-              {accountNames}
+              {accountLabels.map((label, labelIndex) => (
+                <React.Fragment key={label.account.id}>
+                  {labelIndex > 0 && ', '}
+                  <AccountLabel label={label} users={users} />
+                </React.Fragment>
+              ))}
             </Typography>
           )}
           <Box sx={{ mt: 1 }}>

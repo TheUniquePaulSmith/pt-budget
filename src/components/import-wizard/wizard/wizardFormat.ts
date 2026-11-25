@@ -2,11 +2,6 @@
 
 import type { Account } from '@/types/database';
 
-/** "Alex - Household Checking": the owner tells apart two accounts with one name. */
-export function accountDisplayName(account: Pick<Account, 'name' | 'owner_display_name'>): string {
-  return account.owner_display_name ? `${account.owner_display_name} - ${account.name}` : account.name;
-}
-
 export function findAccount(accounts: Account[], accountId: number | null | undefined): Account | undefined {
   return accountId == null ? undefined : accounts.find((account) => account.id === accountId);
 }

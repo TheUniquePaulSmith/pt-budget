@@ -6,22 +6,27 @@
  * says about the account.
  */
 
-import React, { useState, type FormEvent } from 'react';
+import React, { useMemo, useState, type FormEvent } from 'react';
 import { Alert, Box, Button, MenuItem, Stack, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
 import { AccountCardFormFields, AccountFormFields, AccountOwnerField } from '@/components/accounts/AccountFormFields';
 import {
   buildAccountCardInput,
+  buildAccountDraft,
   buildAccountFormValues,
   createAccountCardFormState,
   createAccountFormState,
+  draftCardsFromInput,
   type AccountCardInput,
   type AccountFormPrefill,
   type AccountFormValues,
 } from '@/components/accounts/accountFormModel';
+import AccountLabelPreview from '@/components/accounts/AccountLabelPreview';
+import { useAccountLabelWords, useSuggestedAccountName } from '@/components/accounts/useAccountLabels';
 import { UserFormDialog } from '@/components/accounts/UserFormDialog';
-import type { User } from '@/types/database';
+import { accountNameKey, suggestAccountName } from '@/lib/accountLabels';
+import type { Account, User } from '@/types/database';
 
 /** Owner menu value of "+ New person…"; negative, so it never collides with a user id. */
 const NEW_PERSON_VALUE = -1;
@@ -33,6 +38,8 @@ export interface CreatedAccount {
 
 interface InlineAccountFormProps {
   users: User[];
+  /** The existing accounts: the preview says when another one already has this name. */
+  accounts: readonly Account[];
   defaultCurrency: string;
   prefill: AccountFormPrefill;
   onAdd: (account: AccountFormValues, ownerUserId: number, card: AccountCardInput) => Promise<CreatedAccount>;
@@ -49,6 +56,7 @@ function defaultOwner(users: User[]): number | null {
 
 export default function InlineAccountForm({
   users,
+  accounts,
   defaultCurrency,
   prefill,
   onAdd,
@@ -57,7 +65,13 @@ export default function InlineAccountForm({
   onCancel,
 }: InlineAccountFormProps) {
   const { t } = useTranslation(['importWizard', 'accounts', 'common']);
-  const [form, setForm] = useState(() => createAccountFormState(null, prefill, defaultCurrency));
+  const words = useAccountLabelWords();
+  const [form, setForm] = useState(() => {
+    const initial = createAccountFormState(null, prefill, defaultCurrency);
+    // A name from the file that only repeats the suggestion ("Checking") leaves the field to the suggestion.
+    const suggestion = suggestAccountName({ institution: initial.institution, type: initial.type }, words.typeLabel);
+    return accountNameKey(initial.name) === accountNameKey(suggestion) ? { ...initial, name: '' } : initial;
+  });
   const [card, setCard] = useState(() => createAccountCardFormState(prefill));
   const [ownerUserId, setOwnerUserId] = useState<number | null>(() => defaultOwner(users));
   const [saving, setSaving] = useState(false);
@@ -65,6 +79,18 @@ export default function InlineAccountForm({
   const [newPersonOpen, setNewPersonOpen] = useState(false);
   const [newPersonName, setNewPersonName] = useState('');
   const [newPersonSaving, setNewPersonSaving] = useState(false);
+
+  // An empty Account Name is saved as the suggestion; the preview shows the label either way.
+  const suggestedName = useSuggestedAccountName(form.institution, form.type);
+  const draft = useMemo(
+    () =>
+      buildAccountDraft(form, suggestedName, {
+        ownerUserId,
+        ownerDisplayName: users.find((user) => user.id === ownerUserId)?.display_name,
+        cards: draftCardsFromInput(card),
+      }),
+    [card, form, ownerUserId, suggestedName, users]
+  );
 
   const handleNewPerson = async (event: FormEvent) => {
     event.preventDefault();
@@ -88,7 +114,7 @@ export default function InlineAccountForm({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const values = buildAccountFormValues(form);
+    const values = buildAccountFormValues(form, suggestedName);
     if (!values.ok) {
       setError(t(`accounts:validation.${values.error}`));
       return;
@@ -135,7 +161,12 @@ export default function InlineAccountForm({
             </MenuItem>
           }
         />
-        <AccountFormFields state={form} onChange={setForm} size="small" />
+        <AccountFormFields
+          state={form}
+          onChange={setForm}
+          size="small"
+          afterName={<AccountLabelPreview draft={draft} accounts={accounts} users={users} />}
+        />
         <Typography variant="subtitle2">{t('accounts:formDialog.firstCard')}</Typography>
         <AccountCardFormFields state={card} onChange={setCard} users={users} size="small" />
       </Stack>

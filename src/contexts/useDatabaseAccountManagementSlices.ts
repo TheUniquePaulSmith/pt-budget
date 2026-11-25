@@ -181,17 +181,18 @@ export function useDatabaseAccountManagementSlices({
       updates: Partial<Omit<User, "id" | "created_at" | "updated_at">>
     ): Promise<void> => {
       await requireService().updateUser(id, updates);
-      await refreshUsers();
+      // Accounts carry their owner's and cardholders' names.
+      await Promise.all([refreshUsers(), refreshAccounts()]);
     },
-    [refreshUsers, requireService]
+    [refreshAccounts, refreshUsers, requireService]
   );
 
   const deleteUser = useCallback(
     async (id: number): Promise<void> => {
       await requireService().deleteUser(id);
-      await refreshUsers();
+      await Promise.all([refreshUsers(), refreshAccounts()]);
     },
-    [refreshUsers, requireService]
+    [refreshAccounts, refreshUsers, requireService]
   );
 
   const accountsSlice = useMemo(

@@ -219,7 +219,10 @@ describe('ImportWizard', () => {
     await waitFor(() => expect(screen.getByTestId('import-next')).toBeEnabled());
     next();
     await waitForStep('summary');
-    expect(screen.getByTestId('import-summary-accounts')).toHaveTextContent('Alex - Household Checking');
+    // The account with its second line: what the name does not say (here, whose it is).
+    const into = screen.getByTestId('import-summary-accounts');
+    expect(within(into).getByTestId('account-label')).toHaveTextContent(/^Household Checking/);
+    expect(within(into).getByTestId('account-detail-line')).toHaveTextContent('Alex');
     await waitFor(() => expect(screen.getByTestId('import-summary-to-import')).toHaveTextContent('3'));
     expect(screen.getByTestId('import-summary-money-in')).toHaveTextContent('$1,200.00');
     expect(screen.getByTestId('import-summary-money-out')).toHaveTextContent('$67.70');
@@ -510,7 +513,9 @@ describe('ImportWizard', () => {
     expect(slice.resolveImportAccounts).toHaveBeenCalledWith([''], { profileAccountId: 1 });
     expect(screen.getByTestId('import-fast-path')).toHaveTextContent('Same format as last time (“My bank”). Nothing needs your attention.');
     // The account is a guess, and says so; pressing Import accepts it.
-    expect(screen.getByTestId('import-summary-accounts')).toHaveTextContent('Alex - Household Checking');
+    expect(within(screen.getByTestId('import-summary-accounts')).getByTestId('account-label')).toHaveTextContent(
+      /^Household Checking/
+    );
     expect(screen.getByTestId('import-summary-assumed')).toHaveTextContent('Account assumed from last time');
     await waitFor(() => expect(screen.getByTestId('import-run')).toBeEnabled());
 
@@ -693,8 +698,69 @@ describe('ImportWizard', () => {
       expect.objectContaining({ last_four: '8801' })
     );
     expect(screen.queryByTestId('import-account-form')).toBeNull();
-    expect(screen.getByTestId('import-account-0-select')).toHaveTextContent('Alex - Huntington Checking');
+    const chosen = screen.getByTestId('import-account-0-select');
+    expect(chosen).toHaveTextContent(/^Huntington Checking/);
+    expect(within(chosen).getByTestId('account-detail-line')).toHaveTextContent('Alex');
     expect(screen.getByTestId('import-next')).toBeEnabled();
+  });
+
+  it('tells two accounts with the same name apart, in the menu and once one is chosen', async () => {
+    slice.accounts = [
+      ...ACCOUNTS,
+      {
+        id: 3,
+        name: 'Huntington',
+        type: 'checking',
+        ownership: 'joint',
+        owner_user_id: 1,
+        owner_display_name: 'Alex',
+        institution: 'Huntington',
+        currency: 'USD',
+        cards: [
+          { id: 31, account_id: 3, last_four: '1111', user_id: 1, user_display_name: 'Alex', created_at: NOW },
+          { id: 32, account_id: 3, last_four: '2222', user_id: 2, user_display_name: 'Sam', created_at: NOW },
+        ],
+        created_at: NOW,
+        updated_at: NOW,
+      },
+      {
+        id: 4,
+        name: 'Huntington',
+        type: 'credit',
+        owner_user_id: 1,
+        owner_display_name: 'Alex',
+        institution: 'Huntington',
+        currency: 'USD',
+        cards: [{ id: 41, account_id: 4, last_four: '9034', user_id: 1, user_display_name: 'Alex', created_at: NOW }],
+        created_at: NOW,
+        updated_at: NOW,
+      },
+    ];
+    renderWizard();
+    addFile();
+    await screen.findByTestId('import-file-rows');
+    next();
+    await waitForStep('account');
+
+    // Same name, same owner: the type tells them apart, and each option's second line has the rest.
+    fireEvent.mouseDown(screen.getByTestId('import-account-0-select'));
+    const checking = await screen.findByRole('option', { name: /^Huntington · Checking/ });
+    const credit = screen.getByRole('option', { name: /^Huntington · Credit Card/ });
+    expect(within(checking).getByTestId('account-detail-line')).toHaveTextContent(/^Alex \(joint\) · ••1111 ••2222$/);
+    expect(within(credit).getByTestId('account-detail-line')).toHaveTextContent(/^Alex · ••9034$/);
+
+    fireEvent.click(credit);
+    await waitFor(() => expect(screen.getByTestId('import-account-0')).toHaveAttribute('data-status', 'chosen'));
+    const chosen = screen.getByTestId('import-account-0-select');
+    expect(chosen).toHaveTextContent(/^Huntington · Credit Card/);
+    expect(within(chosen).getByTestId('account-detail-line')).toHaveTextContent('••9034');
+
+    // The button beside the picker opens the chosen account's details.
+    fireEvent.click(screen.getByTestId('import-account-0-details'));
+    const card = await screen.findByTestId('account-details-card');
+    expect(card).toHaveTextContent('Credit Card');
+    expect(card).toHaveTextContent('••9034 — Alex');
+    expect(slice.resolveImportAccounts).toHaveBeenCalled();
   });
 
   it('reads the file again with the reader choices made under Advanced', async () => {

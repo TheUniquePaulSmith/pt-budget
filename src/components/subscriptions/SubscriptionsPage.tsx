@@ -40,6 +40,7 @@ import {
 import { periodDateRange, weekStartsOnFor, type Period } from '@/lib/periodRange';
 import { accountColumn, cardColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useSubscriptionsSlice } from '@/contexts/useDatabaseSlices';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { useFormatters } from '@/contexts/useFormatters';
 import type {
   MerchantRule,
@@ -93,6 +94,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
     getSeriesTransactions,
     getUnmatchedRecurringClusters,
   } = useSubscriptionsSlice();
+  const accountLabels = useAccountLabels(accounts, users);
 
   const [clusters, setClusters] = useState<UnmatchedCluster[]>([]);
   const [rangedRecurringSeries, setRangedRecurringSeries] = useState<RecurringSeries[]>([]);
@@ -431,7 +433,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
       effectiveUser: t('columns.effectiveUser'),
       unassigned: t('columns.unassigned'),
     }),
-    accountColumn<Transaction>({ headerName: t('columns.account'), owner: t('columns.owner'), unknownAccount: t('columns.unknownAccount') }),
+    accountColumn<Transaction>({ headerName: t('columns.account'), unknownAccount: t('columns.unknownAccount'), labels: accountLabels }),
     cardColumn<Transaction>({ headerName: t('columns.card'), noCard: t('columns.noCard') }),
     {
       field: 'amount',
@@ -442,7 +444,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
       // A transaction's amount is in its account's currency.
       renderCell: (params) => money(Math.abs(params.row.amount), params.row.account_currency),
     },
-  ], [money, t]);
+  ], [money, t, accountLabels]);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -678,6 +680,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
         onSetCompany={setRecurringSeriesCompany}
         onDelete={deleteRecurringSeries}
         getSeriesTransactions={getSeriesTransactions}
+        accountLabels={accountLabels}
       />
 
       <RuleEditorDialog

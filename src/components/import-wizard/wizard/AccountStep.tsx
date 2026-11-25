@@ -16,7 +16,6 @@ import {
   Divider,
   FormControl,
   InputLabel,
-  ListItemText,
   MenuItem,
   Paper,
   Select,
@@ -26,13 +25,16 @@ import {
 import { CheckCircle } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 
-import type { Account } from '@/types/database';
+import AccountDetailsButton from '@/components/accounts/AccountDetailsButton';
+import AccountOptionContent from '@/components/accounts/AccountOptionContent';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
+import type { AccountLabels } from '@/lib/accountLabels';
+import type { Account, User } from '@/types/database';
 
 import { accountPrefillFrom } from './accountPrefill';
 import InlineAccountForm from './InlineAccountForm';
 import { useIssueTexts } from './issueText';
 import type { ImportWizardController } from './useImportWizard';
-import { accountDisplayName } from './wizardFormat';
 import { accountIssueCode, type AccountChoice, type StatementSession } from './wizardModel';
 
 const CREATE_VALUE = 'create';
@@ -46,6 +48,8 @@ export default function AccountStep({ wizard }: AccountStepProps) {
   const { t } = useTranslation(['importWizard', 'common']);
   const { current: statement, slice } = wizard;
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
+  // Two accounts with one name are told apart here: each option carries its bank, type, owner and cards.
+  const labels = useAccountLabels(slice.accounts, slice.users);
 
   if (!statement || !statement.accounts) return null;
   const choices = statement.accounts;
@@ -67,6 +71,8 @@ export default function AccountStep({ wizard }: AccountStepProps) {
           choice={choice}
           statement={statement}
           accounts={slice.accounts}
+          users={slice.users}
+          labels={labels}
           canSkip={several}
           // With no account yet there is nothing to pick from: the form opens by itself.
           creating={creatingFor === choice.value || (slice.accounts.length === 0 && choice.accountId == null && !choice.skipped)}
@@ -85,6 +91,8 @@ interface ChoiceCardProps {
   choice: AccountChoice;
   statement: StatementSession;
   accounts: Account[];
+  users: User[];
+  labels: AccountLabels;
   canSkip: boolean;
   creating: boolean;
   onStartCreate: () => void;
@@ -98,6 +106,8 @@ function ChoiceCard({
   choice,
   statement,
   accounts,
+  users,
+  labels,
   canSkip,
   creating,
   onStartCreate,
@@ -138,6 +148,7 @@ function ChoiceCard({
   const statusColor = { recognised: 'success', assumed: 'warning', chosen: 'success', skipped: 'default', open: 'error' } as const;
 
   const selectValue: number | string = choice.skipped ? SKIP_VALUE : (choice.accountId ?? '');
+  const selectedAccount = choice.skipped ? undefined : accounts.find((candidate) => candidate.id === choice.accountId);
 
   const handleSelect = (value: number | string) => {
     if (value === CREATE_VALUE) {
@@ -181,40 +192,50 @@ function ChoiceCard({
         </Box>
       )}
 
-      <FormControl fullWidth size="small">
-        <InputLabel id={labelId} shrink>
-          {t('common:fields.account')}
-        </InputLabel>
-        <Select
-          labelId={labelId}
-          label={t('common:fields.account')}
-          notched
-          displayEmpty
-          value={selectValue}
-          onChange={(event) => handleSelect(event.target.value as number | string)}
-          renderValue={(value) => {
-            if (value === SKIP_VALUE) return t('account.skip');
-            const account = accounts.find((candidate) => candidate.id === value);
-            return account ? accountDisplayName(account) : <Typography color="text.secondary">{t('account.choose')}</Typography>;
-          }}
-          SelectDisplayProps={{ 'data-testid': `import-account-${index}-select` } as React.HTMLAttributes<HTMLDivElement>}
-        >
-          {ordered.map(({ account, suggested }) => (
-            <MenuItem key={account.id} value={account.id}>
-              <ListItemText
-                primary={accountDisplayName(account)}
-                secondary={[t(`common:accountType.${account.type}`), account.institution].filter(Boolean).join(' · ')}
-              />
-              {suggested && <Chip size="small" color="info" variant="outlined" label={t('account.suggested')} sx={{ ml: 1 }} />}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
+          <InputLabel id={labelId} shrink>
+            {t('common:fields.account')}
+          </InputLabel>
+          <Select
+            labelId={labelId}
+            label={t('common:fields.account')}
+            notched
+            displayEmpty
+            value={selectValue}
+            onChange={(event) => handleSelect(event.target.value as number | string)}
+            renderValue={(value) => {
+              if (value === SKIP_VALUE) return t('account.skip');
+              const account = accounts.find((candidate) => candidate.id === value);
+              return account ? (
+                <AccountOptionContent label={labels.get(account.id)} fallback={account.name} noWrap />
+              ) : (
+                <Typography color="text.secondary">{t('account.choose')}</Typography>
+              );
+            }}
+            SelectDisplayProps={{ 'data-testid': `import-account-${index}-select` } as React.HTMLAttributes<HTMLDivElement>}
+          >
+            {ordered.map(({ account, suggested }) => (
+              <MenuItem key={account.id} value={account.id} data-account-id={account.id}>
+                <AccountOptionContent label={labels.get(account.id)} fallback={account.name} />
+                {suggested && <Chip size="small" color="info" variant="outlined" label={t('account.suggested')} sx={{ ml: 1 }} />}
+              </MenuItem>
+            ))}
+            {ordered.length > 0 && <Divider />}
+            <MenuItem value={CREATE_VALUE} sx={{ fontStyle: 'italic' }} data-testid={`import-account-${index}-create`}>
+              {t('account.createNew')}
             </MenuItem>
-          ))}
-          {ordered.length > 0 && <Divider />}
-          <MenuItem value={CREATE_VALUE} sx={{ fontStyle: 'italic' }} data-testid={`import-account-${index}-create`}>
-            {t('account.createNew')}
-          </MenuItem>
-          {canSkip && <MenuItem value={SKIP_VALUE}>{t('account.skip')}</MenuItem>}
-        </Select>
-      </FormControl>
+            {canSkip && <MenuItem value={SKIP_VALUE}>{t('account.skip')}</MenuItem>}
+          </Select>
+        </FormControl>
+        {selectedAccount && (
+          <AccountDetailsButton
+            account={labels.get(selectedAccount.id)?.account ?? selectedAccount}
+            users={users}
+            data-testid={`import-account-${index}-details`}
+          />
+        )}
+      </Box>
 
       {status === 'assumed' && (
         <Alert
@@ -261,6 +282,7 @@ function ChoiceCard({
         <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
           <InlineAccountForm
             users={slice.users}
+            accounts={slice.accounts}
             defaultCurrency={slice.defaultCurrency}
             prefill={accountPrefillFrom(choice.value, statement.table.meta.accountHints)}
             onAdd={slice.addAccountWithCard}

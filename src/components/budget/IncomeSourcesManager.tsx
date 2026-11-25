@@ -5,7 +5,10 @@ import { Add, Delete, Edit } from '@mui/icons-material';
 import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, IconButton, InputLabel, MenuItem, Paper, Select, Stack, Switch, TextField, Tooltip, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
+import AccountOptionContent from '@/components/accounts/AccountOptionContent';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { useFormatters } from '@/contexts/useFormatters';
+import { accountLabelText } from '@/lib/accountLabels';
 import type { Account, IncomeSource, User } from '@/types/database';
 
 interface IncomeSourcesManagerProps {
@@ -43,6 +46,7 @@ function monthlyEquivalent(source: IncomeSource) {
 
 export function IncomeSourcesManager({ accounts, users, sources, onAdd, onUpdate, onDelete }: IncomeSourcesManagerProps) {
   const { t } = useTranslation(['budget', 'common']);
+  const accountLabels = useAccountLabels(accounts, users);
   // Income-source amounts are in the default currency.
   const { money } = useFormatters();
   const formatCurrency = (value: number | null | undefined) => (value == null ? t('incomeSources.notSet') : money(value));
@@ -156,7 +160,9 @@ export function IncomeSourcesManager({ accounts, users, sources, onAdd, onUpdate
               {source.kind === 'linked_account' ? (
                 <Stack spacing={0.25}>
                   <Typography variant="body2" color="text.secondary" noWrap>
-                    {t('incomeSources.linkedAccount', { name: source.account_name || t('incomeSources.unknownAccount') })}
+                    {t('incomeSources.linkedAccount', {
+                      name: accountLabelText(accountLabels, source.account_id, source.account_name) || t('incomeSources.unknownAccount'),
+                    })}
                   </Typography>
                   {source.amount != null && (
                     <Typography variant="body2" color="text.secondary">
@@ -218,8 +224,18 @@ export function IncomeSourcesManager({ accounts, users, sources, onAdd, onUpdate
               <>
                 <FormControl fullWidth>
                   <InputLabel>{t('common:fields.account')}</InputLabel>
-                  <Select value={accountId} label={t('common:fields.account')} onChange={(event) => setAccountId(Number(event.target.value))}>
-                    {accounts.map((account) => <MenuItem key={account.id} value={account.id}>{account.name}</MenuItem>)}
+                  <Select
+                    value={accountId}
+                    label={t('common:fields.account')}
+                    onChange={(event) => setAccountId(Number(event.target.value))}
+                    // The open menu shows each account's second line; the closed field its compact name.
+                    renderValue={(value) => accountLabels.get(Number(value))?.text ?? ''}
+                  >
+                    {accounts.map((account) => (
+                      <MenuItem key={account.id} value={account.id}>
+                        <AccountOptionContent label={accountLabels.get(account.id)} fallback={account.name} />
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
                 <TextField label={t('incomeSources.expectedAmount')} type="number" value={amount} onChange={(event) => setAmount(event.target.value)} fullWidth helperText={t('incomeSources.expectedAmountHelp')} />

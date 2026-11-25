@@ -11,7 +11,9 @@ import React from 'react';
 import { Box, Checkbox, Chip, FormControlLabel, Stack, Tooltip, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { useFormatters } from '@/contexts/useFormatters';
+import { accountLabelText, type AccountLabels } from '@/lib/accountLabels';
 import type { TransferLegSummary } from '@/types/classification';
 import type { Account } from '@/types/database';
 
@@ -92,10 +94,11 @@ function confidenceColor(confidence: number): 'success' | 'warning' | 'default' 
   return 'default';
 }
 
-function Leg({ leg }: { leg: TransferLegSummary }) {
+function Leg({ leg, labels }: { leg: TransferLegSummary; labels: AccountLabels }) {
   const { t } = useTranslation('importWizard');
   const { date } = useFormatters();
-  const values = { account: leg.account_name, date: date(leg.date) };
+  // Two accounts with one name get the detail that tells them apart, as everywhere else.
+  const values = { account: accountLabelText(labels, leg.account_id, leg.account_name), date: date(leg.date) };
   return (
     <Box sx={{ minWidth: 0 }}>
       <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>
@@ -116,6 +119,7 @@ function Leg({ leg }: { leg: TransferLegSummary }) {
 export function TransfersPanel({ statement, accounts, dispatch }: PanelProps) {
   const { t } = useTranslation(['importWizard', 'common']);
   const { money, percent } = useFormatters();
+  const labels = useAccountLabels(accounts);
   const classification = statement.staging.classification;
   if (!classification) return null;
   const selected = new Set(statement.selectedPairIds);
@@ -152,8 +156,8 @@ export function TransfersPanel({ statement, accounts, dispatch }: PanelProps) {
               }}
             />
             <Box sx={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1 }}>
-              <Leg leg={pair.out} />
-              <Leg leg={pair.in} />
+              <Leg leg={pair.out} labels={labels} />
+              <Leg leg={pair.in} labels={labels} />
             </Box>
             <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
               <Typography variant="body2">{money(Math.abs(pair.out.amount), currencyOf(pair.out.account_id))}</Typography>

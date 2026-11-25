@@ -179,6 +179,13 @@ When several accounts match, the saved format's account settles it (still an ass
 **ambiguous** and the user chooses. Only a full-number match is ever called recognised. After a successful import the
 wizard saves what the file called the account (`account_identifiers`, source `import`), so the next file is matched.
 
+An account's name is not unique, so the wizard never shows the name alone. Every option of the Account step, its
+chosen value, the Summary and the assumptions list show the account label from `src/lib/accountLabels.ts`: the name,
+the one detail that tells it from a same-named account (owner, else type, else a card's last four), and a second line
+with the bank, type, owner and card numbers the first line does not already say. The info button beside the picker,
+and the account's name on the Summary, Done and History & formats screens, open the full details (every card with its
+cardholder). "Create a new account…" leaves the Account Name optional: empty, the account is saved as bank + type.
+
 ## What is stored (schema v7)
 
 | Table | Holds |

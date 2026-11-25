@@ -7,6 +7,8 @@ import { Box, Chip, Tooltip, Typography } from '@mui/material';
 import { CalendarMonth, CreditCard, Flag, Savings, SwapHoriz, Undo, VisibilityOff, Work } from '@mui/icons-material';
 import type { GridColDef, GridValidRowModel } from '@mui/x-data-grid';
 
+import AccountLabel from '@/components/accounts/AccountLabel';
+import type { AccountLabels } from '@/lib/accountLabels';
 import type { Transaction } from '@/types/database';
 import { describeTypeDecision, needsTypeReview } from '@/components/transactions/typeSourcePresentation';
 
@@ -118,22 +120,32 @@ export function userColumn<R extends Partial<Transaction>>({
   };
 }
 
+/**
+ * The account a row belongs to, as an account label: the name, the one detail
+ * that tells it from a same-named account, and the details card on hover,
+ * click or focus. `labels` comes from `useAccountLabels(accounts)` on the
+ * page; without it (or for an account that is gone) the cell is the plain name.
+ */
 export function accountColumn<R extends Partial<Transaction>>({
   headerName = 'Account',
-  owner = 'Owner',
   unknownAccount = 'Unknown Account',
-}: { headerName?: string; owner?: string; unknownAccount?: string } = {}): GridColDef<R> {
+  labels,
+}: { headerName?: string; unknownAccount?: string; labels?: AccountLabels } = {}): GridColDef<R> {
   return {
     field: 'account_name',
     headerName,
     minWidth: 160,
     flex: 0.8,
     renderCell: (params) => (
-      <Tooltip title={params.row.account_owner_name ? `${owner}: ${params.row.account_owner_name}` : ''}>
-        <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>
-          {params.row.account_name || unknownAccount}
-        </Typography>
-      </Tooltip>
+      <Typography variant="body2" component="div" sx={{ minWidth: 0, maxWidth: '100%' }}>
+        <AccountLabel
+          label={params.row.account_id == null ? undefined : labels?.get(params.row.account_id)}
+          fallback={params.row.account_name || unknownAccount}
+          noWrap
+          // Only the focused cell's label is a tab stop, like every other control inside a grid cell.
+          tabIndex={params.tabIndex}
+        />
+      </Typography>
     ),
   };
 }

@@ -11,12 +11,14 @@ import React from 'react';
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
+import AccountLabel from '@/components/accounts/AccountLabel';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { useFormatters } from '@/contexts/useFormatters';
 
 import { useBlockerLine } from './blockerText';
 import { useIssueTexts } from './issueText';
 import type { ImportWizardController } from './useImportWizard';
-import { accountDisplayName, findAccount, sharedCurrency } from './wizardFormat';
+import { sharedCurrency } from './wizardFormat';
 import { accountIssueCode, importBlockers, isStagingFresh, summarize } from './wizardModel';
 
 interface SummaryStepProps {
@@ -49,6 +51,7 @@ export default function SummaryStep({ wizard }: SummaryStepProps) {
   const texts = useIssueTexts();
   const blockerLine = useBlockerLine();
   const { current: statement, slice, state, dispatch, stagingPending } = wizard;
+  const labels = useAccountLabels(slice.accounts, slice.users);
   if (!statement) return null;
 
   const summary = summarize(statement);
@@ -137,14 +140,17 @@ export default function SummaryStep({ wizard }: SummaryStepProps) {
             </Typography>
             <Stack spacing={0.5} data-testid="import-summary-accounts">
               {choices.map((choice) => {
-                const account = findAccount(slice.accounts, choice.accountId);
                 // On the fast path a guess is not confirmed step by step: the Summary says so and Import confirms it.
                 const guess =
                   !choice.confirmed && choice.resolution.status === 'assumed' && choice.accountId === choice.resolution.accountId;
                 return (
                   <Box key={choice.value} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Typography variant="body1" sx={{ overflowWrap: 'anywhere' }}>
-                      {account ? accountDisplayName(account) : ''}
+                    <Typography variant="body1" component="div" sx={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                      <AccountLabel
+                        variant="twoLine"
+                        label={choice.accountId == null ? undefined : labels.get(choice.accountId)}
+                        users={slice.users}
+                      />
                     </Typography>
                     {choices.length > 1 && (
                       <Chip size="small" variant="outlined" label={t('common:plurals.rows', { count: choice.rowCount })} />

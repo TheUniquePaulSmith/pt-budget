@@ -11,6 +11,8 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { Chip, FormControl, InputLabel, MenuItem, Select, Stack, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
+import AccountOptionContent from '@/components/accounts/AccountOptionContent';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { PageActions } from '@/components/common/Layout/slots/PageActionsSlot';
 import type { Account, TransactionScopeFilters, User } from '@/types/database';
 
@@ -49,6 +51,7 @@ interface ScopeFilterSectionProps {
 /** The "Accounts and users" section of a Filter panel. */
 export function ScopeFilterSection({ accounts, users, scopeFilters, onChange }: ScopeFilterSectionProps) {
   const { t } = useTranslation('common');
+  const accountLabels = useAccountLabels(accounts, users);
   const renderSelectedCount = (selected: number[]) =>
     selected.length === 0 ? t('fields.all') : t('scopeFilter.selectedCount', { count: selected.length });
 
@@ -71,7 +74,9 @@ export function ScopeFilterSection({ accounts, users, scopeFilters, onChange }: 
             displayEmpty
           >
             {accounts.map((account) => (
-              <MenuItem key={account.id} value={account.id}>{account.name}</MenuItem>
+              <MenuItem key={account.id} value={account.id}>
+                <AccountOptionContent label={accountLabels.get(account.id)} fallback={account.name} />
+              </MenuItem>
             ))}
           </Select>
         </FormControl>

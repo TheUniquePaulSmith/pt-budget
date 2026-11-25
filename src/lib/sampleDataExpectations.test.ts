@@ -184,6 +184,20 @@ describe.skipIf(skipReason !== null)(`sample-data expectations${skipReason ? ` (
     expect(count(db, 'SELECT COUNT(*) AS n FROM account_balance_snapshots')).toBeGreaterThan(0);
   });
 
+  it('reads every account with its cards and cardholders, and never a full card number', async () => {
+    const accounts = await service.getAccounts();
+    expect(accounts).toHaveLength(count(db, 'SELECT COUNT(*) AS n FROM accounts'));
+    expect(accounts.flatMap((account) => account.cards ?? [])).toHaveLength(count(db, 'SELECT COUNT(*) AS n FROM account_cards'));
+
+    // Rewards Visa: three cards, one of them held by someone other than the owner.
+    const rewards = accounts.find((account) => account.id === 3);
+    expect(rewards?.cards?.map((card) => card.last_four).sort()).toEqual(['4821', '5519', '9034']);
+    expect(rewards?.cards?.find((card) => card.last_four === '5519')?.user_display_name).not.toBe(rewards?.owner_display_name);
+    expect(rewards?.cards?.every((card) => card.account_id === 3 && !('full_number' in card))).toBe(true);
+    // An account without a card still has the (empty) list.
+    expect(accounts.find((account) => account.id === 7)?.cards).toEqual([]);
+  });
+
   it('seeds the bundled community merchant rules like app start does', async () => {
     const result = await seedMerchantRules({
       query: (sql, parameters) => service['workerService'].query(sql, parameters as any[]),

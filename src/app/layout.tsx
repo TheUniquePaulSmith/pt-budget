@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import "./globals.css";
 import { CustomThemeProvider } from "../theme/theme";
 import { LoggingProvider } from "../contexts/LoggingContext";
@@ -50,16 +51,25 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <LoggingProvider>
-          <LocaleProvider>
-            <CustomThemeProvider>
-              <WllamaProvider>
-                {children}
-              </WllamaProvider>
-              <OfflineRuntime />
-            </CustomThemeProvider>
-          </LocaleProvider>
-        </LoggingProvider>
+        {/*
+          Emotion's server-rendered styles go into <head> (useServerInsertedHTML)
+          instead of inline <style> tags beside each element in <body>. Inline
+          tags are moved to <head> only when @emotion/react first runs, and on
+          a fast (cached) load React's hydration can reach one before it moves:
+          "Hydration failed", and the tree is rebuilt on the client.
+        */}
+        <AppRouterCacheProvider>
+          <LoggingProvider>
+            <LocaleProvider>
+              <CustomThemeProvider>
+                <WllamaProvider>
+                  {children}
+                </WllamaProvider>
+                <OfflineRuntime />
+              </CustomThemeProvider>
+            </LocaleProvider>
+          </LoggingProvider>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );

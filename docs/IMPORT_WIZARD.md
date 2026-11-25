@@ -17,7 +17,9 @@ The page has two views: **Import** (the wizard) and **History & formats**.
 | 5. Summary | Counts, date range, totals in and out, "Remember this format". |
 | 6. Done | The result per statement, View transactions, Import another, Undo. |
 
-A file in a format that was saved for the same account, with no blockers, goes straight to the summary.
+A file in a format that was saved for the same account, with no blockers, goes straight to the summary. A file
+that lists transactions more than once (`repeatedInFile`) walks the steps instead: the repeats are left out, but
+such a file is often short of the dates it was asked for, and the user should read that before importing.
 
 ## Pipeline
 
@@ -72,6 +74,13 @@ bytes ─► readStatement ─► StatementTable ─► proposeLayout ─► Imp
   description; the file is never rewritten), the statistics for the summary, and the findings.
 - A row that only reads in the other date order is blocked (`dateOrderMixed`), not guessed.
 - Total lines among the data are left out automatically (`summaryRow`) and can be brought back.
+- A row with the same bank reference and the same text in every cell as an earlier row is that transaction listed
+  again, so it is left out (`repeatedInFile`, `interpret/repeats.ts`) and can be brought back. Exports that page
+  badly do this: one card export printed 105 transactions as 600 rows, each page starting one row after the previous
+  page. Such rows do not make the reference "not unique". The reference column is the layout's; a layout without
+  one (a saved format) falls back on a column the file names like a reference, provided its values tell the rows
+  apart. Two rows that match in date, amount and description but have a reference each (two coffees on one day)
+  are untouched, and so are identical rows in a file with no usable reference: those go to the repeated-rows panel.
 - A money cell that only makes sense with the other decimal mark is `unreadableAmount`, never read as a different
   number.
 - Coverage findings compare the file's dates with what the account already has (`getAccountImportCoverage`).
@@ -130,6 +139,7 @@ A **blocker** must be fixed or the rows skipped before Import is enabled. A **wa
 | row | `pendingTransaction` | warning | {{count}} rows are still pending |
 | row | `summaryRow` | info | {{count}} total lines were left out |
 | row | `balanceMismatch` | warning | {{count}} rows do not match the bank's running balance |
+| row | `repeatedInFile` | warning | {{count}} rows repeat transactions already listed in this file |
 | row | `duplicateInFile` | warning | Rows that appear more than once in this file |
 | row | `alreadyImported` | info | Rows you have already imported |
 | account | `accountRecognised` | info | Account recognised |
@@ -184,7 +194,8 @@ wizard saves what the file called the account (`account_identifiers`, source `im
 - **Duplicates**: the SHA-256 transaction hash (account, date, amount, description) and `external_id` (the file's
   reference, the OFX `FITID`). Identical rows inside one file are all kept by default; the n-th copy carries a
   variation seed so a later overlapping file matches each stored copy. A reference that repeats within an account in
-  one file is not used.
+  one file is not used. Rows the analysis recognised as one transaction listed again (`repeatedInFile`) never reach
+  staging, so they are neither kept as copies nor cost the transaction its reference.
 - **Commit** (`commitStaged`): one statement is one batch, in one transaction: the batch row and its details, the
   type decisions of the staged rows, the insert, the decisions for existing transfer legs, the totals. A failure
   leaves nothing behind. When every row is already stored, nothing is committed. Loan rules and the subscription

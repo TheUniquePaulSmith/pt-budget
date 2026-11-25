@@ -158,6 +158,11 @@
       "title_other": "{{count}} righe non corrispondono al saldo indicato dalla banca",
       "detail": "Il saldo riportato su queste righe non è il saldo precedente più o meno l'importo. Potrebbe mancare una riga nel file, oppure un importo potrebbe essere stato letto male. Confronta queste righe con il tuo estratto conto."
     },
+    "repeatedInFile": {
+      "title_one": "{{count}} riga ripete una transazione già presente in questo file",
+      "title_other": "{{count}} righe ripetono transazioni già presenti in questo file",
+      "detail": "Ognuna di queste righe ha lo stesso riferimento bancario e gli stessi dati di una riga precedente, quindi è la stessa transazione riportata di nuovo e viene tralasciata. Un file che si ripete può anche essere incompleto: controlla che copra le date richieste e, in caso contrario, scaricalo di nuovo. Se una di queste righe è una transazione vera, puoi ripristinarla."
+    },
     "duplicateInFile": {
       "title": "Righe che compaiono più di una volta in questo file",
       "detail": "Queste righe hanno la stessa data, lo stesso importo e la stessa descrizione di un'altra riga del file. Possono essere due transazioni vere, come due caffè nello stesso giorno, oppure la stessa riportata due volte. Scegli quali importare."

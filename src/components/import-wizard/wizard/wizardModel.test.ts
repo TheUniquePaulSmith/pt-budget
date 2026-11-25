@@ -761,6 +761,29 @@ describe('repeat imports (D16)', () => {
     expect(unknown.step).toBe('account');
   });
 
+  it('walks the steps when the file lists its transactions more than once, and imports each one once', () => {
+    // A bank export that pages badly: the same rows, bank reference included, printed again.
+    const page = [
+      ['2030-02-01', 'Coffee Shop', '-4.50', 'R1'],
+      ['2030-02-02', 'Paycheck', '1200.00', 'R2'],
+    ];
+    const repeating = makeTable([...page, ...page, ...page], ['Date', 'Description', 'Amount', 'Reference']);
+    const state = activated(withFile(repeating, { profile: savedProfile(repeating) }), ['', RECOGNISED]);
+
+    // Nothing blocks, but "nothing needs your attention" would hide that the file may be short.
+    expect(state.step).toBe('account');
+    const statement = current(state);
+    expect(statement.fastPath).toBe(false);
+    expect(importBlockers(statement)).toEqual([]);
+    expect(issuesBySeverity(statement, 'warning').find((issue) => issue.code === 'repeatedInFile')?.rows).toEqual([2, 3, 4, 5]);
+    expect(rowsToStage(statement).map((row) => row.rowIndex)).toEqual([0, 1]);
+    expect(summarize(statement)).toMatchObject({ totalRows: 6, toImport: 2, skipped: 4 });
+
+    // A repeat that is a real transaction after all can be brought back.
+    const restored = current(run(state, { type: 'rowsSkipped', indexes: [2], skip: false }));
+    expect(rowsToStage(restored).map((row) => row.rowIndex)).toEqual([0, 1, 2]);
+  });
+
   it('applies a format saved earlier in the run to a file that is still waiting in the queue', () => {
     const waiting = withFile(table);
     expect(waiting.statements[0]).toMatchObject({ profile: null, layoutSource: 'detected' });

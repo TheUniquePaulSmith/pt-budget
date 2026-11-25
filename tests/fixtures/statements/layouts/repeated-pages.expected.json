@@ -1,0 +1,55 @@
+{
+  "file": "repeated-pages.csv",
+  "description": "A card export whose paging is broken: three \"pages\" of six rows, each starting one row after the previous one, so 8 transactions are printed as 18 rows (the newest once, most of them three times), bank reference included. A row that repeats an earlier row cell for cell with the same reference is the same transaction listed again: it is left out and reported as repeatedInFile, and the reference still counts as one per transaction. The two COFFEE HOUSE rows of one day have a reference each and are both imported. Every cell is quoted, as that export has it. Synthetic rows.",
+  "context": {
+    "accountType": "credit"
+  },
+  "read": {
+    "issues": [],
+    "tables": 1,
+    "columns": [
+      "Original Account Number",
+      "Account Number",
+      "Transaction Date",
+      "Posting Date",
+      "Billing Amount",
+      "Merchant",
+      "Merchant City",
+      "Merchant State",
+      "Merchant Zip",
+      "Reference Number",
+      "Debit/Credit Flag",
+      "MCC Code"
+    ],
+    "rows": 18,
+    "notes": []
+  },
+  "layout": {
+    "roles": {
+      "date": 2,
+      "postedDate": 3,
+      "description": [
+        5
+      ],
+      "amount": 4,
+      "reference": 9,
+      "account": 0
+    },
+    "dateOrder": "MDY",
+    "decimal": ".",
+    "amountSign": "asIs",
+    "missing": []
+  },
+  "analysis": {
+    "readyRows": 8,
+    "blockedRows": 0,
+    "skippedRows": 10,
+    "firstDate": "2026-10-14",
+    "lastDate": "2026-10-20",
+    "moneyIn": 500,
+    "moneyOut": 287.29,
+    "issueCodes": [
+      "repeatedInFile"
+    ]
+  }
+}

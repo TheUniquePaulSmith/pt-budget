@@ -158,6 +158,11 @@
       "title_other": "{{count}} lignes ne correspondent pas au solde indiqué par la banque",
       "detail": "Le solde imprimé sur ces lignes n'est pas le solde précédent plus ou moins le montant. Une ligne manque peut-être dans le fichier, ou un montant a été mal lu. Comparez ces lignes avec votre relevé."
     },
+    "repeatedInFile": {
+      "title_one": "{{count}} ligne répète une transaction déjà présente dans ce fichier",
+      "title_other": "{{count}} lignes répètent des transactions déjà présentes dans ce fichier",
+      "detail": "Chacune de ces lignes a la même référence bancaire et les mêmes informations qu'une ligne précédente ; il s'agit donc de la même transaction inscrite une nouvelle fois, et elle est laissée de côté. Un fichier qui se répète peut aussi être incomplet : vérifiez qu'il couvre bien les dates demandées et téléchargez-le de nouveau si ce n'est pas le cas. Si l'une de ces lignes est une vraie transaction, vous pouvez la rétablir."
+    },
     "duplicateInFile": {
       "title": "Lignes qui apparaissent plusieurs fois dans ce fichier",
       "detail": "Ces lignes ont la même date, le même montant et la même description qu'une autre ligne du fichier. Il peut s'agir de deux vraies transactions, comme deux cafés le même jour, ou de la même inscrite deux fois. Choisissez lesquelles importer."

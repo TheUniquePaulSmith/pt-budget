@@ -28,6 +28,9 @@ const REPEAT_CSV = fixture('sample-import-repeat.csv');
 const CARD_CSV = fixture('sample-import-card.csv');
 const BAD_ROWS_CSV = fixture('sample-import-bad-rows.csv');
 const DEBIT_CREDIT_CSV = fixture('sample-import-debit-credit.csv');
+// A bank export that pages badly: three "pages" of four rows, each starting one row after the
+// previous one, so six transactions are printed as twelve rows (bank reference included).
+const REPEATED_PAGES_CSV = fixture('sample-import-repeated-pages.csv');
 // The header of sample-import.csv again, but a card's rows: its last four, charges as positive numbers.
 const CARD_SAME_HEADER_CSV = fixture('sample-import-card-same-header.csv');
 const UNKNOWN_ACCOUNTS_CSV = fixture('sample-import-unknown-accounts.csv');
@@ -240,6 +243,70 @@ test('keeps Import out of reach until unreadable rows are fixed or left out', as
       "SELECT total_rows || ':' || inserted_count || ':' || skipped_count || ':' || json_extract(issues_json, '$.fixedRows') FROM import_batches WHERE file_name = 'sample-import-bad-rows.csv'"
     )
   ).toBe('3:2:1:1');
+});
+
+test('imports each transaction once from a file that lists its rows several times', async ({ page }) => {
+  await bootstrapDatabase(page);
+  await openImportWizard(page);
+  await addStatementFiles(page, REPEATED_PAGES_CSV);
+  expect(await startImport(page)).toBe('account');
+  await chooseImportAccount(page, 0, CHECKING);
+  await nextWizardStep(page, 'layout');
+  await confirmReadingSettings(page);
+  await nextWizardStep(page, 'review');
+
+  // Six rows carry the bank reference and every other cell of an earlier row: left out, and said so.
+  const repeated = page.locator('[data-testid="import-issue"][data-issue-code="repeatedInFile"]');
+  await expect(repeated).toHaveAttribute('data-severity', 'warning');
+  await expect(repeated).toContainText('6 rows repeat transactions already listed in this file');
+  await expect(repeated).toContainText('may also be missing transactions');
+  await expect(page.getByTestId('import-review-status')).toHaveAttribute('data-blocked', 'false');
+  // The two coffees of one day have a reference each: two real purchases, offered as such.
+  await expect(page.getByTestId('import-duplicate-group')).toHaveCount(1);
+  await expect(page.getByTestId('import-duplicate-group')).toContainText('2 identical rows');
+
+  // A left-out row can be brought back, and put back again.
+  await repeated.getByTestId('import-row-restore').first().click();
+  await expect(repeated).toContainText('5 rows repeat transactions already listed in this file');
+  await expect(page.getByTestId('import-review-changes')).toContainText('Line 6: imported after all');
+  await page.getByTestId('import-change-undo').click();
+  await expect(repeated).toContainText('6 rows repeat transactions already listed in this file');
+
+  await nextWizardStep(page, 'summary');
+  await expect(page.getByTestId('import-summary-total')).toHaveText(/12$/);
+  await expect(page.getByTestId('import-summary-skipped')).toHaveText(/6$/);
+  await expect(page.getByTestId('import-run')).toHaveText('Import 6 transactions');
+  await runImport(page);
+  expect(await readImportResult(page)).toEqual({ inserted: 6, duplicates: 0 });
+  await closeImport(page);
+
+  // One stored row per transaction, each with the bank's reference as its second duplicate key.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) || ':' || COUNT(DISTINCT external_id) FROM transactions WHERE description LIKE 'Playwright Repeat %'"
+    )
+  ).toBe('6:6');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT total_rows || ':' || inserted_count || ':' || skipped_count || ':' || json_extract(issues_json, '$.counts.repeatedInFile') FROM import_batches WHERE file_name = 'sample-import-repeated-pages.csv'"
+    )
+  ).toBe('12:6:6:6');
+
+  // The format is known now, but a file that repeats itself is not one with nothing to look at:
+  // it walks the steps, and nothing is added a second time.
+  await openImportWizard(page);
+  await addStatementFiles(page, REPEATED_PAGES_CSV);
+  expect(await startImport(page)).toBe('account');
+  await chooseImportAccount(page, 0, CHECKING);
+  await nextWizardStep(page, 'layout');
+  await nextWizardStep(page, 'review');
+  await expect(repeated).toContainText('6 rows repeat transactions already listed in this file');
+  await nextWizardStep(page, 'summary');
+  await expect(page.getByTestId('import-nothing-new')).toContainText('All 6 rows in this file are already imported.');
+  await closeImport(page, { discard: true });
+  expect(await runQueryAndReadFirstCell(page, "SELECT COUNT(*) FROM transactions WHERE description LIKE 'Playwright Repeat %'")).toBe('6');
 });
 
 test('imports a file with separate money-out and money-in columns', async ({ page }) => {

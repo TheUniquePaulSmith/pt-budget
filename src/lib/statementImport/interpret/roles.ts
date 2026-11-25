@@ -18,6 +18,7 @@ import { type DateOrderInference, inferDateOrder } from './dateOrder';
 import { type DecimalInference, inferDecimal } from './decimal';
 import { type HeaderClass, type HeaderMatch, matchHeader } from './headerAliases';
 import { type ColumnProfile, descriptiveness, moneyLikeness, profileColumns } from './profile';
+import { sameCells } from './repeats';
 import { directionOfToken } from './vocabulary';
 
 export interface FormatFallbacks {
@@ -167,16 +168,24 @@ export function directionValuesOf(
   return { values, words };
 }
 
-/** A reference is only useful as a duplicate key when every row has its own. */
+/**
+ * A reference is only useful as a duplicate key when every transaction has its
+ * own. A row the file prints again, cell for cell, is the same transaction
+ * (see ./repeats.ts), not a second use of its reference.
+ */
 export function isUniqueReferenceColumn(table: StatementTable, column: number): boolean {
-  const seen = new Set<string>();
+  const firstListing = new Map<string, string[]>();
+  let repeats = 0;
   for (const row of table.rows) {
     const value = (row[column] ?? '').trim();
     if (isPlaceholderReference(value)) continue;
-    if (isExcelMangled(value) || seen.has(value)) return false;
-    seen.add(value);
+    if (isExcelMangled(value)) return false;
+    const first = firstListing.get(value);
+    if (!first) firstListing.set(value, row);
+    else if (sameCells(first, row)) repeats += 1;
+    else return false;
   }
-  return seen.size > 0 && seen.size * 2 >= table.rows.length;
+  return firstListing.size > 0 && firstListing.size * 2 >= table.rows.length - repeats;
 }
 
 export function detectRoles(table: StatementTable, reader: DateReader, fallbacks: FormatFallbacks): DetectedRoles {

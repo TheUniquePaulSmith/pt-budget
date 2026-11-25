@@ -57,8 +57,19 @@ use other ports. Route mocks intercept every provider request, so no spec contac
 - Sample data comes from `public/sample-data/` (the Parker household; the `sample-data` skill describes it). Rows are
   written newest-first, so the import cap (500 by default via `sampleDataTransactionLimit`) keeps the most recent
   months and drops the oldest; a spec that needs the whole year passes a higher cap. Seeded state a spec may meet:
-  three loans (the auto loan has no payment rule), four user classification rules, no notifications, no series until
-  a Rescan.
+  three loans (the auto loan has no payment rule), four user classification rules, no series until a Rescan, no
+  reminders.
+- **Seeded notifications depend on the day of the month.** The household spends past several of its budget
+  categories in most months (the quarterly home insurance, the furnace payment plus the patio fund, utilities,
+  entertainment, ...), and the scan that runs when the database opens raises one "Budget overspend" alert per
+  over-budget category of the current month: none in the first days of a month, the first around the 13th to 15th,
+  up to eight by the end (about 200 days of a year have at least one). So with sample data loaded, never expect
+  `notifications-empty`, a hidden bell badge, an absent dashboard notifications card or an exact "Due (n)". Either
+  bootstrap with `loadSampleData: false` when the test needs no household data (a new database has no notifications
+  at all), or read the starting count once a scan has finished and assert relative to it, or save a budget plan
+  effective this month, which replaces the sample plan and resolves its alerts. `notifications.spec.ts` shows all
+  three. To see the late-month state on any day, generate fixtures with `--reference-date=<a 25th>` (the
+  `sample-data` skill).
 
 ## WebAuthn / passkeys
 

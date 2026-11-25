@@ -94,9 +94,17 @@ layer also skips without `node:sqlite` (Node 22.13+ / 24). A skip in CI output m
 - The **auto loan is the unlinked loan**: no `loan_match_rules` row, `expectedPaymentCount: 0`, and
   its payments are a detectable bill series until a rule is added. `loans.spec.ts` adds that rule.
   Keep one loan in this state.
-- `loans.spec.ts`, `notifications.spec.ts` ("No notifications yet."), `budget.spec.ts` (one plan per
-  month after upsert) and `database-smoke.spec.ts` read the seeded state; the furnace promo ends about
-  nine months out, outside the 60-day `loan_promo_ending` lead.
+- `loans.spec.ts`, `notifications.spec.ts`, `budget.spec.ts` (one plan per month after upsert) and
+  `database-smoke.spec.ts` read the seeded state; the furnace promo ends about nine months out,
+  outside the 60-day `loan_promo_ending` lead, and no series is active, so the only alerts the
+  seeded set raises are budget ones.
+- The household **overspends its budget plans on purpose** (a quarterly insurance bill against a
+  monthly average, the furnace payment plus the patio fund, jittered utilities and entertainment),
+  so the Budget page and its history show both states. The notifications scan therefore raises
+  "Budget overspend" alerts for the current month from about its 13th to 15th day, up to eight by
+  the end, and none before. No spec may assume an empty Notifications page with sample data loaded
+  (the e2e skill's `references/writing-specs.md` says what to do instead), and a change to plan
+  amounts or spending moves those days.
 
 ## 4. Extend
 

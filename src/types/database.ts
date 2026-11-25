@@ -137,7 +137,12 @@ export interface Account {
   updated_at: string;
   // Joined fields from SQL queries
   owner_display_name?: string; // Owner's display name
-  cards?: AccountCard[]; // Array of cards associated with this account
+  /**
+   * The account's cards as `getAccounts()` returns them: a display summary
+   * (last four, nickname, cardholder) without `full_number`. Editing a card
+   * reads it through `getAccountCards(accountId)`.
+   */
+  cards?: AccountCard[];
 }
 
 export interface AccountCard {

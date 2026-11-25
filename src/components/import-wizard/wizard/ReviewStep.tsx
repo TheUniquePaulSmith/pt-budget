@@ -12,6 +12,7 @@ import React from 'react';
 import { Alert, Box, Button, Chip, LinearProgress, Paper, Stack, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { useFormatters } from '@/contexts/useFormatters';
 import type { ImportIssue } from '@/lib/statementImport';
 
@@ -19,7 +20,7 @@ import IssueCard from './IssueCard';
 import { useIssueTexts } from './issueText';
 import { DuplicatesPanel, TransfersPanel } from './ReviewPanels';
 import type { ImportWizardController } from './useImportWizard';
-import { accountDisplayName, findAccount, sharedCurrency } from './wizardFormat';
+import { sharedCurrency } from './wizardFormat';
 import {
   accountIssueCode,
   importBlockers,
@@ -223,22 +224,30 @@ function AssumptionsList({ statement, wizard }: { statement: StatementSession; w
   const { t } = useTranslation(['importWizard', 'common']);
   const texts = useIssueTexts();
   const { slice, dispatch } = wizard;
+  const labels = useAccountLabels(slice.accounts, slice.users);
   const choices = (statement.accounts ?? []).filter((choice) => !choice.skipped && choice.accountId != null);
 
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Stack spacing={1}>
         {choices.map((choice) => {
-          const account = findAccount(slice.accounts, choice.accountId);
+          const label = choice.accountId == null ? undefined : labels.get(choice.accountId);
           const proposed = choice.accountId === choice.resolution.accountId;
           const issue = { code: accountIssueCode(choice.resolution), params: { value: choice.value, count: choice.rowCount } };
           return (
             <Box key={choice.value} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }} data-testid="import-assumption-account">
-              <Typography variant="body2" sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
-                {t('review.assumptions.account', { account: account ? accountDisplayName(account) : '' })}
-                {' · '}
-                {proposed ? texts.title(issue) : t('review.assumptions.chosenByYou')}
-              </Typography>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>
+                  {t('review.assumptions.account', { account: label?.text ?? '' })}
+                  {' · '}
+                  {proposed ? texts.title(issue) : t('review.assumptions.chosenByYou')}
+                </Typography>
+                {label?.detailLine && (
+                  <Typography variant="caption" color="text.secondary" component="p" data-testid="account-detail-line">
+                    {label.detailLine}
+                  </Typography>
+                )}
+              </Box>
               <Button size="small" onClick={() => dispatch({ type: 'goToStep', step: 'account' })}>
                 {t('review.assumptions.change')}
               </Button>

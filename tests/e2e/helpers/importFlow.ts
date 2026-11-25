@@ -77,17 +77,23 @@ function escapeRegExp(text: string): string {
 /**
  * Settles the account of the `index`-th value on the Account step as
  * `accountName`: picks it, or confirms it when the wizard already proposed it.
+ *
+ * `detail` picks one of several accounts with that name: text of the option's
+ * second line (bank, type, owner, card numbers), such as "••2222".
  */
-export async function chooseImportAccount(page: Page, index: number, accountName: string) {
+export async function chooseImportAccount(page: Page, index: number, accountName: string, detail?: string) {
   const card = page.getByTestId(`import-account-${index}`);
   const select = page.getByTestId(`import-account-${index}-select`);
   const confirm = page.getByTestId(`import-account-${index}-confirm`);
-  if ((await select.textContent())?.includes(accountName)) {
+  const selected = (await select.textContent()) ?? '';
+  if (selected.includes(accountName) && (detail === undefined || selected.includes(detail))) {
     if (await confirm.isVisible()) await confirm.click();
   } else {
     await select.click();
-    // The option reads "<owner> - <account name>", then its type and bank.
-    await page.getByRole('option', { name: new RegExp(`(^| - )${escapeRegExp(accountName)}`) }).first().click();
+    // The option starts with the account's name; its second line has what the name does not say.
+    let option = page.getByRole('option', { name: new RegExp(`^${escapeRegExp(accountName)}`) });
+    if (detail !== undefined) option = option.filter({ hasText: detail });
+    await option.first().click();
   }
   await expect(card).toHaveAttribute('data-status', /^(chosen|recognised)$/);
 }

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { accountPrefillFrom } from './accountPrefill';
 import { dateExample, decimalExample, rawAmountCell, signExamples } from './layoutExamples';
 import { fakeAnalyze, fakePropose, makeTable } from './testing/fakePipeline';
-import { accountDisplayName, fileSizeParts, sharedCurrency } from './wizardFormat';
+import { fileSizeParts, sharedCurrency } from './wizardFormat';
 
 function read(rows: string[][], columns?: string[]) {
   const table = makeTable(rows, columns);
@@ -96,11 +96,6 @@ describe('display helpers', () => {
     { id: 2, name: 'Compte', currency: 'EUR' },
     { id: 3, name: 'Savings', currency: 'USD' },
   ] as never;
-
-  it('names an account with its owner', () => {
-    expect(accountDisplayName({ name: 'Checking', owner_display_name: 'Alex' })).toBe('Alex - Checking');
-    expect(accountDisplayName({ name: 'Checking' })).toBe('Checking');
-  });
 
   it('gives a currency for a total only when every account shares it', () => {
     expect(sharedCurrency(accounts, [1, 3])).toBe('USD');

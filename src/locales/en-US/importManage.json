@@ -73,7 +73,7 @@
       "delimited": "Text file (CSV)",
       "ofx": "OFX / QFX file"
     },
-    "account": "Goes into: {{account}}",
+    "account": "Goes into: <account/>",
     "noAccount": "Asks which account each time",
     "lastUsed": "Last used: {{date}}",
     "neverUsed": "Not used yet",

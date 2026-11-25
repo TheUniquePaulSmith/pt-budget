@@ -1105,14 +1105,6 @@ describe('DatabaseService singleton-backed query wrappers', () => {
       expected: [companyRow],
     },
     {
-      name: 'maps account rows',
-      call: (service: DatabaseService) => service.getAccounts(),
-      query: ACCOUNT_QUERIES.GET_ALL,
-      parameters: undefined,
-      response: [accountRow],
-      expected: [accountRow],
-    },
-    {
       name: 'maps account card rows',
       call: (service: DatabaseService) => service.getAccountCards(3),
       query: ACCOUNT_CARD_QUERIES.GET_BY_ACCOUNT_ID,
@@ -1171,6 +1163,50 @@ describe('DatabaseService singleton-backed query wrappers', () => {
     } else {
       expect(querySpy).toHaveBeenCalledWith(query, parameters);
     }
+  });
+
+  it('maps account rows and attaches each account its cards, without the full number', async () => {
+    const otherAccountRow: Account = { ...accountRow, id: 4, name: 'Checking', type: 'checking' };
+    const querySpy = vi.spyOn(databaseWorkerService, 'query')
+      .mockResolvedValueOnce([accountRow, otherAccountRow])
+      .mockResolvedValueOnce([
+        { ...accountCardRow, full_number: '4111111111114242', user_display_name: 'Pat Doe' },
+        { id: 23, account_id: 3, last_four: '9001', nickname: null, user_id: null, created_at: '2026-03-03T00:00:00.000Z' },
+      ]);
+    const service = new DatabaseService();
+
+    const accounts = await service.getAccounts();
+
+    expect(querySpy).toHaveBeenNthCalledWith(1, ACCOUNT_QUERIES.GET_ALL);
+    expect(querySpy).toHaveBeenNthCalledWith(2, ACCOUNT_CARD_QUERIES.GET_ALL);
+    expect(accounts).toEqual([
+      {
+        ...accountRow,
+        cards: [
+          {
+            id: 22,
+            account_id: 3,
+            last_four: '4242',
+            nickname: 'Daily card',
+            user_id: 7,
+            created_at: '2026-02-02T00:00:00.000Z',
+            user_display_name: 'Pat Doe',
+          },
+          {
+            id: 23,
+            account_id: 3,
+            last_four: '9001',
+            nickname: null,
+            user_id: null,
+            created_at: '2026-03-03T00:00:00.000Z',
+            user_display_name: undefined,
+          },
+        ],
+      },
+      { ...otherAccountRow, cards: [] },
+    ]);
+    expect(accounts[0].cards?.[0]).not.toHaveProperty('full_number');
+    expect(ACCOUNT_CARD_QUERIES.GET_ALL).not.toContain('full_number');
   });
 
   it('uses the type-filtered date range query when a type is provided', async () => {

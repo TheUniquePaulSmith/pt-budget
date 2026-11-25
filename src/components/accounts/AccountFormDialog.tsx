@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef, useState, type FormEvent } from 'react';
+import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   Alert,
+  Box,
   Button,
   Dialog,
   DialogActions,
@@ -16,13 +17,17 @@ import { Account, User } from '@/types/database';
 import { AccountCardFormFields, AccountFormFields, AccountOwnerField } from './AccountFormFields';
 import {
   buildAccountCardInput,
+  buildAccountDraft,
   buildAccountFormValues,
   createAccountCardFormState,
   createAccountFormState,
+  draftCardsFromInput,
   type AccountCardInput,
   type AccountFormPrefill,
   type AccountFormValues,
 } from './accountFormModel';
+import AccountLabelPreview from './AccountLabelPreview';
+import { useSuggestedAccountName } from './useAccountLabels';
 import { UserFormDialog } from './UserFormDialog';
 
 export type { AccountFormValues } from './accountFormModel';
@@ -39,11 +44,15 @@ export interface AccountCreatedResult {
  */
 const NEW_PERSON_VALUE = -1;
 
+const NO_ACCOUNTS: readonly Account[] = [];
+
 interface AccountFormDialogProps {
   open: boolean;
   editingAccount: Account | null; // null = add mode
   defaultOwnerUserId?: number | null;
   users: User[];
+  /** The existing accounts: the preview says when another one already has this name. */
+  accounts?: readonly Account[];
   /** Prefilled fields for add mode (e.g. CSV import passes the account number and institution). */
   initialValues?: AccountFormPrefill;
   /** The household's default currency; a new account starts with it. */
@@ -79,6 +88,7 @@ export function AccountFormDialog({
   editingAccount,
   defaultOwnerUserId,
   users,
+  accounts = NO_ACCOUNTS,
   initialValues,
   defaultCurrency,
   onClose,
@@ -117,6 +127,25 @@ export function AccountFormDialog({
     setNewPersonName('');
   }, [open, editingAccount, defaultOwnerUserId, defaultCurrency]);
 
+  // An empty Account Name is saved as the suggestion; the preview shows the label either way.
+  const suggestedName = useSuggestedAccountName(form.institution, form.type);
+  const draft = useMemo(
+    () =>
+      editingAccount
+        ? buildAccountDraft(form, suggestedName, {
+            id: editingAccount.id,
+            ownerUserId: editingAccount.owner_user_id,
+            ownerDisplayName: editingAccount.owner_display_name,
+            cards: editingAccount.cards,
+          })
+        : buildAccountDraft(form, suggestedName, {
+            ownerUserId,
+            ownerDisplayName: users.find((user) => user.id === ownerUserId)?.display_name,
+            cards: draftCardsFromInput(card),
+          }),
+    [card, editingAccount, form, ownerUserId, suggestedName, users]
+  );
+
   const handleOwnerChange = (userId: number | null) => {
     if (userId === NEW_PERSON_VALUE) {
       setNewPersonOpen(true);
@@ -149,7 +178,7 @@ export function AccountFormDialog({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const built = buildAccountFormValues(form);
+    const built = buildAccountFormValues(form, suggestedName);
     if (!built.ok) {
       setError(t(`validation.${built.error}`));
       return;
@@ -206,7 +235,16 @@ export function AccountFormDialog({
             }
           />
         )}
-        <AccountFormFields state={form} onChange={setForm} autoFocus />
+        <AccountFormFields
+          state={form}
+          onChange={setForm}
+          autoFocus
+          afterName={
+            <Box sx={{ mt: 0.5, mb: 1 }}>
+              <AccountLabelPreview draft={draft} accounts={accounts} users={users} />
+            </Box>
+          }
+        />
         {!editingAccount && (
           <>
             <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>{t('formDialog.firstCard')}</Typography>

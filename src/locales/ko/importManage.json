@@ -73,7 +73,7 @@
       "delimited": "텍스트 파일(CSV)",
       "ofx": "OFX / QFX 파일"
     },
-    "account": "가져올 계좌: {{account}}",
+    "account": "가져올 계좌: <account/>",
     "noAccount": "매번 계좌를 묻습니다",
     "lastUsed": "마지막 사용: {{date}}",
     "neverUsed": "아직 사용 안 함",

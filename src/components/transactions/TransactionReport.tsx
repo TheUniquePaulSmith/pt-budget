@@ -22,6 +22,7 @@ import {
   CardContent,
   IconButton,
   Autocomplete,
+  createFilterOptions,
   Checkbox,
   FormControlLabel,
   FormGroup,
@@ -52,6 +53,8 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import type { GridColDef, GridColumnVisibilityModel, GridPaginationModel, GridRowSelectionModel, GridSortModel } from '@mui/x-data-grid';
 import { useTranslation } from 'react-i18next';
 
+import AccountOptionContent from '@/components/accounts/AccountOptionContent';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useLongPress } from '@/components/common/DataGrid/useLongPress';
@@ -115,6 +118,20 @@ export default function TransactionReport() {
     runClassificationScan,
     countTypeReviews,
   } = useClassificationRulesSlice();
+
+  // Account names with the detail that tells same-named accounts apart, for the grid column and the filter.
+  const accountLabels = useAccountLabels(accounts, users);
+  const filterAccountOptions = React.useMemo(
+    () =>
+      createFilterOptions<Account>({
+        // Typing a bank, an owner or a card's last four finds the account too.
+        stringify: (option) => {
+          const label = accountLabels.get(option.id);
+          return label ? `${label.text} ${label.detailLine}` : option.name;
+        },
+      }),
+    [accountLabels]
+  );
 
   // Transaction typing: rules dialog, on-demand scan, rows awaiting review.
   const [rulesDialogOpen, setRulesDialogOpen] = useState(false);
@@ -521,8 +538,8 @@ export default function TransactionReport() {
     }),
     accountColumn<Transaction>({
       headerName: t('common:fields.account'),
-      owner: t('report.owner'),
       unknownAccount: t('report.unknownAccount'),
+      labels: accountLabels,
     }),
     cardColumn<Transaction>({ headerName: t('common:fields.card'), noCard: t('report.noCard') }),
     indicatorsColumn(budgetedCategoryIds, {
@@ -568,7 +585,7 @@ export default function TransactionReport() {
         </Stack>
       ),
     },
-  ], [budgetedCategoryIds, money, date, t, renderTransactionLabel]);
+  ], [budgetedCategoryIds, money, date, t, renderTransactionLabel, accountLabels]);
 
   const columnVisibilityModel = React.useMemo(() => ({
     date: visibleColumns.date,
@@ -801,13 +818,14 @@ export default function TransactionReport() {
                 renderInput={(p) => <TextField {...p} label={t('report.projects')} />}
                 renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.name} size="small" {...cp} />; })} />
               <Autocomplete multiple options={accounts}
-                getOptionLabel={(o) => o.owner_display_name ? `${o.owner_display_name} - ${o.name}` : o.name}
+                getOptionLabel={(o) => accountLabels.get(o.id)?.text ?? o.name}
+                filterOptions={filterAccountOptions}
                 isOptionEqualToValue={(o, v) => o.id === v.id}
                 value={accounts.filter((a: Account) => accountFilter.includes(a.id))}
                 onChange={(_, v) => setAccountFilter(v.map(x => x.id))}
-                renderOption={(props, option) => { const { key, ...op } = props; return <li key={option.id} {...op}>{option.owner_display_name ? `${option.owner_display_name} - ${option.name}` : option.name}</li>; }}
+                renderOption={(props, option) => { const { key, ...op } = props; return <li key={option.id} {...op}><AccountOptionContent label={accountLabels.get(option.id)} fallback={option.name} /></li>; }}
                 renderInput={(p) => <TextField {...p} label={t('report.accounts')} />}
-                renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.owner_display_name ? `${o.owner_display_name} - ${o.name}` : o.name} size="small" {...cp} />; })} />
+                renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={accountLabels.get(o.id)?.text ?? o.name} size="small" {...cp} />; })} />
               <Autocomplete multiple options={users}
                 getOptionLabel={(o) => o.display_name}
                 isOptionEqualToValue={(o, v) => o.id === v.id}

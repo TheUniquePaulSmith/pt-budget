@@ -125,7 +125,30 @@ describe('useDatabaseAccountManagementSlices', () => {
     expect(refreshAccounts).toHaveBeenCalledTimes(1);
   });
 
-  it('refreshes cached users after updating a user', async () => {
+  it('refreshes cached users and accounts after deleting a user', async () => {
+    const refreshAccounts = vi.fn().mockResolvedValue(undefined);
+    const refreshUsers = vi.fn().mockResolvedValue(undefined);
+    const service = createServiceMock();
+
+    const { result } = renderHook(() =>
+      useDatabaseAccountManagementSlices({
+        databaseService: service,
+        refreshAccounts,
+        refreshUsers,
+      })
+    );
+
+    await act(async () => {
+      await result.current.usersSlice.deleteUser(9);
+    });
+
+    expect(service.deleteUser).toHaveBeenCalledWith(9);
+    expect(refreshUsers).toHaveBeenCalledTimes(1);
+    expect(refreshAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  // Accounts carry their owner's and cardholders' names, so a rename reaches them too.
+  it('refreshes cached users and accounts after updating a user', async () => {
     const refreshAccounts = vi.fn().mockResolvedValue(undefined);
     const refreshUsers = vi.fn().mockResolvedValue(undefined);
     const service = createServiceMock();
@@ -147,7 +170,7 @@ describe('useDatabaseAccountManagementSlices', () => {
 
     expect(service.updateUser).toHaveBeenCalledWith(9, updates);
     expect(refreshUsers).toHaveBeenCalledTimes(1);
-    expect(refreshAccounts).not.toHaveBeenCalled();
+    expect(refreshAccounts).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -27,6 +27,7 @@ import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, categoryChipColumn, currencyColumn, dateColumn, indicatorsColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useLongPress } from '@/components/common/DataGrid/useLongPress';
 import { useFormatters } from '@/contexts/useFormatters';
+import type { AccountLabels } from '@/lib/accountLabels';
 import TransactionLabelDialog from '@/components/transactions/TransactionLabelDialog';
 import TransactionRowActionsMenu from '@/components/transactions/TransactionRowActionsMenu';
 import { Transaction } from '@/types/database';
@@ -37,6 +38,8 @@ interface RecentTransactionsProps {
   onLimitChange?: (limit: number) => void;
   onSetComment?: (txId: number, comment: string) => Promise<void>;
   budgetedCategoryIds?: Set<number>;
+  /** From `useAccountLabels(accounts)`: the Account column's labels and details. */
+  accountLabels?: AccountLabels;
 }
 
 const EMPTY_BUDGETED_CATEGORY_IDS = new Set<number>();
@@ -47,6 +50,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   onLimitChange,
   onSetComment,
   budgetedCategoryIds = EMPTY_BUDGETED_CATEGORY_IDS,
+  accountLabels,
 }) => {
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [commentTransaction, setCommentTransaction] = useState<Transaction | null>(null);
@@ -111,7 +115,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     categoryChipColumn<Transaction>(),
     { field: 'company_name', headerName: t('common:fields.company'), minWidth: 160, flex: 0.8, valueGetter: (_, row) => row.company_name || '' },
     userColumn<Transaction>(),
-    accountColumn<Transaction>(),
+    accountColumn<Transaction>({ labels: accountLabels }),
     cardColumn<Transaction>(),
     indicatorsColumn(budgetedCategoryIds),
     currencyColumn<Transaction>('amount', money, { currencyOf: (row) => row.account_currency }),
@@ -152,7 +156,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         </Stack>
       ),
     },
-  ], [budgetedCategoryIds, onSetComment, money, date, t]);
+  ], [budgetedCategoryIds, onSetComment, money, date, t, accountLabels]);
 
   function FooterSummary() {
     const apiRef = useGridApiContext();

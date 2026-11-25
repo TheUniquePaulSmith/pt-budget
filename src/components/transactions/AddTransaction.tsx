@@ -25,6 +25,8 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { parseISO } from 'date-fns';
 import { useTranslation } from 'react-i18next';
+import AccountOptionContent from '@/components/accounts/AccountOptionContent';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { useOptionalLocale } from '@/contexts/LocaleContext';
 import { useTransactionComposerSlice } from '@/contexts/useDatabaseSlices';
 import { toLocalDateOnly } from '@/lib/dateOnly';
@@ -88,6 +90,7 @@ export default function AddTransaction({
     getAccountCards,
     projects
   } = useTransactionComposerSlice();
+  const accountLabels = useAccountLabels(accounts);
   const isEdit = mode === 'edit' && transaction != null;
   const [formData, setFormData] = useState({ ...EMPTY_FORM, date: new Date() });
   const [accountCards, setAccountCards] = useState<AccountCard[]>([]);
@@ -399,13 +402,15 @@ export default function AddTransaction({
                     });
                   }}
                   required
+                  // The menu shows each account's bank, owner and cards; the closed field its compact name.
+                  renderValue={(value) => (value === '' ? '' : (accountLabels.get(value)?.text ?? ''))}
                 >
                   <MenuItem value="">
                     <em>{t('addTransaction.selectAccount')}</em>
                   </MenuItem>
                   {accounts.map((account) => (
                     <MenuItem key={account.id} value={account.id}>
-                      {account.name} ({account.type})
+                      <AccountOptionContent label={accountLabels.get(account.id)} fallback={account.name} />
                     </MenuItem>
                   ))}
                 </Select>

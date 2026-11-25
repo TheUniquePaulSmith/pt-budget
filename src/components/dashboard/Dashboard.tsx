@@ -7,6 +7,7 @@ import { useDashboardSlice } from '@/contexts/useDatabaseSlices';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { accountCurrencies } from '@/lib/currencies';
 import { todayLocalISO } from '@/lib/dateOnly';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import NotificationsDashboardCard from '@/components/notifications/NotificationsDashboardCard';
 import PeriodFilter, { useCurrentPeriodLabel } from '@/components/common/Filters/PeriodFilter';
 import {
@@ -57,6 +58,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget, onNavigateToS
     setTransactionComment,
     getBudgetStatus,
   } = useDashboardSlice();
+  const accountLabels = useAccountLabels(accounts, users);
 
   const [timeRange, setTimeRange] = useState<BoundedPeriod>(DEFAULT_DASHBOARD_PERIOD);
   const [recentTransactionsLimit, setRecentTransactionsLimit] = useState(10);
@@ -203,6 +205,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigateToBudget, onNavigateToS
         onLimitChange={setRecentTransactionsLimit}
         onSetComment={setTransactionComment}
         budgetedCategoryIds={budgetedCategoryIds}
+        accountLabels={accountLabels}
       />
     </Box>
   );

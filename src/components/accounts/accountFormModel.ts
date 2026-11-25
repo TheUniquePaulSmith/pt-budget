@@ -2,8 +2,13 @@
  * Account form model shared by the Add/Edit dialog (CSV import reuses it
  * with prefilled values) and the inline detail form on the Accounts page.
  * Pure state + validation; no React.
+ *
+ * The Account Name is optional: it is a short name for lists, and the bank,
+ * owner and card numbers are always shown with it (`src/lib/accountLabels.ts`).
+ * Left empty, the account is saved under the suggested name, bank + type.
  */
 
+import type { AccountLabelCard, AccountLabelSource } from '@/lib/accountLabels';
 import { DEFAULT_CURRENCY, normalizeCurrencyCode } from '@/lib/currencies';
 import type { Account, AccountOwnership, AccountType } from '@/types/database';
 import { parseCardNumberInput, type CardNumberErrorCode } from './accountCardNumber';
@@ -110,9 +115,52 @@ export type AccountFormErrorCode = 'nameRequired' | 'numbersInvalid' | CardNumbe
 
 export type AccountFormResult<T> = { ok: true; value: T } | { ok: false; error: AccountFormErrorCode };
 
-/** Validates the raw state and produces the values the service expects. */
-export function buildAccountFormValues(state: AccountFormState): AccountFormResult<AccountFormValues> {
-  if (!state.name.trim()) {
+/**
+ * The account as the form would save it, for the "How it will appear"
+ * preview. `suggestedName` is what an empty Account Name becomes
+ * (`useSuggestedAccountName`). A new account gets id 0, which no saved
+ * account has.
+ */
+export function buildAccountDraft(
+  state: AccountFormState,
+  suggestedName: string,
+  context: {
+    id?: number;
+    ownerUserId?: number | null;
+    ownerDisplayName?: string;
+    cards?: readonly AccountLabelCard[];
+  } = {}
+): AccountLabelSource {
+  return {
+    id: context.id ?? 0,
+    name: state.name.trim() || suggestedName.trim(),
+    type: state.type,
+    ownership: state.ownership,
+    institution: state.institution.trim() || null,
+    owner_user_id: context.ownerUserId ?? undefined,
+    owner_display_name: context.ownerDisplayName,
+    is_active: state.isActive ? 1 : 0,
+    currency: normalizeCurrencyCode(state.currency),
+    cards: context.cards ?? [],
+  };
+}
+
+/** The first card as typed so far, for the preview: empty until the number has four digits. */
+export function draftCardsFromInput(state: AccountCardFormState): AccountLabelCard[] {
+  const parsed = parseCardNumberInput(state.cardNumberInput);
+  return parsed.ok ? [{ last_four: parsed.last_four, nickname: state.cardNickname.trim() || null, user_id: state.cardUserId }] : [];
+}
+
+/**
+ * Validates the raw state and produces the values the service expects. The
+ * name is optional: left empty, the account is saved as `suggestedName`.
+ */
+export function buildAccountFormValues(
+  state: AccountFormState,
+  suggestedName = ''
+): AccountFormResult<AccountFormValues> {
+  const name = state.name.trim() || suggestedName.trim();
+  if (!name) {
     return { ok: false, error: 'nameRequired' };
   }
 
@@ -125,7 +173,7 @@ export function buildAccountFormValues(state: AccountFormState): AccountFormResu
   return {
     ok: true,
     value: {
-      name: state.name.trim(),
+      name,
       type: state.type,
       ownership: state.ownership,
       institution: state.institution.trim() || null,

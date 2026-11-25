@@ -1,9 +1,21 @@
 import type { TFunction } from 'i18next';
 
+import type { AccountLabelWords } from '@/lib/accountLabels';
 import type { Account, AccountCard, User } from '@/types/database';
 
 /** The `t` of `useTranslation(['accounts', 'common'])`; cross-namespace keys (`common:…`) work through it too. */
 export type AccountsT = TFunction<['accounts', 'common']>;
+
+/** The translated words `src/lib/accountLabels.ts` builds an account's label from. */
+export function accountLabelWords(t: AccountsT): AccountLabelWords {
+  return {
+    typeLabel: (type) => accountTypeLabel(type, t),
+    jointOwner: (owner) => t('grid.ownerJoint', { owner }),
+    joint: t('common:accountOwnership.joint'),
+    closed: t('common:status.closed'),
+    moreCards: (count) => t('label.moreCards', { count }),
+  };
+}
 
 /** Short label for the grid's Type chip (the form keeps the longer `common:accountType` descriptions). */
 export function accountTypeLabel(type: Account['type'], t: AccountsT): string {
@@ -34,7 +46,12 @@ export function ownerDisplayName(account: Account, users: User[], t: AccountsT):
   );
 }
 
-export function cardholderName(card: AccountCard, users: User[], t: AccountsT, owner?: string): string {
+export function cardholderName(
+  card: Pick<AccountCard, 'user_id' | 'user_display_name'>,
+  users: readonly Pick<User, 'id' | 'display_name'>[],
+  t: AccountsT,
+  owner?: string
+): string {
   if (!card.user_id) return owner ?? t('display.accountOwner');
   return card.user_display_name ?? users.find((user) => user.id === card.user_id)?.display_name ?? t('display.unknownUser');
 }

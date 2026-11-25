@@ -11,7 +11,10 @@ import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 import { DeleteOutline } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 
+import AccountLabel from '@/components/accounts/AccountLabel';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { useFormatters } from '@/contexts/useFormatters';
+import { accountLabelText } from '@/lib/accountLabels';
 import { storedTimestampToDate } from '@/lib/formatting';
 import { logger } from '@/lib/logging';
 import type { Account, AccountIdentifier } from '@/types/database';
@@ -56,6 +59,7 @@ export default function AccountIdentifiersSection({
   const [removeError, setRemoveError] = useState<string | null>(null);
 
   const groups = groupIdentifiersByAccount(identifiers ?? [], accounts);
+  const labels = useAccountLabels(accounts);
 
   const textOf = (identifier: AccountIdentifier): string => {
     const display = identifierDisplay(identifier);
@@ -97,7 +101,8 @@ export default function AccountIdentifiersSection({
         onStartImport={onStartImport}
       >
         {groups.map((group) => {
-          const accountName = group.accountName || t('page.deletedAccount');
+          // Two accounts with one name: the heading, the button and the dialog all carry the detail that tells them apart.
+          const accountName = accountLabelText(labels, group.accountId, group.accountName) || t('page.deletedAccount');
           return (
             <Box
               key={group.accountId}
@@ -106,7 +111,7 @@ export default function AccountIdentifiersSection({
               sx={{ py: 1.5, borderTop: 1, borderColor: 'divider' }}
             >
               <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>
-                {accountName}
+                <AccountLabel label={labels.get(group.accountId)} fallback={accountName} />
               </Typography>
               <Box component="ul" sx={{ m: 0, p: 0, listStyle: 'none' }}>
                 {group.identifiers.map((identifier) => {

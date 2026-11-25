@@ -31,7 +31,9 @@ import { Trans, useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import type { LoanPaymentUpdate } from '@/contexts/useDatabaseLoansSlice';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { useFormatters } from '@/contexts/useFormatters';
+import { accountLabelText } from '@/lib/accountLabels';
 import type { Account, Loan, LoanManualPaymentInput, LoanMatchRule, LoanMatchRuleInput, MerchantRuleMatchType } from '@/types/database';
 import type { LoanLedgerEntry, LoanLinkCandidate, LoanRuleScanSummary, LoanSummary } from '@/types/loans';
 import LinkTransactionDialog from './LinkTransactionDialog';
@@ -102,6 +104,7 @@ export default function LoanDetailDialog({
 }: LoanDetailDialogProps) {
   const { t } = useTranslation('loans');
   const { money, percent } = useFormatters();
+  const accountLabels = useAccountLabels(accounts);
   const [summary, setSummary] = useState<LoanSummary | null>(null);
   const [rules, setRules] = useState<LoanMatchRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -315,7 +318,9 @@ export default function LoanDetailDialog({
         ? t('detailDialog.projectWithCompanyPart', { name: loan.project_name, company: loan.project_company_name })
         : t('detailDialog.projectPart', { name: loan.project_name })
       : null,
-    loan.account_name ? t('detailDialog.accountPart', { name: loan.account_name }) : null,
+    loan.account_name
+      ? t('detailDialog.accountPart', { name: accountLabelText(accountLabels, loan.account_id, loan.account_name) })
+      : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -568,7 +573,7 @@ export default function LoanDetailDialog({
                         {rule.pattern}
                       </Typography>
                       <Chip size="small" variant="outlined" label={t(`matchType.${rule.match_type}`)} />
-                      <Chip size="small" variant="outlined" label={rule.account_name ? t('detailDialog.fromAccount', { name: rule.account_name }) : t('detailDialog.anyAccount')} />
+                      <Chip size="small" variant="outlined" label={rule.account_name ? t('detailDialog.fromAccount', { name: accountLabelText(accountLabels, rule.account_id, rule.account_name) }) : t('detailDialog.anyAccount')} />
                       {!rule.enabled && <Chip size="small" label={t('detailDialog.disabled')} />}
                       <Box flex={1} />
                       <IconButton

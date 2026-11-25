@@ -73,7 +73,7 @@
       "delimited": "文本文件（CSV）",
       "ofx": "OFX / QFX 文件"
     },
-    "account": "导入到：{{account}}",
+    "account": "导入到：<account/>",
     "noAccount": "每次都询问账户",
     "lastUsed": "上次使用：{{date}}",
     "neverUsed": "尚未使用",

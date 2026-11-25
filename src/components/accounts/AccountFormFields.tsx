@@ -4,9 +4,13 @@
  * The account field set, rendered from `AccountFormState`. Used by the
  * Add/Edit dialog and by the inline detail form on the Accounts page so the
  * two never drift. Layout (one column vs two) is the caller's choice.
+ *
+ * Institution and type come first because the Account Name is optional and
+ * suggested from them: the suggestion is the field's placeholder, and what
+ * the host saves when the field is left empty.
  */
 
-import React from 'react';
+import React, { useId } from 'react';
 import {
   FormControl,
   FormControlLabel,
@@ -22,19 +26,25 @@ import { useTranslation } from 'react-i18next';
 import CurrencySelect from '@/components/common/CurrencySelect';
 import type { AccountOwnership, AccountType, User } from '@/types/database';
 import { ACCOUNT_TYPE_OPTIONS, type AccountCardFormState, type AccountFormState } from './accountFormModel';
+import { useSuggestedAccountName } from './useAccountLabels';
 
 export interface AccountFormFieldsProps {
   state: AccountFormState;
   onChange: (next: AccountFormState) => void;
-  /** Focus the name field on mount (dialogs). */
+  /** Focus the first field on mount (dialogs). */
   autoFocus?: boolean;
   /** `dense` matches the dialog; `small` suits an inline two-column form. */
   size?: 'dense' | 'small';
+  /** Rendered right after the Account Name: the host's "How it will appear" preview. */
+  afterName?: React.ReactNode;
 }
 
-export function AccountFormFields({ state, onChange, autoFocus = false, size = 'dense' }: AccountFormFieldsProps) {
+export function AccountFormFields({ state, onChange, autoFocus = false, size = 'dense', afterName }: AccountFormFieldsProps) {
   const { t } = useTranslation(['accounts', 'common']);
-  const update = (patch: Partial<AccountFormState>) => onChange({ ...state, ...patch });
+  const suggestedName = useSuggestedAccountName(state.institution, state.type);
+  // The type decides the suggested name: it gets an accessible name ("Account Type") of its own.
+  const typeLabelId = useId();
+  const update =(patch: Partial<AccountFormState>) => onChange({ ...state, ...patch });
   const margin = size === 'dense' ? 'dense' : 'none';
   const fieldSize = size === 'small' ? 'small' : 'medium';
 
@@ -44,15 +54,16 @@ export function AccountFormFields({ state, onChange, autoFocus = false, size = '
         autoFocus={autoFocus}
         margin={margin}
         size={fieldSize}
-        label={t('formFields.nameLabel')}
+        label={t('formFields.institutionLabel')}
         fullWidth
-        value={state.name}
-        onChange={(e) => update({ name: e.target.value })}
-        required
+        value={state.institution}
+        onChange={(e) => update({ institution: e.target.value })}
+        placeholder={t('formFields.institutionPlaceholder')}
       />
       <FormControl fullWidth margin={margin} size={fieldSize}>
-        <InputLabel>{t('formFields.typeLabel')}</InputLabel>
+        <InputLabel id={typeLabelId}>{t('formFields.typeLabel')}</InputLabel>
         <Select
+          labelId={typeLabelId}
           value={state.type}
           label={t('formFields.typeLabel')}
           onChange={(e) => update({ type: e.target.value as AccountType })}
@@ -62,6 +73,19 @@ export function AccountFormFields({ state, onChange, autoFocus = false, size = '
           ))}
         </Select>
       </FormControl>
+      <TextField
+        margin={margin}
+        size={fieldSize}
+        label={t('formFields.nameLabel')}
+        fullWidth
+        value={state.name}
+        onChange={(e) => update({ name: e.target.value })}
+        // The suggestion shows while the field is empty, so the label stays up.
+        placeholder={suggestedName}
+        helperText={t('formFields.nameHelp', { name: suggestedName })}
+        slotProps={{ inputLabel: { shrink: true } }}
+      />
+      {afterName}
       <CurrencySelect
         id="account-currency"
         label={t('formFields.currencyLabel')}
@@ -82,15 +106,6 @@ export function AccountFormFields({ state, onChange, autoFocus = false, size = '
           <MenuItem value="joint">{t('formFields.ownershipJoint')}</MenuItem>
         </Select>
       </FormControl>
-      <TextField
-        margin={margin}
-        size={fieldSize}
-        label={t('formFields.institutionLabel')}
-        fullWidth
-        value={state.institution}
-        onChange={(e) => update({ institution: e.target.value })}
-        placeholder={t('formFields.institutionPlaceholder')}
-      />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
         <TextField
           margin={margin}

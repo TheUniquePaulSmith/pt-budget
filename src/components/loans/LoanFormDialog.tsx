@@ -18,6 +18,9 @@ import {
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
+import AccountOptionContent from '@/components/accounts/AccountOptionContent';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
+
 import type { Account, Loan, LoanInput, LoanStatus, LoanType, Project, User } from '@/types/database';
 import { LOAN_STATUS_OPTIONS, LOAN_TYPE_VALUES, loanTypeDescription, loanTypeLabel } from './loanPresentation';
 
@@ -139,6 +142,7 @@ const fieldSx = { flex: '1 1 200px' } as const;
 
 export default function LoanFormDialog({ open, loan, users, projects, accounts, onClose, onSubmit }: LoanFormDialogProps) {
   const { t } = useTranslation('loans');
+  const accountLabels = useAccountLabels(accounts, users);
   const [form, setForm] = useState<LoanFormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,11 +260,13 @@ export default function LoanFormDialog({ open, loan, users, projects, accounts, 
             size="small"
             sx={fieldSx}
             helperText={t('formDialog.linkedAccountHelp')}
+            // The open menu shows each account's second line; the closed field its compact name.
+            slotProps={{ select: { renderValue: (value: unknown) => accountLabels.get(Number(value))?.text ?? '' } }}
           >
             <MenuItem value="">{t('formDialog.none')}</MenuItem>
             {liabilityAccounts.map((account) => (
               <MenuItem key={account.id} value={String(account.id)}>
-                {account.name}
+                <AccountOptionContent label={accountLabels.get(account.id)} fallback={account.name} />
               </MenuItem>
             ))}
           </TextField>

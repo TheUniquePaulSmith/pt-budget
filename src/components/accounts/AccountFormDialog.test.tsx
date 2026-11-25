@@ -107,6 +107,64 @@ describe('AccountFormDialog', () => {
     expect(ownerSelect(dialog)).toHaveTextContent('Sam Lee');
   });
 
+  it('saves an account whose name is left empty as its bank and type', async () => {
+    const user = userEvent.setup();
+    const { props } = renderDialog({ initialValues: { cardNumberInput: '1111' } });
+    const dialog = screen.getByRole('dialog', { name: 'Add New Account' });
+    const name = within(dialog).getByLabelText(/Account Name/);
+
+    // Nothing is required of the name: the suggestion follows the bank and the type.
+    expect(name).not.toBeRequired();
+    expect(name).toHaveAttribute('placeholder', 'Checking');
+    await user.type(within(dialog).getByLabelText(/Institution/), 'Huntington');
+    expect(name).toHaveAttribute('placeholder', 'Huntington Checking');
+    expect(within(dialog).getByText('Optional. Leave empty to use “Huntington Checking”, or type your own.')).toBeInTheDocument();
+
+    const preview = within(dialog).getByTestId('account-label-preview');
+    expect(preview).toHaveTextContent('How it will appear');
+    expect(preview).toHaveTextContent('Huntington Checking');
+    expect(within(preview).getByTestId('account-detail-line')).toHaveTextContent('Pat Doe · ••1111');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
+
+    await waitFor(() =>
+      expect(props.onAdd).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Huntington Checking', institution: 'Huntington', type: 'checking' }),
+        1,
+        expect.objectContaining({ last_four: '1111' })
+      )
+    );
+  });
+
+  it('says when another account already has the name, without blocking the save', async () => {
+    const user = userEvent.setup();
+    const existing = {
+      id: 5,
+      name: 'Huntington',
+      type: 'checking' as const,
+      owner_user_id: 1,
+      owner_display_name: 'Pat Doe',
+      cards: [{ id: 50, account_id: 5, last_four: '1111', created_at: '2026-01-01' }],
+      created_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    };
+    const { props } = renderDialog({ accounts: [existing], initialValues: { cardNumberInput: '2222' } });
+    const dialog = screen.getByRole('dialog', { name: 'Add New Account' });
+    const preview = within(dialog).getByTestId('account-label-preview');
+    expect(within(preview).queryByTestId('account-label-same-name')).not.toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText(/Account Name/), 'huntington');
+
+    // Same owner and type: the card number is what tells the two apart.
+    expect(preview).toHaveTextContent('huntington · ••2222');
+    expect(within(preview).getByTestId('account-label-same-name')).toHaveTextContent(
+      'Another account is already named “huntington”. Lists add the owner, type or card number to tell them apart.'
+    );
+
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(props.onAdd).toHaveBeenCalledWith(expect.objectContaining({ name: 'huntington' }), 1, expect.anything()));
+  });
+
   it('hides "+ New person…" when onAddUser is not provided', async () => {
     const user = userEvent.setup();
     renderDialog({ defaultOwnerUserId: null });

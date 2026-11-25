@@ -17,6 +17,8 @@ import {
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
+import AccountOptionContent from '@/components/accounts/AccountOptionContent';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
 import { normalizeDescription } from '@/lib/merchantMatchingService';
 import type {
   Account,
@@ -71,6 +73,7 @@ export default function ClassificationRuleEditorDialog({
   previewMatches,
 }: ClassificationRuleEditorDialogProps) {
   const { t } = useTranslation(['transactions', 'common']);
+  const accountLabels = useAccountLabels(accounts);
   const [pattern, setPattern] = useState('');
   const [matchType, setMatchType] = useState<MerchantRuleMatchType>('contains');
   const [type, setType] = useState<TransactionType>('transfer');
@@ -170,8 +173,8 @@ export default function ClassificationRuleEditorDialog({
     }
   };
 
-  const accountLabel = (account: Account) =>
-    account.owner_display_name ? `${account.owner_display_name} - ${account.name}` : account.name;
+  // The open menu shows each account's second line; the closed field its compact name.
+  const accountValue = (fallback: string) => (value: unknown) => accountLabels.get(Number(value))?.text ?? fallback;
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{editingRule ? t('ruleEditor.editTitle') : t('ruleEditor.createTitle')}</DialogTitle>
@@ -226,11 +229,12 @@ export default function ClassificationRuleEditorDialog({
             onChange={(event) => setAccountId(event.target.value)}
             size="small"
             helperText={t('ruleEditor.accountHelp')}
+            slotProps={{ select: { renderValue: accountValue(t('ruleEditor.anyAccount')) } }}
           >
             <MenuItem value={ANY_ACCOUNT}>{t('ruleEditor.anyAccount')}</MenuItem>
             {accounts.map((account) => (
               <MenuItem key={account.id} value={String(account.id)}>
-                {accountLabel(account)}
+                <AccountOptionContent label={accountLabels.get(account.id)} fallback={account.name} />
               </MenuItem>
             ))}
           </TextField>
@@ -242,13 +246,14 @@ export default function ClassificationRuleEditorDialog({
               onChange={(event) => setCounterpartId(event.target.value)}
               size="small"
               helperText={t('ruleEditor.counterpartHelp')}
+              slotProps={{ select: { renderValue: accountValue(t('ruleEditor.counterpartUnknown')) } }}
             >
               <MenuItem value={ANY_ACCOUNT}>{t('ruleEditor.counterpartUnknown')}</MenuItem>
               {accounts
                 .filter((account) => String(account.id) !== accountId)
                 .map((account) => (
                   <MenuItem key={account.id} value={String(account.id)}>
-                    {accountLabel(account)}
+                    <AccountOptionContent label={accountLabels.get(account.id)} fallback={account.name} />
                   </MenuItem>
                 ))}
             </TextField>

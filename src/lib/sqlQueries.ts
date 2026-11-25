@@ -325,7 +325,7 @@ export const ACCOUNT_QUERIES = {
       u.display_name as owner_display_name
     FROM accounts a
     LEFT JOIN users u ON a.owner_user_id = u.id
-    ORDER BY a.name
+    ORDER BY a.name, a.id
   `,
   CREATE: `
     INSERT INTO accounts (name, type, ownership, owner_user_id, institution, opening_balance, opening_balance_date, credit_limit, is_active, currency)
@@ -377,7 +377,16 @@ export const IMPORT_BATCH_QUERIES = {
 
 // Account Card Queries
 export const ACCOUNT_CARD_QUERIES = {
-  GET_ALL: `SELECT * FROM account_cards ORDER BY account_id, created_at`,
+  // Every card with its cardholder, for the account labels (`Account.cards`).
+  // No `full_number`: the cached accounts list reaches every page and the AI tools.
+  GET_ALL: `
+    SELECT
+      ac.id, ac.account_id, ac.last_four, ac.nickname, ac.user_id, ac.created_at,
+      u.display_name as user_display_name
+    FROM account_cards ac
+    LEFT JOIN users u ON ac.user_id = u.id
+    ORDER BY ac.account_id, ac.created_at, ac.id
+  `,
   GET_BY_ACCOUNT_ID: `
     SELECT 
       ac.*,

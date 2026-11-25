@@ -17,7 +17,11 @@ import {
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
+import AccountOptionContent from '@/components/accounts/AccountOptionContent';
+import { useAccountLabels } from '@/components/accounts/useAccountLabels';
+
 import { useFormatters } from '@/contexts/useFormatters';
+import { accountLabelText } from '@/lib/accountLabels';
 import type { Account, Loan, LoanMatchRule, LoanMatchRuleInput, MerchantRuleMatchType } from '@/types/database';
 import type { LoanLinkCandidate } from '@/types/loans';
 
@@ -58,6 +62,7 @@ export default function LoanRuleEditorDialog({
 }: LoanRuleEditorDialogProps) {
   const { t } = useTranslation('loans');
   const { money } = useFormatters();
+  const accountLabels = useAccountLabels(accounts);
   const [loanId, setLoanId] = useState('');
   const [pattern, setPattern] = useState('');
   const [matchType, setMatchType] = useState<MerchantRuleMatchType>('contains');
@@ -210,11 +215,13 @@ export default function LoanRuleEditorDialog({
               size="small"
               sx={{ flex: '2 1 200px' }}
               helperText={t('ruleEditorDialog.paidFromHelp')}
+              // The open menu shows each account's second line; the closed field its compact name.
+              slotProps={{ select: { renderValue: (value: unknown) => accountLabels.get(Number(value))?.text ?? '' } }}
             >
               <MenuItem value="">{t('ruleEditorDialog.anyAccount')}</MenuItem>
               {accounts.map((account) => (
                 <MenuItem key={account.id} value={String(account.id)}>
-                  {account.name}
+                  <AccountOptionContent label={accountLabels.get(account.id)} fallback={account.name} />
                 </MenuItem>
               ))}
             </TextField>
@@ -247,7 +254,7 @@ export default function LoanRuleEditorDialog({
                 {preview.slice(0, 8).map((row) => (
                   <Typography component="li" variant="body2" key={row.id}>
                     {[row.date, row.description, money(Math.abs(row.amount), row.account_currency)].join(' · ')}
-                    {row.account_name ? ` · ${row.account_name}` : ''}
+                    {row.account_name ? ` · ${accountLabelText(accountLabels, row.account_id, row.account_name)}` : ''}
                   </Typography>
                 ))}
                 {preview.length > 8 && (

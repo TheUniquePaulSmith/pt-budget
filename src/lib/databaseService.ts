@@ -1687,7 +1687,18 @@ export class DatabaseService {
   async getAccounts(): Promise<Account[]> {
     try {
       const rows = await this.workerService.query(ACCOUNT_QUERIES.GET_ALL);
-      return rows.map(this.mapToAccount);
+      const cardRows = await this.workerService.query(ACCOUNT_CARD_QUERIES.GET_ALL);
+      const cardsByAccountId = new Map<number, AccountCard[]>();
+      for (const cardRow of cardRows) {
+        const card = this.mapToAccountCardSummary(cardRow);
+        const cards = cardsByAccountId.get(card.account_id);
+        if (cards) cards.push(card);
+        else cardsByAccountId.set(card.account_id, [card]);
+      }
+      return rows.map((row: any) => {
+        const account = this.mapToAccount(row);
+        return { ...account, cards: cardsByAccountId.get(account.id) ?? [] };
+      });
     } catch (error) {
       log.error('Failed to get accounts', { operation: 'getAccounts', error });
       throw error;
@@ -2934,6 +2945,19 @@ export class DatabaseService {
       created_at: row.created_at,
       user_display_name: row.user_display_name,
       account_name: row.account_name,
+    };
+  }
+
+  /** A card as the account labels show it: no `full_number` (see `Account.cards`). */
+  private mapToAccountCardSummary(row: any): AccountCard {
+    return {
+      id: row.id,
+      account_id: row.account_id,
+      last_four: row.last_four,
+      nickname: row.nickname ?? null,
+      user_id: row.user_id ?? null,
+      created_at: row.created_at,
+      user_display_name: row.user_display_name ?? undefined,
     };
   }
 

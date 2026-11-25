@@ -11,6 +11,14 @@
     "accountOwner": "Titular de la cuenta",
     "unknownUser": "Usuario desconocido"
   },
+  "label": {
+    "moreCards": "+{{count}} más",
+    "details": "Detalles de la cuenta: {{name}}"
+  },
+  "preview": {
+    "title": "Cómo se mostrará",
+    "sameName": "Ya hay otra cuenta llamada «{{name}}». En las listas se añade el titular, el tipo o el número de tarjeta para distinguirlas."
+  },
   "validation": {
     "nameRequired": "El nombre de la cuenta es obligatorio",
     "numbersInvalid": "El saldo inicial y el límite de crédito deben ser números",
@@ -18,6 +26,7 @@
   },
   "formFields": {
     "nameLabel": "Nombre de la cuenta",
+    "nameHelp": "Opcional. Déjelo vacío para usar «{{name}}» o escriba el suyo.",
     "typeLabel": "Tipo de cuenta",
     "currencyLabel": "Moneda",
     "ownershipLabel": "Titularidad",

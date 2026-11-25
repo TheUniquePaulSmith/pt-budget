@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { accountColumn, cardColumn, userColumn } from '@/components/common/DataGrid/columns';
 import { useFormatters } from '@/contexts/useFormatters';
+import type { AccountLabels } from '@/lib/accountLabels';
 import type {
   Company,
   RecurringSeries,
@@ -58,6 +59,8 @@ interface SeriesDetailDialogProps {
   onSetCompany: (id: number, input: RecurringSeriesCompanyInput) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   getSeriesTransactions: (seriesId: number) => Promise<Transaction[]>;
+  /** From `useAccountLabels(accounts)`: the Account column's labels and details. */
+  accountLabels?: AccountLabels;
 }
 
 const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
@@ -69,6 +72,7 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
   onSetCompany,
   onDelete,
   getSeriesTransactions,
+  accountLabels,
 }) => {
   const { t } = useTranslation('subscriptions');
   const { money } = useFormatters();
@@ -100,7 +104,7 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
       effectiveUser: t('columns.effectiveUser'),
       unassigned: t('columns.unassigned'),
     }),
-    accountColumn<Transaction>({ headerName: t('columns.account'), owner: t('columns.owner'), unknownAccount: t('columns.unknownAccount') }),
+    accountColumn<Transaction>({ headerName: t('columns.account'), unknownAccount: t('columns.unknownAccount'), labels: accountLabels }),
     cardColumn<Transaction>({ headerName: t('columns.card'), noCard: t('columns.noCard') }),
     {
       field: 'amount',
@@ -111,7 +115,7 @@ const SeriesDetailDialog: React.FC<SeriesDetailDialogProps> = ({
       // A transaction's amount is in its account's currency.
       renderCell: (params) => money(Math.abs(params.row.amount), params.row.account_currency),
     },
-  ], [money, t]);
+  ], [money, t, accountLabels]);
 
   useEffect(() => {
     if (!open || !series) return;

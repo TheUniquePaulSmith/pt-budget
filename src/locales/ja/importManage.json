@@ -73,7 +73,7 @@
       "delimited": "テキストファイル（CSV）",
       "ofx": "OFX / QFX ファイル"
     },
-    "account": "インポート先：{{account}}",
+    "account": "インポート先：<account/>",
     "noAccount": "毎回口座を確認します",
     "lastUsed": "最終使用日：{{date}}",
     "neverUsed": "未使用",

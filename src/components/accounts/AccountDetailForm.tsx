@@ -16,6 +16,7 @@ import { FormGrid, FormSection } from '@/components/common/Form';
 import type { Account, AccountCard, User } from '@/types/database';
 import { AccountFormFields } from './AccountFormFields';
 import {
+  buildAccountDraft,
   buildAccountFormValues,
   createAccountFormState,
   type AccountFormState,
@@ -23,9 +24,13 @@ import {
 } from './accountFormModel';
 import { accountTypeLabel, ownerDisplayName } from './accountDisplay';
 import AccountCardsTable, { type AccountCardsTableProps } from './AccountCardsTable';
+import AccountLabelPreview from './AccountLabelPreview';
+import { useSuggestedAccountName } from './useAccountLabels';
 
 export interface AccountDetailFormProps {
   account: Account;
+  /** Every account: the preview says when another one already has this name. */
+  accounts: readonly Account[];
   users: User[];
   cards: AccountCard[];
   onSave: (accountId: number, values: AccountFormValues) => Promise<void>;
@@ -41,6 +46,7 @@ function isSameState(a: AccountFormState, b: AccountFormState): boolean {
 
 export default function AccountDetailForm({
   account,
+  accounts,
   users,
   cards,
   onSave,
@@ -58,8 +64,21 @@ export default function AccountDetailForm({
 
   const dirty = !isSameState(form, initial);
 
+  // An empty Account Name is saved as the suggestion; the preview shows the label either way.
+  const suggestedName = useSuggestedAccountName(form.institution, form.type);
+  const draft = useMemo(
+    () =>
+      buildAccountDraft(form, suggestedName, {
+        id: account.id,
+        ownerUserId: account.owner_user_id,
+        ownerDisplayName: ownerDisplayName(account, users, t),
+        cards,
+      }),
+    [account, cards, form, suggestedName, t, users]
+  );
+
   const handleSave = async () => {
-    const built = buildAccountFormValues(form);
+    const built = buildAccountFormValues(form, suggestedName);
     if (!built.ok) {
       setError(t(`validation.${built.error}`));
       return;
@@ -68,6 +87,8 @@ export default function AccountDetailForm({
     setError(null);
     try {
       await onSave(account.id, built.value);
+      // A name left empty was saved as the suggestion: show it, so the form matches the record again.
+      setForm((current) => (current.name.trim() ? current : { ...current, name: built.value.name }));
       setSavedAt(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : t('detailForm.saveFailed'));
@@ -138,7 +159,12 @@ export default function AccountDetailForm({
           // pair (a Stack) and the Active switch take the full row.
           sx={{ '& > .MuiStack-root, & > .MuiFormControlLabel-root': { gridColumn: '1 / -1' } }}
         >
-          <AccountFormFields state={form} onChange={setForm} size="small" />
+          <AccountFormFields
+            state={form}
+            onChange={setForm}
+            size="small"
+            afterName={<AccountLabelPreview draft={draft} accounts={accounts} users={users} />}
+          />
         </FormGrid>
       </FormSection>
 

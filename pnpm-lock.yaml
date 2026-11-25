@@ -187,6 +187,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.6
         version: 6.43.6
+      '@emotion/cache':
+        specifier: ^11.14.0
+        version: 11.14.0
       '@emotion/react':
         specifier: ^11.14.0
         version: 11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0)
@@ -199,6 +202,9 @@ importers:
       '@mui/material':
         specifier: ^7.1.2
         version: 7.1.2(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@mui/material-nextjs':
+        specifier: ^7.3.10
+        version: 7.3.10(@emotion/cache@11.14.0)(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(next@15.5.29(@playwright/test@1.59.1)(@types/node@20.19.1)(babel-plugin-macros@3.1.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)
       '@mui/x-charts':
         specifier: ^8.5.3
         version: 8.5.3(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@mui/material@7.1.2(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(@mui/system@7.1.1(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react@19.1.0))(@types/react@19.1.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -959,6 +965,24 @@ packages:
       '@types/react': ^17.0.0 || ^18.0.0 || ^19.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
     peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
+  '@mui/material-nextjs@7.3.10':
+    resolution: {integrity: sha512-gJzAFPA3pPg2gg8QUTDEzcI1yLm8A2XLFxis8ejt3DlwCnEt6q1q91dtmeynwsu47XDiJl/l62PVuER6kgFzkA==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      '@emotion/cache': ^11.11.0
+      '@emotion/react': ^11.11.4
+      '@emotion/server': ^11.11.0
+      '@types/react': ^17.0.0 || ^18.0.0 || ^19.0.0
+      next: ^13.0.0 || ^14.0.0 || ^15.0.0 || ^16.0.0
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@emotion/cache':
+        optional: true
+      '@emotion/server':
+        optional: true
       '@types/react':
         optional: true
 
@@ -4524,6 +4548,16 @@ snapshots:
       '@mui/material': 7.1.2(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       react: 19.1.0
     optionalDependencies:
+      '@types/react': 19.1.8
+
+  '@mui/material-nextjs@7.3.10(@emotion/cache@11.14.0)(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(next@15.5.29(@playwright/test@1.59.1)(@types/node@20.19.1)(babel-plugin-macros@3.1.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      '@babel/runtime': 7.29.10
+      '@emotion/react': 11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0)
+      next: 15.5.29(@playwright/test@1.59.1)(@types/node@20.19.1)(babel-plugin-macros@3.1.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      react: 19.1.0
+    optionalDependencies:
+      '@emotion/cache': 11.14.0
       '@types/react': 19.1.8
 
   '@mui/material@7.1.2(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react@19.1.0)(supports-color@7.2.0))(@types/react@19.1.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':

@@ -94,7 +94,8 @@ export const fakePropose: Propose = (table, context = {}) => {
 
 /**
  * Reads ISO dates and plain numbers; anything else is a blocker on its row. A line with no date whose
- * description starts with "Total" is left out as a summary row. Honours overrides. Like the real
+ * description starts with "Total" is left out as a summary row, and so is a row that repeats an
+ * earlier one cell for cell when the layout has a reference column. Honours overrides. Like the real
  * analysis it repeats `signAssumed` for every single-amount layout, whatever the user confirmed, and
  * reports an overlap when the account was imported into before.
  */
@@ -104,8 +105,15 @@ export const fakeAnalyze: Analyze = (table, layout, context) => {
   const unreadableDates: number[] = [];
   const unreadableAmounts: number[] = [];
   const summaryRows: number[] = [];
+  const repeatedRows: number[] = [];
+  const listed = new Set<string>();
   const rows = table.rows.map((cells, index): NormalizedRow => {
     const override = overrides[index] ?? {};
+    // The same reference and the same cells as an earlier row: the transaction is listed again.
+    const listing = JSON.stringify(cells);
+    const isRepeat = roles.reference != null && cells[roles.reference] !== '' && listed.has(listing) && override.skip !== false;
+    if (override.skip !== true) listed.add(listing);
+    if (isRepeat && override.skip !== true) repeatedRows.push(index);
     const rawDate = roles.date == null ? '' : cells[roles.date];
     const date = override.date ?? (/^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : null);
     let amount: number | null = override.amount ?? null;
@@ -123,7 +131,7 @@ export const fakeAnalyze: Analyze = (table, layout, context) => {
     const description = override.description ?? roles.description.map((column) => cells[column]).join(' ');
     const isTotalLine = date === null && /^total/i.test(description) && override.skip !== false;
     if (isTotalLine && override.skip !== true) summaryRows.push(index);
-    const skipped = Boolean(override.skip) || isTotalLine;
+    const skipped = Boolean(override.skip) || isTotalLine || isRepeat;
     const blocked = !skipped && (date === null || amount === null);
     const issueCodes: NormalizedRow['issueCodes'] = [];
     if (!skipped && date === null) {
@@ -158,6 +166,9 @@ export const fakeAnalyze: Analyze = (table, layout, context) => {
   }
   if (summaryRows.length > 0) {
     issues.push({ code: 'summaryRow', severity: 'info', scope: 'row', rows: summaryRows, params: { count: summaryRows.length } });
+  }
+  if (repeatedRows.length > 0) {
+    issues.push({ code: 'repeatedInFile', severity: 'warning', scope: 'row', rows: repeatedRows, params: { count: repeatedRows.length } });
   }
   if (roles.amount != null && roles.debit == null && roles.credit == null) {
     issues.push({

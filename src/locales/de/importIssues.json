@@ -158,6 +158,11 @@
       "title_other": "{{count}} Zeilen passen nicht zum Saldo, den die Bank angibt",
       "detail": "Der in diesen Zeilen angegebene Saldo ist nicht der vorherige Saldo plus oder minus den Betrag. Möglicherweise fehlt eine Zeile in der Datei, oder ein Betrag wurde falsch gelesen. Vergleichen Sie diese Zeilen mit Ihrem Kontoauszug."
     },
+    "repeatedInFile": {
+      "title_one": "{{count}} Zeile wiederholt eine Transaktion, die in dieser Datei bereits vorkommt",
+      "title_other": "{{count}} Zeilen wiederholen Transaktionen, die in dieser Datei bereits vorkommen",
+      "detail": "Jede dieser Zeilen hat dieselbe Bankreferenz und dieselben Angaben wie eine frühere Zeile. Es ist also dieselbe Transaktion, die erneut aufgeführt ist, und sie wird ausgelassen. Eine Datei, die sich wiederholt, kann außerdem unvollständig sein: Prüfen Sie, ob sie den gewünschten Zeitraum abdeckt, und laden Sie sie andernfalls erneut herunter. Falls eine dieser Zeilen eine echte Transaktion ist, können Sie sie wieder aufnehmen."
+    },
     "duplicateInFile": {
       "title": "Zeilen, die in dieser Datei mehrfach vorkommen",
       "detail": "Diese Zeilen haben dasselbe Datum, denselben Betrag und dieselbe Beschreibung wie eine andere Zeile der Datei. Es können zwei echte Transaktionen sein, etwa zwei Kaffees am selben Tag, oder dieselbe, die doppelt aufgeführt ist. Wählen Sie, welche importiert werden sollen."

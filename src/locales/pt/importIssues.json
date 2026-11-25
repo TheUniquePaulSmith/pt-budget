@@ -158,6 +158,11 @@
       "title_other": "{{count}} linhas não batem com o saldo informado pelo banco",
       "detail": "O saldo impresso nessas linhas não é o saldo anterior mais ou menos o valor. Pode estar faltando uma linha no arquivo, ou um valor pode ter sido lido errado. Compare essas linhas com o seu extrato."
     },
+    "repeatedInFile": {
+      "title_one": "{{count}} linha repete uma transação que já está neste arquivo",
+      "title_other": "{{count}} linhas repetem transações que já estão neste arquivo",
+      "detail": "Cada uma dessas linhas tem a mesma referência do banco e os mesmos dados de uma linha anterior, então é a mesma transação listada de novo e fica de fora. Um arquivo que se repete também pode estar incompleto: confira se ele cobre as datas que você pediu e baixe-o novamente se não cobrir. Se alguma dessas linhas for uma transação de verdade, você pode trazê-la de volta."
+    },
     "duplicateInFile": {
       "title": "Linhas que aparecem mais de uma vez neste arquivo",
       "detail": "Essas linhas têm a mesma data, o mesmo valor e a mesma descrição de outra linha do arquivo. Podem ser duas transações de verdade, como dois cafés no mesmo dia, ou a mesma listada duas vezes. Escolha quais importar."

@@ -158,6 +158,11 @@
       "title_other": "{{count}} rows do not match the bank's running balance",
       "detail": "The balance printed on these rows is not the balance before plus or minus the amount. A row may be missing from the file, or an amount may have been read wrongly. Compare these rows with your statement."
     },
+    "repeatedInFile": {
+      "title_one": "{{count}} row repeats a transaction already listed in this file",
+      "title_other": "{{count}} rows repeat transactions already listed in this file",
+      "detail": "Each of these rows has the same bank reference and the same details as an earlier row, so it is the same transaction printed again and is left out. A file that repeats itself may also be missing transactions: check that it covers the dates you asked for, and download it again if it does not. If one of these rows is a real transaction, you can bring it back."
+    },
     "duplicateInFile": {
       "title": "Rows that appear more than once in this file",
       "detail": "These rows have the same date, amount and description as another row in the file. They may be two real transactions, such as two coffees on the same day, or the same one listed twice. Choose which ones to import."

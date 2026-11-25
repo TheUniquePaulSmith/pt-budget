@@ -76,6 +76,8 @@ export const IMPORT_ISSUE_CODES = {
   summaryRow: { severity: 'info', scope: 'row' },
   /** The running balance does not follow from the amount. */
   balanceMismatch: { severity: 'warning', scope: 'row' },
+  /** The same bank reference and the same cells as an earlier row: one transaction listed again; skipped. */
+  repeatedInFile: { severity: 'warning', scope: 'row' },
   /** Identical to another row in this file. */
   duplicateInFile: { severity: 'warning', scope: 'row' },
   /** Already stored from an earlier import; will not be imported again. */
@@ -140,6 +142,7 @@ export const ISSUE_TEXT_PARAMS: Partial<Record<ImportIssueCode, readonly string[
   pendingTransaction: ['count'],
   summaryRow: ['count'],
   balanceMismatch: ['count'],
+  repeatedInFile: ['count'],
   /** `count`: days not covered, from `from` to `to` inclusive. */
   gapSinceLastImport: ['count', 'from', 'to'],
   /** `from` / `to`: the dates both the file and the account cover. */

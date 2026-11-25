@@ -9,7 +9,8 @@
  *   - about the layout the file does not settle the date order, the decimal mark or the sign;
  *   - about coverage   the file leaves a gap after, or overlaps, what the account already has.
  *
- * Rows the analysis leaves out on its own (total lines) come back `skipped`;
+ * Rows the analysis leaves out on its own (total lines, and rows that list a
+ * transaction the file has already listed) come back `skipped`;
  * `{ skip: false }` in the overrides brings one back.
  */
 
@@ -30,6 +31,7 @@ import { DateReader, decimalEvidenceOf, isExcelMangled, readAmountCell } from '.
 import { GROUPING_CERTAIN_CELLS } from './decimal';
 import { NOT_IMPORTED_CLASSES, matchHeader } from './headerAliases';
 import { accountTypeFor } from './proposeLayout';
+import { repeatedListings, sameCells } from './repeats';
 import { isUniqueReferenceColumn } from './roles';
 import { SIGN_CERTAIN, inferAmountSign } from './sign';
 import { directionOfToken, hasPendingPrefix, isPendingStatus, startsWithSummaryLabel } from './vocabulary';
@@ -87,6 +89,39 @@ export function analyzeStatement(table: StatementTable, layout: ImportLayout, co
   const overrides = context.overrides ?? {};
   const reader = new DateReader();
   const nameOf = (column: number) => table.columns.find((candidate) => candidate.index === column)?.name ?? '';
+  const usedColumns = new Set(
+    [
+      dateColumn,
+      pick(layout.roles.postedDate),
+      ...descriptionColumns,
+      amountColumn,
+      debitColumn,
+      creditColumn,
+      directionColumn,
+      referenceColumn,
+      accountColumn,
+      balanceColumn,
+      statusColumn,
+      currencyColumn,
+    ].filter((column): column is number => column !== null)
+  );
+
+  // Rows that list a transaction an earlier row already listed (./repeats.ts). The column that
+  // tells transactions apart is the layout's reference; a layout without one (a format saved
+  // from a file whose reference could not be used) falls back on a column the file names like one.
+  const listingColumn =
+    referenceColumn ??
+    table.columns.find(
+      (column) =>
+        !column.synthetic &&
+        !usedColumns.has(column.index) &&
+        matchHeader(column.name)?.classes[0] === 'reference' &&
+        isUniqueReferenceColumn(table, column.index)
+    )?.index ??
+    null;
+  const repeats =
+    (listingColumn !== null ? repeatedListings(table.rows, listingColumn, (index) => overrides[index]?.skip === true) : null) ??
+    new Set<number>();
 
   const rowsByCode = new Map<ImportIssueCode, number[]>();
   const flag = (code: ImportIssueCode, row: NormalizedRow) => {
@@ -207,9 +242,20 @@ export function analyzeStatement(table: StatementTable, layout: ImportLayout, co
     printedAmounts.push(dateColumn !== null && fileDate === null ? null : amountReading.printed);
     chainAmounts.push(row.amount);
     if (row.skipped) return row;
+    // A row the user fixed or brought back is theirs, whatever it looked like.
+    const untouched = override.skip !== false && fixedDate === null && fixedAmount === null;
+
+    // The transaction of an earlier row, listed again: left out, and said so.
+    if (untouched && repeats.has(index)) {
+      row.skipped = true;
+      flag('repeatedInFile', row);
+      printedAmounts[index] = null;
+      chainAmounts[index] = null;
+      return row;
+    }
 
     // A total or balance line among the transactions: left out, and said so.
-    if (override.skip !== false && fixedDate === null && fixedAmount === null) {
+    if (untouched) {
       const noDate = dateColumn !== null && fileDate === null;
       const noAmount = hasAmount && amountReading.value === null && amountReading.problem !== 'mangled';
       if ((noDate || noAmount) && (cells.every((cell) => !cell.trim()) || cells.some(startsWithSummaryLabel))) {
@@ -324,14 +370,23 @@ export function analyzeStatement(table: StatementTable, layout: ImportLayout, co
   // --- References -----------------------------------------------------------
   let repeatedReference: { column: number; example: string } | null = null;
   if (referenceColumn !== null) {
-    const seen = new Set<string>();
+    const sharing = new Map<string, NormalizedRow[]>();
     for (const row of active) {
       if (row.reference === null) continue;
-      if (seen.has(row.reference)) {
-        repeatedReference = { column: referenceColumn, example: row.reference };
+      const others = sharing.get(row.reference);
+      if (others) others.push(row);
+      else sharing.set(row.reference, [row]);
+    }
+    for (const [reference, sharers] of sharing) {
+      if (sharers.length < 2) continue;
+      if (sharers.every((row) => sameCells(table.rows[sharers[0].index], table.rows[row.index]))) {
+        // Copies of one listing the user brought back as transactions of their own: the
+        // reference they share identifies none of them. The rest of the column still works.
+        for (const row of sharers) row.reference = null;
+      } else {
+        repeatedReference = { column: referenceColumn, example: reference };
         break;
       }
-      seen.add(row.reference);
     }
     // A reference that repeats would make the second row look like a duplicate of the first.
     if (repeatedReference) for (const row of rows) row.reference = null;
@@ -436,27 +491,12 @@ export function analyzeStatement(table: StatementTable, layout: ImportLayout, co
   addRows('pendingTransaction');
   addRows('summaryRow');
   addRows('balanceMismatch');
+  addRows('repeatedInFile');
 
   // Columns.
   if (repeatedReference) {
     add('referenceNotUnique', { column: repeatedReference.column, params: { column: nameOf(repeatedReference.column) } });
   }
-  const usedColumns = new Set(
-    [
-      dateColumn,
-      pick(layout.roles.postedDate),
-      ...descriptionColumns,
-      amountColumn,
-      debitColumn,
-      creditColumn,
-      directionColumn,
-      referenceColumn,
-      accountColumn,
-      balanceColumn,
-      statusColumn,
-      currencyColumn,
-    ].filter((column): column is number => column !== null)
-  );
   for (const column of table.columns) {
     if (usedColumns.has(column.index) || column.synthetic) continue;
     const headerClass = matchHeader(column.name)?.classes[0];

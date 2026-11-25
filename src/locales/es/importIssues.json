@@ -158,6 +158,11 @@
       "title_other": "{{count}} filas no coinciden con el saldo que indica el banco",
       "detail": "El saldo impreso en estas filas no es el saldo anterior más o menos el importe. Puede que falte una fila en el archivo o que un importe se haya leído mal. Compare estas filas con su extracto."
     },
+    "repeatedInFile": {
+      "title_one": "{{count}} fila repite una transacción que ya figura en este archivo",
+      "title_other": "{{count}} filas repiten transacciones que ya figuran en este archivo",
+      "detail": "Cada una de estas filas tiene la misma referencia bancaria y los mismos datos que una fila anterior, así que es la misma transacción anotada otra vez y se deja fuera. Un archivo que se repite también puede estar incompleto: compruebe que cubre las fechas que pidió y descárguelo de nuevo si no es así. Si alguna de estas filas es una transacción real, puede recuperarla."
+    },
     "duplicateInFile": {
       "title": "Filas que aparecen más de una vez en este archivo",
       "detail": "Estas filas tienen la misma fecha, importe y descripción que otra fila del archivo. Pueden ser dos transacciones reales, como dos cafés el mismo día, o la misma anotada dos veces. Elija cuáles importar."

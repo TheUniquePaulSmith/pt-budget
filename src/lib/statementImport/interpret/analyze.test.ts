@@ -537,6 +537,110 @@ describe('analyzeStatement: columns', () => {
     expect(issue(report, 'referenceNotUnique')).toBeUndefined();
   });
 
+  describe('repeatedInFile: a transaction the file lists more than once', () => {
+    // A card export that pages badly: page two starts one row after page one instead of after it.
+    const HEADER = ['Date', 'Description', 'Amount', 'Reference'];
+    const LISTED = [
+      ['2026-09-01', 'COFFEE HOUSE 22', '-6.75', 'R1'],
+      ['2026-09-01', 'COFFEE HOUSE 22', '-6.75', 'R2'],
+      ['2026-09-02', 'GROCERY MART 0421', '-54.20', 'R3'],
+      ['2026-09-03', 'STREAMING SERVICE', '-12.99', 'R4'],
+    ];
+    const paged = () => tableFromCells([HEADER, ...LISTED.slice(0, 3), ...LISTED.slice(1, 4), ...LISTED.slice(1, 4)]);
+
+    it('imports each transaction once, keeps its reference and says which rows were left out', () => {
+      const table = paged();
+      expect(proposeLayout(table).layout.roles.reference).toBe(3);
+
+      const report = analyse(table);
+      expect(issue(report, 'repeatedInFile')).toEqual({
+        code: 'repeatedInFile',
+        severity: 'warning',
+        scope: 'row',
+        rows: [3, 4, 6, 7, 8],
+        params: { count: 5 },
+      });
+      expect(report.rows[3]).toMatchObject({ skipped: true, blocked: false, issueCodes: ['repeatedInFile'] });
+      expect(report.rows.filter((row) => !row.skipped).map((row) => row.reference)).toEqual(['R1', 'R2', 'R3', 'R4']);
+      expect(issue(report, 'referenceNotUnique')).toBeUndefined();
+      expect(report.stats).toMatchObject({ totalRows: 9, readyRows: 4, skippedRows: 5, blockedRows: 0, moneyOut: 80.69 });
+    });
+
+    it('leaves two purchases alone when each has a reference of its own, or none', () => {
+      // Rows 0 and 1 of the paged file: the same date, amount and description, two references.
+      const report = analyse(tableFromCells([HEADER, ...LISTED]));
+      expect(issue(report, 'repeatedInFile')).toBeUndefined();
+      expect(report.stats.readyRows).toBe(4);
+
+      const noReference = analyse(
+        tableFromCells([HEADER, ['2026-09-01', 'COFFEE HOUSE 22', '-6.75', '0'], ['2026-09-01', 'COFFEE HOUSE 22', '-6.75', '0'], ...LISTED.slice(2)])
+      );
+      expect(issue(noReference, 'repeatedInFile')).toBeUndefined();
+      expect(noReference.stats.readyRows).toBe(4);
+    });
+
+    it('concludes nothing from a column that is the same on rows that differ', () => {
+      const table = tableFromCells([HEADER, ...LISTED, LISTED[0], ['2026-09-09', 'HARDWARE DEPOT 77', '-31.75', 'R4']]);
+      const layout: ImportLayout = { roles: { date: 0, description: [1], amount: 2, reference: 3 }, dateOrder: 'YMD', decimal: '.', amountSign: 'asIs' };
+      const report = analyse(table, {}, layout);
+      expect(issue(report, 'repeatedInFile')).toBeUndefined();
+      expect(issue(report, 'referenceNotUnique')?.column).toBe(3);
+      expect(report.stats).toMatchObject({ readyRows: 6, skippedRows: 0 });
+      expect(report.rows.every((row) => row.reference === null)).toBe(true);
+    });
+
+    it('brings a row back on request; the reference it shares then identifies neither copy', () => {
+      const report = analyse(paged(), { overrides: { 3: { skip: false } } });
+      expect(issue(report, 'repeatedInFile')?.rows).toEqual([4, 6, 7, 8]);
+      expect(report.rows[3]).toMatchObject({ skipped: false, blocked: false, issueCodes: [] });
+      // R2 is on rows 1 and 3 (and on row 6, still left out); the other references are untouched.
+      expect(report.rows.filter((row) => !row.skipped).map((row) => row.reference)).toEqual(['R1', null, 'R3', null, 'R4']);
+      expect(issue(report, 'referenceNotUnique')).toBeUndefined();
+      expect(report.stats.readyRows).toBe(5);
+    });
+
+    it('does not count a row the user left out as the first listing', () => {
+      const report = analyse(paged(), { overrides: { 1: { skip: true } } });
+      // Row 3 is now the first listing of R2; rows 4, 6, 7 and 8 repeat rows 2, 3 and 5.
+      expect(issue(report, 'repeatedInFile')?.rows).toEqual([4, 6, 7, 8]);
+      expect(report.rows[3]).toMatchObject({ skipped: false, reference: 'R2' });
+      expect(report.stats).toMatchObject({ readyRows: 4, skippedRows: 5 });
+    });
+
+    it('reports a flaw of a repeated transaction once, on its first listing', () => {
+      const flawed = [...LISTED.slice(0, 3), ['someday', 'STREAMING SERVICE', '0.00', 'R4']];
+      const report = analyse(tableFromCells([HEADER, ...flawed, ...flawed]));
+      expect(issue(report, 'repeatedInFile')?.rows).toEqual([4, 5, 6, 7]);
+      expect(issue(report, 'unreadableDate')?.rows).toEqual([3]);
+      expect(issue(report, 'zeroAmount')?.rows).toEqual([3]);
+      expect(report.stats).toMatchObject({ readyRows: 3, blockedRows: 1, skippedRows: 4 });
+    });
+
+    it('still works with a saved layout that has no reference column', () => {
+      // A format saved from a file whose reference could not be used does not name the column.
+      const layout: ImportLayout = { roles: { date: 0, description: [1], amount: 2 }, dateOrder: 'YMD', decimal: '.', amountSign: 'asIs' };
+      const report = analyse(paged(), {}, layout);
+      expect(issue(report, 'repeatedInFile')?.rows).toEqual([3, 4, 6, 7, 8]);
+      expect(report.stats).toMatchObject({ readyRows: 4, skippedRows: 5 });
+      expect(report.rows.every((row) => row.reference === null)).toBe(true);
+      expect(issue(report, 'referenceNotUnique')).toBeUndefined();
+    });
+
+    it('keeps the repeats out of the running-balance check', () => {
+      const header = ['Date', 'Description', 'Amount', 'Balance', 'Reference'];
+      const rows = [
+        ['2026-09-01', 'COFFEE HOUSE 22', '-6.75', '993.25', 'R1'],
+        ['2026-09-02', 'GROCERY MART 0421', '-54.20', '939.05', 'R2'],
+        ['2026-09-03', 'STREAMING SERVICE', '-12.99', '926.06', 'R3'],
+        ['2026-09-05', 'PAYROLL DEPOSIT', '2400.00', '3326.06', 'R4'],
+      ];
+      const report = analyse(tableFromCells([header, ...rows.slice(0, 3), ...rows.slice(1, 4)]));
+      expect(issue(report, 'repeatedInFile')?.rows).toEqual([3, 4]);
+      expect(issue(report, 'balanceMismatch')).toBeUndefined();
+      expect(report.stats.readyRows).toBe(4);
+    });
+  });
+
   it('currencyMismatch: from a currency column, or from what the file says about itself', () => {
     const table = tableFromCsv(`
       Date,Description,Amount,Currency

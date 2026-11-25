@@ -171,6 +171,17 @@ describe('proposeLayout: columns', () => {
       2026-09-03,C,-3.00,R7
     `);
     expect(proposeLayout(repeated).layout.roles.reference).toBeUndefined();
+
+    // The same row printed again is the same transaction, not a second use of its reference.
+    const listedTwice = tableFromCsv(`
+      Date,Description,Amount,Reference
+      2026-09-01,A,-1.00,R1
+      2026-09-02,B,-2.00,R2
+      2026-09-02,B,-2.00,R2
+      2026-09-01,A,-1.00,R1
+      2026-09-01,A,-1.00,R1
+    `);
+    expect(proposeLayout(listedTwice).layout.roles.reference).toBe(3);
   });
 
   it('finds a per-row account, a status and a currency column', () => {

@@ -640,6 +640,14 @@ function hasAnyBlocker(statement: StatementSession): boolean {
   );
 }
 
+/**
+ * The file lists transactions more than once. The repeats are left out, but a file that repeats
+ * itself is often short of the dates it was asked for, so it is not one with "nothing to decide".
+ */
+function repeatsItself(statement: StatementSession): boolean {
+  return statement.report.issues.some((issue) => issue.code === 'repeatedInFile');
+}
+
 function choiceForRow(statement: StatementSession, row: NormalizedRow): AccountChoice | null {
   const choices = statement.accounts;
   if (!choices || choices.length === 0) return null;
@@ -1241,7 +1249,8 @@ export function createWizardReducer(deps: WizardDeps) {
             statement.layoutSource === 'profile' &&
             !statement.profileForOtherAccount &&
             (statement.accounts ?? []).every((choice) => choice.accountId != null) &&
-            !hasAnyBlocker(statement);
+            !hasAnyBlocker(statement) &&
+            !repeatsItself(statement);
           return {
             ...updateCurrent(resolved, (current) => ({ ...current, fastPath })),
             activating: false,

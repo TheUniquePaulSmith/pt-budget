@@ -256,7 +256,8 @@
     "blockedRows_other": "{{count}} filas no se pueden leer. Corríjalas o exclúyalas.",
     "accounts": "Elija o confirme la cuenta.",
     "confirm": "Confirme cómo se lee el archivo.",
-    "noRows": "No queda nada que importar de este archivo."
+    "noRows": "No queda nada que importar de este archivo.",
+    "coversThrough": "Elija una fecha de «Datos completos hasta» entre el {{from}} y el {{to}}."
   },
   "summary": {
     "title": "Resumen",
@@ -283,7 +284,14 @@
     "formatName": "Nombre del formato",
     "import_one": "Importar {{count}} transacción",
     "import_other": "Importar {{count}} transacciones",
-    "checking": "Comprobando…"
+    "checking": "Comprobando…",
+    "coversThrough": "Datos completos hasta",
+    "coversThroughHelp": "Los datos de sus cuentas se consideran completos hasta esta fecha. Un pago con vencimiento anterior que este archivo no muestre se indica como vencido; uno posterior espera a su próxima importación.",
+    "coversThroughSource": {
+      "statement_end": "La fecha de cierre del propio extracto",
+      "import_date": "Hoy, el día de la importación",
+      "user": "La fecha que eligió"
+    }
   },
   "done": {
     "title": "Importación terminada",

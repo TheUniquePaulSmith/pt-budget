@@ -185,7 +185,11 @@ describe('NotificationsService', () => {
     expect(settings.map((s) => s.type)).toEqual([...DEFAULT_NOTIFICATION_SETTINGS.map((s) => s.type), 'custom_plugin']);
 
     await service.upsertSetting({ type: 'birthday', enabled: 1, lead_days: 10, os_notify: 0 });
-    expect(query).toHaveBeenCalledWith(NOTIFICATION_QUERIES.SETTINGS_UPSERT, ['birthday', 1, 10, 0]);
+    expect(query).toHaveBeenCalledWith(NOTIFICATION_QUERIES.SETTINGS_UPSERT, ['birthday', 1, 10, 0, null]);
+
+    // Schema v8: the payment alert's posting grace is stored too.
+    await service.upsertSetting({ type: 'overdue_payment', enabled: 1, lead_days: 3, os_notify: 0, grace_days: 5 });
+    expect(query).toHaveBeenCalledWith(NOTIFICATION_QUERIES.SETTINGS_UPSERT, ['overdue_payment', 1, 3, 0, 5]);
   });
 
   it('is exposed on DatabaseService with a getNotifications facade for cached collections', async () => {

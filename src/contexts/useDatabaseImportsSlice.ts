@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { DatabaseService } from '../lib/databaseService';
 import { logger } from '../lib/logging';
@@ -15,7 +15,13 @@ import type {
   StageResult,
   StagedRowInput,
 } from '../lib/statementImport/types';
-import type { AccountIdentifier, AccountIdentifierInput, ImportBatch } from '../types/database';
+import type {
+  AccountCheckpointInput,
+  AccountFreshness,
+  AccountIdentifier,
+  AccountIdentifierInput,
+  ImportBatch,
+} from '../types/database';
 
 /**
  * Provider-domain slice for statement import (schema v7). Saved layouts,
@@ -49,6 +55,12 @@ export interface DatabaseImportsSlice {
    * caller's to re-run.
    */
   undoImportBatch: (batchId: number) => Promise<ImportBatchImpact>;
+  /** Schema v8: records an import that brought no new rows (no batch), so it still counts as fresh data. */
+  recordAccountCheckpoints: (checkpoints: AccountCheckpointInput[]) => Promise<void>;
+  /** Schema v8: each account's last import, data-through date and newest transaction. */
+  getAccountFreshness: () => Promise<AccountFreshness[]>;
+  /** Bumps after every write that changes account freshness (commit, undo, a no-new-rows import). */
+  freshnessVersion: number;
 }
 
 // `loans` only for syncAccountSnapshot after an undo that removed loan payments.
@@ -76,6 +88,8 @@ export function useDatabaseImportsSlice({
     return databaseService;
   }, [databaseService]);
   const requireService = useCallback(() => requireDatabase().imports, [requireDatabase]);
+  const [freshnessVersion, setFreshnessVersion] = useState(0);
+  const bumpFreshness = useCallback(() => setFreshnessVersion((version) => version + 1), []);
 
   const listImportProfiles = useCallback(async () => requireService().listProfiles(), [requireService]);
   const findImportProfiles = useCallback(
@@ -121,11 +135,21 @@ export function useDatabaseImportsSlice({
   const commitStagedImport = useCallback(
     async (input: CommitInput) => {
       const result = await requireService().commitStaged(input);
+      bumpFreshness();
       await refreshTransactions();
       return result;
     },
-    [refreshTransactions, requireService]
+    [bumpFreshness, refreshTransactions, requireService]
   );
+
+  const recordAccountCheckpoints = useCallback(
+    async (checkpoints: AccountCheckpointInput[]) => {
+      await requireService().recordAccountCheckpoints(checkpoints);
+      bumpFreshness();
+    },
+    [bumpFreshness, requireService]
+  );
+  const getAccountFreshness = useCallback(async () => requireService().getAccountFreshness(), [requireService]);
 
   const listImportBatches = useCallback(async (limit?: number) => requireService().listImportBatches(limit), [requireService]);
   const getImportBatchImpact = useCallback(
@@ -158,6 +182,7 @@ export function useDatabaseImportsSlice({
           }
         }
       } finally {
+        bumpFreshness();
         await Promise.all([
           refreshTransactions(),
           ...(loanIds.length > 0 ? [refreshLoans(), refreshAccounts()] : []),
@@ -165,7 +190,7 @@ export function useDatabaseImportsSlice({
       }
       return impact;
     },
-    [refreshAccounts, refreshLoans, refreshTransactions, requireDatabase]
+    [bumpFreshness, refreshAccounts, refreshLoans, refreshTransactions, requireDatabase]
   );
 
   return useMemo(
@@ -186,8 +211,14 @@ export function useDatabaseImportsSlice({
       listImportBatches,
       getImportBatchImpact,
       undoImportBatch,
+      recordAccountCheckpoints,
+      getAccountFreshness,
+      freshnessVersion,
     }),
     [
+      freshnessVersion,
+      getAccountFreshness,
+      recordAccountCheckpoints,
       addAccountIdentifier,
       commitStagedImport,
       deleteImportProfile,

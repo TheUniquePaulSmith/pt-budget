@@ -6,7 +6,8 @@
     "custom": "自定义提醒",
     "overdue_payment": "付款到期",
     "budget_overspend": "预算超支",
-    "loan_promo_ending": "贷款还款截止日"
+    "loan_promo_ending": "贷款还款截止日",
+    "stale_account": "账户未导入"
   },
   "typeDescription": {
     "birthday": "您想记住的生日，每年重复。",
@@ -15,7 +16,8 @@
     "custom": "其他任何事项，一次性或重复。",
     "overdue_payment": "需要您手动支付、已到期或已逾期的订阅和账单（未标记为自动扣款的系列）。",
     "budget_overspend": "超出当月金额的预算分类。",
-    "loan_promo_ending": "递延利息贷款的还款截止日临近，或已过期且仍有余额，可能被追收利息。"
+    "loan_promo_ending": "递延利息贷款的还款截止日临近，或已过期且仍有余额，可能被追收利息。",
+    "stale_account": "曾经导入过、但数据已截止于数月前的账户，因此无法确认其付款警报。"
   },
   "recurrence": {
     "once": "一次",
@@ -34,7 +36,8 @@
     "dueInDays_other": "{{count}}天后到期",
     "overdue_other": "已逾期{{count}}天",
     "noDate": "无日期",
-    "snoozedUntil": "延后至{{date}}"
+    "snoozedUntil": "延后至{{date}}",
+    "notConfirmed": "未确认"
   },
   "dueLabel": {
     "today": "今天到期",
@@ -46,7 +49,10 @@
     "overduePayment": {
       "title": "{{name}}{{due}}",
       "body": "预计{{date}}付款。将该系列标记为自动扣款可停止此类警报。",
-      "bodyWithAmount": "预计{{date}}付款（{{amount}}）。将该系列标记为自动扣款可停止此类警报。"
+      "bodyWithAmount": "预计{{date}}付款（{{amount}}）。将该系列标记为自动扣款可停止此类警报。",
+      "unconfirmedTitle": "{{name}} 应于 {{date}} 付款，尚未确认",
+      "unconfirmedBody": "{{account}} 已导入至 {{through}}。请导入更新的对账单，查看是否已付款。",
+      "unconfirmedBodyNoAccount": "该账户已导入至 {{through}}。请导入更新的对账单，查看是否已付款。"
     },
     "loanPromo": {
       "chargedTitle": "{{name}}：已收取递延利息",
@@ -63,6 +69,10 @@
       "body": "{{month}}预算{{budgeted}}，已花费{{spent}}（超出{{over}}）。",
       "bodyCarriedIn": "{{month}}预算{{budgeted}}（含结转转入{{carried}}），已花费{{spent}}（超出{{over}}）。",
       "bodyCarriedOver": "{{month}}预算{{budgeted}}（含结转{{carried}}），已花费{{spent}}（超出{{over}}）。"
+    },
+    "staleAccount": {
+      "title": "{{account}} 需要重新导入",
+      "body": "其导入的交易截止于 {{date}}。请导入最近的对账单，以保持付款警报准确。"
     }
   },
   "page": {
@@ -112,7 +122,9 @@
     "snoozeConfirm": "稍后提醒",
     "completeFailed": "无法完成该通知",
     "dismissFailed": "无法忽略该通知",
-    "snoozeFailed": "无法延后该通知"
+    "snoozeFailed": "无法延后该通知",
+    "importNewer": "导入更新的对账单",
+    "importNewerAria": "为 {{title}} 导入更新的对账单"
   },
   "dashboardCard": {
     "title": "提醒与警报",
@@ -147,7 +159,14 @@
     "leadInvalid": "提前天数必须是 0 到 365 之间的整数",
     "osUnsupported": "此浏览器不支持系统通知。",
     "osBlocked": "浏览器已阻止此站点的通知。请在浏览器的站点设置中允许，然后重试。",
-    "osNotGranted": "未授予通知权限。"
+    "osNotGranted": "未授予通知权限。",
+    "graceTitle": "付款警报与导入",
+    "graceHelp": "只有当导入的数据超过到期日这么多天仍未显示该付款时，才算逾期。在此之前显示为未确认，且不发送浏览器通知。",
+    "graceLabel": "入账宽限（天）",
+    "graceInvalid": "入账宽限必须是 0 到 {{max}} 之间的整数天数",
+    "staleLabel": "提醒间隔（月）",
+    "staleHelp": "曾经导入过的账户，在导入数据达到这么多个月后，会触发“账户未导入”警报。",
+    "staleInvalid": "提醒必须是 1 到 {{max}} 之间的整数月数"
   },
   "editor": {
     "editTitle": "编辑提醒",

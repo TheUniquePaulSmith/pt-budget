@@ -5,6 +5,7 @@ import type { ImportClassificationPreview, TransferLegSummary, TransferPairPrevi
 
 import {
   SIMPLE_ROWS,
+  TODAY,
   fakePropose,
   initialState,
   makeTable,
@@ -15,6 +16,7 @@ import {
   withFile,
 } from './testing/wizardFixtures';
 import {
+  accountCheckpoints,
   accountIssueCode,
   accountValuesOf,
   accountsSettled,
@@ -22,6 +24,7 @@ import {
   buildCommitInput,
   buildProfileInput,
   canGoNext,
+  coversThroughOf,
   currentStatement,
   excludedTempIds,
   hasUnsavedWork,
@@ -878,5 +881,60 @@ describe('repeat imports (D16)', () => {
     expect(run(state, { type: 'goToStep', step: 'files' }).step).toBe('files');
     // From Files, Next returns to the statement that is being worked on.
     expect(run(state, { type: 'goToStep', step: 'files' }, { type: 'next' }).step).toBe('account');
+  });
+});
+
+describe('covers through (schema v8)', () => {
+  const withEnd = (statementEnd: string | null) => {
+    const table = makeTable(SIMPLE_ROWS);
+    return makeTable(SIMPLE_ROWS, undefined, { meta: { ...table.meta, statementEnd } });
+  };
+
+  it('defaults to the import day for a file without an end date', () => {
+    const statement = current(readyForReview());
+    expect(coversThroughOf(statement)).toEqual({ date: TODAY, source: 'import_date', min: '2030-02-03', max: TODAY, valid: true });
+    expect(accountCheckpoints(statement)).toEqual([
+      { accountId: 1, dataThrough: TODAY, throughSource: 'import_date', latestTransactionDate: '2030-02-03' },
+    ]);
+  });
+
+  it("takes the file's own end date, kept between its newest row and today", () => {
+    expect(coversThroughOf(current(readyForReview(withEnd('2030-02-15'))))).toMatchObject({ date: '2030-02-15', source: 'statement_end' });
+    expect(coversThroughOf(current(readyForReview(withEnd('2030-04-01'))))).toMatchObject({ date: TODAY, source: 'statement_end' });
+    expect(coversThroughOf(current(readyForReview(withEnd('2030-01-15'))))).toMatchObject({ date: '2030-02-03', source: 'statement_end' });
+  });
+
+  it('lets the user choose a date from the newest row to today, and blocks the import outside that', () => {
+    const chosen = run(readyForReview(), { type: 'coversThroughSet', date: '2030-02-20' });
+    expect(coversThroughOf(current(chosen))).toMatchObject({ date: '2030-02-20', source: 'user', valid: true });
+    expect(importBlockers(current(chosen)).some((blocker) => blocker.kind === 'coversThrough')).toBe(false);
+
+    for (const date of ['2030-02-01', '2030-03-02', '']) {
+      const invalid = run(readyForReview(), { type: 'coversThroughSet', date });
+      expect(coversThroughOf(current(invalid)).valid).toBe(false);
+      expect(importBlockers(current(invalid))).toContainEqual({ kind: 'coversThrough', min: '2030-02-03', max: TODAY });
+      expect(accountCheckpoints(current(invalid))).toEqual([]);
+    }
+
+    const reset = run(chosen, { type: 'coversThroughSet', date: null });
+    expect(coversThroughOf(current(reset)).source).toBe('import_date');
+  });
+
+  it('follows the calendar when the wizard stays open past midnight', () => {
+    const chosen = run(readyForReview(), { type: 'coversThroughSet', date: '2030-03-02' });
+    expect(coversThroughOf(current(chosen)).valid).toBe(false);
+
+    const nextDay = run(chosen, { type: 'todayChanged', today: '2030-03-02' });
+    expect(coversThroughOf(current(nextDay))).toMatchObject({ date: '2030-03-02', max: '2030-03-02', valid: true });
+    expect(run(nextDay, { type: 'coversThroughSet', date: null }).statements[0].importDay).toBe('2030-03-02');
+    // The same day again changes nothing.
+    expect(run(nextDay, { type: 'todayChanged', today: '2030-03-02' })).toBe(nextDay);
+  });
+
+  it('sends one checkpoint per account with the commit, rows already stored included', () => {
+    const state = staged(run(readyForReview(), { type: 'coversThroughSet', date: '2030-02-25' }), { alreadyImported: [2] });
+    expect(buildCommitInput(current(state), [], null).checkpoints).toEqual([
+      { accountId: 1, dataThrough: '2030-02-25', throughSource: 'user', latestTransactionDate: '2030-02-03' },
+    ]);
   });
 });

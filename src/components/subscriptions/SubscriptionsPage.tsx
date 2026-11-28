@@ -39,8 +39,11 @@ import {
 } from '@/components/common/Filters/ScopeFilters';
 import { periodDateRange, weekStartsOnFor, type Period } from '@/lib/periodRange';
 import { accountColumn, cardColumn, userColumn } from '@/components/common/DataGrid/columns';
-import { useSubscriptionsSlice } from '@/contexts/useDatabaseSlices';
+import { useAccountFreshness, useSubscriptionsSlice } from '@/contexts/useDatabaseSlices';
 import { useAccountLabels } from '@/components/accounts/useAccountLabels';
+import { useNotificationsView } from '@/components/notifications/notificationsStore';
+import { resolveGraceDays } from '@/lib/accountFreshness';
+import { accountLabelText } from '@/lib/accountLabels';
 import { useFormatters } from '@/contexts/useFormatters';
 import type {
   MerchantRule,
@@ -95,6 +98,11 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
     getUnmatchedRecurringClusters,
   } = useSubscriptionsSlice();
   const accountLabels = useAccountLabels(accounts, users);
+  // Schema v8: a charge is "Overdue" only once the account's imports should show it.
+  const freshness = useAccountFreshness();
+  const graceDays = resolveGraceDays(useNotificationsView().settings);
+  const accountName = useCallback((accountId: number) => accountLabelText(accountLabels, accountId), [accountLabels]);
+  const overdueProps = { freshness, graceDays, accountName };
 
   const [clusters, setClusters] = useState<UnmatchedCluster[]>([]);
   const [rangedRecurringSeries, setRangedRecurringSeries] = useState<RecurringSeries[]>([]);
@@ -541,6 +549,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
 
           {candidates.length > 0 && (
             <SeriesTable
+              {...overdueProps}
               title={t('page.needsReview', { count: candidates.length })}
               series={candidates}
               onConfirm={handleConfirm}
@@ -551,6 +560,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
           )}
 
           <SeriesTable
+            {...overdueProps}
             title={t('page.subscriptionsCount', { count: activeSubscriptions.length })}
             series={activeSubscriptions}
             emptyMessage={t('page.noActiveSubscriptions')}
@@ -560,6 +570,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
           />
 
           <SeriesTable
+            {...overdueProps}
             title={t('page.recurringBills', { count: activeBills.length })}
             series={activeBills}
             emptyMessage={t('page.noBills')}
@@ -572,6 +583,7 @@ export default function SubscriptionsPage({ onOpenAiPanel, onNavigateToLoans }: 
 
           {hiddenSeries.length > 0 && (
             <SeriesTable
+              {...overdueProps}
               title={t('page.hidden', { count: hiddenSeries.length })}
               series={hiddenSeries}
               onRestore={handleRestore}

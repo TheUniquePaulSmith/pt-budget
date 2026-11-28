@@ -6,7 +6,8 @@
     "custom": "Promemoria personalizzato",
     "overdue_payment": "Pagamento in scadenza",
     "budget_overspend": "Budget superato",
-    "loan_promo_ending": "Data limite di pagamento del prestito"
+    "loan_promo_ending": "Data limite di pagamento del prestito",
+    "stale_account": "Conto non importato"
   },
   "typeDescription": {
     "birthday": "Compleanni da ricordare, ripetuti ogni anno.",
@@ -15,7 +16,8 @@
     "custom": "Qualsiasi altra cosa, una tantum o ripetuta.",
     "overdue_payment": "Abbonamenti e bollette che paghi a mano, in scadenza o scaduti (serie non contrassegnate come addebito automatico).",
     "budget_overspend": "Una categoria di budget che ha superato il suo importo mensile.",
-    "loan_promo_ending": "Un prestito a interessi differiti la cui data limite di pagamento è vicina, o è passata con un saldo residuo, quindi potrebbero essere addebitati gli interessi arretrati."
+    "loan_promo_ending": "Un prestito a interessi differiti la cui data limite di pagamento è vicina, o è passata con un saldo residuo, quindi potrebbero essere addebitati gli interessi arretrati.",
+    "stale_account": "Un conto importato in passato i cui dati si fermano a mesi fa, quindi i suoi avvisi di pagamento non possono essere confermati."
   },
   "recurrence": {
     "once": "Una volta",
@@ -36,7 +38,8 @@
     "overdue_one": "Scaduta da {{count}} giorno",
     "overdue_other": "Scaduta da {{count}} giorni",
     "noDate": "Nessuna data",
-    "snoozedUntil": "Posticipata fino al {{date}}"
+    "snoozedUntil": "Posticipata fino al {{date}}",
+    "notConfirmed": "Non confermato"
   },
   "dueLabel": {
     "today": "scade oggi",
@@ -50,7 +53,10 @@
     "overduePayment": {
       "title": "{{name}} {{due}}",
       "body": "Pagamento previsto il {{date}}. Contrassegna la serie come addebito automatico per interrompere questi avvisi.",
-      "bodyWithAmount": "Pagamento ({{amount}}) previsto il {{date}}. Contrassegna la serie come addebito automatico per interrompere questi avvisi."
+      "bodyWithAmount": "Pagamento ({{amount}}) previsto il {{date}}. Contrassegna la serie come addebito automatico per interrompere questi avvisi.",
+      "unconfirmedTitle": "{{name}} scadeva il {{date}}, non ancora confermato",
+      "unconfirmedBody": "{{account}} è importato fino al {{through}}. Importa un estratto conto più recente per vedere se è stato pagato.",
+      "unconfirmedBodyNoAccount": "Il conto è importato fino al {{through}}. Importa un estratto conto più recente per vedere se è stato pagato."
     },
     "loanPromo": {
       "chargedTitle": "{{name}}: interessi differiti addebitati",
@@ -67,6 +73,10 @@
       "body": "Spesi {{spent}} su {{budgeted}} a {{month}} ({{over}} in più).",
       "bodyCarriedIn": "Spesi {{spent}} su {{budgeted}} incl. {{carried}} riportati a {{month}} ({{over}} in più).",
       "bodyCarriedOver": "Spesi {{spent}} su {{budgeted}} incl. {{carried}} di riporto a {{month}} ({{over}} in più)."
+    },
+    "staleAccount": {
+      "title": "{{account}} va importato di nuovo",
+      "body": "Le transazioni importate si fermano al {{date}}. Importa un estratto conto recente per mantenere precisi gli avvisi di pagamento."
     }
   },
   "page": {
@@ -116,7 +126,9 @@
     "snoozeConfirm": "Posticipa",
     "completeFailed": "Impossibile completare la notifica",
     "dismissFailed": "Impossibile ignorare la notifica",
-    "snoozeFailed": "Impossibile posticipare la notifica"
+    "snoozeFailed": "Impossibile posticipare la notifica",
+    "importNewer": "Importa un estratto conto più recente",
+    "importNewerAria": "Importa un estratto conto più recente per {{title}}"
   },
   "dashboardCard": {
     "title": "Promemoria e avvisi",
@@ -152,7 +164,14 @@
     "leadInvalid": "Il preavviso deve essere un numero intero di giorni tra 0 e 365",
     "osUnsupported": "Questo browser non supporta le notifiche di sistema.",
     "osBlocked": "Il browser ha bloccato le notifiche per questo sito. Consentile nelle impostazioni del sito nel browser, poi riprova.",
-    "osNotGranted": "L'autorizzazione alle notifiche non è stata concessa."
+    "osNotGranted": "L'autorizzazione alle notifiche non è stata concessa.",
+    "graceTitle": "Avvisi di pagamento e importazioni",
+    "graceHelp": "Un pagamento risulta scaduto solo quando un’importazione che arriva a questo numero di giorni oltre la scadenza non lo mostra. Fino ad allora appare come non confermato, senza notifica del browser.",
+    "graceLabel": "Tolleranza di contabilizzazione (giorni)",
+    "graceInvalid": "La tolleranza di contabilizzazione deve essere un numero intero di giorni tra 0 e {{max}}",
+    "staleLabel": "Ricorda dopo (mesi)",
+    "staleHelp": "Un conto già importato genera l’avviso «Conto non importato» quando i suoi dati importati hanno questo numero di mesi.",
+    "staleInvalid": "Il promemoria deve essere un numero intero di mesi tra 1 e {{max}}"
   },
   "editor": {
     "editTitle": "Modifica promemoria",

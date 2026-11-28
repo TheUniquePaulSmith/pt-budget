@@ -9,6 +9,8 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useFormatters } from '@/contexts/useFormatters';
+
 import { useIssueTexts } from './issueText';
 import type { ImportBlocker, WizardStep } from './wizardModel';
 
@@ -21,6 +23,7 @@ export interface BlockerLine {
 export function useBlockerLine(): (blocker: ImportBlocker) => BlockerLine {
   const { t } = useTranslation('importWizard');
   const texts = useIssueTexts();
+  const { date } = useFormatters();
   return useCallback(
     (blocker: ImportBlocker): BlockerLine => {
       switch (blocker.kind) {
@@ -40,10 +43,12 @@ export function useBlockerLine(): (blocker: ImportBlocker) => BlockerLine {
           return { text: t('blockers.accounts'), step: 'account' };
         case 'confirm':
           return { text: t('blockers.confirm'), step: 'layout' };
+        case 'coversThrough':
+          return { text: t('blockers.coversThrough', { from: date(blocker.min), to: date(blocker.max) }), step: 'summary' };
         default:
           return { text: t('blockers.noRows'), step: 'review' };
       }
     },
-    [t, texts]
+    [date, t, texts]
   );
 }

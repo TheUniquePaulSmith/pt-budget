@@ -116,7 +116,9 @@
     "ignoreTooltip": "Ignorer (masquer de cette page)",
     "restoreTooltip": "Restaurer comme actif",
     "editTooltip": "Modifier",
-    "viewTransactionsTooltip": "Voir les transactions"
+    "viewTransactionsTooltip": "Voir les transactions",
+    "notConfirmed": "Non confirmé",
+    "notConfirmedHelp": "{{account}} est importé jusqu’au {{date}}. Importez un relevé plus récent pour vérifier s’il a été payé."
   },
   "seriesDetailDialog": {
     "columnDate": "Date",

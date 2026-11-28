@@ -211,6 +211,33 @@ export interface ImportBatch {
   profile_name?: string | null;
 }
 
+/** How an account's "data through" date was decided (schema v8, `account_data_checkpoints.through_source`). */
+export type DataThroughSource = 'statement_end' | 'import_date' | 'user' | 'backfill';
+
+/** One account's record of one import (schema v8): the data is complete through `dataThrough`. */
+export interface AccountCheckpointInput {
+  accountId: number;
+  /** `yyyy-MM-dd`, never in the future. */
+  dataThrough: string;
+  throughSource: DataThroughSource;
+  /** Newest date for the account in the file (rows already stored included). */
+  latestTransactionDate: string | null;
+}
+
+/**
+ * How recent an account's data is (schema v8). `dataThrough` decides whether a
+ * missing payment is confirmed overdue; `latestTransactionDate` (manual
+ * entries included) is shown for information only.
+ */
+export interface AccountFreshness {
+  accountId: number;
+  /** When the account was last imported (`checked_at`, UTC timestamp); null when never. */
+  lastImportAt: string | null;
+  dataThrough: string | null;
+  throughSource: DataThroughSource | null;
+  latestTransactionDate: string | null;
+}
+
 /**
  * A saved layout for one bank's file shape (schema v7), so a repeat import
  * needs no mapping. `config_json` is an `ImportProfileConfig`; the imports
@@ -474,6 +501,8 @@ export interface RecurringSeries {
   company_name?: string;
   card_last_four?: string;
   card_nickname?: string | null;
+  /** Account of the most recent linked transaction: its imports confirm whether a payment is overdue. */
+  latest_account_id?: number | null;
   transaction_count?: number;
   total_spent?: number;
 }
@@ -693,6 +722,11 @@ export interface NotificationSetting {
   lead_days: number;
   os_notify: number; // SQLite boolean (0/1)
   updated_at?: string;
+  /**
+   * Schema v8, `overdue_payment` only: days a payment may take to show up in an
+   * import after its due date before it counts as missing; null = the default (3).
+   */
+  grace_days?: number | null;
 }
 
 export type AiToolConsent = 'ask' | 'always' | 'deny';

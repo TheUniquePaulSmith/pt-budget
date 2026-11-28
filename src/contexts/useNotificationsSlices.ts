@@ -16,6 +16,9 @@ export function useNotificationsPageSlice() {
 
   return {
     notifications: collections.notifications,
+    // An unconfirmed overdue payment names the account to import (schema v8).
+    accounts: collections.accounts,
+    users: collections.users,
     categories: collections.categories,
     recurringSeries: collections.recurringSeries,
     transactionVersion: collections.transactionVersion,
@@ -40,6 +43,8 @@ export function useNotificationBadgeSlice() {
 
   return {
     notifications: collections.notifications,
+    accounts: collections.accounts,
+    users: collections.users,
     setNotificationStatus: notifications.setNotificationStatus,
     completeNotification: notifications.completeNotification,
     snoozeNotification: notifications.snoozeNotification,
@@ -60,6 +65,8 @@ export function useNotificationsRuntimeSlice() {
     notifications: collections.notifications,
     recurringSeries: collections.recurringSeries,
     loans: collections.loans,
+    // Schema v8: the stale-account alert looks at every account.
+    accounts: collections.accounts,
     transactionVersion: collections.transactionVersion,
     budgetVersion: collections.budgetVersion,
     runNotificationScan: notifications.runNotificationScan,
@@ -81,5 +88,6 @@ export function useNotificationsSettingsSlice() {
     getNotificationPreferences: notifications.getNotificationPreferences,
     setNotificationsEnabled: notifications.setNotificationsEnabled,
     setOsNotificationsEnabled: notifications.setOsNotificationsEnabled,
+    setStaleAccountMonths: notifications.setStaleAccountMonths,
   };
 }

@@ -249,7 +249,8 @@
     "blockedRows_other": "{{count}}개 행을 읽을 수 없습니다. 수정하거나 제외하세요.",
     "accounts": "계좌를 선택하거나 확인하세요.",
     "confirm": "파일을 읽는 방식을 확인하세요.",
-    "noRows": "이 파일에는 가져올 내용이 남아 있지 않습니다."
+    "noRows": "이 파일에는 가져올 내용이 남아 있지 않습니다.",
+    "coversThrough": "‘데이터 완료일’을 {{from}}부터 {{to}} 사이로 고르세요."
   },
   "summary": {
     "title": "요약",
@@ -273,7 +274,14 @@
     "rememberHelpKnown": "저장된 형식에 변경한 내용을 반영합니다.",
     "formatName": "형식 이름",
     "import_other": "거래 {{count}}건 가져오기",
-    "checking": "확인하는 중…"
+    "checking": "확인하는 중…",
+    "coversThrough": "데이터 완료일",
+    "coversThroughHelp": "계좌 데이터가 이 날짜까지 모두 들어온 것으로 봐요. 이 날짜 전이 납부일인데 이 파일에 없는 결제는 연체로 알려 드리고, 이후가 납부일인 결제는 다음 가져오기를 기다려요.",
+    "coversThroughSource": {
+      "statement_end": "내역서에 적힌 종료일",
+      "import_date": "오늘(가져온 날)",
+      "user": "직접 고른 날짜"
+    }
   },
   "done": {
     "title": "가져오기 완료",

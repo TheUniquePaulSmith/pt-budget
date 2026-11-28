@@ -116,7 +116,9 @@
     "ignoreTooltip": "Ignore (hide from this page)",
     "restoreTooltip": "Restore to active",
     "editTooltip": "Edit",
-    "viewTransactionsTooltip": "View transactions"
+    "viewTransactionsTooltip": "View transactions",
+    "notConfirmed": "Not confirmed",
+    "notConfirmedHelp": "{{account}} is imported through {{date}}. Import a newer statement to see whether this was paid."
   },
   "seriesDetailDialog": {
     "columnDate": "Date",

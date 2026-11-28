@@ -87,7 +87,11 @@
     "closedTitle": "解約済み",
     "countedInNetWorth": "純資産に含める",
     "excluded": "除外",
-    "empty": "口座がまだありません。最初の口座を追加して始めましょう。"
+    "empty": "口座がまだありません。最初の口座を追加して始めましょう。",
+    "columnDataThrough": "データの終了日",
+    "importedOn": "{{date}} にインポート",
+    "neverImported": "未インポート",
+    "dataThroughLine": "{{date}} までのデータ"
   },
   "page": {
     "summary": "{{accounts}} • {{people}}",
@@ -158,5 +162,15 @@
     "editTitle": "ユーザーを編集",
     "displayNameLabel": "表示名",
     "saving": "保存中..."
+  },
+  "importStatus": {
+    "title": "インポート",
+    "lastImport": "前回のインポート",
+    "dataThrough": "データの終了日",
+    "latestTransaction": "最新の取引",
+    "never": "なし",
+    "none": "なし",
+    "help": "この口座の支払いアラートは、インポートが期日までをカバーしてから期限超過になります。",
+    "helpNever": "この口座は一度もインポートされていないため、支払いアラートは今日の日付に従います。"
   }
 }

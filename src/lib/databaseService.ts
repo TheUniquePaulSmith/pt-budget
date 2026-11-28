@@ -4250,6 +4250,7 @@ export class DatabaseService {
       company_name: row.company_name || undefined,
       card_last_four: row.card_last_four || undefined,
       card_nickname: row.card_nickname ?? null,
+      latest_account_id: row.latest_account_id != null ? Number(row.latest_account_id) : null,
       transaction_count: row.transaction_count != null ? Number(row.transaction_count) : undefined,
       total_spent: row.total_spent != null ? Number(row.total_spent) : undefined,
     };

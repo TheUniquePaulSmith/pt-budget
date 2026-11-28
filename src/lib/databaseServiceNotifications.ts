@@ -22,6 +22,8 @@ export const DEFAULT_NOTIFICATION_SETTINGS: ReadonlyArray<NotificationSetting> =
   { type: 'overdue_payment', enabled: 1, lead_days: 3, os_notify: 0 },
   { type: 'budget_overspend', enabled: 1, lead_days: 0, os_notify: 0 },
   { type: 'loan_promo_ending', enabled: 1, lead_days: 60, os_notify: 0 },
+  // Schema v8: an account not imported for months (the months live in app_metadata notifications.staleAccountMonths).
+  { type: 'stale_account', enabled: 1, lead_days: 0, os_notify: 0 },
 ];
 
 /**
@@ -113,6 +115,7 @@ export class NotificationsService {
       setting.enabled ? 1 : 0,
       setting.lead_days,
       setting.os_notify ? 1 : 0,
+      setting.grace_days ?? null,
     ]);
   }
 }
@@ -166,5 +169,6 @@ export function mapToNotificationSetting(row: any): NotificationSetting {
     lead_days: Number(row.lead_days ?? 7),
     os_notify: Number(row.os_notify ?? 0),
     updated_at: row.updated_at,
+    grace_days: row.grace_days == null ? null : Number(row.grace_days),
   };
 }

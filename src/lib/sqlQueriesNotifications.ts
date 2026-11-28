@@ -67,12 +67,13 @@ export const NOTIFICATION_QUERIES = {
   // --- notification_settings ---
   SETTINGS_LIST: `SELECT * FROM notification_settings ORDER BY type`,
   SETTINGS_UPSERT: `
-    INSERT INTO notification_settings (type, enabled, lead_days, os_notify, updated_at)
-    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO notification_settings (type, enabled, lead_days, os_notify, grace_days, updated_at)
+    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(type) DO UPDATE SET
       enabled = excluded.enabled,
       lead_days = excluded.lead_days,
       os_notify = excluded.os_notify,
+      grace_days = excluded.grace_days,
       updated_at = CURRENT_TIMESTAMP
   `,
 };

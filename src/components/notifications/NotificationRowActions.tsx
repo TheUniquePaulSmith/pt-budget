@@ -2,7 +2,9 @@
 
 /**
  * Done / Snooze / Dismiss for one notification row. Shared by the page grid
- * and the dashboard card; the snooze menu offers 1 day, 1 week, or a date.
+ * and the dashboard card; the snooze menu offers 1 day, 1 week, or a date. A
+ * payment that is not confirmed overdue yet also offers to import a newer
+ * statement (inside the shell, which owns page navigation).
  */
 
 import React, { useState } from 'react';
@@ -22,11 +24,13 @@ import {
   CheckCircleOutline as DoneIcon,
   Close as DismissIcon,
   Snooze as SnoozeIcon,
+  UploadFile as ImportIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 
+import { useShellNavigate } from '@/components/common/Layout/slots/ShellNavigation';
 import { addDaysISO, isDateOnly, todayLocalISO } from '@/lib/dateOnly';
-import type { SnoozePreset } from '@/lib/notificationService';
+import { isUnconfirmedOverdue, type SnoozePreset } from '@/lib/notificationService';
 import type { AppNotification } from '@/types/database';
 
 export interface NotificationRowActionsProps {
@@ -39,6 +43,8 @@ export interface NotificationRowActionsProps {
   onError?: (message: string) => void;
   /** Smaller icon buttons for dense surfaces. */
   size?: 'small' | 'medium';
+  /** The day the surface classifies against (defaults to the local date). */
+  today?: string;
 }
 
 export default function NotificationRowActions({
@@ -49,7 +55,9 @@ export default function NotificationRowActions({
   onDismiss,
   onError,
   size = 'small',
+  today,
 }: NotificationRowActionsProps) {
+  const navigate = useShellNavigate();
   const { t } = useTranslation(['notifications', 'common']);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [pickDateOpen, setPickDateOpen] = useState(false);
@@ -69,10 +77,28 @@ export default function NotificationRowActions({
 
   const displayTitle = title ?? notification.title;
   const closed = notification.status === 'done' || notification.status === 'dismissed';
+  // A payment not confirmed yet, or an account not imported for months: a newer statement settles it.
+  const offerImport =
+    !closed &&
+    navigate !== null &&
+    (notification.type === 'stale_account' || isUnconfirmedOverdue(notification, today ?? todayLocalISO()));
   const doneLabel = notification.kind === 'reminder' && notification.recurrence !== 'once' ? t('rowActions.doneAdvance') : t('rowActions.done');
 
   return (
     <>
+      {offerImport && (
+        <Tooltip title={t('rowActions.importNewer')}>
+          <IconButton
+            size={size}
+            color="warning"
+            aria-label={t('rowActions.importNewerAria', { title: displayTitle })}
+            data-testid={`notification-import-${notification.id}`}
+            onClick={() => navigate?.('import')}
+          >
+            <ImportIcon fontSize={size} />
+          </IconButton>
+        </Tooltip>
+      )}
       <Tooltip title={doneLabel}>
         <span>
           <IconButton

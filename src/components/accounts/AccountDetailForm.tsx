@@ -13,7 +13,7 @@ import { Delete as DeleteIcon, RestartAlt as ResetIcon, Save as SaveIcon } from 
 import { useTranslation } from 'react-i18next';
 
 import { FormGrid, FormSection } from '@/components/common/Form';
-import type { Account, AccountCard, User } from '@/types/database';
+import type { Account, AccountCard, AccountFreshness, User } from '@/types/database';
 import { AccountFormFields } from './AccountFormFields';
 import {
   buildAccountDraft,
@@ -24,6 +24,7 @@ import {
 } from './accountFormModel';
 import { accountTypeLabel, ownerDisplayName } from './accountDisplay';
 import AccountCardsTable, { type AccountCardsTableProps } from './AccountCardsTable';
+import AccountImportStatus from './AccountImportStatus';
 import AccountLabelPreview from './AccountLabelPreview';
 import { useSuggestedAccountName } from './useAccountLabels';
 
@@ -38,6 +39,8 @@ export interface AccountDetailFormProps {
   onAddCard: AccountCardsTableProps['onAddCard'];
   onUpdateCard: AccountCardsTableProps['onUpdateCard'];
   onRequestDeleteCard: AccountCardsTableProps['onRequestDeleteCard'];
+  /** Schema v8: the account's last import, data-through date and newest transaction. */
+  freshness?: AccountFreshness;
 }
 
 function isSameState(a: AccountFormState, b: AccountFormState): boolean {
@@ -54,6 +57,7 @@ export default function AccountDetailForm({
   onAddCard,
   onUpdateCard,
   onRequestDeleteCard,
+  freshness,
 }: AccountDetailFormProps) {
   const { t } = useTranslation(['accounts', 'common']);
   const initial = useMemo(() => createAccountFormState(account), [account]);
@@ -181,6 +185,10 @@ export default function AccountDetailForm({
           onUpdateCard={onUpdateCard}
           onRequestDeleteCard={onRequestDeleteCard}
         />
+      </FormSection>
+
+      <FormSection title={t('importStatus.title')} divider>
+        <AccountImportStatus freshness={freshness} />
       </FormSection>
 
       <FormSection title={t('detailForm.dangerZoneTitle')} divider>

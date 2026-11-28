@@ -134,6 +134,9 @@ vi.mock('@/contexts/useDatabaseSlices', () => ({
       updateAccountCard,
     };
   },
+  // Schema v8 import status: one imported account, the rest never imported.
+  useAccountFreshness: () =>
+    new Map([[1, { accountId: 1, lastImportAt: '2026-11-20 10:00:00', dataThrough: '2026-11-20', throughSource: 'import_date', latestTransactionDate: '2026-11-18' }]]),
 }));
 
 // The frozen dialogs are written for Next's automatic JSX runtime (no React

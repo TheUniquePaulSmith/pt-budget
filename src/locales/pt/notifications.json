@@ -6,7 +6,8 @@
     "custom": "Lembrete personalizado",
     "overdue_payment": "Pagamento a vencer",
     "budget_overspend": "Orçamento excedido",
-    "loan_promo_ending": "Data limite de empréstimo"
+    "loan_promo_ending": "Data limite de empréstimo",
+    "stale_account": "Conta não importada"
   },
   "typeDescription": {
     "birthday": "Aniversários de que você quer se lembrar, repetindo todo ano.",
@@ -15,7 +16,8 @@
     "custom": "Qualquer outra coisa, única ou recorrente.",
     "overdue_payment": "Assinaturas e contas pagas manualmente que estão vencendo ou atrasadas (séries não marcadas como débito automático).",
     "budget_overspend": "Uma categoria do orçamento que ultrapassou o valor mensal.",
-    "loan_promo_ending": "Um empréstimo com juros diferidos cuja data limite de pagamento está próxima, ou já passou com saldo devedor, de modo que os juros podem ser cobrados retroativamente."
+    "loan_promo_ending": "Um empréstimo com juros diferidos cuja data limite de pagamento está próxima, ou já passou com saldo devedor, de modo que os juros podem ser cobrados retroativamente.",
+    "stale_account": "Uma conta importada antes cujos dados terminam há meses, por isso seus alertas de pagamento não podem ser confirmados."
   },
   "recurrence": {
     "once": "Uma vez",
@@ -36,7 +38,8 @@
     "overdue_one": "{{count}} dia de atraso",
     "overdue_other": "{{count}} dias de atraso",
     "noDate": "Sem data",
-    "snoozedUntil": "Adiada até {{date}}"
+    "snoozedUntil": "Adiada até {{date}}",
+    "notConfirmed": "Não confirmado"
   },
   "dueLabel": {
     "today": "vence hoje",
@@ -50,7 +53,10 @@
     "overduePayment": {
       "title": "{{name}} {{due}}",
       "body": "Pagamento esperado em {{date}}. Marque a série como débito automático para parar estes alertas.",
-      "bodyWithAmount": "Pagamento ({{amount}}) esperado em {{date}}. Marque a série como débito automático para parar estes alertas."
+      "bodyWithAmount": "Pagamento ({{amount}}) esperado em {{date}}. Marque a série como débito automático para parar estes alertas.",
+      "unconfirmedTitle": "{{name}} vencia em {{date}}, ainda não confirmado",
+      "unconfirmedBody": "{{account}} está importada até {{through}}. Importe um extrato mais recente para ver se foi pago.",
+      "unconfirmedBodyNoAccount": "A conta está importada até {{through}}. Importe um extrato mais recente para ver se foi pago."
     },
     "loanPromo": {
       "chargedTitle": "{{name}}: juros diferidos cobrados",
@@ -67,6 +73,10 @@
       "body": "{{spent}} gastos de {{budgeted}} em {{month}} ({{over}} acima).",
       "bodyCarriedIn": "{{spent}} gastos de {{budgeted}}, incl. {{carried}} transportados, em {{month}} ({{over}} acima).",
       "bodyCarriedOver": "{{spent}} gastos de {{budgeted}}, incl. {{carried}} de saldo transportado, em {{month}} ({{over}} acima)."
+    },
+    "staleAccount": {
+      "title": "{{account}} precisa de uma nova importação",
+      "body": "Suas transações importadas terminam em {{date}}. Importe um extrato recente para manter os alertas de pagamento corretos."
     }
   },
   "page": {
@@ -116,7 +126,9 @@
     "snoozeConfirm": "Adiar",
     "completeFailed": "Não foi possível concluir a notificação",
     "dismissFailed": "Não foi possível dispensar a notificação",
-    "snoozeFailed": "Não foi possível adiar a notificação"
+    "snoozeFailed": "Não foi possível adiar a notificação",
+    "importNewer": "Importar um extrato mais recente",
+    "importNewerAria": "Importar um extrato mais recente para {{title}}"
   },
   "dashboardCard": {
     "title": "Lembretes e alertas",
@@ -152,7 +164,14 @@
     "leadInvalid": "A antecedência deve ser um número inteiro de dias entre 0 e 365",
     "osUnsupported": "Este navegador não oferece suporte a notificações do sistema.",
     "osBlocked": "O navegador bloqueou as notificações deste site. Permita-as nas configurações do site no navegador e tente novamente.",
-    "osNotGranted": "A permissão de notificação não foi concedida."
+    "osNotGranted": "A permissão de notificação não foi concedida.",
+    "graceTitle": "Alertas de pagamento e importações",
+    "graceHelp": "Um pagamento só conta como atrasado quando uma importação que vai essa quantidade de dias além do vencimento não o mostra. Até lá, ele aparece como não confirmado, sem notificação do navegador.",
+    "graceLabel": "Prazo de lançamento (dias)",
+    "graceInvalid": "O prazo de lançamento deve ser um número inteiro de dias entre 0 e {{max}}",
+    "staleLabel": "Lembrar após (meses)",
+    "staleHelp": "Uma conta já importada gera o alerta “Conta não importada” quando seus dados importados têm essa quantidade de meses.",
+    "staleInvalid": "O lembrete deve ser um número inteiro de meses entre 1 e {{max}}"
   },
   "editor": {
     "editTitle": "Editar lembrete",

@@ -116,7 +116,9 @@
     "ignoreTooltip": "무시 (이 페이지에서 숨김)",
     "restoreTooltip": "활성으로 복원",
     "editTooltip": "편집",
-    "viewTransactionsTooltip": "거래 보기"
+    "viewTransactionsTooltip": "거래 보기",
+    "notConfirmed": "확인 안 됨",
+    "notConfirmedHelp": "{{account}}은(는) {{date}}까지 가져왔어요. 결제됐는지 보려면 더 최근 내역서를 가져오세요."
   },
   "seriesDetailDialog": {
     "columnDate": "날짜",

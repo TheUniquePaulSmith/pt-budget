@@ -17,8 +17,8 @@ type MigrationOp =
 const migrations = MIGRATIONS as Array<{ version: number; statements: MigrationOp[] }>;
 
 describe('database schema', () => {
-  it('is at version 7 with migrations in ascending order ending at the current version', () => {
-    expect(SCHEMA_VERSION).toBe(7);
+  it('is at version 8 with migrations in ascending order ending at the current version', () => {
+    expect(SCHEMA_VERSION).toBe(8);
     const versions = migrations.map((migration) => migration.version);
     expect(versions).toEqual([...versions].sort((a, b) => a - b));
     expect(versions.at(-1)).toBe(SCHEMA_VERSION);
@@ -29,9 +29,11 @@ describe('database schema', () => {
       for (const op of migration.statements) {
         if (typeof op === 'string') {
           // Plain SQL must be idempotent so a crash mid-migration can be retried:
-          // CREATE ... IF NOT EXISTS, or an UPDATE whose WHERE excludes rows it
-          // already changed.
-          expect(op).toMatch(/CREATE (TABLE|INDEX|UNIQUE INDEX) IF NOT EXISTS|^\s*UPDATE \w+ SET [\s\S]* WHERE /);
+          // CREATE ... IF NOT EXISTS, an UPDATE whose WHERE excludes rows it
+          // already changed, or an INSERT ... SELECT guarded by NOT EXISTS.
+          expect(op).toMatch(
+            /CREATE (TABLE|INDEX|UNIQUE INDEX) IF NOT EXISTS|^\s*UPDATE \w+ SET [\s\S]* WHERE |^\s*INSERT INTO \w+ [\s\S]* SELECT [\s\S]* WHERE NOT EXISTS/
+          );
           continue;
         }
         switch (op.op) {

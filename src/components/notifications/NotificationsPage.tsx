@@ -40,6 +40,7 @@ import { classifyNotifications, compareByOccurrence } from '@/lib/notificationSe
 import type { AppNotification, AppNotificationInput } from '@/types/database';
 import type { ClassifiedNotification, NotificationBucket } from '@/types/notifications';
 import NotificationRowActions from './NotificationRowActions';
+import { useAccountNameLookup } from './useAccountNameLookup';
 import ReminderEditorDialog from './ReminderEditorDialog';
 import {
   describeNotification,
@@ -63,6 +64,8 @@ export default function NotificationsPage() {
   const { money, date, month, dateTime } = useFormatters();
   const {
     notifications,
+    accounts,
+    users,
     categories,
     recurringSeries,
     createNotification,
@@ -73,6 +76,7 @@ export default function NotificationsPage() {
     dismissNotification,
   } = useNotificationsPageSlice();
   const view = useNotificationsView();
+  const accountName = useAccountNameLookup(accounts, users);
 
   const [tab, setTab] = useState<NotificationBucket>('due');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -123,7 +127,7 @@ export default function NotificationsPage() {
 
   const columns = useMemo<GridColDef<ClassifiedNotification>[]>(() => {
     const describe = (notification: AppNotification) =>
-      describeNotification(notification, t, (amount) => money(amount), { date, month, today: view.today });
+      describeNotification(notification, t, (amount) => money(amount), { date, month, today: view.today, accountName });
     return [
       {
         field: 'type',
@@ -134,7 +138,7 @@ export default function NotificationsPage() {
           <Chip
             size="small"
             label={typeLabel(params.row.notification.type, t)}
-            color={typeChipColor(params.row.notification)}
+            color={typeChipColor(params.row.notification, view.today)}
             variant={params.row.notification.kind === 'alert' ? 'filled' : 'outlined'}
           />
         ),
@@ -208,6 +212,7 @@ export default function NotificationsPage() {
                   onSnooze={snoozeNotification}
                   onDismiss={dismissNotification}
                   onError={setError}
+                  today={view.today}
                 />
               )}
               {notification.source === 'user' && (
@@ -236,7 +241,7 @@ export default function NotificationsPage() {
         },
       },
     ];
-  }, [completeNotification, date, dismissNotification, handleDelete, money, month, snoozeNotification, t, view.today]);
+  }, [accountName, completeNotification, date, dismissNotification, handleDelete, money, month, snoozeNotification, t, view.today]);
 
   const lastScanText = view.preferences.lastScanAt ? dateTime(view.preferences.lastScanAt) : t('page.lastScanNever');
 

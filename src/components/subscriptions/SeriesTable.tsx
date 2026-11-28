@@ -25,12 +25,32 @@ import { useTranslation } from 'react-i18next';
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { cardColumn } from '@/components/common/DataGrid/columns';
 import { useFormatters } from '@/contexts/useFormatters';
+import { DEFAULT_POSTING_GRACE_DAYS, dueConfirmation, type DueConfirmation } from '@/lib/accountFreshness';
 import { todayLocalISO } from '@/lib/dateOnly';
-import type { RecurringSeries } from '@/types/database';
+import { hasPaymentInWindow, seriesDueDate } from '@/lib/notificationService';
+import type { AccountFreshness, RecurringSeries } from '@/types/database';
 
-function isOverdue(series: RecurringSeries): boolean {
-  if (!series.next_expected_date || series.status !== 'active') return false;
-  return series.next_expected_date < todayLocalISO();
+/**
+ * Whether an active series' charge is late, by the payment alert's rule: the
+ * due date is its `due_day` in the current cycle (else `next_expected_date`),
+ * and a payment within half a cycle of it counts. 'confirmed' once the
+ * account's imports run past the due date (plus the grace) without it,
+ * 'unconfirmed' while they do not reach that far yet (schema v8).
+ */
+function overdueState(
+  series: RecurringSeries,
+  freshness: ReadonlyMap<number, AccountFreshness> | undefined,
+  graceDays: number
+): DueConfirmation {
+  if (series.status !== 'active') return 'not_due';
+  const today = todayLocalISO();
+  // No lead time: the latest due date on or before today is the one that can be late.
+  const dueDate = seriesDueDate(series, today, 0);
+  if (!dueDate) return 'not_due';
+  const lastPayment = series.last_seen_date ? [{ series_id: series.id, date: series.last_seen_date }] : [];
+  if (hasPaymentInWindow(lastPayment, series.id, series.cadence, dueDate, today)) return 'not_due';
+  const account = series.latest_account_id == null ? undefined : freshness?.get(series.latest_account_id);
+  return dueConfirmation(dueDate, account, today, graceDays);
 }
 
 interface SeriesTableProps {
@@ -44,6 +64,11 @@ interface SeriesTableProps {
   onViewTransactions: (series: RecurringSeries) => void;
   collapsible?: boolean;
   defaultExpanded?: boolean;
+  /** Schema v8: how far each account's imports go, so a charge is only "Overdue" once an import should show it. */
+  freshness?: ReadonlyMap<number, AccountFreshness>;
+  graceDays?: number;
+  /** The label of an account, for the "not confirmed" tooltip. */
+  accountName?: (accountId: number) => string;
 }
 
 const SeriesTable: React.FC<SeriesTableProps> = ({
@@ -57,9 +82,12 @@ const SeriesTable: React.FC<SeriesTableProps> = ({
   onViewTransactions,
   collapsible = true,
   defaultExpanded = true,
+  freshness,
+  graceDays = DEFAULT_POSTING_GRACE_DAYS,
+  accountName,
 }) => {
   const { t } = useTranslation('subscriptions');
-  const { money } = useFormatters();
+  const { money, date } = useFormatters();
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   const columns = useMemo<GridColDef<RecurringSeries>[]>(() => {
@@ -121,14 +149,33 @@ const SeriesTable: React.FC<SeriesTableProps> = ({
         field: 'next_expected_date',
         headerName: t('seriesTable.columnNextExpected'),
         width: 165,
-        renderCell: (params) => (
-          <Box display="flex" alignItems="center" gap={1}>
-            {params.row.next_expected_date || '—'}
-            {isOverdue(params.row) && (
-              <Chip label={t('seriesTable.overdue')} size="small" color="warning" />
-            )}
-          </Box>
-        ),
+        renderCell: (params) => {
+          const state = overdueState(params.row, freshness, graceDays);
+          const accountId = params.row.latest_account_id;
+          const through = accountId == null ? null : freshness?.get(accountId)?.dataThrough;
+          return (
+            <Box display="flex" alignItems="center" gap={1}>
+              {params.row.next_expected_date || '—'}
+              {state === 'confirmed' && <Chip label={t('seriesTable.overdue')} size="small" color="warning" />}
+              {state === 'unconfirmed' && (
+                <Tooltip
+                  title={t('seriesTable.notConfirmedHelp', {
+                    account: accountId == null ? '' : (accountName?.(accountId) ?? ''),
+                    date: through ? date(through) : '',
+                  })}
+                >
+                  <Chip
+                    label={t('seriesTable.notConfirmed')}
+                    size="small"
+                    color="warning"
+                    variant="outlined"
+                    data-testid={`series-not-confirmed-${params.row.id}`}
+                  />
+                </Tooltip>
+              )}
+            </Box>
+          );
+        },
       },
       {
         field: 'is_autopay',
@@ -214,7 +261,7 @@ const SeriesTable: React.FC<SeriesTableProps> = ({
         ),
       },
     ];
-  }, [money, onConfirm, onIgnore, onRestore, onEdit, onViewTransactions, t]);
+  }, [accountName, date, freshness, graceDays, money, onConfirm, onIgnore, onRestore, onEdit, onViewTransactions, t]);
 
   if (series.length === 0 && !emptyMessage) {
     return null;

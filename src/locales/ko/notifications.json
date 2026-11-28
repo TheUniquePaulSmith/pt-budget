@@ -6,7 +6,8 @@
     "custom": "사용자 지정 리마인더",
     "overdue_payment": "납부 예정",
     "budget_overspend": "예산 초과",
-    "loan_promo_ending": "대출 상환 기한"
+    "loan_promo_ending": "대출 상환 기한",
+    "stale_account": "가져오지 않은 계좌"
   },
   "typeDescription": {
     "birthday": "매년 반복해서 기억하고 싶은 생일이에요.",
@@ -15,7 +16,8 @@
     "custom": "그 밖의 모든 것, 일회성 또는 반복이에요.",
     "overdue_payment": "직접 납부하는 구독과 청구 중 납부 예정이거나 연체된 것(자동 결제로 표시되지 않은 시리즈)이에요.",
     "budget_overspend": "월 예산 금액을 초과한 예산 카테고리예요.",
-    "loan_promo_ending": "상환 기한이 가깝거나 잔액을 남긴 채 지나 이자가 소급 청구될 수 있는 이자 유예 대출이에요."
+    "loan_promo_ending": "상환 기한이 가깝거나 잔액을 남긴 채 지나 이자가 소급 청구될 수 있는 이자 유예 대출이에요.",
+    "stale_account": "예전에 가져왔지만 데이터가 몇 달 전에 끝나서 결제 경고를 확인할 수 없는 계좌예요."
   },
   "recurrence": {
     "once": "한 번",
@@ -34,7 +36,8 @@
     "dueInDays_other": "{{count}}일 후 예정",
     "overdue_other": "{{count}}일 연체",
     "noDate": "날짜 없음",
-    "snoozedUntil": "{{date}}까지 다시 알림"
+    "snoozedUntil": "{{date}}까지 다시 알림",
+    "notConfirmed": "확인 안 됨"
   },
   "dueLabel": {
     "today": "오늘 예정",
@@ -46,7 +49,10 @@
     "overduePayment": {
       "title": "{{name}} {{due}}",
       "body": "{{date}}에 결제가 예상돼요. 이 경고를 멈추려면 시리즈를 자동 결제로 표시하세요.",
-      "bodyWithAmount": "{{date}}에 결제({{amount}})가 예상돼요. 이 경고를 멈추려면 시리즈를 자동 결제로 표시하세요."
+      "bodyWithAmount": "{{date}}에 결제({{amount}})가 예상돼요. 이 경고를 멈추려면 시리즈를 자동 결제로 표시하세요.",
+      "unconfirmedTitle": "{{name}} 납부일 {{date}}, 아직 확인되지 않음",
+      "unconfirmedBody": "{{account}}은(는) {{through}}까지 가져왔어요. 결제됐는지 보려면 더 최근 내역서를 가져오세요.",
+      "unconfirmedBodyNoAccount": "이 계좌는 {{through}}까지 가져왔어요. 결제됐는지 보려면 더 최근 내역서를 가져오세요."
     },
     "loanPromo": {
       "chargedTitle": "{{name}}: 유예 이자 청구됨",
@@ -63,6 +69,10 @@
       "body": "{{month}}에 예산 {{budgeted}} 중 {{spent}} 지출({{over}} 초과).",
       "bodyCarriedIn": "{{month}}에 이월 유입 {{carried}} 포함 예산 {{budgeted}} 중 {{spent}} 지출({{over}} 초과).",
       "bodyCarriedOver": "{{month}}에 이월분 {{carried}} 포함 예산 {{budgeted}} 중 {{spent}} 지출({{over}} 초과)."
+    },
+    "staleAccount": {
+      "title": "{{account}}을(를) 다시 가져와야 해요",
+      "body": "가져온 거래가 {{date}}에 끝나요. 결제 경고가 정확하도록 최근 내역서를 가져오세요."
     }
   },
   "page": {
@@ -112,7 +122,9 @@
     "snoozeConfirm": "다시 알림",
     "completeFailed": "알림을 완료 처리하지 못했어요",
     "dismissFailed": "알림을 무시하지 못했어요",
-    "snoozeFailed": "알림을 다시 알림으로 설정하지 못했어요"
+    "snoozeFailed": "알림을 다시 알림으로 설정하지 못했어요",
+    "importNewer": "최근 내역서 가져오기",
+    "importNewerAria": "{{title}}의 최근 내역서 가져오기"
   },
   "dashboardCard": {
     "title": "리마인더 및 경고",
@@ -147,7 +159,14 @@
     "leadInvalid": "사전 알림은 0에서 365 사이의 정수(일)여야 해요",
     "osUnsupported": "이 브라우저는 OS 알림을 지원하지 않아요.",
     "osBlocked": "브라우저가 이 사이트의 알림을 차단했어요. 브라우저 사이트 설정에서 허용한 뒤 다시 시도하세요.",
-    "osNotGranted": "알림 권한이 허용되지 않았어요."
+    "osNotGranted": "알림 권한이 허용되지 않았어요.",
+    "graceTitle": "결제 경고와 가져오기",
+    "graceHelp": "납부일에서 이 일수만큼 지난 날까지 가져온 데이터에도 결제가 없을 때만 연체로 봐요. 그전까지는 브라우저 알림 없이 확인 안 됨으로 표시돼요.",
+    "graceLabel": "반영 유예(일)",
+    "graceInvalid": "반영 유예는 0에서 {{max}} 사이의 정수 일수여야 해요",
+    "staleLabel": "알림 기간(개월)",
+    "staleHelp": "예전에 가져온 계좌는 가져온 데이터가 이 개월 수만큼 지나면 ‘가져오지 않은 계좌’ 경고를 띄워요.",
+    "staleInvalid": "알림 기간은 1에서 {{max}} 사이의 정수 개월이어야 해요"
   },
   "editor": {
     "editTitle": "리마인더 편집",

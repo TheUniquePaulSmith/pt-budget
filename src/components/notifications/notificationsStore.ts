@@ -15,6 +15,7 @@ import { useSyncExternalStore } from 'react';
 
 import { DEFAULT_NOTIFICATION_SETTINGS } from '@/lib/databaseServiceNotifications';
 import { todayLocalISO } from '@/lib/dateOnly';
+import { DEFAULT_STALE_ACCOUNT_MONTHS } from '@/lib/notificationService';
 import type { NotificationSetting } from '@/types/database';
 import type { NotificationScanSummary } from '@/types/notifications';
 import type { NotificationPreferences } from '@/contexts/useDatabaseNotificationsSlice';
@@ -38,7 +39,7 @@ const DEFAULT_VIEW: NotificationsView = {
   ready: false,
   today: '1970-01-01',
   settings: [...DEFAULT_NOTIFICATION_SETTINGS],
-  preferences: { enabled: true, osEnabled: false, lastScanAt: null },
+  preferences: { enabled: true, osEnabled: false, lastScanAt: null, staleAccountMonths: DEFAULT_STALE_ACCOUNT_MONTHS },
   scanning: false,
   lastScan: null,
   lastError: null,

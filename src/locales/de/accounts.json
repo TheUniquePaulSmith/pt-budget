@@ -87,7 +87,11 @@
     "closedTitle": "Geschlossen",
     "countedInNetWorth": "Im Nettovermögen enthalten",
     "excluded": "Ausgeschlossen",
-    "empty": "Noch keine Konten. Fügen Sie Ihr erstes Konto hinzu, um loszulegen."
+    "empty": "Noch keine Konten. Fügen Sie Ihr erstes Konto hinzu, um loszulegen.",
+    "columnDataThrough": "Daten bis",
+    "importedOn": "Importiert am {{date}}",
+    "neverImported": "Nie importiert",
+    "dataThroughLine": "Daten bis {{date}}"
   },
   "page": {
     "summary": "{{accounts}} • {{people}}",
@@ -159,5 +163,15 @@
     "editTitle": "Benutzer bearbeiten",
     "displayNameLabel": "Anzeigename",
     "saving": "Wird gespeichert..."
+  },
+  "importStatus": {
+    "title": "Importe",
+    "lastImport": "Letzter Import",
+    "dataThrough": "Daten bis",
+    "latestTransaction": "Letzte Transaktion",
+    "never": "Nie",
+    "none": "Keine",
+    "help": "Zahlungshinweise für dieses Konto werden erst überfällig, wenn ein Import ihr Fälligkeitsdatum abdeckt.",
+    "helpNever": "Dieses Konto wurde noch nie importiert, daher richten sich Zahlungshinweise nach dem heutigen Datum."
   }
 }

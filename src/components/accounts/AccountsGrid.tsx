@@ -8,7 +8,8 @@ import { useTranslation } from 'react-i18next';
 
 import { AppDataGrid } from '@/components/common/DataGrid/AppDataGrid';
 import { useFormatters } from '@/contexts/useFormatters';
-import type { Account, AccountCard, User } from '@/types/database';
+import { storedTimestampToDate } from '@/lib/formatting';
+import type { Account, AccountCard, AccountFreshness, User } from '@/types/database';
 import {
   accountInstitutionDisplay,
   accountTypeLabel,
@@ -30,6 +31,10 @@ export interface AccountsGridRow {
   currency: string;
   isActive: boolean;
   includeInNetWorth: boolean;
+  /** Schema v8: the date the account's imported data is complete through; null when never imported. */
+  dataThrough: string | null;
+  /** When the account was last imported (UTC timestamp text). */
+  lastImportAt: string | null;
   account: Account;
 }
 
@@ -42,13 +47,16 @@ export interface AccountsGridProps {
   /** `grid` is the desktop DataGrid; `list` is the phone list. */
   variant?: 'grid' | 'list';
   height?: number | string;
+  /** Schema v8: each account's last import and data-through date (`useAccountFreshness`). */
+  freshness?: ReadonlyMap<number, AccountFreshness>;
 }
 
 export function buildAccountsGridRows(
   accounts: Account[],
   users: User[],
   cardsByAccountId: Record<number, AccountCard[]>,
-  t: AccountsT
+  t: AccountsT,
+  freshness?: ReadonlyMap<number, AccountFreshness>
 ): AccountsGridRow[] {
   return accounts.map((account) => ({
     id: account.id,
@@ -63,6 +71,8 @@ export function buildAccountsGridRows(
     currency: account.currency ?? 'USD',
     isActive: (account.is_active ?? 1) === 1,
     includeInNetWorth: (account.include_in_net_worth ?? 1) === 1,
+    dataThrough: freshness?.get(account.id)?.dataThrough ?? null,
+    lastImportAt: freshness?.get(account.id)?.lastImportAt ?? null,
     account,
   }));
 }
@@ -92,7 +102,13 @@ function CardChips({ cards }: { cards: AccountCard[] }) {
   );
 }
 
-function buildColumns(money: (amount: number, currency?: string | null) => string, t: AccountsT): GridColDef<AccountsGridRow>[] {
+type DateFormatter = (value: string | Date | null | undefined) => string;
+
+function buildColumns(
+  money: (amount: number, currency?: string | null) => string,
+  date: DateFormatter,
+  t: AccountsT
+): GridColDef<AccountsGridRow>[] {
   return [
   { field: 'name', headerName: t('grid.columnAccount'), flex: 1.2, minWidth: 160 },
   {
@@ -146,6 +162,29 @@ function buildColumns(money: (amount: number, currency?: string | null) => strin
     valueFormatter: (value, row) => money(Number(value), row.currency),
   },
   {
+    field: 'dataThrough',
+    headerName: t('grid.columnDataThrough'),
+    minWidth: 130,
+    valueGetter: (_, row) => row.dataThrough ?? '',
+    renderCell: (params) =>
+      params.row.dataThrough ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', minWidth: 0 }}>
+          <Typography variant="body2" noWrap>
+            {date(params.row.dataThrough)}
+          </Typography>
+          {params.row.lastImportAt && (
+            <Typography variant="caption" color="text.secondary" noWrap>
+              {t('grid.importedOn', { date: date(storedTimestampToDate(params.row.lastImportAt)) })}
+            </Typography>
+          )}
+        </Box>
+      ) : (
+        <Typography variant="caption" color="text.secondary">
+          {t('grid.neverImported')}
+        </Typography>
+      ),
+  },
+  {
     field: 'isActive',
     headerName: t('grid.columnActive'),
     type: 'boolean',
@@ -182,11 +221,15 @@ export default function AccountsGrid({
   onSelect,
   variant = 'grid',
   height = '100%',
+  freshness,
 }: AccountsGridProps) {
   const { t } = useTranslation(['accounts', 'common']);
-  const { money } = useFormatters();
-  const columns = useMemo(() => buildColumns(money, t), [money, t]);
-  const rows = useMemo(() => buildAccountsGridRows(accounts, users, cardsByAccountId, t), [accounts, users, cardsByAccountId, t]);
+  const { money, date } = useFormatters();
+  const columns = useMemo(() => buildColumns(money, date, t), [date, money, t]);
+  const rows = useMemo(
+    () => buildAccountsGridRows(accounts, users, cardsByAccountId, t, freshness),
+    [accounts, users, cardsByAccountId, t, freshness]
+  );
 
   if (variant === 'list') {
     return (
@@ -222,6 +265,11 @@ export default function AccountsGrid({
                     {row.owner}
                     {row.cards.length > 0 ? ` • ${row.cards.map((card) => `••${card.last_four}`).join(', ')}` : ''}
                   </Typography>
+                  {row.dataThrough && (
+                    <Typography variant="caption" color="text.secondary" component="span" sx={{ width: '100%' }}>
+                      {t('grid.dataThroughLine', { date: date(row.dataThrough) })}
+                    </Typography>
+                  )}
                 </Box>
               }
               slotProps={{ secondary: { component: 'div' } }}

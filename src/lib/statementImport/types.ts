@@ -13,7 +13,7 @@
  * written against these shapes: change one and all four move with it.
  */
 
-import type { AccountType, ImportProfile } from '@/types/database';
+import type { AccountCheckpointInput, AccountType, ImportProfile } from '@/types/database';
 import type { TypeDecision } from '@/types/classification';
 
 import type { CsvDateOrder } from '../dateOnly';
@@ -436,6 +436,8 @@ export interface CommitInput {
   stagedDecisions: TypeDecision[];
   /** Decisions for rows already stored (`tx:` keys): the existing leg of a kept pair. */
   existingDecisions: TypeDecision[];
+  /** Schema v8: how far each account's data is complete after this import. */
+  checkpoints?: AccountCheckpointInput[];
 }
 
 export interface CommitResult {

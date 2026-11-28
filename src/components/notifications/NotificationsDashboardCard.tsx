@@ -20,7 +20,8 @@ import {
 } from '@/lib/notificationService';
 import type { ClassifiedNotification } from '@/types/notifications';
 import NotificationRowActions from './NotificationRowActions';
-import { describeNotification, describeTiming, timingColor, typeChipColor, typeLabel } from './notificationPresentation';
+import { describeNotification, describeTiming, isUnconfirmedEntry, timingColor, typeChipColor, typeLabel } from './notificationPresentation';
+import { useAccountNameLookup } from './useAccountNameLookup';
 import { useNotificationsView } from './notificationsStore';
 
 const MAX_ROWS = 8;
@@ -28,8 +29,9 @@ const MAX_ROWS = 8;
 export default function NotificationsDashboardCard() {
   const { t } = useTranslation('notifications');
   const { money, date, month } = useFormatters();
-  const { notifications, completeNotification, snoozeNotification, dismissNotification } = useNotificationBadgeSlice();
+  const { notifications, accounts, users, completeNotification, snoozeNotification, dismissNotification } = useNotificationBadgeSlice();
   const view = useNotificationsView();
+  const accountName = useAccountNameLookup(accounts, users);
   const [error, setError] = useState<string | null>(null);
 
   const { due, upcoming } = useMemo(() => {
@@ -44,7 +46,8 @@ export default function NotificationsDashboardCard() {
   if (due.length === 0 && upcoming.length === 0) return null;
 
   const renderRow = (entry: ClassifiedNotification) => {
-    const text = describeNotification(entry.notification, t, (amount) => money(amount), { date, month, today: view.today });
+    const text = describeNotification(entry.notification, t, (amount) => money(amount), { date, month, today: view.today, accountName });
+    const offersImport = isUnconfirmedEntry(entry) || entry.notification.type === 'stale_account';
     return (
       <ListItem
         key={entry.notification.id}
@@ -59,9 +62,11 @@ export default function NotificationsDashboardCard() {
             onSnooze={snoozeNotification}
             onDismiss={dismissNotification}
             onError={setError}
+            today={view.today}
           />
         }
-        sx={{ pr: 15 }}
+        // Room for the row actions: a fourth (import) on an unconfirmed payment or a stale account.
+        sx={{ pr: offersImport ? 19 : 15 }}
       >
         <ListItemText
           primary={
@@ -69,7 +74,7 @@ export default function NotificationsDashboardCard() {
               <Typography variant="body2" fontWeight={600}>
                 {text.title}
               </Typography>
-              <Chip size="small" label={typeLabel(entry.notification.type, t)} color={typeChipColor(entry.notification)} variant="outlined" />
+              <Chip size="small" label={typeLabel(entry.notification.type, t)} color={typeChipColor(entry.notification, view.today)} variant="outlined" />
             </Box>
           }
           secondary={

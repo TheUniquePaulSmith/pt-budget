@@ -256,7 +256,8 @@
     "blockedRows_other": "{{count}} Zeilen können nicht gelesen werden. Korrigieren Sie sie oder lassen Sie sie aus.",
     "accounts": "Wählen oder bestätigen Sie das Konto.",
     "confirm": "Bestätigen Sie, wie die Datei gelesen wird.",
-    "noRows": "In dieser Datei gibt es nichts mehr zu importieren."
+    "noRows": "In dieser Datei gibt es nichts mehr zu importieren.",
+    "coversThrough": "Wählen Sie ein Datum für „Vollständig bis“ zwischen {{from}} und {{to}}."
   },
   "summary": {
     "title": "Zusammenfassung",
@@ -283,7 +284,14 @@
     "formatName": "Name des Formats",
     "import_one": "{{count}} Transaktion importieren",
     "import_other": "{{count}} Transaktionen importieren",
-    "checking": "Wird geprüft…"
+    "checking": "Wird geprüft…",
+    "coversThrough": "Vollständig bis",
+    "coversThroughHelp": "Die Daten Ihrer Konten gelten bis zu diesem Datum als vollständig. Eine vorher fällige Zahlung, die diese Datei nicht enthält, wird als überfällig gemeldet; eine später fällige wartet auf Ihren nächsten Import.",
+    "coversThroughSource": {
+      "statement_end": "Das Enddatum des Kontoauszugs selbst",
+      "import_date": "Heute, der Tag des Imports",
+      "user": "Das von Ihnen gewählte Datum"
+    }
   },
   "done": {
     "title": "Import abgeschlossen",

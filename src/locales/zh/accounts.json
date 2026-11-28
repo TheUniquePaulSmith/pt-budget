@@ -87,7 +87,11 @@
     "closedTitle": "已关闭",
     "countedInNetWorth": "计入净资产",
     "excluded": "不计入",
-    "empty": "还没有账户。添加您的第一个账户以开始使用。"
+    "empty": "还没有账户。添加您的第一个账户以开始使用。",
+    "columnDataThrough": "数据截至",
+    "importedOn": "导入于 {{date}}",
+    "neverImported": "从未导入",
+    "dataThroughLine": "数据截至 {{date}}"
   },
   "page": {
     "summary": "{{accounts}} • {{people}}",
@@ -158,5 +162,15 @@
     "editTitle": "编辑用户",
     "displayNameLabel": "显示名称",
     "saving": "正在保存..."
+  },
+  "importStatus": {
+    "title": "导入",
+    "lastImport": "上次导入",
+    "dataThrough": "数据截至",
+    "latestTransaction": "最新交易",
+    "never": "从未",
+    "none": "无",
+    "help": "只有当导入的数据覆盖到期日后，此账户的付款警报才会变为逾期。",
+    "helpNever": "此账户从未导入，因此付款警报按今天的日期计算。"
   }
 }

@@ -256,7 +256,8 @@
     "blockedRows_other": "{{count}} righe non possono essere lette. Correggile o escludile.",
     "accounts": "Scegli o conferma il conto.",
     "confirm": "Conferma come viene letto il file.",
-    "noRows": "In questo file non resta nulla da importare."
+    "noRows": "In questo file non resta nulla da importare.",
+    "coversThrough": "Scegli una data «Dati completi fino al» tra il {{from}} e il {{to}}."
   },
   "summary": {
     "title": "Riepilogo",
@@ -283,7 +284,14 @@
     "formatName": "Nome del formato",
     "import_one": "Importa {{count}} transazione",
     "import_other": "Importa {{count}} transazioni",
-    "checking": "Controllo…"
+    "checking": "Controllo…",
+    "coversThrough": "Dati completi fino al",
+    "coversThroughHelp": "I dati dei tuoi conti sono considerati completi fino a questa data. Un pagamento con scadenza precedente che non compare in questo file viene segnalato come scaduto; uno con scadenza successiva attende la prossima importazione.",
+    "coversThroughSource": {
+      "statement_end": "La data di fine dell’estratto conto stesso",
+      "import_date": "Oggi, il giorno dell’importazione",
+      "user": "La data che hai scelto"
+    }
   },
   "done": {
     "title": "Importazione completata",

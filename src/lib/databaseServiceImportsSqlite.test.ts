@@ -13,7 +13,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { CREATE_INDEXES, CREATE_TABLES } from '../../public/database-schema.js';
+import { CREATE_INDEXES, CREATE_TABLES, MIGRATIONS } from '../../public/database-schema.js';
 import type { TypeDecision } from '../types/classification';
 import { DatabaseService, type DatabaseWorkerTransport } from './databaseService';
 import { IMPORT_BATCH_NOT_FOUND } from './databaseServiceImports';
@@ -601,5 +601,87 @@ describe.skipIf(!sqlite)('ImportsService on SQLite: account coverage', () => {
       { accountId: SAVINGS, firstDate: '2026-09-15', lastDate: '2026-09-15', lastImportThrough: null, transactionCount: 1 },
       { accountId: LOAN_ACCOUNT, firstDate: null, lastDate: null, lastImportThrough: null, transactionCount: 0 },
     ]);
+  });
+});
+
+describe.skipIf(!sqlite)('ImportsService on SQLite: how far each account is imported (schema v8)', () => {
+  const checkpoint = (accountId: number, dataThrough: string, latest: string | null = null) => ({
+    accountId,
+    dataThrough,
+    throughSource: 'import_date' as const,
+    latestTransactionDate: latest,
+  });
+
+  it('records the commit, a file with nothing new and manual rows separately', async () => {
+    const harness = openDatabase({ foreignKeys: false });
+    const { imports, all } = harness;
+    const { result } = await importRows(harness, [row(0, '2026-10-01', -4.5, 'COFFEE'), row(1, '2026-10-07', -80, 'GROCERY')], {
+      checkpoints: [checkpoint(CHECKING, '2026-10-09', '2026-10-07')],
+    });
+    expect(all('SELECT account_id, import_batch_id, data_through, through_source, latest_transaction_date FROM account_data_checkpoints')).toEqual([
+      { account_id: CHECKING, import_batch_id: result.batchId, data_through: '2026-10-09', through_source: 'import_date', latest_transaction_date: '2026-10-07' },
+    ]);
+
+    // The same file again a week later: nothing new, no batch, but the data now reaches further.
+    await imports.recordAccountCheckpoints([
+      checkpoint(CHECKING, '2026-10-16', '2026-10-07'),
+      checkpoint(CHECKING, '2026-10-30'), // a second entry for the same account is ignored
+      { ...checkpoint(SAVINGS, 'not a date') }, // so is a malformed one
+    ]);
+    // Typed in by hand later: the newest transaction, but no proof that the account is complete.
+    storeRow(harness, { accountId: CHECKING, date: '2026-10-20', amount: -12, description: 'CASH', type: 'expense' });
+
+    const freshness = await imports.getAccountFreshness();
+    expect(freshness.map((entry) => entry.accountId)).toEqual([CHECKING, SAVINGS, LOAN_ACCOUNT, CARD_ACCOUNT]);
+    expect(freshness[0]).toMatchObject({ dataThrough: '2026-10-16', throughSource: 'import_date', latestTransactionDate: '2026-10-20' });
+    expect(freshness[0].lastImportAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+    expect(freshness[1]).toEqual({ accountId: SAVINGS, lastImportAt: null, dataThrough: null, throughSource: null, latestTransactionDate: null });
+    expect(all('SELECT COUNT(*) AS count FROM account_data_checkpoints WHERE import_batch_id IS NULL')[0].count).toBe(1);
+  });
+
+  it('forgets what an undone import said, keeping the other records', async () => {
+    const harness = openDatabase({ foreignKeys: false });
+    const { imports } = harness;
+    await importRows(harness, [row(0, '2026-10-01', -4.5, 'COFFEE')], { checkpoints: [checkpoint(CHECKING, '2026-10-05')] });
+    const second = await importRows(harness, [row(0, '2026-10-20', -9, 'LUNCH')], { checkpoints: [checkpoint(CHECKING, '2026-10-25')] });
+    expect((await imports.getAccountFreshness())[0].dataThrough).toBe('2026-10-25');
+
+    await imports.undoBatch(second.result.batchId);
+    expect((await imports.getAccountFreshness())[0].dataThrough).toBe('2026-10-05');
+    expect(harness.count('account_data_checkpoints')).toBe(1);
+  });
+
+  it('writes no record when the commit fails', async () => {
+    const harness = openDatabase();
+    const { imports, db } = harness;
+    await imports.stageRows([row(0, '2026-10-01', -4.5, 'COFFEE')]);
+    db.exec(`CREATE TRIGGER refuse BEFORE INSERT ON transactions BEGIN SELECT RAISE(ABORT, 'insert refused'); END`);
+    await expect(imports.commitStaged(commitInput({ totalRows: 1, checkpoints: [checkpoint(CHECKING, '2026-10-05')] }))).rejects.toThrow(/insert refused/);
+    expect(harness.count('account_data_checkpoints')).toBe(0);
+  });
+
+  it('backfills earlier imports once when an older database is upgraded', async () => {
+    const harness = openDatabase({ foreignKeys: false });
+    const { db, all, count } = harness;
+    const { result: october } = await importRows(harness, [row(0, '2026-10-01', -4.5, 'COFFEE'), row(1, '2026-10-07', 30, 'REFUND', { accountId: SAVINGS })], {
+      accountIds: [CHECKING, SAVINGS],
+    });
+    db.exec(`UPDATE import_batches SET imported_at = '2026-10-09 18:00:00' WHERE id = ${october.batchId}`);
+    // A row of an account deleted while foreign keys were off.
+    db.exec(`INSERT INTO accounts (id, name, type, owner_user_id) VALUES (9, 'Old card', 'credit', 1)`);
+    const { result: orphan } = await importRows(harness, [row(0, '2026-10-03', -1, 'GUM', { accountId: 9 })], { accountIds: [9] });
+    db.exec(`DELETE FROM accounts WHERE id = 9`);
+
+    const backfill = MIGRATIONS.find((migration: { version: number }) => migration.version === 8)!.statements.find(
+      (statement: unknown) => typeof statement === 'string' && statement.trim().startsWith('INSERT INTO account_data_checkpoints')
+    ) as string;
+    db.exec(backfill);
+    db.exec(backfill); // idempotent
+
+    expect(all('SELECT account_id, import_batch_id, data_through, through_source, latest_transaction_date FROM account_data_checkpoints ORDER BY account_id')).toEqual([
+      { account_id: CHECKING, import_batch_id: october.batchId, data_through: '2026-10-08', through_source: 'backfill', latest_transaction_date: '2026-10-01' },
+      { account_id: SAVINGS, import_batch_id: october.batchId, data_through: '2026-10-08', through_source: 'backfill', latest_transaction_date: '2026-10-07' },
+    ]);
+    expect(count('account_data_checkpoints', `import_batch_id = ${orphan.batchId}`)).toBe(0);
   });
 });

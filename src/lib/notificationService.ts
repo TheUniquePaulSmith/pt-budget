@@ -19,6 +19,7 @@
 
 import type { TFunction } from 'i18next';
 
+import { dueConfirmation, resolveGraceDays, type DueConfirmation } from './accountFreshness';
 import { DEFAULT_CURRENCY } from './currencies';
 import { addDaysISO, toLocalDateOnly, todayLocalISO } from './dateOnly';
 import { DEFAULT_LOCALE, formatMoney, storedTimestampToDate } from './formatting';
@@ -26,6 +27,8 @@ import { i18n, intlLocaleFor, isLanguageCode } from './i18n';
 import { logger } from './logging';
 import { DEFAULT_NOTIFICATION_SETTINGS } from './databaseServiceNotifications';
 import type {
+  Account,
+  AccountFreshness,
   AppNotification,
   AppNotificationInput,
   BudgetStatus,
@@ -45,6 +48,7 @@ import type {
   NotificationScanSummary,
   OverduePaymentPayload,
   ReminderPayload,
+  StaleAccountPayload,
   SeriesPaymentRow,
 } from '@/types/notifications';
 
@@ -54,6 +58,8 @@ const log = logger.child({ component: 'NotificationService' });
 export const NOTIFICATIONS_ENABLED_KEY = 'notifications.enabled';
 export const NOTIFICATIONS_OS_ENABLED_KEY = 'notifications.os_enabled';
 export const NOTIFICATIONS_LAST_SCAN_KEY = 'notifications.last_scan_at';
+/** Schema v8: months after an account's imported data ends before the stale-account alert (default 6). */
+export const NOTIFICATIONS_STALE_ACCOUNT_MONTHS_KEY = 'notifications.staleAccountMonths';
 
 /** Days a passed recurring occurrence stays "the current one" before rolling forward. */
 export const RECURRING_GRACE_DAYS = 7;
@@ -325,6 +331,25 @@ export function selectManualPaySeries(series: ReadonlyArray<RecurringSeries>): R
   return series.filter((entry) => entry.status === 'active' && !entry.is_autopay);
 }
 
+/**
+ * A payment for an alert of an earlier cycle: within half a cycle of its due
+ * date, ending the day before the next cycle's window opens (due + half), so
+ * the next cycle's payment, early or not, never settles a missed one.
+ */
+export function hasPaymentInOwnCycle(
+  payments: ReadonlyArray<SeriesPaymentRow>,
+  seriesId: number,
+  cadence: RecurringSeries['cadence'],
+  dueDate: string,
+  today: string
+): boolean {
+  const halfWindow = CADENCE_HALF_WINDOW_DAYS[cadence] ?? 15;
+  const start = addDaysISO(dueDate, -halfWindow);
+  const cycleEnd = addDaysISO(dueDate, halfWindow - 1);
+  const end = cycleEnd < today ? cycleEnd : today;
+  return payments.some((payment) => payment.series_id === seriesId && payment.date >= start && payment.date <= end);
+}
+
 export function hasPaymentInWindow(
   payments: ReadonlyArray<SeriesPaymentRow>,
   seriesId: number,
@@ -392,6 +417,11 @@ export interface OverduePaymentText {
   daysUntil: number;
   dueDate: string;
   expectedAmount: number | null;
+  /** Schema v8: a passed due date the account's imports do not cover yet reads "not confirmed". */
+  confirmation?: DueConfirmation;
+  dataThrough?: string | null;
+  /** The account's label, when the caller can name it. */
+  accountName?: string | null;
 }
 
 export function overduePaymentText(
@@ -400,6 +430,14 @@ export function overduePaymentText(
   money: (amount: number) => string,
   date: (iso: string) => string = (iso) => iso
 ): { title: string; body: string } {
+  if (input.confirmation === 'unconfirmed') {
+    const title = t('alerts.overduePayment.unconfirmedTitle', { name: input.name, date: date(input.dueDate) });
+    const through = input.dataThrough ? date(input.dataThrough) : '';
+    const body = input.accountName
+      ? t('alerts.overduePayment.unconfirmedBody', { account: input.accountName, through })
+      : t('alerts.overduePayment.unconfirmedBodyNoAccount', { through });
+    return { title, body };
+  }
   const due = formatDueLabel(input.daysUntil, t);
   const title = t('alerts.overduePayment.title', { name: input.name, due });
   const body =
@@ -476,60 +514,92 @@ export interface PaymentAlertPlan {
   staleIds: number[];
 }
 
+/**
+ * Whether a stored overdue alert is known to be missed (schema v8), worked
+ * out from its payload so the answer stays right as days pass between scans.
+ * Rows written before v8 carry no account and read as confirmed.
+ */
+export function overdueConfirmation(
+  payload: Pick<OverduePaymentPayload, 'due_date' | 'data_through' | 'grace_days'> | null | undefined,
+  today: string
+): DueConfirmation {
+  if (!payload?.due_date) return 'not_due';
+  return dueConfirmation(payload.due_date, { dataThrough: payload.data_through ?? null }, today, payload.grace_days);
+}
+
 export function planPaymentAlerts(
   series: ReadonlyArray<RecurringSeries>,
   payments: ReadonlyArray<SeriesPaymentRow>,
   existing: ReadonlyArray<AppNotification>,
   settings: ReadonlyArray<NotificationSetting>,
   today: string,
-  format: AlertFormatOptions = {}
+  format: AlertFormatOptions = {},
+  freshness: ReadonlyArray<AccountFreshness> = []
 ): PaymentAlertPlan {
   const plan: PaymentAlertPlan = { upserts: [], paidIds: [], staleIds: [] };
   const enabled = isTypeEnabled(settings, 'overdue_payment');
   const leadDays = resolveLeadDays({ type: 'overdue_payment', lead_days: null }, settings);
+  const graceDays = resolveGraceDays(settings);
+  const freshnessByAccount = new Map(freshness.map((entry) => [entry.accountId, entry]));
   const wantedKeys = new Set<string>();
   const paidKeys = new Set<string>();
   const t = notificationsT();
   const money = (amount: number) => formatCurrency(amount, format);
 
-  if (enabled) {
-    for (const entry of selectManualPaySeries(series)) {
-      const dueDate = seriesDueDate(entry, today, leadDays);
-      if (!dueDate) continue;
-      const daysUntil = daysBetween(today, dueDate);
-      if (daysUntil > leadDays) continue;
-      const key = overdueDedupeKey(entry.id, dueDate);
-      if (hasPaymentInWindow(payments, entry.id, entry.cadence, dueDate, today)) {
-        paidKeys.add(key);
-        continue;
-      }
-      wantedKeys.add(key);
-      const payload: OverduePaymentPayload = {
-        series_id: entry.id,
-        series_name: entry.name,
-        due_date: dueDate,
-        expected_amount: entry.expected_amount,
-      };
-      const text = overduePaymentText(
-        { name: entry.name, daysUntil, dueDate, expectedAmount: entry.expected_amount },
-        t,
-        money
-      );
-      plan.upserts.push({
-        kind: 'alert',
-        type: 'overdue_payment',
-        title: text.title,
-        body: text.body,
-        due_date: dueDate,
-        recurrence: 'once',
-        lead_days: leadDays,
-        source: 'system',
-        dedupe_key: key,
-        entity_table: 'recurring_series',
-        entity_id: entry.id,
-        payload_json: JSON.stringify(payload),
-      });
+  const upsertFor = (entry: RecurringSeries, dueDate: string, carried: boolean) => {
+    const key = overdueDedupeKey(entry.id, dueDate);
+    wantedKeys.add(key);
+    const accountId = entry.latest_account_id ?? null;
+    const dataThrough = accountId == null ? null : (freshnessByAccount.get(accountId)?.dataThrough ?? null);
+    const payload: OverduePaymentPayload = {
+      series_id: entry.id,
+      series_name: entry.name,
+      due_date: dueDate,
+      expected_amount: entry.expected_amount,
+      account_id: accountId,
+      data_through: dataThrough,
+      grace_days: graceDays,
+      ...(carried ? { carried: true } : {}),
+    };
+    const text = overduePaymentText(
+      {
+        name: entry.name,
+        daysUntil: daysBetween(today, dueDate),
+        dueDate,
+        expectedAmount: entry.expected_amount,
+        confirmation: overdueConfirmation(payload, today),
+        dataThrough,
+      },
+      t,
+      money
+    );
+    plan.upserts.push({
+      kind: 'alert',
+      type: 'overdue_payment',
+      title: text.title,
+      body: text.body,
+      due_date: dueDate,
+      recurrence: 'once',
+      lead_days: leadDays,
+      source: 'system',
+      dedupe_key: key,
+      entity_table: 'recurring_series',
+      entity_id: entry.id,
+      payload_json: JSON.stringify(payload),
+    });
+  };
+
+  const manualPay = enabled ? selectManualPaySeries(series) : [];
+  for (const entry of manualPay) {
+    const dueDate = seriesDueDate(entry, today, leadDays);
+    if (!dueDate) continue;
+    const daysUntil = daysBetween(today, dueDate);
+    if (daysUntil > leadDays) continue;
+    if (hasPaymentInWindow(payments, entry.id, entry.cadence, dueDate, today)) {
+      paidKeys.add(overdueDedupeKey(entry.id, dueDate));
+      continue;
     }
+    upsertFor(entry, dueDate, false);
   }
 
   for (const row of existing) {
@@ -542,14 +612,34 @@ export function planPaymentAlerts(
     }
     // Not wanted and not matched by a payment: the series is gone, autopay,
     // inactive, the type was disabled, or the cycle moved on. A payment that
-    // arrived for the alert's own due date still counts as "paid".
+    // arrived for the alert's own due date still counts as "paid"; one that
+    // belongs to a later cycle does not (it must not close a missed payment).
     const payload = parsePayload<OverduePaymentPayload>(row.payload_json);
-    const seriesRow = series.find((entry) => entry.id === (row.entity_id ?? payload?.series_id));
-    if (seriesRow && row.due_date && hasPaymentInWindow(payments, seriesRow.id, seriesRow.cadence, row.due_date, today)) {
+    const seriesId = row.entity_id ?? payload?.series_id;
+    const seriesRow = series.find((entry) => entry.id === seriesId);
+    if (
+      seriesRow &&
+      row.due_date &&
+      hasPaymentInOwnCycle(payments, seriesRow.id, seriesRow.cadence, row.due_date, today)
+    ) {
       plan.paidIds.push(row.id);
-    } else {
-      plan.staleIds.push(row.id);
+      continue;
     }
+    // The cycle moved on before an import said whether this one was paid: the
+    // alert stays until an import covers its due date (then it is paid, or
+    // kept as a confirmed miss until it is paid or put away).
+    const stillWatched = row.due_date ? manualPay.find((entry) => entry.id === seriesId) : undefined;
+    if (stillWatched && row.due_date) {
+      const accountId = stillWatched.latest_account_id ?? null;
+      const dataThrough = accountId == null ? null : (freshnessByAccount.get(accountId)?.dataThrough ?? null);
+      const now = dueConfirmation(row.due_date, { dataThrough }, today, graceDays);
+      const wasOpenQuestion = payload?.carried === true || overdueConfirmation(payload, today) === 'unconfirmed';
+      if (now === 'unconfirmed' || (now === 'confirmed' && wasOpenQuestion)) {
+        upsertFor(stillWatched, row.due_date, true);
+        continue;
+      }
+    }
+    plan.staleIds.push(row.id);
   }
 
   return plan;
@@ -627,6 +717,113 @@ export function planLoanPromoAlerts(
 
   for (const row of existing) {
     if (row.kind !== 'alert' || row.type !== 'loan_promo_ending' || !row.dedupe_key) continue;
+    if (row.status === 'dismissed' || row.status === 'done') continue;
+    if (!wantedKeys.has(row.dedupe_key)) plan.resolvedIds.push(row.id);
+  }
+
+  return plan;
+}
+
+// ---------------------------------------------------------------------------
+// System alerts: accounts whose imports went stale (schema v8)
+// ---------------------------------------------------------------------------
+
+/** Months after an account's data ends before it counts as stale (app_metadata `notifications.staleAccountMonths`). */
+export const DEFAULT_STALE_ACCOUNT_MONTHS = 6;
+export const MAX_STALE_ACCOUNT_MONTHS = 60;
+
+/** The stored months kept within 1…60, else the default. */
+export function resolveStaleAccountMonths(value: string | number | null | undefined): number {
+  const months = typeof value === 'number' ? value : value == null || value.trim() === '' ? Number.NaN : Number(value);
+  if (!Number.isInteger(months)) return DEFAULT_STALE_ACCOUNT_MONTHS;
+  return Math.min(MAX_STALE_ACCOUNT_MONTHS, Math.max(1, months));
+}
+
+export function staleAccountDedupeKey(accountId: number, dataThrough: string): string {
+  return `stale-account:${accountId}:${dataThrough}`;
+}
+
+/** `iso` plus `months` calendar months, the day clamped to the month's length (Aug 31 + 6 → Feb 28/29). */
+export function addMonthsISO(iso: string, months: number): string {
+  const [year, month, day] = splitIso(iso);
+  const index = year * 12 + (month - 1) + months;
+  return clampedDate(Math.floor(index / 12), (index % 12) + 1, day);
+}
+
+export function staleAccountText(
+  payload: Pick<StaleAccountPayload, 'account_name' | 'data_through'>,
+  t: TFunction<'notifications'>,
+  date: (iso: string) => string = (iso) => iso,
+  accountName?: string | null
+): { title: string; body: string } {
+  return {
+    title: t('alerts.staleAccount.title', { account: accountName || payload.account_name }),
+    body: t('alerts.staleAccount.body', { date: date(payload.data_through) }),
+  };
+}
+
+export interface StaleAccountAlertPlan {
+  upserts: Array<AppNotificationInput & { dedupe_key: string }>;
+  /** Open alerts no longer wanted (imported since, closed, deleted, or the type was disabled): marked done. */
+  resolvedIds: number[];
+}
+
+/**
+ * One alert per open account that was imported at least once and whose data
+ * ends `months` or more ago (due on the day it turns stale, shown `lead_days`
+ * earlier). Accounts never imported are kept by hand and get none. A newer
+ * import moves `data_through`, so the old alert resolves and none is due.
+ */
+export function planStaleAccountAlerts(
+  accounts: ReadonlyArray<Pick<Account, 'id' | 'name' | 'is_active'>>,
+  freshness: ReadonlyArray<AccountFreshness>,
+  existing: ReadonlyArray<AppNotification>,
+  settings: ReadonlyArray<NotificationSetting>,
+  months: number,
+  today: string
+): StaleAccountAlertPlan {
+  const plan: StaleAccountAlertPlan = { upserts: [], resolvedIds: [] };
+  const wantedKeys = new Set<string>();
+  const leadDays = resolveLeadDays({ type: 'stale_account', lead_days: null }, settings);
+  const t = notificationsT();
+
+  if (isTypeEnabled(settings, 'stale_account')) {
+    const freshnessByAccount = new Map(freshness.map((entry) => [entry.accountId, entry]));
+    for (const account of accounts) {
+      if ((account.is_active ?? 1) === 0) continue;
+      const fresh = freshnessByAccount.get(account.id);
+      if (!fresh?.dataThrough) continue;
+      const staleOn = addMonthsISO(fresh.dataThrough, months);
+      if (daysBetween(today, staleOn) > leadDays) continue;
+      const key = staleAccountDedupeKey(account.id, fresh.dataThrough);
+      wantedKeys.add(key);
+      const payload: StaleAccountPayload = {
+        account_id: account.id,
+        account_name: account.name,
+        data_through: fresh.dataThrough,
+        last_import_at: fresh.lastImportAt,
+        months,
+      };
+      const text = staleAccountText(payload, t);
+      plan.upserts.push({
+        kind: 'alert',
+        type: 'stale_account',
+        title: text.title,
+        body: text.body,
+        due_date: staleOn,
+        recurrence: 'once',
+        lead_days: leadDays,
+        source: 'system',
+        dedupe_key: key,
+        entity_table: 'accounts',
+        entity_id: account.id,
+        payload_json: JSON.stringify(payload),
+      });
+    }
+  }
+
+  for (const row of existing) {
+    if (row.kind !== 'alert' || row.type !== 'stale_account' || !row.dedupe_key) continue;
     if (row.status === 'dismissed' || row.status === 'done') continue;
     if (!wantedKeys.has(row.dedupe_key)) plan.resolvedIds.push(row.id);
   }
@@ -786,7 +983,15 @@ export async function scanNotifications(
   ]);
 
   if (payments) {
-    const paymentPlan = planPaymentAlerts(ctx.recurringSeries, payments, ctx.notifications, ctx.settings, today, format);
+    const paymentPlan = planPaymentAlerts(
+      ctx.recurringSeries,
+      payments,
+      ctx.notifications,
+      ctx.settings,
+      today,
+      format,
+      ctx.accountFreshness ?? []
+    );
     for (const upsert of paymentPlan.upserts) {
       await ctx.upsertByDedupeKey(upsert);
       summary.alertsUpserted += 1;
@@ -832,6 +1037,25 @@ export async function scanNotifications(
       }
     } catch (error) {
       log.warn('Could not evaluate loans; loan deadline alerts skipped', { operation: 'scanNotifications', error });
+    }
+  }
+
+  if (ctx.accounts && ctx.accountFreshness) {
+    const stalePlan = planStaleAccountAlerts(
+      ctx.accounts,
+      ctx.accountFreshness,
+      ctx.notifications,
+      ctx.settings,
+      resolveStaleAccountMonths(ctx.staleAccountMonths),
+      today
+    );
+    for (const upsert of stalePlan.upserts) {
+      await ctx.upsertByDedupeKey(upsert);
+      summary.alertsUpserted += 1;
+    }
+    for (const id of stalePlan.resolvedIds) {
+      await ctx.setStatus(id, 'done', null);
+      summary.alertsResolved += 1;
     }
   }
 
@@ -960,12 +1184,20 @@ export function selectOsNotifiable(
   return due.filter((entry) => {
     const setting = settingFor(settings, entry.notification.type);
     if (!setting?.os_notify) return false;
+    // A payment whose due date the account's imports do not cover yet may well be paid: no pop-up until it is confirmed.
+    if (isUnconfirmedOverdue(entry.notification, today)) return false;
     if (firedThisSession.has(entry.notification.id)) return false;
     // `last_notified_at` is SQLite UTC text and `today` is the device's calendar day:
     // compare days in local time, not the first ten characters of the UTC text.
     const last = storedTimestampToDate(entry.notification.last_notified_at);
     return !last || toLocalDateOnly(last) < today;
   });
+}
+
+/** An overdue_payment alert whose due date has passed but is not covered by the account's imports yet. */
+export function isUnconfirmedOverdue(notification: Pick<AppNotification, 'type' | 'payload_json'>, today: string): boolean {
+  if (notification.type !== 'overdue_payment') return false;
+  return overdueConfirmation(parsePayload<OverduePaymentPayload>(notification.payload_json), today) === 'unconfirmed';
 }
 
 export function isTerminalStatus(status: NotificationStatus): boolean {

@@ -28,7 +28,7 @@ export { useBudgetFundsSlice } from './useBudgetFundsSlices';
 export { useClassificationRulesSlice, useTransactionTypeActionsSlice } from './useClassificationSlices';
 export { useLoansPageSlice, useSubscriptionsLoansSlice } from './useLoansSlices';
 export { useCurrencyPreferencesSlice } from './usePreferencesSlices';
-export { useImportManageSlice, useImportWizardSlice } from './useImportsSlices';
+export { useAccountFreshness, useImportManageSlice, useImportWizardSlice } from './useImportsSlices';
 
 export function useAppShellSlice() {
   const status = useDatabaseStatus();

@@ -249,7 +249,8 @@
     "blockedRows_other": "有 {{count}} 行无法读取。请修正或排除。",
     "accounts": "请选择或确认账户。",
     "confirm": "请确认文件的读取方式。",
-    "noRows": "此文件中没有可导入的内容了。"
+    "noRows": "此文件中没有可导入的内容了。",
+    "coversThrough": "请选择 {{from}} 至 {{to}} 之间的“数据完整至”日期。"
   },
   "summary": {
     "title": "摘要",
@@ -273,7 +274,14 @@
     "rememberHelpKnown": "根据您所做的更改更新已保存的格式。",
     "formatName": "格式名称",
     "import_other": "导入 {{count}} 笔交易",
-    "checking": "正在检查…"
+    "checking": "正在检查…",
+    "coversThrough": "数据完整至",
+    "coversThroughHelp": "您账户的数据视为完整至此日期。在此日期之前到期、但本文件中没有的付款会显示为逾期；之后到期的付款会等待您的下一次导入。",
+    "coversThroughSource": {
+      "statement_end": "对账单自身的截止日期",
+      "import_date": "今天，即导入当天",
+      "user": "您选择的日期"
+    }
   },
   "done": {
     "title": "导入完成",

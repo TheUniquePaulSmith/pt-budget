@@ -197,4 +197,25 @@ export const IMPORT_QUERIES = {
          SELECT transfer_group_id FROM transactions
           WHERE import_batch_id = ? AND transfer_group_id IS NOT NULL)`,
   DELETE_BATCH_TRANSACTIONS: `DELETE FROM transactions WHERE import_batch_id = ?`,
+  DELETE_BATCH_CHECKPOINTS: `DELETE FROM account_data_checkpoints WHERE import_batch_id = ?`,
+
+  // --- how far each account's data is complete (schema v8) ---
+  // Parameters: account id, batch id (NULL for an import that brought nothing
+  // new), data_through, through_source, latest_transaction_date.
+  INSERT_CHECKPOINT: `
+    INSERT INTO account_data_checkpoints (account_id, import_batch_id, data_through, through_source, latest_transaction_date)
+    VALUES (?, ?, ?, ?, ?)`,
+  // One row per account: its latest import, the furthest date its imported
+  // data covers (with how that date was decided) and its newest transaction,
+  // manual entries included. Accounts never imported have NULL import fields.
+  ACCOUNT_FRESHNESS: `
+    SELECT a.id AS account_id,
+           (SELECT MAX(c.checked_at) FROM account_data_checkpoints c WHERE c.account_id = a.id) AS last_import_at,
+           (SELECT c.data_through FROM account_data_checkpoints c WHERE c.account_id = a.id
+             ORDER BY c.data_through DESC, c.id DESC LIMIT 1) AS data_through,
+           (SELECT c.through_source FROM account_data_checkpoints c WHERE c.account_id = a.id
+             ORDER BY c.data_through DESC, c.id DESC LIMIT 1) AS through_source,
+           (SELECT MAX(t.date) FROM transactions t WHERE t.account_id = a.id) AS latest_transaction_date
+      FROM accounts a
+     ORDER BY a.id`,
 } as const;

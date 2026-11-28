@@ -194,6 +194,7 @@ cardholder). "Create a new account…" leaves the Account Name optional: empty, 
 | `account_identifiers` | What statement files call an account: a number (with its last four) or a label, for any account type. Cards stay in `account_cards`. |
 | `import_batches` | One row per imported statement: file name, accounts, counts, plus `profile_id`, `file_format` and `issues_json` (finding counts per code, accepted assumptions, rows fixed). |
 | `temp_import_transactions` | The staging table (mirrors `transactions`). Emptied after every commit and on cancel. |
+| `account_data_checkpoints` | Schema v8: per account and import, the date its data is complete through and the newest row the file had for it. |
 
 - **Saved formats** are trusted only for the account they were saved for. The same file shape used for another
   account keeps the columns, has its sign inferred and confirmed again, takes no fast path and saves its own format.
@@ -207,8 +208,15 @@ cardholder). "Create a new account…" leaves the Account Name optional: empty, 
   type decisions of the staged rows, the insert, the decisions for existing transfer legs, the totals. A failure
   leaves nothing behind. When every row is already stored, nothing is committed. Loan rules and the subscription
   scan run after the last file and are not part of the transaction.
-- **Undo** (`undoBatch`, from History & formats): one transaction removes the batch's series links, loan payments
-  and transactions, then the batch. The other leg of a transfer it was half of stays, unpaired: it goes back to
+- **Covers through** (schema v8): the Summary asks how far the file's data is complete. The default is the OFX
+  statement end (`DTEND`, kept between the newest row and today), else the import day; the user may pick any date
+  from the newest row to today (`coversThroughOf`). The commit writes one `account_data_checkpoints` row per
+  account in the same transaction; a file whose rows are all stored already writes them too, without a batch
+  (`recordAccountCheckpoints`), because it is the evidence that a payment is missing. Payment alerts and the
+  Subscriptions "Overdue" chip are confirmed only once that date passes the due date plus the posting grace
+  (`src/lib/accountFreshness.ts`); the Accounts page shows each account's last import and data-through date.
+- **Undo** (`undoBatch`, from History & formats): one transaction removes the batch's series links, loan payments,
+  checkpoints and transactions, then the batch. The other leg of a transfer it was half of stays, unpaired: it goes back to
   income or expense by its sign unless the user set its type. The slice then recomputes the balance of each loan
   that lost a payment and refreshes the collections; the view re-runs the subscription scan. The confirmation shows
   the counts first (`getBatchImpact`).

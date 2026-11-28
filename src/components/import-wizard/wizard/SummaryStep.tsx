@@ -19,7 +19,7 @@ import { useBlockerLine } from './blockerText';
 import { useIssueTexts } from './issueText';
 import type { ImportWizardController } from './useImportWizard';
 import { sharedCurrency } from './wizardFormat';
-import { accountIssueCode, importBlockers, isStagingFresh, summarize } from './wizardModel';
+import { accountIssueCode, coversThroughOf, importBlockers, isStagingFresh, summarize } from './wizardModel';
 
 interface SummaryStepProps {
   wizard: ImportWizardController;
@@ -62,6 +62,7 @@ export default function SummaryStep({ wizard }: SummaryStepProps) {
     currency ? money(value, currency) : number(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const choices = (statement.accounts ?? []).filter((choice) => !choice.skipped && choice.accountId != null);
   const nothingNew = fresh && blockers.length === 0 && summary.toImport === 0;
+  const covers = coversThroughOf(statement);
 
   return (
     <Stack spacing={2.5}>
@@ -204,6 +205,33 @@ export default function SummaryStep({ wizard }: SummaryStepProps) {
           )}
           {summary.refunds > 0 && <Fact label={t('summary.refunds')} value={number(summary.refunds)} testId="import-summary-refunds" />}
         </Box>
+      </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'flex-start' } }}>
+          <TextField
+            type="date"
+            size="small"
+            label={t('summary.coversThrough')}
+            value={covers.date}
+            // A half-typed date reads as '' until it is complete: keep it (an invalid date blocks the import) rather than snapping back to the default.
+            onChange={(event) => dispatch({ type: 'coversThroughSet', date: event.target.value })}
+            error={!covers.valid}
+            helperText={
+              covers.valid
+                ? t(`summary.coversThroughSource.${covers.source}`)
+                : t('blockers.coversThrough', { from: date(covers.min), to: date(covers.max) })
+            }
+            sx={{ width: { xs: '100%', sm: 220 }, flexShrink: 0 }}
+            slotProps={{
+              inputLabel: { shrink: true },
+              htmlInput: { min: covers.min, max: covers.max, 'data-testid': 'import-summary-covers-through' },
+            }}
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ pt: { sm: 1 } }}>
+            {t('summary.coversThroughHelp')}
+          </Typography>
+        </Stack>
       </Paper>
 
       <Paper variant="outlined" sx={{ p: 2 }}>

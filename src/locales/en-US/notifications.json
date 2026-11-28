@@ -6,7 +6,8 @@
     "custom": "Custom reminder",
     "overdue_payment": "Payment due",
     "budget_overspend": "Budget overspend",
-    "loan_promo_ending": "Loan pay-by date"
+    "loan_promo_ending": "Loan pay-by date",
+    "stale_account": "Account not imported"
   },
   "typeDescription": {
     "birthday": "Birthdays you want to remember, repeating every year.",
@@ -15,7 +16,8 @@
     "custom": "Anything else, one-off or repeating.",
     "overdue_payment": "Subscriptions and bills you pay by hand that are due or overdue (series not marked autopay).",
     "budget_overspend": "A budget category that has gone over its monthly amount.",
-    "loan_promo_ending": "A deferred-interest loan whose pay-by date is near, or passed with a balance, so interest may be charged back."
+    "loan_promo_ending": "A deferred-interest loan whose pay-by date is near, or passed with a balance, so interest may be charged back.",
+    "stale_account": "An account that was imported before but whose data now ends months ago, so its payment alerts cannot be confirmed."
   },
   "recurrence": {
     "once": "Once",
@@ -36,7 +38,8 @@
     "overdue_one": "{{count}} day overdue",
     "overdue_other": "{{count}} days overdue",
     "noDate": "No date",
-    "snoozedUntil": "Snoozed until {{date}}"
+    "snoozedUntil": "Snoozed until {{date}}",
+    "notConfirmed": "Not confirmed"
   },
   "dueLabel": {
     "today": "due today",
@@ -50,7 +53,10 @@
     "overduePayment": {
       "title": "{{name}} {{due}}",
       "body": "Payment expected {{date}}. Mark the series as autopay to stop these alerts.",
-      "bodyWithAmount": "Payment ({{amount}}) expected {{date}}. Mark the series as autopay to stop these alerts."
+      "bodyWithAmount": "Payment ({{amount}}) expected {{date}}. Mark the series as autopay to stop these alerts.",
+      "unconfirmedTitle": "{{name}} was due {{date}}, not confirmed yet",
+      "unconfirmedBody": "{{account}} is imported through {{through}}. Import a newer statement to see whether it was paid.",
+      "unconfirmedBodyNoAccount": "The account is imported through {{through}}. Import a newer statement to see whether it was paid."
     },
     "loanPromo": {
       "chargedTitle": "{{name}}: deferred interest charged",
@@ -67,6 +73,10 @@
       "body": "Spent {{spent}} of {{budgeted}} in {{month}} ({{over}} over).",
       "bodyCarriedIn": "Spent {{spent}} of {{budgeted}} incl. {{carried}} carried in in {{month}} ({{over}} over).",
       "bodyCarriedOver": "Spent {{spent}} of {{budgeted}} incl. {{carried}} carried over in {{month}} ({{over}} over)."
+    },
+    "staleAccount": {
+      "title": "{{account}} needs a new import",
+      "body": "Its imported transactions end {{date}}. Import a recent statement so its payment alerts stay accurate."
     }
   },
   "page": {
@@ -116,7 +126,9 @@
     "snoozeConfirm": "Snooze",
     "completeFailed": "Could not complete the notification",
     "dismissFailed": "Could not dismiss the notification",
-    "snoozeFailed": "Could not snooze the notification"
+    "snoozeFailed": "Could not snooze the notification",
+    "importNewer": "Import a newer statement",
+    "importNewerAria": "Import a newer statement for {{title}}"
   },
   "dashboardCard": {
     "title": "Reminders & alerts",
@@ -152,7 +164,14 @@
     "leadInvalid": "Lead time must be a whole number of days between 0 and 365",
     "osUnsupported": "This browser does not support OS notifications.",
     "osBlocked": "The browser blocked notifications for this site. Allow them in the browser’s site settings, then try again.",
-    "osNotGranted": "Notification permission was not granted."
+    "osNotGranted": "Notification permission was not granted.",
+    "graceTitle": "Payment alerts and imports",
+    "graceHelp": "A payment counts as overdue only when an import that runs this many days past its due date does not show it. Until then it is shown as not confirmed, without a browser notification.",
+    "graceLabel": "Posting grace (days)",
+    "graceInvalid": "The posting grace must be a whole number of days between 0 and {{max}}",
+    "staleLabel": "Remind after (months)",
+    "staleHelp": "An account that was imported before raises an \"Account not imported\" alert once its imported data is this many months old.",
+    "staleInvalid": "The reminder must be a whole number of months between 1 and {{max}}"
   },
   "editor": {
     "editTitle": "Edit reminder",

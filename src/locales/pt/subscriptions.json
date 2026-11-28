@@ -116,7 +116,9 @@
     "ignoreTooltip": "Ignorar (ocultar desta página)",
     "restoreTooltip": "Restaurar como ativa",
     "editTooltip": "Editar",
-    "viewTransactionsTooltip": "Ver transações"
+    "viewTransactionsTooltip": "Ver transações",
+    "notConfirmed": "Não confirmado",
+    "notConfirmedHelp": "{{account}} está importada até {{date}}. Importe um extrato mais recente para ver se foi pago."
   },
   "seriesDetailDialog": {
     "columnDate": "Data",

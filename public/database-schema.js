@@ -415,7 +415,8 @@ export const CREATE_TABLES = {
       enabled INTEGER NOT NULL DEFAULT 1,
       lead_days INTEGER NOT NULL DEFAULT 7,
       os_notify INTEGER NOT NULL DEFAULT 0,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      grace_days INTEGER
     )
   `,
 
@@ -613,6 +614,34 @@ export const CREATE_TABLES = {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE
     )
+  `,
+
+  // How far an account's data is known to be complete (schema v8): one row
+  // per account per import, written even when the file brought nothing new
+  // (import_batch_id NULL), because an import without the payment is what
+  // confirms the payment is missing. A payment is "overdue" only once the
+  // latest data_through runs past its due date plus the posting grace.
+  //   data_through             the date the imported data covers through
+  //   through_source           'statement_end' the file's own end date (OFX DTEND)
+  //                            'import_date'   the day of the import
+  //                            'user'          set by the user at import
+  //                            'backfill'      from an import run before v8
+  //   latest_transaction_date  the newest date for the account in the file
+  //                            (rows already stored included)
+  // The rows go with their batch on undo and with their account on delete
+  // (removed by the app: reopened databases run with foreign keys off).
+  ACCOUNT_DATA_CHECKPOINTS: `
+    CREATE TABLE IF NOT EXISTS account_data_checkpoints (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      account_id INTEGER NOT NULL,
+      import_batch_id INTEGER,
+      checked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      data_through DATE NOT NULL,
+      through_source TEXT CHECK(through_source IN ('statement_end', 'import_date', 'user', 'backfill')) NOT NULL,
+      latest_transaction_date DATE,
+      FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE,
+      FOREIGN KEY (import_batch_id) REFERENCES import_batches (id) ON DELETE CASCADE
+    )
   `
 };
 
@@ -680,6 +709,8 @@ export const CREATE_INDEXES = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_account_identifiers_account_value ON account_identifiers(account_id, kind, value)`,
   `CREATE INDEX IF NOT EXISTS idx_account_identifiers_value ON account_identifiers(value)`,
   `CREATE INDEX IF NOT EXISTS idx_account_identifiers_last_four ON account_identifiers(last_four) WHERE last_four IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_account_data_checkpoints_account ON account_data_checkpoints(account_id, data_through)`,
+  `CREATE INDEX IF NOT EXISTS idx_account_data_checkpoints_batch ON account_data_checkpoints(import_batch_id) WHERE import_batch_id IS NOT NULL`,
 ];
 
 // Schema versioning — applied by runMigrations() in database-worker.js.
@@ -701,7 +732,8 @@ export const CREATE_INDEXES = [
 //       -> RENAME. Skipped when the table already has `guardColumn`.
 //   - { op: 'rehashTransactions' }                     recomputes legacy hashes
 //   - an UPDATE ... WHERE string is allowed too when it is a no-op on rerun
-export const SCHEMA_VERSION = 7;
+//   - an INSERT INTO ... SELECT ... WHERE NOT EXISTS string likewise
+export const SCHEMA_VERSION = 8;
 export const MIGRATIONS = [
   {
     version: 1,
@@ -855,6 +887,31 @@ export const MIGRATIONS = [
       },
       { op: 'addColumn', table: 'import_batches', column: 'file_format', ddl: 'file_format TEXT' },
       { op: 'addColumn', table: 'import_batches', column: 'issues_json', ddl: 'issues_json TEXT' },
+    ],
+  },
+  {
+    version: 8,
+    statements: [
+      // How far each account's data is complete, so a payment is overdue only
+      // when an import newer than its due date does not show it.
+      CREATE_TABLES.ACCOUNT_DATA_CHECKPOINTS,
+      { op: 'addColumn', table: 'notification_settings', column: 'grace_days', ddl: 'grace_days INTEGER' },
+      // Earlier imports count as complete through the day before the UTC day
+      // they ran (never before their newest row): imported_at is UTC, so its
+      // date can be a day ahead of the local import day, and a date too early
+      // only waits for the next import, while one too late confirms a miss
+      // early. One row per batch and account it wrote to.
+      `INSERT INTO account_data_checkpoints (account_id, import_batch_id, checked_at, data_through, through_source, latest_transaction_date)
+       SELECT t.account_id, b.id, b.imported_at,
+              MAX(COALESCE(b.max_date, date(b.imported_at, '-1 day')), date(b.imported_at, '-1 day')),
+              'backfill', MAX(t.date)
+         FROM import_batches b
+         JOIN transactions t ON t.import_batch_id = b.id
+         -- Rows of an account deleted while foreign keys were off would fail the FK check.
+         JOIN accounts a ON a.id = t.account_id
+        WHERE NOT EXISTS (SELECT 1 FROM account_data_checkpoints c
+                           WHERE c.import_batch_id = b.id AND c.account_id = t.account_id)
+        GROUP BY b.id, t.account_id`,
     ],
   },
 ];

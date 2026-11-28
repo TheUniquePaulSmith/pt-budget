@@ -7,13 +7,17 @@ import {
   NOTIFICATIONS_ENABLED_KEY,
   NOTIFICATIONS_LAST_SCAN_KEY,
   NOTIFICATIONS_OS_ENABLED_KEY,
+  NOTIFICATIONS_STALE_ACCOUNT_MONTHS_KEY,
   completeNotification as planCompletion,
+  resolveStaleAccountMonths,
   scanNotifications,
   type SnoozePreset,
   snoozeUntil,
 } from '../lib/notificationService';
 import { todayLocalISO } from '../lib/dateOnly';
+import { logger } from '../lib/logging';
 import type {
+  Account,
   AppNotification,
   AppNotificationInput,
   Loan,
@@ -23,17 +27,23 @@ import type {
 } from '../types/database';
 import type { NotificationScanSummary, SeriesPaymentRow } from '../types/notifications';
 
+const log = logger.child({ component: 'useDatabaseNotificationsSlice' });
+
 /** Feature-level switches kept in `app_metadata` (both default to on / off respectively). */
 export interface NotificationPreferences {
   enabled: boolean;
   osEnabled: boolean;
   lastScanAt: string | null;
+  /** Schema v8: months after an account's imported data ends before the stale-account alert. */
+  staleAccountMonths: number;
 }
 
 export interface RunNotificationScanOptions {
   recurringSeries: RecurringSeries[];
   /** Loans (schema v5) for the deferred-interest deadline alert; omitted = no loan alerts. */
   loans?: Loan[];
+  /** Accounts (schema v8) for the stale-account alert; omitted = no stale-account alerts. */
+  accounts?: Array<Pick<Account, 'id' | 'name' | 'is_active'>>;
   settings?: NotificationSetting[];
   today?: string;
 }
@@ -62,6 +72,8 @@ export interface DatabaseNotificationsSlice {
   getNotificationPreferences: () => Promise<NotificationPreferences>;
   setNotificationsEnabled: (enabled: boolean) => Promise<void>;
   setOsNotificationsEnabled: (enabled: boolean) => Promise<void>;
+  /** Schema v8: months (1–60) after which an account that is no longer imported raises an alert. */
+  setStaleAccountMonths: (months: number) => Promise<void>;
   /**
    * Runs the system-alert scan against the live service and refreshes the
    * cached collection once at the end (never per write).
@@ -70,7 +82,7 @@ export interface DatabaseNotificationsSlice {
 }
 
 type NotificationsService = Pick<DatabaseService, 'notifications' | 'appMetadata' | 'getBudgetStatus'> &
-  Partial<Pick<DatabaseService, 'loans' | 'preferences'>>;
+  Partial<Pick<DatabaseService, 'loans' | 'preferences' | 'imports'>>;
 
 interface UseDatabaseNotificationsSliceOptions {
   databaseService: NotificationsService | null;
@@ -190,15 +202,17 @@ export function useDatabaseNotificationsSlice({
 
   const getNotificationPreferences = useCallback(async (): Promise<NotificationPreferences> => {
     const metadata = requireDatabase().appMetadata;
-    const [enabled, osEnabled, lastScanAt] = await Promise.all([
+    const [enabled, osEnabled, lastScanAt, staleAccountMonths] = await Promise.all([
       metadata.get(NOTIFICATIONS_ENABLED_KEY),
       metadata.get(NOTIFICATIONS_OS_ENABLED_KEY),
       metadata.get(NOTIFICATIONS_LAST_SCAN_KEY),
+      metadata.get(NOTIFICATIONS_STALE_ACCOUNT_MONTHS_KEY),
     ]);
     return {
       enabled: enabled === null ? true : enabled === '1' || enabled === 'true',
       osEnabled: osEnabled === '1' || osEnabled === 'true',
       lastScanAt,
+      staleAccountMonths: resolveStaleAccountMonths(staleAccountMonths),
     };
   }, [requireDatabase]);
 
@@ -216,16 +230,34 @@ export function useDatabaseNotificationsSlice({
     [requireDatabase]
   );
 
+  const setStaleAccountMonths = useCallback(
+    async (months: number) => {
+      await requireDatabase().appMetadata.set(NOTIFICATIONS_STALE_ACCOUNT_MONTHS_KEY, String(resolveStaleAccountMonths(months)));
+    },
+    [requireDatabase]
+  );
+
   const runNotificationScan = useCallback(
-    async ({ recurringSeries, loans, settings, today = todayLocalISO() }: RunNotificationScanOptions) => {
+    async ({ recurringSeries, loans, accounts, settings, today = todayLocalISO() }: RunNotificationScanOptions) => {
       const database = requireDatabase();
       const service = database.notifications;
-      const [notifications, resolvedSettings, defaultCurrency] = await Promise.all([
+      const [notifications, resolvedSettings, defaultCurrency, accountFreshness, staleAccountMonths] = await Promise.all([
         service.list(),
         settings ? Promise.resolve(settings) : service.getSettings(),
         // Stored alert text quotes money in the household's default currency
         // (surfaces rebuild it from the payload in the current language anyway).
         database.preferences ? database.preferences.getDefaultCurrency().catch(() => undefined) : Promise.resolve(undefined),
+        // Schema v8: a payment is overdue only once the account's imports cover its due date.
+        database.imports
+          ? database.imports.getAccountFreshness().catch((error) => {
+              log.warn('Could not read account freshness; overdue payments read as confirmed', {
+                operation: 'runNotificationScan',
+                error,
+              });
+              return [];
+            })
+          : Promise.resolve([]),
+        database.appMetadata.get(NOTIFICATIONS_STALE_ACCOUNT_MONTHS_KEY).catch(() => null),
       ]);
       const summary = await scanNotifications(
         {
@@ -236,6 +268,9 @@ export function useDatabaseNotificationsSlice({
           getBudgetStatus: (month) => database.getBudgetStatus({ type: 'month', key: month }),
           loans,
           getLoanSummary: database.loans ? (loanId) => database.loans!.getSummary(loanId) : undefined,
+          accountFreshness,
+          accounts,
+          staleAccountMonths,
           upsertByDedupeKey: (input) => service.upsertByDedupeKey(input),
           setStatus: (id, status, snoozedUntil) => service.setStatus(id, status, snoozedUntil ?? null),
           update: (id, input) => service.update(id, input),
@@ -272,6 +307,7 @@ export function useDatabaseNotificationsSlice({
       getNotificationPreferences,
       setNotificationsEnabled,
       setOsNotificationsEnabled,
+      setStaleAccountMonths,
       runNotificationScan,
     }),
     [
@@ -288,6 +324,7 @@ export function useDatabaseNotificationsSlice({
       setNotificationStatus,
       setNotificationsEnabled,
       setOsNotificationsEnabled,
+      setStaleAccountMonths,
       snoozeNotification,
       updateNotification,
       upsertNotificationByDedupeKey,

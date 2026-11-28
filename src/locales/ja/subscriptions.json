@@ -116,7 +116,9 @@
     "ignoreTooltip": "無視（このページから隠す）",
     "restoreTooltip": "有効に戻す",
     "editTooltip": "編集",
-    "viewTransactionsTooltip": "取引を表示"
+    "viewTransactionsTooltip": "取引を表示",
+    "notConfirmed": "未確認",
+    "notConfirmedHelp": "{{account}} は {{date}} までインポート済みです。支払われたか確認するには、新しい明細をインポートしてください。"
   },
   "seriesDetailDialog": {
     "columnDate": "日付",

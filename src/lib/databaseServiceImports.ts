@@ -17,7 +17,15 @@
  * type decisions are written here with the classification SQL.
  */
 
-import type { Account, AccountIdentifier, AccountIdentifierInput, ImportBatch } from '../types/database';
+import type {
+  Account,
+  AccountCheckpointInput,
+  AccountFreshness,
+  AccountIdentifier,
+  AccountIdentifierInput,
+  DataThroughSource,
+  ImportBatch,
+} from '../types/database';
 import type { TypeDecision } from '../types/classification';
 import type { DatabaseWorkerTransport } from './databaseService';
 import { parseDecisionKey } from './databaseServiceClassification';
@@ -88,6 +96,33 @@ export function mapToAccountIdentifier(row: any): AccountIdentifier {
     created_at: String(row.created_at ?? ''),
     ...(row.account_name == null ? {} : { account_name: String(row.account_name) }),
   };
+}
+
+const DATA_THROUGH_SOURCES: ReadonlySet<string> = new Set<DataThroughSource>(['statement_end', 'import_date', 'user', 'backfill']);
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function mapToAccountFreshness(row: any): AccountFreshness {
+  return {
+    accountId: Number(row.account_id),
+    lastImportAt: row.last_import_at ?? null,
+    dataThrough: row.data_through ?? null,
+    throughSource: DATA_THROUGH_SOURCES.has(row.through_source) ? (row.through_source as DataThroughSource) : null,
+    latestTransactionDate: row.latest_transaction_date ?? null,
+  };
+}
+
+/** INSERT_CHECKPOINT parameter sets: one per account, invalid entries left out. */
+function checkpointParams(checkpoints: AccountCheckpointInput[], batchId: number | null): unknown[][] {
+  const seen = new Set<number>();
+  const params: unknown[][] = [];
+  for (const checkpoint of checkpoints) {
+    if (!Number.isInteger(checkpoint.accountId) || seen.has(checkpoint.accountId)) continue;
+    if (!ISO_DATE.test(checkpoint.dataThrough) || !DATA_THROUGH_SOURCES.has(checkpoint.throughSource)) continue;
+    seen.add(checkpoint.accountId);
+    const latest = checkpoint.latestTransactionDate && ISO_DATE.test(checkpoint.latestTransactionDate) ? checkpoint.latestTransactionDate : null;
+    params.push([checkpoint.accountId, batchId, checkpoint.dataThrough, checkpoint.throughSource, latest]);
+  }
+  return params;
 }
 
 export function mapToImportBatch(row: any): ImportBatch {
@@ -524,6 +559,7 @@ export class ImportsService {
           input.rejectedRows,
           batchId,
         ]);
+        await this.runEach(IMPORT_QUERIES.INSERT_CHECKPOINT, checkpointParams(input.checkpoints ?? [], batchId));
         return { batchId, inserted, duplicates };
       });
       operation.info('Imported statement file', { ...result, format: input.format });
@@ -560,6 +596,29 @@ export class ImportsService {
       reseeds.push([keptPosition === 0 ? contentHash : await hashWithSeed(keptPosition), keptPosition, id]);
     }
     return reseeds;
+  }
+
+  // --- how far each account's data is complete (schema v8) ---
+
+  /**
+   * Records an import that wrote no batch (every row was already stored): it
+   * still tells how far the accounts' data is complete, which is what
+   * confirms that a payment it does not show is really missing.
+   */
+  async recordAccountCheckpoints(checkpoints: AccountCheckpointInput[]): Promise<void> {
+    const params = checkpointParams(checkpoints, null);
+    if (params.length === 0) return;
+    try {
+      await this.inTransaction(() => this.runEach(IMPORT_QUERIES.INSERT_CHECKPOINT, params));
+    } catch (error) {
+      log.error('Failed to record account checkpoints', { operation: 'recordAccountCheckpoints', error });
+      throw error;
+    }
+  }
+
+  /** One entry per account, in id order: its last import, data-through date and newest transaction. */
+  async getAccountFreshness(): Promise<AccountFreshness[]> {
+    return (await this.worker.query(IMPORT_QUERIES.ACCOUNT_FRESHNESS)).map(mapToAccountFreshness);
   }
 
   // --- history ---
@@ -641,6 +700,7 @@ export class ImportsService {
         await this.worker.query(IMPORT_QUERIES.REVERT_SURVIVING_PAIRED_LEGS, [batchId, batchId]);
         await this.worker.query(IMPORT_QUERIES.CLEAR_SURVIVING_TRANSFER_GROUPS, [batchId, batchId]);
         await this.worker.query(IMPORT_QUERIES.DELETE_BATCH_TRANSACTIONS, [batchId]);
+        await this.worker.query(IMPORT_QUERIES.DELETE_BATCH_CHECKPOINTS, [batchId]);
         await this.worker.query(IMPORT_BATCH_QUERIES.DELETE, [batchId]);
       });
       operation.info('Undid import', { ...impact });

@@ -27,8 +27,9 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { useNotificationsSettingsSlice } from '@/contexts/useNotificationsSlices';
+import { MAX_POSTING_GRACE_DAYS, resolveGraceDays } from '@/lib/accountFreshness';
 import { logger } from '@/lib/logging';
-import { getOsNotificationPermission } from '@/lib/notificationService';
+import { DEFAULT_STALE_ACCOUNT_MONTHS, MAX_STALE_ACCOUNT_MONTHS, getOsNotificationPermission } from '@/lib/notificationService';
 import type { NotificationSetting } from '@/types/database';
 import { ALERT_TYPES, REMINDER_TYPES, type NotificationType } from '@/types/notifications';
 import { typeDescription, typeLabel } from './notificationPresentation';
@@ -47,6 +48,7 @@ export default function NotificationsSettingsTab() {
     getNotificationPreferences,
     setNotificationsEnabled,
     setOsNotificationsEnabled,
+    setStaleAccountMonths,
   } = useNotificationsSettingsSlice();
 
   const [settings, setSettings] = useState<NotificationSetting[]>([]);
@@ -54,6 +56,9 @@ export default function NotificationsSettingsTab() {
   const [osEnabled, setOsEnabled] = useState(false);
   const [osPermission, setOsPermission] = useState(getOsNotificationPermission());
   const [leadDrafts, setLeadDrafts] = useState<Record<string, string>>({});
+  const [graceDraft, setGraceDraft] = useState<string | null>(null);
+  const [staleMonths, setStaleMonths] = useState(DEFAULT_STALE_ACCOUNT_MONTHS);
+  const [staleDraft, setStaleDraft] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +72,7 @@ export default function NotificationsSettingsTab() {
         setLeadDrafts(Object.fromEntries(rows.map((row) => [row.type, String(row.lead_days)])));
         setEnabled(preferences.enabled);
         setOsEnabled(preferences.osEnabled);
+        setStaleMonths(preferences.staleAccountMonths);
         setLoaded(true);
       })
       .catch((err) => {
@@ -108,6 +114,45 @@ export default function NotificationsSettingsTab() {
     },
     [leadDrafts, saveSetting, t]
   );
+
+  const paymentSetting = settings.find((setting) => setting.type === 'overdue_payment');
+  const graceDays = resolveGraceDays(settings);
+
+  const commitGraceDays = useCallback(async () => {
+    if (!paymentSetting || graceDraft === null) return;
+    // An emptied field is not 0 days: Number('') would read it as 0.
+    const parsed = graceDraft.trim() === '' ? Number.NaN : Number(graceDraft);
+    setGraceDraft(null);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > MAX_POSTING_GRACE_DAYS) {
+      setError(t('settingsTab.graceInvalid', { max: MAX_POSTING_GRACE_DAYS }));
+      return;
+    }
+    if (parsed === graceDays) return;
+    setError(null);
+    await saveSetting({ ...paymentSetting, grace_days: parsed });
+  }, [graceDays, graceDraft, paymentSetting, saveSetting, t]);
+
+  const staleSetting = settings.find((setting) => setting.type === 'stale_account');
+
+  const commitStaleMonths = useCallback(async () => {
+    if (staleDraft === null) return;
+    const parsed = staleDraft.trim() === '' ? Number.NaN : Number(staleDraft);
+    setStaleDraft(null);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_STALE_ACCOUNT_MONTHS) {
+      setError(t('settingsTab.staleInvalid', { max: MAX_STALE_ACCOUNT_MONTHS }));
+      return;
+    }
+    if (parsed === staleMonths) return;
+    setError(null);
+    setStaleMonths(parsed);
+    try {
+      await setStaleAccountMonths(parsed);
+      notifyNotificationSettingsChanged();
+    } catch (err) {
+      log.error('Failed to save the stale-account months', { operation: 'saveStaleMonths', error: err });
+      setError(err instanceof Error ? err.message : t('settingsTab.saveFailed'));
+    }
+  }, [setStaleAccountMonths, staleDraft, staleMonths, t]);
 
   const handleGlobalToggle = async (next: boolean) => {
     setEnabled(next);
@@ -291,6 +336,56 @@ export default function NotificationsSettingsTab() {
           </TableBody>
         </Table>
       </Box>
+
+      {paymentSetting && (
+        <Box data-testid="notification-setting-overdue_payment-grace-section">
+          <Typography variant="h6" gutterBottom>
+            {t('settingsTab.graceTitle')}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            {t('settingsTab.graceHelp')}
+          </Typography>
+          <TextField
+            type="number"
+            size="small"
+            label={t('settingsTab.graceLabel')}
+            value={graceDraft ?? String(graceDays)}
+            disabled={!enabled || !paymentSetting.enabled}
+            onChange={(event) => setGraceDraft(event.target.value)}
+            onBlur={() => void commitGraceDays()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
+            }}
+            sx={{ width: 180 }}
+            slotProps={{
+              htmlInput: { min: 0, max: MAX_POSTING_GRACE_DAYS, 'data-testid': 'notification-setting-overdue_payment-grace' },
+            }}
+          />
+          {staleSetting && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary" paragraph>
+                {t('settingsTab.staleHelp')}
+              </Typography>
+              <TextField
+                type="number"
+                size="small"
+                label={t('settingsTab.staleLabel')}
+                value={staleDraft ?? String(staleMonths)}
+                disabled={!enabled || !staleSetting.enabled}
+                onChange={(event) => setStaleDraft(event.target.value)}
+                onBlur={() => void commitStaleMonths()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
+                }}
+                sx={{ width: 180 }}
+                slotProps={{
+                  htmlInput: { min: 1, max: MAX_STALE_ACCOUNT_MONTHS, 'data-testid': 'notification-setting-stale_account-months' },
+                }}
+              />
+            </Box>
+          )}
+        </Box>
+      )}
     </Stack>
   );
 }

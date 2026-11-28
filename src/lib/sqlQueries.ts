@@ -830,7 +830,17 @@ export const SUBSCRIPTION_QUERIES = {
       COUNT(t.id) as transaction_count,
       COALESCE(SUM(${spendExpr()}), 0) as total_spent,
       latest_card.last_four as card_last_four,
-      latest_card.nickname as card_nickname
+      latest_card.nickname as card_nickname,
+      (
+        -- Account of the most recent linked transaction (any date): whose imports
+        -- tell whether the next payment arrived (schema v8 overdue confirmation).
+        SELECT t3.account_id
+        FROM transaction_series_links tsl3
+        JOIN transactions t3 ON t3.id = tsl3.transaction_id
+        WHERE tsl3.series_id = rs.id
+        ORDER BY t3.date DESC, t3.id DESC
+        LIMIT 1
+      ) as latest_account_id
     FROM recurring_series rs
     LEFT JOIN companies comp ON rs.company_id = comp.id
     LEFT JOIN transaction_series_links tsl ON tsl.series_id = rs.id

@@ -256,7 +256,8 @@
     "blockedRows_other": "{{count}} linhas não podem ser lidas. Corrija ou deixe de fora.",
     "accounts": "Escolha ou confirme a conta.",
     "confirm": "Confirme como o arquivo é lido.",
-    "noRows": "Não resta nada para importar neste arquivo."
+    "noRows": "Não resta nada para importar neste arquivo.",
+    "coversThrough": "Escolha uma data de “Dados completos até” entre {{from}} e {{to}}."
   },
   "summary": {
     "title": "Resumo",
@@ -283,7 +284,14 @@
     "formatName": "Nome do formato",
     "import_one": "Importar {{count}} transação",
     "import_other": "Importar {{count}} transações",
-    "checking": "Conferindo…"
+    "checking": "Conferindo…",
+    "coversThrough": "Dados completos até",
+    "coversThroughHelp": "Os dados das suas contas são considerados completos até esta data. Um pagamento com vencimento anterior que este arquivo não mostre aparece como atrasado; um com vencimento posterior aguarda a sua próxima importação.",
+    "coversThroughSource": {
+      "statement_end": "A data final do próprio extrato",
+      "import_date": "Hoje, o dia da importação",
+      "user": "A data que você escolheu"
+    }
   },
   "done": {
     "title": "Importação concluída",

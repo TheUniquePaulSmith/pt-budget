@@ -3,6 +3,11 @@
 // Page-facing slices for statement import (schema v7). Re-exported from
 // useDatabaseSlices.ts (the hub).
 
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+import { logger } from '../lib/logging';
+import type { AccountFreshness } from '../types/database';
+
 import {
   useDatabaseAccounts,
   useDatabaseClassification,
@@ -49,6 +54,8 @@ export function useImportWizardSlice() {
     previewImportClassification: classification.previewImportClassification,
     decisionsForTransferPairs: classification.decisionsForTransferPairs,
     commitStagedImport: imports.commitStagedImport,
+    // A statement with nothing new still records how far its accounts' data goes.
+    recordAccountCheckpoints: imports.recordAccountCheckpoints,
     undoImportBatch: imports.undoImportBatch,
     applyLoanRules: loans.applyLoanRules,
     runSubscriptionScan: subscriptions.runSubscriptionScan,
@@ -79,4 +86,37 @@ export function useImportManageSlice() {
     addAccountIdentifier: imports.addAccountIdentifier,
     removeAccountIdentifier: imports.removeAccountIdentifier,
   };
+}
+
+const freshnessLog = logger.child({ component: 'useAccountFreshness' });
+
+/**
+ * Each account's last import, the date its imported data is complete through
+ * and its newest transaction (schema v8), by account id. Read on demand (not a
+ * cached collection) and again after transactions change or an import records
+ * how far an account's data goes. Empty until the first read answers.
+ */
+export function useAccountFreshness(): ReadonlyMap<number, AccountFreshness> {
+  const collections = useDatabaseCollections();
+  const { getAccountFreshness, freshnessVersion } = useDatabaseImports();
+  const [rows, setRows] = useState<AccountFreshness[]>([]);
+  const latestRequest = useRef(0);
+  const reloadKey = `${collections.transactionVersion}:${freshnessVersion}:${collections.accounts.length}`;
+
+  useEffect(() => {
+    const request = ++latestRequest.current;
+    getAccountFreshness()
+      .then((loaded) => {
+        if (request === latestRequest.current) setRows(loaded);
+      })
+      .catch((error) => {
+        // Without it every account reads as never imported, which is how overdue worked before v8.
+        freshnessLog.warn('Could not read account freshness', { operation: 'getAccountFreshness', error });
+      });
+    return () => {
+      latestRequest.current += 1;
+    };
+  }, [getAccountFreshness, reloadKey]);
+
+  return useMemo(() => new Map(rows.map((row) => [row.accountId, row])), [rows]);
 }

@@ -22,6 +22,7 @@ import { useAppShellSlice } from '@/contexts/useDatabaseSlices';
 import AiLauncherSlot from './slots/AiLauncherSlot';
 import NotificationBellSlot from './slots/NotificationBellSlot';
 import { PageActionsOutlet, PageActionsProvider } from './slots/PageActionsSlot';
+import { ShellNavigationProvider } from './slots/ShellNavigation';
 import { ScopeFiltersProvider } from '@/components/common/Filters/ScopeFilters';
 import MobileBottomNav, { MOBILE_BOTTOM_NAV_SLOTS } from './MobileBottomNav';
 import PageFallback from './PageFallback';
@@ -126,6 +127,7 @@ export default function AppShell() {
   // tree, outside both page branches, so navigating to a full-screen page
   // (settings, developer console) never remounts it and re-runs its scans.
   return (
+    <ShellNavigationProvider value={navigate}>
     <PageActionsProvider>
     {/* Account/user filters shared by the report pages, so they carry over between them. */}
     <ScopeFiltersProvider>
@@ -260,5 +262,6 @@ export default function AppShell() {
       )}
     </ScopeFiltersProvider>
     </PageActionsProvider>
+    </ShellNavigationProvider>
   );
 }

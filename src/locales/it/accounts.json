@@ -87,7 +87,11 @@
     "closedTitle": "Chiuso",
     "countedInNetWorth": "Incluso nel patrimonio netto",
     "excluded": "Escluso",
-    "empty": "Nessun conto ancora. Aggiungi il tuo primo conto per iniziare."
+    "empty": "Nessun conto ancora. Aggiungi il tuo primo conto per iniziare.",
+    "columnDataThrough": "Dati fino al",
+    "importedOn": "Importato il {{date}}",
+    "neverImported": "Mai importato",
+    "dataThroughLine": "Dati fino al {{date}}"
   },
   "page": {
     "summary": "{{accounts}} • {{people}}",
@@ -159,5 +163,15 @@
     "editTitle": "Modifica utente",
     "displayNameLabel": "Nome visualizzato",
     "saving": "Salvataggio..."
+  },
+  "importStatus": {
+    "title": "Importazioni",
+    "lastImport": "Ultima importazione",
+    "dataThrough": "Dati fino al",
+    "latestTransaction": "Ultima transazione",
+    "never": "Mai",
+    "none": "Nessuna",
+    "help": "Gli avvisi di pagamento di questo conto diventano scaduti solo quando un’importazione ne copre la data di scadenza.",
+    "helpNever": "Questo conto non è mai stato importato, quindi gli avvisi di pagamento seguono la data di oggi."
   }
 }

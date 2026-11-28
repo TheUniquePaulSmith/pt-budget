@@ -6,7 +6,8 @@
     "custom": "Eigene Erinnerung",
     "overdue_payment": "Zahlung fällig",
     "budget_overspend": "Budgetüberschreitung",
-    "loan_promo_ending": "Zahlungsfrist Darlehen"
+    "loan_promo_ending": "Zahlungsfrist Darlehen",
+    "stale_account": "Konto nicht importiert"
   },
   "typeDescription": {
     "birthday": "Geburtstage, an die Sie erinnert werden möchten, jährlich wiederkehrend.",
@@ -15,7 +16,8 @@
     "custom": "Alles andere, einmalig oder wiederkehrend.",
     "overdue_payment": "Abonnements und Rechnungen, die Sie von Hand bezahlen und die fällig oder überfällig sind (Serien ohne Lastschrift).",
     "budget_overspend": "Eine Budgetkategorie, die ihren Monatsbetrag überschritten hat.",
-    "loan_promo_ending": "Ein Darlehen mit aufgeschobenen Zinsen, dessen Zahlungsfrist naht oder mit offenem Saldo verstrichen ist, sodass Zinsen nachberechnet werden können."
+    "loan_promo_ending": "Ein Darlehen mit aufgeschobenen Zinsen, dessen Zahlungsfrist naht oder mit offenem Saldo verstrichen ist, sodass Zinsen nachberechnet werden können.",
+    "stale_account": "Ein bereits importiertes Konto, dessen Daten seit Monaten enden, sodass seine Zahlungshinweise nicht bestätigt werden können."
   },
   "recurrence": {
     "once": "Einmalig",
@@ -36,7 +38,8 @@
     "overdue_one": "{{count}} Tag überfällig",
     "overdue_other": "{{count}} Tage überfällig",
     "noDate": "Kein Datum",
-    "snoozedUntil": "Zurückgestellt bis {{date}}"
+    "snoozedUntil": "Zurückgestellt bis {{date}}",
+    "notConfirmed": "Nicht bestätigt"
   },
   "dueLabel": {
     "today": "heute fällig",
@@ -50,7 +53,10 @@
     "overduePayment": {
       "title": "{{name}} {{due}}",
       "body": "Zahlung erwartet am {{date}}. Markieren Sie die Serie als Lastschrift, um diese Hinweise zu beenden.",
-      "bodyWithAmount": "Zahlung ({{amount}}) erwartet am {{date}}. Markieren Sie die Serie als Lastschrift, um diese Hinweise zu beenden."
+      "bodyWithAmount": "Zahlung ({{amount}}) erwartet am {{date}}. Markieren Sie die Serie als Lastschrift, um diese Hinweise zu beenden.",
+      "unconfirmedTitle": "{{name}} war am {{date}} fällig, noch nicht bestätigt",
+      "unconfirmedBody": "{{account}} ist bis {{through}} importiert. Importieren Sie einen neueren Kontoauszug, um zu sehen, ob bezahlt wurde.",
+      "unconfirmedBodyNoAccount": "Das Konto ist bis {{through}} importiert. Importieren Sie einen neueren Kontoauszug, um zu sehen, ob bezahlt wurde."
     },
     "loanPromo": {
       "chargedTitle": "{{name}}: aufgeschobene Zinsen berechnet",
@@ -67,6 +73,10 @@
       "body": "{{spent}} von {{budgeted}} im {{month}} ausgegeben ({{over}} darüber).",
       "bodyCarriedIn": "{{spent}} von {{budgeted}} inkl. {{carried}} Übertrag im {{month}} ausgegeben ({{over}} darüber).",
       "bodyCarriedOver": "{{spent}} von {{budgeted}} inkl. {{carried}} Übertrag im {{month}} ausgegeben ({{over}} darüber)."
+    },
+    "staleAccount": {
+      "title": "{{account}} braucht einen neuen Import",
+      "body": "Die importierten Transaktionen enden am {{date}}. Importieren Sie einen aktuellen Kontoauszug, damit die Zahlungshinweise stimmen."
     }
   },
   "page": {
@@ -116,7 +126,9 @@
     "snoozeConfirm": "Zurückstellen",
     "completeFailed": "Die Benachrichtigung konnte nicht als erledigt markiert werden",
     "dismissFailed": "Die Benachrichtigung konnte nicht verworfen werden",
-    "snoozeFailed": "Die Benachrichtigung konnte nicht zurückgestellt werden"
+    "snoozeFailed": "Die Benachrichtigung konnte nicht zurückgestellt werden",
+    "importNewer": "Neueren Kontoauszug importieren",
+    "importNewerAria": "Neueren Kontoauszug für {{title}} importieren"
   },
   "dashboardCard": {
     "title": "Erinnerungen & Hinweise",
@@ -152,7 +164,14 @@
     "leadInvalid": "Die Vorlaufzeit muss eine ganze Zahl von Tagen zwischen 0 und 365 sein",
     "osUnsupported": "Dieser Browser unterstützt keine Betriebssystem-Benachrichtigungen.",
     "osBlocked": "Der Browser hat Benachrichtigungen für diese Website blockiert. Erlauben Sie sie in den Website-Einstellungen des Browsers und versuchen Sie es erneut.",
-    "osNotGranted": "Die Berechtigung für Benachrichtigungen wurde nicht erteilt."
+    "osNotGranted": "Die Berechtigung für Benachrichtigungen wurde nicht erteilt.",
+    "graceTitle": "Zahlungshinweise und Importe",
+    "graceHelp": "Eine Zahlung gilt erst als überfällig, wenn ein Import, der so viele Tage über ihr Fälligkeitsdatum hinausreicht, sie nicht enthält. Bis dahin wird sie als nicht bestätigt angezeigt, ohne Browser-Benachrichtigung.",
+    "graceLabel": "Buchungsfrist (Tage)",
+    "graceInvalid": "Die Buchungsfrist muss eine ganze Zahl von Tagen zwischen 0 und {{max}} sein",
+    "staleLabel": "Erinnern nach (Monaten)",
+    "staleHelp": "Ein bereits importiertes Konto löst den Hinweis „Konto nicht importiert“ aus, sobald seine importierten Daten so viele Monate alt sind.",
+    "staleInvalid": "Die Erinnerung muss eine ganze Zahl von Monaten zwischen 1 und {{max}} sein"
   },
   "editor": {
     "editTitle": "Erinnerung bearbeiten",

@@ -87,7 +87,11 @@
     "closedTitle": "Encerrada",
     "countedInNetWorth": "Contabilizada no patrimônio líquido",
     "excluded": "Excluída",
-    "empty": "Nenhuma conta ainda. Adicione sua primeira conta para começar."
+    "empty": "Nenhuma conta ainda. Adicione sua primeira conta para começar.",
+    "columnDataThrough": "Dados até",
+    "importedOn": "Importada em {{date}}",
+    "neverImported": "Nunca importada",
+    "dataThroughLine": "Dados até {{date}}"
   },
   "page": {
     "summary": "{{accounts}} • {{people}}",
@@ -159,5 +163,15 @@
     "editTitle": "Editar usuário",
     "displayNameLabel": "Nome de exibição",
     "saving": "Salvando..."
+  },
+  "importStatus": {
+    "title": "Importações",
+    "lastImport": "Última importação",
+    "dataThrough": "Dados até",
+    "latestTransaction": "Última transação",
+    "never": "Nunca",
+    "none": "Nenhuma",
+    "help": "Os alertas de pagamento desta conta só passam a atrasados quando uma importação cobre a data de vencimento.",
+    "helpNever": "Esta conta nunca foi importada, então os alertas de pagamento seguem a data de hoje."
   }
 }

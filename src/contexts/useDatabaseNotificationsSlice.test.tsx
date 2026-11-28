@@ -153,15 +153,22 @@ describe('useDatabaseNotificationsSlice', () => {
       enabled: true,
       osEnabled: false,
       lastScanAt: null,
+      staleAccountMonths: 6,
     });
 
     await act(async () => {
       await result.current.setNotificationsEnabled(false);
       await result.current.setOsNotificationsEnabled(true);
+      await result.current.setStaleAccountMonths(9);
     });
     expect(service.appMetadata.set).toHaveBeenCalledWith('notifications.enabled', '0');
     expect(service.appMetadata.set).toHaveBeenCalledWith('notifications.os_enabled', '1');
-    await expect(result.current.getNotificationPreferences()).resolves.toMatchObject({ enabled: false, osEnabled: true });
+    expect(service.appMetadata.set).toHaveBeenCalledWith('notifications.staleAccountMonths', '9');
+    await expect(result.current.getNotificationPreferences()).resolves.toMatchObject({
+      enabled: false,
+      osEnabled: true,
+      staleAccountMonths: 9,
+    });
   });
 
   it('runs the scan against the live service, writes alerts and refreshes the collection once', async () => {

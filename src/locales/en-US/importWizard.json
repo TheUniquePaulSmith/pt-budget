@@ -256,7 +256,8 @@
     "blockedRows_other": "{{count}} rows can't be read. Fix them or leave them out.",
     "accounts": "Choose or confirm the account.",
     "confirm": "Confirm how the file is read.",
-    "noRows": "There is nothing left to import in this file."
+    "noRows": "There is nothing left to import in this file.",
+    "coversThrough": "Choose a “Covers through” date from {{from}} to {{to}}."
   },
   "summary": {
     "title": "Summary",
@@ -283,7 +284,14 @@
     "formatName": "Name of the format",
     "import_one": "Import {{count}} transaction",
     "import_other": "Import {{count}} transactions",
-    "checking": "Checking…"
+    "checking": "Checking…",
+    "coversThrough": "Covers through",
+    "coversThroughHelp": "Your accounts' data counts as complete up to this date. A payment due before it that this file does not show is reported as overdue; one due after it waits for your next import.",
+    "coversThroughSource": {
+      "statement_end": "The statement's own end date",
+      "import_date": "Today, the day you import",
+      "user": "The date you chose"
+    }
   },
   "done": {
     "title": "Import finished",

@@ -26,6 +26,7 @@ import {
 } from '@/lib/statementImport';
 
 import {
+  accountCheckpoints,
   accountValuesOf,
   buildCommitInput,
   buildProfileInput,
@@ -47,6 +48,8 @@ import {
 } from './wizardModel';
 
 const log = logger.child({ component: 'ImportWizard' });
+/** How often the open wizard checks whether the calendar day changed. */
+const DAY_CHECK_MS = 60_000;
 
 /** How long a change to the rows may settle before they are staged again. */
 const STAGING_DELAY_MS = 250;
@@ -90,6 +93,12 @@ export function useImportWizard() {
 
   const sliceRef = useRef(slice);
   sliceRef.current = slice;
+
+  // A wizard left open past midnight: "covers through" may reach the new day.
+  useEffect(() => {
+    const timer = setInterval(() => dispatch({ type: 'todayChanged', today: todayDateOnly() }), DAY_CHECK_MS);
+    return () => clearInterval(timer);
+  }, [dispatch]);
 
   /** The bytes of every dropped file, for a second read with other reader choices. */
   const sourcesRef = useRef(new Map<string, SourceFile>());
@@ -386,6 +395,7 @@ export function useImportWizard() {
   const importCurrent = useCallback(
     () =>
       enqueue(async () => {
+        dispatch({ type: 'todayChanged', today: todayDateOnly() });
         let statement = currentStatement(stateRef.current);
         if (!statement || stateRef.current.busy || importBlockers(statement).length > 0) return;
         const statementId = statement.id;
@@ -413,6 +423,15 @@ export function useImportWizard() {
           if (summary.toImport === 0) {
             // Everything is already stored (or left out): no empty batch is written.
             await sliceRef.current.discardStagedImport();
+            if (summary.alreadyImported > 0) {
+              // The file still shows how far its accounts' data goes: a payment
+              // it does not list is now known to be missing (schema v8).
+              try {
+                await sliceRef.current.recordAccountCheckpoints(accountCheckpoints(statement));
+              } catch (error) {
+                operation.warn('Could not record how far the accounts were imported', { error });
+              }
+            }
             dispatch({
               type: 'statementFinished',
               statementId,

@@ -87,7 +87,11 @@
     "closedTitle": "Clôturé",
     "countedInNetWorth": "Compté dans le patrimoine net",
     "excluded": "Exclu",
-    "empty": "Aucun compte pour l'instant. Ajoutez votre premier compte pour commencer."
+    "empty": "Aucun compte pour l'instant. Ajoutez votre premier compte pour commencer.",
+    "columnDataThrough": "Données jusqu’au",
+    "importedOn": "Importé le {{date}}",
+    "neverImported": "Jamais importé",
+    "dataThroughLine": "Données jusqu’au {{date}}"
   },
   "page": {
     "summary": "{{accounts}} • {{people}}",
@@ -159,5 +163,15 @@
     "editTitle": "Modifier l'utilisateur",
     "displayNameLabel": "Nom d'affichage",
     "saving": "Enregistrement..."
+  },
+  "importStatus": {
+    "title": "Importations",
+    "lastImport": "Dernière importation",
+    "dataThrough": "Données jusqu’au",
+    "latestTransaction": "Dernière transaction",
+    "never": "Jamais",
+    "none": "Aucune",
+    "help": "Les alertes de paiement de ce compte ne passent en retard qu’une fois leur échéance couverte par une importation.",
+    "helpNever": "Ce compte n’a jamais été importé : les alertes de paiement suivent donc la date du jour."
   }
 }

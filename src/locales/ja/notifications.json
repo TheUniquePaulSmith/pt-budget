@@ -6,7 +6,8 @@
     "custom": "カスタムリマインダー",
     "overdue_payment": "支払期日",
     "budget_overspend": "予算超過",
-    "loan_promo_ending": "ローンの支払期限"
+    "loan_promo_ending": "ローンの支払期限",
+    "stale_account": "口座の未インポート"
   },
   "typeDescription": {
     "birthday": "毎年繰り返す、覚えておきたい誕生日。",
@@ -15,7 +16,8 @@
     "custom": "その他、1 回限りまたは繰り返しの予定。",
     "overdue_payment": "手動で支払うサブスクリプションや請求のうち、期日が来たものや超過したもの（自動引き落としに設定されていないシリーズ）。",
     "budget_overspend": "月の予算額を超過した予算カテゴリ。",
-    "loan_promo_ending": "支払期限が近い、または残高を残して期限を過ぎた金利繰延型ローン。利息がさかのぼって請求される可能性があります。"
+    "loan_promo_ending": "支払期限が近い、または残高を残して期限を過ぎた金利繰延型ローン。利息がさかのぼって請求される可能性があります。",
+    "stale_account": "以前インポートしたものの、データが数か月前で止まっている口座です。支払いアラートを確認できません。"
   },
   "recurrence": {
     "once": "1 回のみ",
@@ -34,7 +36,8 @@
     "dueInDays_other": "あと {{count}} 日",
     "overdue_other": "{{count}} 日超過",
     "noDate": "日付なし",
-    "snoozedUntil": "{{date}} までスヌーズ"
+    "snoozedUntil": "{{date}} までスヌーズ",
+    "notConfirmed": "未確認"
   },
   "dueLabel": {
     "today": "今日が期日",
@@ -46,7 +49,10 @@
     "overduePayment": {
       "title": "{{name}}：{{due}}",
       "body": "{{date}} に支払い予定です。このアラートを止めるには、シリーズを自動引き落としに設定してください。",
-      "bodyWithAmount": "{{date}} に支払い（{{amount}}）予定です。このアラートを止めるには、シリーズを自動引き落としに設定してください。"
+      "bodyWithAmount": "{{date}} に支払い（{{amount}}）予定です。このアラートを止めるには、シリーズを自動引き落としに設定してください。",
+      "unconfirmedTitle": "{{name}} の期日は {{date}} でした（未確認）",
+      "unconfirmedBody": "{{account}} は {{through}} までインポート済みです。支払われたか確認するには、新しい明細をインポートしてください。",
+      "unconfirmedBodyNoAccount": "この口座は {{through}} までインポート済みです。支払われたか確認するには、新しい明細をインポートしてください。"
     },
     "loanPromo": {
       "chargedTitle": "{{name}}：繰延利息が請求されました",
@@ -63,6 +69,10 @@
       "body": "{{month}} の予算 {{budgeted}} に対し {{spent}} 使用（{{over}} 超過）。",
       "bodyCarriedIn": "{{month}} の予算 {{budgeted}}（繰越 {{carried}} を含む）に対し {{spent}} 使用（{{over}} 超過）。",
       "bodyCarriedOver": "{{month}} の予算 {{budgeted}}（繰越 {{carried}} を含む）に対し {{spent}} 使用（{{over}} 超過）。"
+    },
+    "staleAccount": {
+      "title": "{{account}} の新しいインポートが必要です",
+      "body": "インポート済みの取引は {{date}} までです。支払いアラートを正確に保つため、最近の明細をインポートしてください。"
     }
   },
   "page": {
@@ -112,7 +122,9 @@
     "snoozeConfirm": "スヌーズ",
     "completeFailed": "通知を完了にできませんでした",
     "dismissFailed": "通知を却下できませんでした",
-    "snoozeFailed": "通知をスヌーズできませんでした"
+    "snoozeFailed": "通知をスヌーズできませんでした",
+    "importNewer": "新しい明細をインポート",
+    "importNewerAria": "{{title}} の新しい明細をインポート"
   },
   "dashboardCard": {
     "title": "リマインダーとアラート",
@@ -147,7 +159,14 @@
     "leadInvalid": "事前通知の日数は 0 ～ 365 の整数で入力してください",
     "osUnsupported": "このブラウザーは OS 通知に対応していません。",
     "osBlocked": "ブラウザーがこのサイトの通知をブロックしています。ブラウザーのサイト設定で許可してから、もう一度お試しください。",
-    "osNotGranted": "通知の許可が得られませんでした。"
+    "osNotGranted": "通知の許可が得られませんでした。",
+    "graceTitle": "支払いアラートとインポート",
+    "graceHelp": "期日からこの日数を過ぎた分までのインポートにも支払いがない場合にのみ、期限超過とみなします。それまでは未確認として表示し、ブラウザー通知は送りません。",
+    "graceLabel": "反映の猶予（日）",
+    "graceInvalid": "反映の猶予は 0〜{{max}} の整数（日）で入力してください",
+    "staleLabel": "通知までの期間（か月）",
+    "staleHelp": "以前インポートした口座は、インポート済みデータがこの月数を過ぎると「口座の未インポート」アラートを出します。",
+    "staleInvalid": "通知までの期間は 1〜{{max}} の整数（か月）で入力してください"
   },
   "editor": {
     "editTitle": "リマインダーを編集",

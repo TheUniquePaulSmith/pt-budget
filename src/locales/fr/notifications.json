@@ -6,7 +6,8 @@
     "custom": "Rappel personnalisé",
     "overdue_payment": "Paiement à effectuer",
     "budget_overspend": "Dépassement de budget",
-    "loan_promo_ending": "Date limite de remboursement de prêt"
+    "loan_promo_ending": "Date limite de remboursement de prêt",
+    "stale_account": "Compte non importé"
   },
   "typeDescription": {
     "birthday": "Les anniversaires dont vous voulez vous souvenir, répétés chaque année.",
@@ -15,7 +16,8 @@
     "custom": "Tout le reste, ponctuel ou répété.",
     "overdue_payment": "Abonnements et factures que vous payez manuellement, à échéance ou en retard (séries non marquées en prélèvement automatique).",
     "budget_overspend": "Une catégorie budgétaire qui a dépassé son montant mensuel.",
-    "loan_promo_ending": "Un prêt à intérêts différés dont la date limite de remboursement approche, ou est passée avec un solde, et dont les intérêts pourraient être facturés rétroactivement."
+    "loan_promo_ending": "Un prêt à intérêts différés dont la date limite de remboursement approche, ou est passée avec un solde, et dont les intérêts pourraient être facturés rétroactivement.",
+    "stale_account": "Un compte importé auparavant dont les données s’arrêtent il y a plusieurs mois : ses alertes de paiement ne peuvent pas être confirmées."
   },
   "recurrence": {
     "once": "Une fois",
@@ -36,7 +38,8 @@
     "overdue_one": "{{count}} jour de retard",
     "overdue_other": "{{count}} jours de retard",
     "noDate": "Sans date",
-    "snoozedUntil": "Reportée jusqu'au {{date}}"
+    "snoozedUntil": "Reportée jusqu'au {{date}}",
+    "notConfirmed": "Non confirmé"
   },
   "dueLabel": {
     "today": "à payer aujourd'hui",
@@ -50,7 +53,10 @@
     "overduePayment": {
       "title": "{{name}} {{due}}",
       "body": "Paiement attendu le {{date}}. Marquez la série en prélèvement automatique pour arrêter ces alertes.",
-      "bodyWithAmount": "Paiement ({{amount}}) attendu le {{date}}. Marquez la série en prélèvement automatique pour arrêter ces alertes."
+      "bodyWithAmount": "Paiement ({{amount}}) attendu le {{date}}. Marquez la série en prélèvement automatique pour arrêter ces alertes.",
+      "unconfirmedTitle": "{{name}} était dû le {{date}}, pas encore confirmé",
+      "unconfirmedBody": "{{account}} est importé jusqu’au {{through}}. Importez un relevé plus récent pour vérifier s’il a été payé.",
+      "unconfirmedBodyNoAccount": "Le compte est importé jusqu’au {{through}}. Importez un relevé plus récent pour vérifier s’il a été payé."
     },
     "loanPromo": {
       "chargedTitle": "{{name}} : intérêts différés facturés",
@@ -67,6 +73,10 @@
       "body": "{{spent}} dépensés sur {{budgeted}} en {{month}} ({{over}} de dépassement).",
       "bodyCarriedIn": "{{spent}} dépensés sur {{budgeted}} dont {{carried}} de report entrant en {{month}} ({{over}} de dépassement).",
       "bodyCarriedOver": "{{spent}} dépensés sur {{budgeted}} dont {{carried}} reportés en {{month}} ({{over}} de dépassement)."
+    },
+    "staleAccount": {
+      "title": "{{account}} doit être importé à nouveau",
+      "body": "Ses transactions importées s’arrêtent le {{date}}. Importez un relevé récent pour que ses alertes de paiement restent exactes."
     }
   },
   "page": {
@@ -116,7 +126,9 @@
     "snoozeConfirm": "Reporter",
     "completeFailed": "Impossible de marquer la notification comme faite",
     "dismissFailed": "Impossible d'ignorer la notification",
-    "snoozeFailed": "Impossible de reporter la notification"
+    "snoozeFailed": "Impossible de reporter la notification",
+    "importNewer": "Importer un relevé plus récent",
+    "importNewerAria": "Importer un relevé plus récent pour {{title}}"
   },
   "dashboardCard": {
     "title": "Rappels et alertes",
@@ -152,7 +164,14 @@
     "leadInvalid": "Le délai de prévenance doit être un nombre entier de jours entre 0 et 365",
     "osUnsupported": "Ce navigateur ne prend pas en charge les notifications système.",
     "osBlocked": "Le navigateur a bloqué les notifications pour ce site. Autorisez-les dans les paramètres du site du navigateur, puis réessayez.",
-    "osNotGranted": "L'autorisation de notification n'a pas été accordée."
+    "osNotGranted": "L'autorisation de notification n'a pas été accordée.",
+    "graceTitle": "Alertes de paiement et importations",
+    "graceHelp": "Un paiement n’est considéré en retard que lorsqu’une importation couvrant ce nombre de jours après son échéance ne le montre pas. D’ici là, il est affiché comme non confirmé, sans notification du navigateur.",
+    "graceLabel": "Délai de comptabilisation (jours)",
+    "graceInvalid": "Le délai de comptabilisation doit être un nombre entier de jours entre 0 et {{max}}",
+    "staleLabel": "Rappeler après (mois)",
+    "staleHelp": "Un compte déjà importé déclenche une alerte « Compte non importé » lorsque ses données importées ont ce nombre de mois.",
+    "staleInvalid": "Le rappel doit être un nombre entier de mois entre 1 et {{max}}"
   },
   "editor": {
     "editTitle": "Modifier le rappel",

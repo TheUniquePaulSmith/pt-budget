@@ -256,7 +256,8 @@
     "blockedRows_other": "{{count}} lignes ne peuvent pas être lues. Corrigez-les ou excluez-les.",
     "accounts": "Choisissez ou confirmez le compte.",
     "confirm": "Confirmez la façon dont le fichier est lu.",
-    "noRows": "Il ne reste rien à importer dans ce fichier."
+    "noRows": "Il ne reste rien à importer dans ce fichier.",
+    "coversThrough": "Choisissez une date « Données complètes jusqu’au » entre le {{from}} et le {{to}}."
   },
   "summary": {
     "title": "Récapitulatif",
@@ -283,7 +284,14 @@
     "formatName": "Nom du format",
     "import_one": "Importer {{count}} transaction",
     "import_other": "Importer {{count}} transactions",
-    "checking": "Vérification…"
+    "checking": "Vérification…",
+    "coversThrough": "Données complètes jusqu’au",
+    "coversThroughHelp": "Les données de vos comptes sont considérées comme complètes jusqu’à cette date. Un paiement dû avant cette date et absent de ce fichier est signalé en retard ; un paiement dû après attend votre prochaine importation.",
+    "coversThroughSource": {
+      "statement_end": "La date de fin du relevé lui-même",
+      "import_date": "Aujourd’hui, le jour de l’importation",
+      "user": "La date que vous avez choisie"
+    }
   },
   "done": {
     "title": "Importation terminée",

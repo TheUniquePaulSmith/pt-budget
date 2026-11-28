@@ -87,7 +87,11 @@
     "closedTitle": "Closed",
     "countedInNetWorth": "Counted in net worth",
     "excluded": "Excluded",
-    "empty": "No accounts yet. Add your first account to get started."
+    "empty": "No accounts yet. Add your first account to get started.",
+    "columnDataThrough": "Data through",
+    "importedOn": "Imported {{date}}",
+    "neverImported": "Never imported",
+    "dataThroughLine": "Data through {{date}}"
   },
   "page": {
     "summary": "{{accounts}} • {{people}}",
@@ -159,5 +163,15 @@
     "editTitle": "Edit User",
     "displayNameLabel": "Display Name",
     "saving": "Saving..."
+  },
+  "importStatus": {
+    "title": "Imports",
+    "lastImport": "Last import",
+    "dataThrough": "Data through",
+    "latestTransaction": "Latest transaction",
+    "never": "Never",
+    "none": "None",
+    "help": "Payment alerts for this account turn overdue only once an import covers their due date.",
+    "helpNever": "This account has never been imported, so payment alerts follow today's date."
   }
 }

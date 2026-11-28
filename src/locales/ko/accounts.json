@@ -87,7 +87,11 @@
     "closedTitle": "해지됨",
     "countedInNetWorth": "순자산에 포함",
     "excluded": "제외됨",
-    "empty": "아직 계좌가 없어요. 첫 계좌를 추가해 시작하세요."
+    "empty": "아직 계좌가 없어요. 첫 계좌를 추가해 시작하세요.",
+    "columnDataThrough": "데이터 기준일",
+    "importedOn": "{{date}}에 가져옴",
+    "neverImported": "가져온 적 없음",
+    "dataThroughLine": "{{date}}까지의 데이터"
   },
   "page": {
     "summary": "{{accounts}} • {{people}}",
@@ -158,5 +162,15 @@
     "editTitle": "사용자 편집",
     "displayNameLabel": "표시 이름",
     "saving": "저장 중..."
+  },
+  "importStatus": {
+    "title": "가져오기",
+    "lastImport": "마지막 가져오기",
+    "dataThrough": "데이터 기준일",
+    "latestTransaction": "최근 거래",
+    "never": "없음",
+    "none": "없음",
+    "help": "이 계좌의 결제 경고는 가져온 데이터가 납부일을 포함한 뒤에야 연체가 돼요.",
+    "helpNever": "이 계좌는 가져온 적이 없어서 결제 경고가 오늘 날짜를 따라요."
   }
 }

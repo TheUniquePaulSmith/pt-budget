@@ -116,7 +116,9 @@
     "ignoreTooltip": "Ignorieren (auf dieser Seite ausblenden)",
     "restoreTooltip": "Wieder aktivieren",
     "editTooltip": "Bearbeiten",
-    "viewTransactionsTooltip": "Transaktionen anzeigen"
+    "viewTransactionsTooltip": "Transaktionen anzeigen",
+    "notConfirmed": "Nicht bestätigt",
+    "notConfirmedHelp": "{{account}} ist bis {{date}} importiert. Importieren Sie einen neueren Kontoauszug, um zu sehen, ob bezahlt wurde."
   },
   "seriesDetailDialog": {
     "columnDate": "Datum",

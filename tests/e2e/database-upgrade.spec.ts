@@ -50,7 +50,18 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
 
   // Opening an older database runs the pending migrations before the app
   // reports Connected, so the version is already current here.
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('7');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('8');
+
+  // Version 8: how far each account's data is complete, and the posting grace.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT group_concat(name, ',') FROM pragma_table_info('account_data_checkpoints')"
+    )
+  ).toBe('id,account_id,import_batch_id,checked_at,data_through,through_source,latest_transaction_date');
+  expect(
+    await runQueryAndReadFirstCell(page, "SELECT COUNT(*) FROM pragma_table_info('notification_settings') WHERE name = 'grace_days'")
+  ).toBe('1');
 
   // Version 7: the statement-import tables and the import batch details exist
   // on an upgraded database too, with the same columns a fresh one gets.
@@ -246,7 +257,7 @@ test('upgrades a schema v2 archive to the current version, keeping rows and addi
   test.skip(!fs.existsSync(V2_ARCHIVE_PATH), 'v2 baseline archive not captured (see tests/e2e-tools)');
   await loadArchiveAndUnlock(page, V2_ARCHIVE_PATH);
 
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('7');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('8');
   // A v2 database already has import_batches; version 7 only adds its three columns.
   expect(
     await runQueryAndReadFirstCell(
@@ -254,6 +265,13 @@ test('upgrades a schema v2 archive to the current version, keeping rows and addi
       "SELECT COUNT(*) FROM pragma_table_info('import_batches') WHERE name IN ('profile_id', 'file_format', 'issues_json')"
     )
   ).toBe('3');
+  // Version 8 backfills one checkpoint per earlier batch and account it wrote to.
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT (SELECT COUNT(*) FROM account_data_checkpoints WHERE through_source = 'backfill') = (SELECT COUNT(*) FROM (SELECT DISTINCT t.import_batch_id, t.account_id FROM transactions t JOIN import_batches b ON b.id = t.import_batch_id JOIN accounts a ON a.id = t.account_id))"
+    )
+  ).toBe('1');
 
   // Rows survive: the v2 archive carries transactions, series and links.
   expect(Number(await runQueryAndReadFirstCell(page, 'SELECT COUNT(*) FROM transactions'))).toBeGreaterThan(0);

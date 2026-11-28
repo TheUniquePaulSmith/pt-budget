@@ -116,7 +116,9 @@
     "ignoreTooltip": "忽略（从此页面隐藏）",
     "restoreTooltip": "恢复为活跃",
     "editTooltip": "编辑",
-    "viewTransactionsTooltip": "查看交易"
+    "viewTransactionsTooltip": "查看交易",
+    "notConfirmed": "未确认",
+    "notConfirmedHelp": "{{account}} 已导入至 {{date}}。请导入更新的对账单，查看是否已付款。"
   },
   "seriesDetailDialog": {
     "columnDate": "日期",

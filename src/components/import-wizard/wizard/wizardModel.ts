@@ -45,7 +45,7 @@ import {
   type StatementTable,
 } from '@/lib/statementImport';
 import type { ImportClassificationPreview, TransferPairPreview, TypeDecision } from '@/types/classification';
-import type { AccountType } from '@/types/database';
+import type { AccountCheckpointInput, AccountType, DataThroughSource } from '@/types/database';
 
 // ---------------------------------------------------------------------------
 // Shapes
@@ -198,6 +198,13 @@ export interface StatementSession {
   selectedPairIds: string[];
   rememberFormat: boolean;
   formatName: string;
+  /** The day the import runs (`yyyy-MM-dd`): the latest "covers through" date allowed. */
+  importDay: string;
+  /**
+   * The date the user says the file covers through (schema v8); null keeps
+   * the default (`coversThroughOf`): the file's own end date, else the import day.
+   */
+  coversThrough: string | null;
   /** D16: the saved format matched and nothing blocks, so the wizard opened on the Summary. */
   fastPath: boolean;
   status: 'pending' | 'done';
@@ -262,6 +269,7 @@ export type WizardAction =
   | { type: 'pairToggled'; pairId: string; selected: boolean }
   | { type: 'rememberSet'; remember: boolean }
   | { type: 'formatNameSet'; name: string }
+  | { type: 'coversThroughSet'; date: string | null }
   | { type: 'stagingStarted'; statementId: string; version: number }
   | {
       type: 'staged';
@@ -276,7 +284,9 @@ export type WizardAction =
   | { type: 'importFailed'; error: string }
   | { type: 'statementFinished'; statementId: string; result: StatementResult }
   | { type: 'finished' }
-  | { type: 'reset'; today: string };
+  | { type: 'reset'; today: string }
+  /** The calendar day moved on while the wizard was open: the latest "covers through" date follows it. */
+  | { type: 'todayChanged'; today: string };
 
 export interface WizardDeps {
   propose: typeof proposeLayout;
@@ -607,6 +617,7 @@ export type ImportBlocker =
   | { kind: 'missing'; parts: Array<'date' | 'description' | 'amount'> }
   | { kind: 'accounts' }
   | { kind: 'confirm'; subjects: ConfirmSubject[] }
+  | { kind: 'coversThrough'; min: string; max: string }
   | { kind: 'noRows' };
 
 /** D7: everything that keeps Import disabled. */
@@ -627,6 +638,8 @@ export function importBlockers(statement: StatementSession): ImportBlocker[] {
   if (!accountsSettled(statement)) blockers.push({ kind: 'accounts' });
   const confirm = settingsToConfirm(statement);
   if (confirm.length > 0) blockers.push({ kind: 'confirm', subjects: confirm });
+  const covers = coversThroughOf(statement);
+  if (!covers.valid) blockers.push({ kind: 'coversThrough', min: covers.min, max: covers.max });
   if (blockers.length === 0 && rowsToStage(statement).length === 0) blockers.push({ kind: 'noRows' });
   return blockers;
 }
@@ -796,7 +809,63 @@ export function buildCommitInput(
     excludedTempIds: excluded,
     stagedDecisions: [...rowDecisions, ...pairDecisions.filter((decision) => decision.key.startsWith('tmp:'))],
     existingDecisions: pairDecisions.filter((decision) => decision.key.startsWith('tx:')),
+    checkpoints: accountCheckpoints(statement),
   };
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+export interface CoversThrough {
+  /** The date the accounts' data counts as complete through. */
+  date: string;
+  source: Exclude<DataThroughSource, 'backfill'>;
+  /** The newest row of the file (never later than the import day): the earliest date allowed. */
+  min: string;
+  /** The import day: the latest date allowed. */
+  max: string;
+  /** False when the user's date is outside min…max. */
+  valid: boolean;
+}
+
+/**
+ * How far this file says its accounts' data is complete (schema v8): what
+ * the user set, else the file's own end date (OFX DTEND) kept between the
+ * newest row and the import day, else the import day. A payment due before
+ * that date that the data does not show is confirmed as missing.
+ */
+export function coversThroughOf(statement: StatementSession): CoversThrough {
+  const max = statement.importDay;
+  const newest = rowsToStage(statement).reduce<string | null>((latest, row) => (latest && latest >= row.date ? latest : row.date), null);
+  const min = newest && newest < max ? newest : max;
+  if (statement.coversThrough != null) {
+    const date = statement.coversThrough;
+    return { date, source: 'user', min, max, valid: ISO_DAY.test(date) && date >= min && date <= max };
+  }
+  const end = statement.table.meta.statementEnd;
+  if (end && ISO_DAY.test(end)) {
+    return { date: end > max ? max : end < min ? min : end, source: 'statement_end', min, max, valid: true };
+  }
+  return { date: max, source: 'import_date', min, max, valid: true };
+}
+
+/**
+ * One checkpoint per account the statement writes to (rows already stored
+ * count: an import that brings nothing new still says how far the data goes).
+ */
+export function accountCheckpoints(statement: StatementSession): AccountCheckpointInput[] {
+  const covers = coversThroughOf(statement);
+  if (!covers.valid) return [];
+  const newestByAccount = new Map<number, string>();
+  for (const row of rowsToStage(statement)) {
+    const current = newestByAccount.get(row.accountId);
+    if (!current || row.date > current) newestByAccount.set(row.accountId, row.date);
+  }
+  return [...newestByAccount].map(([accountId, latest]) => ({
+    accountId,
+    dataThrough: covers.date,
+    throughSource: covers.source,
+    latestTransactionDate: latest,
+  }));
 }
 
 /** The saved format this statement would write ("Remember this format"). */
@@ -950,6 +1019,8 @@ export function createWizardReducer(deps: WizardDeps) {
       selectedPairIds: [],
       rememberFormat: true,
       formatName: defaultFormatName(prepared.table, profile),
+      importDay: state.today,
+      coversThrough: null,
       fastPath: false,
       status: 'pending',
       result: null,
@@ -1417,6 +1488,9 @@ export function createWizardReducer(deps: WizardDeps) {
       case 'formatNameSet':
         return updateCurrent(state, (statement) => ({ ...statement, formatName: action.name }));
 
+      case 'coversThroughSet':
+        return updateCurrent(state, (statement) => ({ ...statement, coversThrough: action.date }));
+
       case 'stagingStarted':
         return updateStatement(state, action.statementId, (statement) => ({
           ...statement,
@@ -1477,6 +1551,16 @@ export function createWizardReducer(deps: WizardDeps) {
 
       case 'finished':
         return { ...state, busy: null, step: 'done' };
+
+      case 'todayChanged':
+        if (action.today === state.today) return state;
+        return {
+          ...state,
+          today: action.today,
+          statements: state.statements.map((statement) =>
+            statement.status === 'pending' ? { ...statement, importDay: action.today } : statement
+          ),
+        };
 
       case 'reset':
         return {

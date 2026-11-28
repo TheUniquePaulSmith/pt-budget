@@ -7,19 +7,22 @@
 import type { ChipProps } from '@mui/material';
 import type { TFunction } from 'i18next';
 
-import { todayLocalISO } from '@/lib/dateOnly';
+import { addDaysISO, todayLocalISO } from '@/lib/dateOnly';
 import {
   budgetOverspendText,
   daysBetween,
+  isUnconfirmedOverdue,
+  overdueConfirmation,
   loanPromoBody,
   loanPromoTitle,
   overduePaymentText,
   parsePayload,
+  staleAccountText,
   type StoredBudgetOverspendPayload,
   type StoredLoanPromoPayload,
 } from '@/lib/notificationService';
 import type { AppNotification, NotificationRecurrence, NotificationStatus } from '@/types/database';
-import { ALERT_TYPES, REMINDER_TYPES, type ClassifiedNotification, type NotificationType, type OverduePaymentPayload } from '@/types/notifications';
+import { ALERT_TYPES, REMINDER_TYPES, type ClassifiedNotification, type NotificationType, type OverduePaymentPayload, type StaleAccountPayload } from '@/types/notifications';
 
 export type NotificationsT = TFunction<'notifications'>;
 
@@ -51,9 +54,25 @@ export function statusLabel(status: string, t: NotificationsT): string {
   return (STATUSES as readonly string[]).includes(status) ? t(`status.${status as NotificationStatus}`) : status;
 }
 
-export function typeChipColor(notification: Pick<AppNotification, 'kind' | 'type'>): ChipProps['color'] {
+/** The day a classified row was classified against (`daysUntil` counts from it). */
+function classifiedToday(entry: ClassifiedNotification): string {
+  return entry.occurrence && entry.daysUntil !== null ? addDaysISO(entry.occurrence, -entry.daysUntil) : todayLocalISO();
+}
+
+/** Schema v8: a passed payment due date the account's imports do not cover yet. */
+export function isUnconfirmedEntry(entry: ClassifiedNotification): boolean {
+  return isUnconfirmedOverdue(entry.notification, classifiedToday(entry));
+}
+
+export function typeChipColor(
+  notification: Pick<AppNotification, 'kind' | 'type'> & Partial<Pick<AppNotification, 'payload_json'>>,
+  today: string = todayLocalISO()
+): ChipProps['color'] {
   if (notification.kind === 'alert') {
-    return notification.type === 'budget_overspend' || notification.type === 'loan_promo_ending' ? 'warning' : 'error';
+    if (isUnconfirmedOverdue({ type: notification.type, payload_json: notification.payload_json ?? null }, today)) return 'warning';
+    return notification.type === 'budget_overspend' || notification.type === 'loan_promo_ending' || notification.type === 'stale_account'
+      ? 'warning'
+      : 'error';
   }
   return 'primary';
 }
@@ -65,6 +84,7 @@ export function describeTiming(entry: ClassifiedNotification, t: NotificationsT,
     return t('timing.snoozedUntil', { date: formatDate(notification.snoozed_until) });
   }
   if (daysUntil === null) return t('timing.noDate');
+  if (isUnconfirmedEntry(entry)) return t('timing.notConfirmed');
   if (daysUntil === 0) return t('timing.dueToday');
   if (daysUntil === 1) return t('timing.dueTomorrow');
   if (daysUntil > 1) return t('timing.dueInDays', { count: daysUntil });
@@ -73,6 +93,7 @@ export function describeTiming(entry: ClassifiedNotification, t: NotificationsT,
 
 export function timingColor(entry: ClassifiedNotification): 'error' | 'warning' | 'default' {
   if (entry.daysUntil === null) return 'default';
+  if (isUnconfirmedEntry(entry)) return 'warning';
   if (entry.daysUntil < 0) return 'error';
   if (entry.daysUntil === 0) return 'warning';
   return 'default';
@@ -85,6 +106,8 @@ export interface DescribeNotificationOptions {
   month?: (monthKey: string) => string;
   /** The day "due in N days" counts from (defaults to the local date). */
   today?: string;
+  /** The label of an account (an unconfirmed payment names the account to import). */
+  accountName?: (accountId: number) => string | null;
 }
 
 export interface NotificationText {
@@ -114,11 +137,24 @@ export function describeNotification(
       const payload = parsePayload<OverduePaymentPayload>(notification.payload_json);
       if (!payload?.series_name || !payload.due_date) return stored;
       return overduePaymentText(
-        { name: payload.series_name, daysUntil: daysBetween(today, payload.due_date), dueDate: payload.due_date, expectedAmount: payload.expected_amount ?? null },
+        {
+          name: payload.series_name,
+          daysUntil: daysBetween(today, payload.due_date),
+          dueDate: payload.due_date,
+          expectedAmount: payload.expected_amount ?? null,
+          confirmation: overdueConfirmation(payload, today),
+          dataThrough: payload.data_through ?? null,
+          accountName: payload.account_id == null ? null : (options.accountName?.(payload.account_id) ?? null),
+        },
         t,
         absMoney,
         options.date
       );
+    }
+    case 'stale_account': {
+      const payload = parsePayload<StaleAccountPayload>(notification.payload_json);
+      if (!payload?.account_name || !payload.data_through) return stored;
+      return staleAccountText(payload, t, options.date, options.accountName?.(payload.account_id) ?? null);
     }
     case 'loan_promo_ending': {
       const payload = parsePayload<StoredLoanPromoPayload>(notification.payload_json);

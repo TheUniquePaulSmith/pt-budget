@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 
 import { MasterDetailLayout } from '@/components/common/Form';
 import { APP_BAR_HEIGHT, STATUS_BAR_HEIGHT } from '@/components/common/Layout/sidebarPreference';
-import { useAccountManagementSlice } from '@/contexts/useDatabaseSlices';
+import { useAccountFreshness, useAccountManagementSlice } from '@/contexts/useDatabaseSlices';
 import { logger } from '@/lib/logging';
 import type { Account, AccountCard, User } from '@/types/database';
 import { AccountFormDialog, type AccountFormValues } from './AccountFormDialog';
@@ -51,6 +51,7 @@ export default function AccountsPage() {
   } = useAccountManagementSlice();
 
   const { t } = useTranslation(['accounts', 'common']);
+  const freshness = useAccountFreshness();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -238,6 +239,7 @@ export default function AccountsPage() {
       onAddCard={handleAddCard}
       onUpdateCard={handleUpdateCard}
       onRequestDeleteCard={(card) => requestDelete('card', card)}
+      freshness={freshness.get(selectedAccount.id)}
     />
   ) : null;
 
@@ -286,6 +288,7 @@ export default function AccountsPage() {
             selectedAccountId={selectedAccountId}
             onSelect={setSelectedAccountId}
             variant={isMobile ? 'list' : 'grid'}
+            freshness={freshness}
           />
         }
         detail={detail}

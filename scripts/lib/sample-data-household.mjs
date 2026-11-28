@@ -1079,6 +1079,15 @@ export function buildHouseholdTransactionEntries(scenario) {
   // the same day; card payments post a day later.
   const pushTransfer = (month, spec) => {
     const transferKey = `${month.monthKey}:${spec.key}`;
+    // Both legs or neither: a leg whose partner falls outside the window
+    // (a card payment posting the day after the reference day, or the day
+    // before the window starts) would be a lone money-in / money-out row that
+    // the app types as a refund or an expense, not a transfer.
+    const inWindow = (day) => {
+      const date = buildMonthDateString(month.monthDate, day);
+      return date >= scenario.rangeStart && date <= scenario.rangeEnd;
+    };
+    if (!inWindow(spec.day) || !inWindow(spec.inDay ?? spec.day)) return false;
     const outPushed = push(month, {
       day: spec.day,
       amount: -spec.amount,

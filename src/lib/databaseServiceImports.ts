@@ -48,6 +48,7 @@ import type {
   StagedRowInput,
 } from './statementImport/types';
 import { computeTransactionHash } from './transactionHash';
+import type { TripExpensesService } from './databaseServiceTripExpenses';
 
 type ImportsTransport = Pick<DatabaseWorkerTransport, 'query' | 'batchQueryReturning'>;
 
@@ -190,7 +191,11 @@ export function storedDecisionParams(decisions: TypeDecision[]): { full: unknown
 }
 
 export class ImportsService {
-  constructor(private readonly worker: ImportsTransport) {}
+  constructor(
+    private readonly worker: ImportsTransport,
+    /** Trip business expenses whose rows an undo removes (optional for tests of the import path alone). */
+    private readonly tripExpenses?: Pick<TripExpensesService, 'cleanupForImportBatch'>
+  ) {}
 
   /**
    * Runs `work` between BEGIN and COMMIT, rolling back when it throws. The
@@ -697,6 +702,7 @@ export class ImportsService {
       await this.inTransaction(async () => {
         await this.worker.query(IMPORT_QUERIES.DELETE_BATCH_SERIES_LINKS, [batchId]);
         await this.worker.query(IMPORT_QUERIES.DELETE_BATCH_LOAN_PAYMENTS, [batchId]);
+        await this.tripExpenses?.cleanupForImportBatch(batchId);
         await this.worker.query(IMPORT_QUERIES.REVERT_SURVIVING_PAIRED_LEGS, [batchId, batchId]);
         await this.worker.query(IMPORT_QUERIES.CLEAR_SURVIVING_TRANSFER_GROUPS, [batchId, batchId]);
         await this.worker.query(IMPORT_QUERIES.DELETE_BATCH_TRANSACTIONS, [batchId]);

@@ -17,7 +17,7 @@ type MigrationOp =
 const migrations = MIGRATIONS as Array<{ version: number; statements: MigrationOp[] }>;
 
 describe('database schema', () => {
-  it('is at version 8 with migrations in ascending order ending at the current version', () => {
+  it('is at version 9 with migrations in ascending order ending at the current version', () => {
     expect(SCHEMA_VERSION).toBe(8);
     const versions = migrations.map((migration) => migration.version);
     expect(versions).toEqual([...versions].sort((a, b) => a - b));
@@ -234,6 +234,36 @@ describe('database schema', () => {
     expect(CREATE_TABLES.ACCOUNT_IDENTIFIERS).toContain("CHECK(kind IN ('number', 'label'))");
     expect(CREATE_TABLES.ACCOUNT_IDENTIFIERS).toContain("CHECK(source IN ('import', 'manual'))");
     expect(CREATE_TABLES.ACCOUNT_IDENTIFIERS).toContain('FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE');
+  });
+
+  it('version 8 adds trip expense modes, business allocations and reimbursements', () => {
+    const v8 = migrations.find((migration) => migration.version === 8)!;
+    const addedColumns = v8.statements.filter(
+      (op): op is Extract<MigrationOp, { op: 'addColumn' }> => typeof op !== 'string' && op.op === 'addColumn'
+    );
+    expect(addedColumns.map((op) => `${op.table}.${op.column}`)).toEqual(['trips.expense_mode', 'trips.reimburser']);
+    // A fresh database gets the same columns straight from CREATE_TABLES.
+    for (const op of addedColumns) {
+      expect(CREATE_TABLES.TRIPS).toContain(op.ddl);
+    }
+    expect(v8.statements).toContain(CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS);
+    expect(v8.statements).toContain(CREATE_TABLES.TRIP_REIMBURSEMENTS);
+    expect(v8.statements.some((op) => typeof op !== 'string' && op.op === 'rebuild')).toBe(false);
+
+    // One allocation per transaction, and the statuses the UI offers.
+    expect(CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS).toContain('transaction_id INTEGER PRIMARY KEY');
+    expect(CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS).toContain('CHECK(business_amount >= 0)');
+    expect(CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS).toContain(
+      "CHECK(status IN ('pending', 'submitted', 'reimbursed', 'denied'))"
+    );
+    expect(CREATE_TABLES.TRIP_REIMBURSEMENTS).toContain('CHECK(amount > 0)');
+    // Deleting the deposit keeps the receipt.
+    expect(CREATE_TABLES.TRIP_REIMBURSEMENTS).toContain(
+      'FOREIGN KEY (transaction_id) REFERENCES transactions (id) ON DELETE SET NULL'
+    );
+    const indexes = CREATE_INDEXES.join(' ');
+    expect(indexes).toContain('ON trip_expense_allocations(trip_id)');
+    expect(indexes).toContain('ON trip_reimbursements(trip_id)');
   });
 
   it('indexes the new sparse columns', () => {

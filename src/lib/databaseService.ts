@@ -64,6 +64,7 @@ import { BudgetFundsService } from './databaseServiceBudgetFunds';
 import { ClassificationService } from './databaseServiceClassification';
 import { ImportsService, mapToImportBatch } from './databaseServiceImports';
 import { LoansService } from './databaseServiceLoans';
+import { TripExpensesService, type TripLabelChange } from './databaseServiceTripExpenses';
 import { PreferencesService } from './databaseServicePreferences';
 import { DEFAULT_CURRENCY } from './currencies';
 import { CLASSIFICATION_QUERIES } from './sqlQueriesClassification';
@@ -83,6 +84,7 @@ import {
   Project,
   User,
   Trip,
+  TripExpenseMode,
   TransactionQueryParams,
   TransactionScopeFilters,
   TransactionsPaginatedResult,
@@ -213,6 +215,8 @@ export class DatabaseService {
   readonly preferences: PreferencesService;
   /** Statement import (schema v7): saved layouts, account identifiers, staging, commit, history. */
   readonly imports: ImportsService;
+  /** Trip business expenses (schema v8): business parts, reimbursement status, money received. */
+  readonly tripExpenses: TripExpensesService;
 
   constructor(
     private readonly workerService: DatabaseWorkerTransport = databaseWorkerService
@@ -224,7 +228,8 @@ export class DatabaseService {
     this.classification = new ClassificationService(workerService, this.appMetadata);
     this.loans = new LoansService(workerService);
     this.preferences = new PreferencesService(workerService, this.appMetadata);
-    this.imports = new ImportsService(workerService);
+    this.tripExpenses = new TripExpensesService(workerService);
+    this.imports = new ImportsService(workerService, this.tripExpenses);
   }
 
   async initialize(): Promise<void> {
@@ -900,6 +905,10 @@ export class DatabaseService {
     if (params.projectIds && params.projectIds.length > 0) {
       conditions.push(`t.project_id IN (${params.projectIds.map(() => '?').join(',')})`);
       queryParams.push(...params.projectIds);
+    }
+    if (params.tripIds && params.tripIds.length > 0) {
+      conditions.push(`t.trip_id IN (${params.tripIds.map(() => '?').join(',')})`);
+      queryParams.push(...params.tripIds);
     }
     if (params.accountIds && params.accountIds.length > 0) {
       conditions.push(`t.account_id IN (${params.accountIds.map(() => '?').join(',')})`);
@@ -2014,6 +2023,14 @@ export class DatabaseService {
       if (typeChanged && next.type !== 'transfer' && existing.transfer_group_id) {
         await this.workerService.query(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP, [existing.transfer_group_id]);
       }
+      // A business part follows its row: it goes when the row leaves the trip
+      // or stops being an expense.
+      const previousTripId = existing.trip_id ?? null;
+      if (typeChanged || next.trip_id !== previousTripId) {
+        await this.tripExpenses.syncAfterLabelChange([
+          { transactionId: id, previousTripId, nextTripId: next.trip_id },
+        ]);
+      }
     } catch (error) {
       log.error('Failed to update transaction', { operation: 'updateTransaction', error });
       throw error;
@@ -2030,6 +2047,7 @@ export class DatabaseService {
     await this.workerService.query('BEGIN TRANSACTION');
     try {
       await this.workerService.query(SUBSCRIPTION_QUERIES.DELETE_LINK_FOR_TRANSACTION, [id]);
+      await this.tripExpenses.cleanupForDeletedTransaction(id);
       await this.workerService.query(TRANSACTION_QUERIES.DELETE, [id]);
       if (transferGroupId) {
         await this.workerService.query(CLASSIFICATION_QUERIES.CLEAR_TRANSFER_GROUP, [transferGroupId]);
@@ -2575,6 +2593,8 @@ export class DatabaseService {
       trip.budget_category_id ?? null,
       trip.monthly_contribution ?? null,
       trip.contribution_start_month ?? null,
+      trip.expense_mode ?? 'personal',
+      trip.reimburser?.trim() || null,
     ]);
     return (result[0].id);
   }
@@ -2605,12 +2625,25 @@ export class DatabaseService {
       updates.budget_category_id !== undefined ? updates.budget_category_id : trip.budget_category_id ?? null,
       updates.monthly_contribution !== undefined ? updates.monthly_contribution : trip.monthly_contribution ?? null,
       updates.contribution_start_month !== undefined ? updates.contribution_start_month : trip.contribution_start_month ?? null,
+      updates.expense_mode !== undefined ? updates.expense_mode : trip.expense_mode ?? 'personal',
+      updates.reimburser !== undefined ? updates.reimburser?.trim() || null : trip.reimburser ?? null,
       id,
     ]);
   }
 
+  // A trip's rows stay, off the trip; its business parts and reimbursements
+  // go with it. All by hand: foreign keys are off on reopened databases.
   async deleteTrip(id: number): Promise<void> {
-    await this.workerService.query(TRIP_QUERIES.DELETE, [id]);
+    await this.workerService.query('BEGIN TRANSACTION');
+    try {
+      await this.tripExpenses.cleanupForDeletedTrip(id);
+      await this.workerService.query(TRIP_QUERIES.DELETE, [id]);
+      await this.workerService.query('COMMIT');
+    } catch (error) {
+      await this.workerService.query('ROLLBACK');
+      log.error('Failed to delete trip', { operation: 'deleteTrip', error });
+      throw error;
+    }
   }
 
   async getTripCosts(
@@ -3375,6 +3408,8 @@ export class DatabaseService {
       budget_category_id: row.budget_category_id ?? null,
       monthly_contribution: row.monthly_contribution != null ? Number(row.monthly_contribution) : null,
       contribution_start_month: row.contribution_start_month ?? null,
+      expense_mode: (row.expense_mode as TripExpenseMode | null) ?? 'personal',
+      reimburser: row.reimburser ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
@@ -3408,10 +3443,14 @@ export class DatabaseService {
   }
 
   async updateTransactionLabels(id: number, projectId: number | null, tripId: number | null): Promise<void> {
+    const previous = await this.workerService.query(TRANSACTION_QUERIES.GET_RAW_BY_ID, [id]);
     await this.workerService.query(TRANSACTION_QUERIES.UPDATE_PROJECT_TRIP, [
       projectId,
       tripId,
       id,
+    ]);
+    await this.tripExpenses.syncAfterLabelChange([
+      { transactionId: id, previousTripId: previous[0]?.trip_id ?? null, nextTripId: tripId },
     ]);
   }
 
@@ -3426,6 +3465,7 @@ export class DatabaseService {
 
     try {
       const transactionIds: number[] = [];
+      const tripChanges: TripLabelChange[] = [];
 
       for (const classification of classifications) {
         const rows = await this.workerService.query(
@@ -3468,8 +3508,14 @@ export class DatabaseService {
           classification.transactionId,
         ]);
         transactionIds.push(classification.transactionId);
+        tripChanges.push({
+          transactionId: classification.transactionId,
+          previousTripId: transaction.trip_id ?? null,
+          nextTripId: tripId,
+        });
       }
 
+      await this.tripExpenses.syncAfterLabelChange(tripChanges);
       await this.workerService.query('COMMIT');
 
       return {

@@ -20,6 +20,7 @@ export { CLASSIFICATION_QUERIES } from './sqlQueriesClassification';
 export { LOAN_QUERIES } from './sqlQueriesLoans';
 export { EXCHANGE_RATE_QUERIES } from './sqlQueriesPreferences';
 export { IMPORT_QUERIES } from './sqlQueriesImports';
+export { TRIP_EXPENSE_QUERIES } from './sqlQueriesTripExpenses';
 
 // Transaction Queries
 export const TRANSACTION_QUERIES = {
@@ -544,8 +545,8 @@ export const TRIP_QUERIES = {
   `,
 
   CREATE: `
-    INSERT INTO trips (name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO trips (name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month, expense_mode, reimburser)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     RETURNING id
   `,
 
@@ -555,7 +556,7 @@ export const TRIP_QUERIES = {
 
   UPDATE: `
     UPDATE trips 
-    SET name = ?, destination = ?, purpose = ?, trip_category = ?, status = ?, start_date = ?, end_date = ?, estimated_cost = ?, actual_cost = ?, notes = ?, budget_category_id = ?, monthly_contribution = ?, contribution_start_month = ?, updated_at = CURRENT_TIMESTAMP
+    SET name = ?, destination = ?, purpose = ?, trip_category = ?, status = ?, start_date = ?, end_date = ?, estimated_cost = ?, actual_cost = ?, notes = ?, budget_category_id = ?, monthly_contribution = ?, contribution_start_month = ?, expense_mode = ?, reimburser = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `,
 

@@ -418,9 +418,19 @@ export interface Trip {
   budget_category_id?: number | null;
   monthly_contribution?: number | null;
   contribution_start_month?: string | null;
+  // Business expenses (schema v8): how linked expenses split between business
+  // and personal by default, and who reimburses the business part.
+  expense_mode?: TripExpenseMode;
+  reimburser?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/**
+ * personal: no business part. business: a newly linked expense is fully
+ * business. mixed: a newly linked expense starts personal.
+ */
+export type TripExpenseMode = 'personal' | 'business' | 'mixed';
 
 export type MerchantRuleMatchType = 'exact' | 'prefix' | 'contains';
 export type MerchantRuleKind = 'subscription' | 'bill' | 'purchase' | 'unknown';
@@ -544,6 +554,7 @@ export interface TransactionQueryParams {
   categoryIds?: number[];
   companyIds?: number[];
   projectIds?: number[];
+  tripIds?: number[];
   accountIds?: number[];
   userIds?: number[];
   startDate?: string;

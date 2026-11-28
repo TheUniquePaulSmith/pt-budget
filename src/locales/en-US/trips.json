@@ -112,6 +112,7 @@
     "delete": "Delete reimbursement",
     "deleteConfirm": "Delete the reimbursement of {{amount}}?",
     "deleteKeepsRefund": "The deposit it was linked to stays a refund. Change its type on the Transactions page if needed.",
+    "deleteUnmarks": "Items it marked as Reimbursed go back to Submitted.",
     "intro": "Enter what you actually received. It does not have to match the business amount.",
     "amount": "Amount received",
     "amountHelp": "In your default currency",

@@ -34,7 +34,8 @@ const ROW_COLUMNS = `
   ${rateExpr('t')} AS rate,
   ${CAPPED_BUSINESS} AS business_amount,
   CASE WHEN t.type = 'expense' AND ea.transaction_id IS NOT NULL THEN ea.status END AS status,
-  ea.note AS note
+  ea.note AS note,
+  ea.reimbursement_id AS reimbursement_id
 `;
 
 const ROW_FROM = `
@@ -89,17 +90,24 @@ export const TRIP_EXPENSE_QUERIES = {
       business_amount = excluded.business_amount,
       status = excluded.status,
       note = excluded.note,
+      -- The receipt link lasts only while the part stays reimbursed.
+      reimbursement_id = CASE WHEN excluded.status = 'reimbursed' AND excluded.business_amount > 0
+                              THEN trip_expense_allocations.reimbursement_id END,
       updated_at = datetime('now')`,
 
-  /** Status applies to a business part only; an all-personal row has none to claim. */
+  /**
+   * Status applies to a business part only; an all-personal row has none to
+   * claim. A status set by hand belongs to no receipt.
+   */
   SET_STATUS: `
     UPDATE trip_expense_allocations
-       SET status = ?, updated_at = datetime('now')
+       SET status = ?, reimbursement_id = NULL, updated_at = datetime('now')
      WHERE transaction_id = ? AND business_amount > 0`,
 
+  /** Marks a business part paid by one receipt: params receipt id, transaction id, trip id. */
   MARK_REIMBURSED: `
     UPDATE trip_expense_allocations
-       SET status = 'reimbursed', updated_at = datetime('now')
+       SET status = 'reimbursed', reimbursement_id = ?, updated_at = datetime('now')
      WHERE transaction_id = ? AND trip_id = ? AND business_amount > 0`,
 
   /**
@@ -152,13 +160,18 @@ export const TRIP_EXPENSE_QUERIES = {
      ORDER BY t.date ASC, t.id ASC
      LIMIT 500`,
 
-  /** Money that came in during a date window: where a reimbursement may have landed. */
+  /**
+   * Money that came in during a date window: where a reimbursement may have
+   * landed. A refund on a trip is a merchant credit already netted in that
+   * trip's spend, so it is never offered (it would count twice).
+   */
   DEPOSIT_CANDIDATES: `
     SELECT t.id AS transaction_id, t.date, t.description, t.amount, t.type, t.account_id,
            a.currency AS account_currency
       FROM transactions t
       LEFT JOIN accounts a ON a.id = t.account_id
      WHERE t.type IN ('income', 'refund') AND t.amount > 0
+       AND NOT (t.type = 'refund' AND t.trip_id IS NOT NULL)
        AND t.date >= ? AND t.date <= ?
      ORDER BY t.date DESC, t.id DESC
      LIMIT 200`,
@@ -183,7 +196,15 @@ export const TRIP_EXPENSE_QUERIES = {
 
   DELETE_RECEIPT: `DELETE FROM trip_reimbursements WHERE id = ?`,
 
-  GET_DEPOSIT: `SELECT id, type, amount, transfer_group_id FROM transactions WHERE id = ?`,
+  /** The parts a deleted receipt paid for are back to claimed, not paid. */
+  UNMARK_REIMBURSED_BY_RECEIPT: `
+    UPDATE trip_expense_allocations
+       SET status = CASE WHEN status = 'reimbursed' THEN 'submitted' ELSE status END,
+           reimbursement_id = NULL,
+           updated_at = datetime('now')
+     WHERE reimbursement_id = ?`,
+
+  GET_DEPOSIT: `SELECT id, type, amount, trip_id, transfer_group_id FROM transactions WHERE id = ?`,
 
   /**
    * The deposit is only the reimbursement: a manually typed refund off any

@@ -112,6 +112,7 @@
     "delete": "Elimina rimborso",
     "deleteConfirm": "Eliminare il rimborso di {{amount}}?",
     "deleteKeepsRefund": "L'accredito collegato resta un rimborso. Se serve, cambia il suo tipo nella pagina Transazioni.",
+    "deleteUnmarks": "Le voci che ha segnato come Rimborsato tornano a Inviato.",
     "intro": "Inserisci quanto hai effettivamente ricevuto. Non deve coincidere con l'importo di lavoro.",
     "amount": "Importo ricevuto",
     "amountHelp": "Nella tua valuta predefinita",

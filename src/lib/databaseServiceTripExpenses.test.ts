@@ -218,7 +218,11 @@ describe('TripExpensesService reimbursements', () => {
     expect(id).toBe(7);
     expect(worker.query).toHaveBeenCalledWith(TRIP_EXPENSE_QUERIES.CREATE_RECEIPT, [3, 1100, '2026-10-31', 20, 'On payslip']);
     expect(issued(worker)).not.toContain(TRIP_EXPENSE_QUERIES.MARK_DEPOSIT_REFUND);
-    expect(worker.query.mock.calls.filter((call) => call[0] === TRIP_EXPENSE_QUERIES.MARK_REIMBURSED)).toHaveLength(2);
+    // Each part is marked as paid by this receipt.
+    expect(worker.query.mock.calls.filter((call) => call[0] === TRIP_EXPENSE_QUERIES.MARK_REIMBURSED)).toEqual([
+      [TRIP_EXPENSE_QUERIES.MARK_REIMBURSED, [7, 1, 3]],
+      [TRIP_EXPENSE_QUERIES.MARK_REIMBURSED, [7, 2, 3]],
+    ]);
   });
 
   it('turns a reimbursement-only deposit into a refund when asked', async () => {
@@ -241,14 +245,31 @@ describe('TripExpensesService reimbursements', () => {
     expect(issued(expenseDeposit)).toContain('ROLLBACK');
   });
 
+  it('rejects a refund that is on a trip: it already lowers that trip spend', async () => {
+    const tripRefund = createWorker({
+      [TRIP_EXPENSE_QUERIES.GET_DEPOSIT]: [{ id: 23, type: 'refund', amount: 50, trip_id: 3 }],
+    });
+    await expect(
+      new TripExpensesService(tripRefund).addReimbursement({ tripId: 3, amount: 50, transactionId: 23 })
+    ).rejects.toThrow('TRIP_DEPOSIT_INVALID');
+    expect(issued(tripRefund)).not.toContain(TRIP_EXPENSE_QUERIES.CREATE_RECEIPT);
+  });
+
   it('updates and deletes a receipt', async () => {
     const worker = createWorker({ [TRIP_EXPENSE_QUERIES.GET_RECEIPT]: [{ id: 7, trip_id: 3 }] });
     const service = new TripExpensesService(worker);
     await service.updateReimbursement(7, { amount: 500, receivedDate: null, transactionId: null, markReimbursedIds: [4] });
     expect(worker.query).toHaveBeenCalledWith(TRIP_EXPENSE_QUERIES.UPDATE_RECEIPT, [500, null, null, null, 7]);
-    expect(worker.query).toHaveBeenCalledWith(TRIP_EXPENSE_QUERIES.MARK_REIMBURSED, [4, 3]);
+    expect(worker.query).toHaveBeenCalledWith(TRIP_EXPENSE_QUERIES.MARK_REIMBURSED, [7, 4, 3]);
+    worker.query.mockClear();
     await service.deleteReimbursement(7);
-    expect(worker.query).toHaveBeenCalledWith(TRIP_EXPENSE_QUERIES.DELETE_RECEIPT, [7]);
+    // What this receipt marked reimbursed is claimed again, before the receipt goes.
+    expect(worker.query.mock.calls).toEqual([
+      ['BEGIN TRANSACTION'],
+      [TRIP_EXPENSE_QUERIES.UNMARK_REIMBURSED_BY_RECEIPT, [7]],
+      [TRIP_EXPENSE_QUERIES.DELETE_RECEIPT, [7]],
+      ['COMMIT'],
+    ]);
 
     const missing = new TripExpensesService(createWorker());
     await expect(missing.updateReimbursement(9, { amount: 5 })).rejects.toThrow('TRIP_REIMBURSEMENT_NOT_FOUND');
@@ -281,6 +302,38 @@ describe('DatabaseService keeps business parts in step', () => {
     await db.updateTransactionLabels(77, null, 3);
     expect(worker.query).toHaveBeenCalledWith(TRIP_EXPENSE_QUERIES.INSERT_DEFAULT_BUSINESS, [77]);
     expect(issued(worker)).toContain(TRIP_EXPENSE_QUERIES.PRUNE);
+    expect(issued(worker)).toContain('BEGIN TRANSACTION');
+    expect(issued(worker)).toContain('COMMIT');
+  });
+
+  it('rolls back a label change whose business-part sync fails', async () => {
+    const { worker, db } = service({
+      [TRANSACTION_QUERIES.GET_RAW_BY_ID]: [{ id: 77, trip_id: 2 }],
+      [TRIP_EXPENSE_QUERIES.PRUNE]: () => {
+        throw new Error('locked');
+      },
+    });
+    await expect(db.updateTransactionLabels(77, null, 3)).rejects.toThrow('locked');
+    expect(issued(worker)).toContain('ROLLBACK');
+    expect(issued(worker)).not.toContain('COMMIT');
+  });
+
+  it('gives a row that becomes an expense on the same trip the trip default', async () => {
+    const existing = {
+      id: 78,
+      date: '2026-10-10',
+      amount: -50,
+      description: 'Cab',
+      account_id: 1,
+      trip_id: 3,
+      type: 'transfer',
+      transaction_hash: 'h',
+      hash_variation_seed: 0,
+    };
+    const { worker, db } = service({ [TRANSACTION_QUERIES.GET_RAW_BY_ID]: [existing] });
+    await db.updateTransaction(78, { type: 'expense' });
+    expect(worker.query).toHaveBeenCalledWith(TRIP_EXPENSE_QUERIES.INSERT_DEFAULT_BUSINESS, [78]);
+    expect(issued(worker)).not.toContain(TRIP_EXPENSE_QUERIES.DELETE_ALLOCATION_FOR_TRANSACTION);
   });
 
   it('prunes when an edit takes a row off its trip, and not for other edits', async () => {

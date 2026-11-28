@@ -241,11 +241,23 @@ describe('database schema', () => {
     const addedColumns = v8.statements.filter(
       (op): op is Extract<MigrationOp, { op: 'addColumn' }> => typeof op !== 'string' && op.op === 'addColumn'
     );
-    expect(addedColumns.map((op) => `${op.table}.${op.column}`)).toEqual(['trips.expense_mode', 'trips.reimburser']);
+    expect(addedColumns.map((op) => `${op.table}.${op.column}`)).toEqual([
+      'trips.expense_mode',
+      'trips.reimburser',
+      'trip_expense_allocations.reimbursement_id',
+    ]);
     // A fresh database gets the same columns straight from CREATE_TABLES.
+    const tableDdl: Record<string, string> = {
+      trips: CREATE_TABLES.TRIPS,
+      trip_expense_allocations: CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS,
+    };
     for (const op of addedColumns) {
-      expect(CREATE_TABLES.TRIPS).toContain(op.ddl);
+      expect(tableDdl[op.table]).toContain(op.ddl);
     }
+    // The receipt that paid a business part; deleting it leaves the part.
+    expect(CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS).toContain(
+      'FOREIGN KEY (reimbursement_id) REFERENCES trip_reimbursements (id) ON DELETE SET NULL'
+    );
     expect(v8.statements).toContain(CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS);
     expect(v8.statements).toContain(CREATE_TABLES.TRIP_REIMBURSEMENTS);
     expect(v8.statements.some((op) => typeof op !== 'string' && op.op === 'rebuild')).toBe(false);

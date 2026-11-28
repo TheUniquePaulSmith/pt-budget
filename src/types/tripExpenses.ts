@@ -20,6 +20,8 @@ export interface TripExpenseAllocation {
   business_amount: number;
   status: TripReimbursementStatus;
   note: string | null;
+  /** The receipt that marked it reimbursed; null when set by hand. */
+  reimbursement_id: number | null;
 }
 
 export interface TripAllocationInput {
@@ -119,6 +121,8 @@ export interface TripInsightRow {
   business_amount: number | null;
   status: TripReimbursementStatus | null;
   note: string | null;
+  /** The receipt that marked the business part reimbursed, if any. */
+  reimbursement_id?: number | null;
 }
 
 /** An expense near the trip's dates that is on no trip yet. */

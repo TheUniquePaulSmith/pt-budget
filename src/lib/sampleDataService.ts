@@ -97,8 +97,8 @@ export class SampleDataService {
     'account_balance_snapshots.json',
     'transactions.json',
     // Schema v8: they point at transactions, so they come after them.
-    'trip_expense_allocations.json',
     'trip_reimbursements.json',
+    'trip_expense_allocations.json',
   ];
 
   /** Number of fixture files an import walks (progress totals). */
@@ -618,6 +618,7 @@ export class SampleDataService {
             row.note ?? null,
             row.created_at,
             row.updated_at,
+            row.reimbursement_id ?? null,
           ],
         };
       case 'trip_reimbursements':

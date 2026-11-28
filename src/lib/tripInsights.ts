@@ -4,7 +4,8 @@
 // trip's figures and the Insights tab's breakdowns.
 //
 //   gross     expenses less refunds on the trip (spendExpr)
-//   business  the non-denied business parts, each capped at its charge
+//   business  the non-denied business parts, each capped at its charge, less
+//             the business share of refunds (applyRefundShares)
 //   personal  gross - business (a denied business part is personal again)
 //   received  the reimbursements recorded for the trip
 //   outstanding = business - received (negative = received more than claimed)
@@ -77,6 +78,39 @@ export function businessParts(
   if (row.rate == null) return { business: null, denied: null };
   const converted = row.business_amount * row.rate;
   return row.status === 'denied' ? { business: 0, denied: converted } : { business: converted, denied: 0 };
+}
+
+/**
+ * Gives each refund of one trip a business share (negative, default currency),
+ * so money back on a business charge lowers the business part instead of the
+ * personal one. The share is the refund times the business ratio of the
+ * trip's expenses at the same merchant. A refund that matches no merchant is
+ * business only on a trip whose spending is all business, and otherwise
+ * personal (it cannot be tied to a charge, as with a spouse's shop return).
+ */
+export function applyRefundShares(rows: readonly TripInsightRow[]): TripInsightRow[] {
+  const totals = new Map<number | 'trip', { gross: number; business: number }>();
+  const add = (key: number | 'trip', gross: number, business: number) => {
+    const total = totals.get(key) ?? { gross: 0, business: 0 };
+    total.gross += gross;
+    total.business += business;
+    totals.set(key, total);
+  };
+  for (const row of rows) {
+    if (row.type !== 'expense' || !isSpendingRow(row) || row.gross_spend == null || row.business_share == null) continue;
+    add('trip', row.gross_spend, row.business_share);
+    if (row.company_id != null) add(row.company_id, row.gross_spend, row.business_share);
+  }
+  const ratio = (key: number | 'trip') => {
+    const total = totals.get(key);
+    return total && total.gross > 0 ? Math.min(1, Math.max(0, total.business / total.gross)) : null;
+  };
+  return rows.map((row) => {
+    if (row.type !== 'refund' || !isSpendingRow(row) || row.gross_spend == null) return row;
+    const merchant = row.company_id != null ? ratio(row.company_id) : null;
+    const share = merchant ?? ((ratio('trip') ?? 0) > 1 - 1e-6 ? 1 : 0);
+    return { ...row, business_share: row.gross_spend * share };
+  });
 }
 
 /** The row's amount for a view, or null when its currency has no rate. */

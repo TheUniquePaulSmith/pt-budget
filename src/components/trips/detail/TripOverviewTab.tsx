@@ -287,6 +287,11 @@ export default function TripOverviewTab({ trip, detail, onOpenTransactions }: Tr
         <DialogTitle>{t('reimburse.delete')}</DialogTitle>
         <DialogContent>
           <Typography>{t('reimburse.deleteConfirm', { amount: money(toDelete?.amount ?? 0) })}</Typography>
+          {toDelete && rows.some((row) => row.reimbursement_id === toDelete.id && row.status === 'reimbursed') && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              {t('reimburse.deleteUnmarks')}
+            </Typography>
+          )}
           {toDelete?.transaction_type === 'refund' && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               {t('reimburse.deleteKeepsRefund')}

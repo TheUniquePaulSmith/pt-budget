@@ -112,6 +112,7 @@
     "delete": "Excluir reembolso",
     "deleteConfirm": "Excluir o reembolso de {{amount}}?",
     "deleteKeepsRefund": "O depósito vinculado continua como estorno. Altere o tipo dele na página Transações, se necessário.",
+    "deleteUnmarks": "Os itens que ele marcou como Reembolsado voltam para Enviado.",
     "intro": "Informe o que você realmente recebeu. Não precisa ser igual ao valor profissional.",
     "amount": "Valor recebido",
     "amountHelp": "Na sua moeda padrão",

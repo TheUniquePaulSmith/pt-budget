@@ -111,6 +111,7 @@
     "delete": "删除报销",
     "deleteConfirm": "删除这笔{{amount}}的报销？",
     "deleteKeepsRefund": "与之关联的存款仍会保留为退款。如有需要，请在“交易”页面更改其类型。",
+    "deleteUnmarks": "由它标记为“已报销”的项目将恢复为“已提交”。",
     "intro": "请输入您实际收到的金额，不必与公务金额一致。",
     "amount": "收到的金额",
     "amountHelp": "以您的默认币种计",

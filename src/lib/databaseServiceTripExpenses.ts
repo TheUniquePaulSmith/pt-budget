@@ -11,7 +11,7 @@
 import type { DatabaseWorkerTransport } from './databaseService';
 import { logger } from './logging';
 import { TRIP_EXPENSE_QUERIES } from './sqlQueriesTripExpenses';
-import { businessParts, summarizeTrip } from './tripInsights';
+import { applyRefundShares, businessParts, summarizeTrip } from './tripInsights';
 import type {
   TripAllocationInput,
   TripCandidateTransaction,
@@ -61,6 +61,7 @@ export function mapToTripInsightRow(row: any): TripInsightRow {
     business_amount: numberOrNull(row.business_amount),
     status: asStatus(row.status),
     note: textOrNull(row.note),
+    reimbursement_id: numberOrNull(row.reimbursement_id),
   };
   const { business, denied } = businessParts(base);
   return { ...base, business_share: business, denied_share: denied };
@@ -122,6 +123,8 @@ export interface TripLabelChange {
   transactionId: number;
   previousTripId: number | null;
   nextTripId: number | null;
+  /** The row's type changed (it may have just become an expense on the same trip). */
+  typeChanged?: boolean;
 }
 
 function validateReimbursement(input: Pick<TripReimbursementInput, 'amount'>): number {
@@ -150,7 +153,9 @@ export class TripExpensesService {
   // --- reading ---
 
   async getRows(tripId: number): Promise<TripInsightRow[]> {
-    return (await this.worker.query(TRIP_EXPENSE_QUERIES.ROWS_FOR_TRIP, [tripId])).map(mapToTripInsightRow);
+    return applyRefundShares(
+      (await this.worker.query(TRIP_EXPENSE_QUERIES.ROWS_FOR_TRIP, [tripId])).map(mapToTripInsightRow)
+    );
   }
 
   async getReimbursements(tripId: number): Promise<TripReimbursement[]> {
@@ -171,16 +176,24 @@ export class TripExpensesService {
     ]);
     const rowsByTrip = new Map<number, TripInsightRow[]>();
     for (const row of rowResults.map(mapToTripInsightRow)) {
-      rowsByTrip.set(row.trip_id, [...(rowsByTrip.get(row.trip_id) ?? []), row]);
+      const list = rowsByTrip.get(row.trip_id);
+      if (list) list.push(row);
+      else rowsByTrip.set(row.trip_id, [row]);
     }
     const receiptsByTrip = new Map<number, TripReimbursement[]>();
     for (const receipt of receiptResults.map(mapToTripReimbursement)) {
-      receiptsByTrip.set(receipt.trip_id, [...(receiptsByTrip.get(receipt.trip_id) ?? []), receipt]);
+      const list = receiptsByTrip.get(receipt.trip_id);
+      if (list) list.push(receipt);
+      else receiptsByTrip.set(receipt.trip_id, [receipt]);
     }
     const tripIds = new Set([...rowsByTrip.keys(), ...receiptsByTrip.keys()]);
     const summaries: Record<number, TripExpenseSummary> = {};
     for (const tripId of tripIds) {
-      summaries[tripId] = summarizeTrip(tripId, rowsByTrip.get(tripId) ?? [], receiptsByTrip.get(tripId) ?? []);
+      summaries[tripId] = summarizeTrip(
+        tripId,
+        applyRefundShares(rowsByTrip.get(tripId) ?? []),
+        receiptsByTrip.get(tripId) ?? []
+      );
     }
     return summaries;
   }
@@ -230,9 +243,14 @@ export class TripExpensesService {
    */
   async syncAfterLabelChange(changes: readonly TripLabelChange[]): Promise<void> {
     for (const change of changes) {
-      if (change.nextTripId != null && change.nextTripId !== change.previousTripId) {
+      if (change.nextTripId == null) continue;
+      if (change.nextTripId !== change.previousTripId) {
         // A row moving from one trip to another starts again on the new one.
         await this.worker.query(TRIP_EXPENSE_QUERIES.DELETE_ALLOCATION_FOR_TRANSACTION, [change.transactionId]);
+        await this.worker.query(TRIP_EXPENSE_QUERIES.INSERT_DEFAULT_BUSINESS, [change.transactionId]);
+      } else if (change.typeChanged) {
+        // A row that just became an expense on a business trip gets the
+        // trip's default; INSERT OR IGNORE keeps a part the user already set.
         await this.worker.query(TRIP_EXPENSE_QUERIES.INSERT_DEFAULT_BUSINESS, [change.transactionId]);
       }
     }
@@ -300,10 +318,11 @@ export class TripExpensesService {
         input.transactionId ?? null,
         input.note?.trim() || null,
       ]);
+      const receiptId = Number(rows[0].id);
       for (const transactionId of new Set(input.markReimbursedIds ?? [])) {
-        await this.worker.query(TRIP_EXPENSE_QUERIES.MARK_REIMBURSED, [transactionId, input.tripId]);
+        await this.worker.query(TRIP_EXPENSE_QUERIES.MARK_REIMBURSED, [receiptId, transactionId, input.tripId]);
       }
-      return Number(rows[0].id);
+      return receiptId;
     });
     log.withOperation('addTripReimbursement').info('Recorded trip reimbursement', {
       tripId: input.tripId,
@@ -328,14 +347,21 @@ export class TripExpensesService {
       ]);
       const tripId = Number(existing[0].trip_id);
       for (const transactionId of new Set(input.markReimbursedIds ?? [])) {
-        await this.worker.query(TRIP_EXPENSE_QUERIES.MARK_REIMBURSED, [transactionId, tripId]);
+        await this.worker.query(TRIP_EXPENSE_QUERIES.MARK_REIMBURSED, [id, transactionId, tripId]);
       }
     });
   }
 
-  /** Removes a receipt. A deposit it turned into a refund keeps that type. */
+  /**
+   * Removes a receipt. A deposit it turned into a refund keeps that type. The
+   * business parts this receipt marked reimbursed go back to submitted; parts
+   * another receipt paid for, or marked reimbursed by hand, keep their status.
+   */
   async deleteReimbursement(id: number): Promise<void> {
-    await this.worker.query(TRIP_EXPENSE_QUERIES.DELETE_RECEIPT, [id]);
+    await this.inTransaction(async () => {
+      await this.worker.query(TRIP_EXPENSE_QUERIES.UNMARK_REIMBURSED_BY_RECEIPT, [id]);
+      await this.worker.query(TRIP_EXPENSE_QUERIES.DELETE_RECEIPT, [id]);
+    });
   }
 
   private async applyDepositChoice(transactionId: number, countDepositAsRefund: boolean | undefined): Promise<void> {
@@ -344,6 +370,8 @@ export class TripExpensesService {
     if (!deposit || Number(deposit.amount) <= 0 || !['income', 'refund'].includes(String(deposit.type))) {
       throw new Error('TRIP_DEPOSIT_INVALID');
     }
+    // A refund on a trip already lowers that trip's spend: as a receipt it would count twice.
+    if (deposit.type === 'refund' && deposit.trip_id != null) throw new Error('TRIP_DEPOSIT_INVALID');
     if (countDepositAsRefund && deposit.type !== 'refund') {
       await this.worker.query(TRIP_EXPENSE_QUERIES.MARK_DEPOSIT_REFUND, [transactionId]);
     }

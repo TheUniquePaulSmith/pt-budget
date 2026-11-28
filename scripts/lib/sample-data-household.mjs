@@ -1820,6 +1820,8 @@ export function buildTripExpenseRows(tableName, scenario, rowsWithEntries) {
   if (tableName !== 'trip_expense_allocations' && tableName !== 'trip_reimbursements') return null;
   if (!rowsWithEntries) return [];
   if (tableName === 'trip_expense_allocations') {
+    // The parts marked reimbursed were paid by the summit's one receipt.
+    const receipt = buildTripExpenseRows('trip_reimbursements', scenario, rowsWithEntries)[0] ?? null;
     return rowsWithEntries
       .filter(({ entry }) => entry.tripId != null && entry.tripBusinessCents != null)
       .map(({ row, entry }) => ({
@@ -1828,6 +1830,8 @@ export function buildTripExpenseRows(tableName, scenario, rowsWithEntries) {
         business_amount: fromCents(entry.tripBusinessCents),
         status: entry.tripStatus ?? 'pending',
         note: null,
+        reimbursement_id:
+          receipt && entry.tripStatus === 'reimbursed' && entry.tripId === receipt.trip_id ? receipt.id : null,
       }));
   }
   if (tableName === 'trip_reimbursements') {

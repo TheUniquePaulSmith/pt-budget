@@ -2028,7 +2028,7 @@ export class DatabaseService {
       const previousTripId = existing.trip_id ?? null;
       if (typeChanged || next.trip_id !== previousTripId) {
         await this.tripExpenses.syncAfterLabelChange([
-          { transactionId: id, previousTripId, nextTripId: next.trip_id },
+          { transactionId: id, previousTripId, nextTripId: next.trip_id, typeChanged },
         ]);
       }
     } catch (error) {
@@ -3444,14 +3444,23 @@ export class DatabaseService {
 
   async updateTransactionLabels(id: number, projectId: number | null, tripId: number | null): Promise<void> {
     const previous = await this.workerService.query(TRANSACTION_QUERIES.GET_RAW_BY_ID, [id]);
-    await this.workerService.query(TRANSACTION_QUERIES.UPDATE_PROJECT_TRIP, [
-      projectId,
-      tripId,
-      id,
-    ]);
-    await this.tripExpenses.syncAfterLabelChange([
-      { transactionId: id, previousTripId: previous[0]?.trip_id ?? null, nextTripId: tripId },
-    ]);
+    // One transaction: the row's move and its business part change together.
+    await this.workerService.query('BEGIN TRANSACTION');
+    try {
+      await this.workerService.query(TRANSACTION_QUERIES.UPDATE_PROJECT_TRIP, [
+        projectId,
+        tripId,
+        id,
+      ]);
+      await this.tripExpenses.syncAfterLabelChange([
+        { transactionId: id, previousTripId: previous[0]?.trip_id ?? null, nextTripId: tripId },
+      ]);
+      await this.workerService.query('COMMIT');
+    } catch (error) {
+      await this.workerService.query('ROLLBACK');
+      log.error('Failed to update transaction labels', { operation: 'updateTransactionLabels', error });
+      throw error;
+    }
   }
 
   async applyTransactionClassifications(

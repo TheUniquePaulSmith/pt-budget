@@ -269,6 +269,9 @@ export const CREATE_TABLES = {
   //                    transaction's account currency, at most the charge
   //   status           pending -> submitted -> reimbursed, or denied (a
   //                    denied business part counts as personal again)
+  //   reimbursement_id the receipt that marked it reimbursed (NULL when the
+  //                    status was set by hand); deleting that receipt sets
+  //                    the part back to submitted
   TRIP_EXPENSE_ALLOCATIONS: `
     CREATE TABLE IF NOT EXISTS trip_expense_allocations (
       transaction_id INTEGER PRIMARY KEY,
@@ -278,8 +281,10 @@ export const CREATE_TABLES = {
       note TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reimbursement_id INTEGER,
       FOREIGN KEY (transaction_id) REFERENCES transactions (id) ON DELETE CASCADE,
-      FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE CASCADE
+      FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE CASCADE,
+      FOREIGN KEY (reimbursement_id) REFERENCES trip_reimbursements (id) ON DELETE SET NULL
     )
   `,
 
@@ -975,6 +980,8 @@ export const MIGRATIONS = [
       { op: 'addColumn', table: 'trips', column: 'reimburser', ddl: 'reimburser TEXT' },
       CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS,
       CREATE_TABLES.TRIP_REIMBURSEMENTS,
+      // Dev databases made from an earlier build of this version lack it.
+      { op: 'addColumn', table: 'trip_expense_allocations', column: 'reimbursement_id', ddl: 'reimbursement_id INTEGER' },
       // A business trip starts with business expenses (a no-op on rerun).
       `UPDATE trips SET expense_mode = 'business' WHERE trip_category = 'business' AND expense_mode = 'personal'`,
     ],

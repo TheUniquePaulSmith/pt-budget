@@ -74,7 +74,7 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
       page,
       "SELECT group_concat(name, ',') FROM pragma_table_info('trip_expense_allocations')"
     )
-  ).toBe('transaction_id,trip_id,business_amount,status,note,created_at,updated_at');
+  ).toBe('transaction_id,trip_id,business_amount,status,note,created_at,updated_at,reimbursement_id');
   expect(
     await runQueryAndReadFirstCell(
       page,

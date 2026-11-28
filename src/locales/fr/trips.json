@@ -112,6 +112,7 @@
     "delete": "Supprimer le remboursement",
     "deleteConfirm": "Supprimer le remboursement de {{amount}} ?",
     "deleteKeepsRefund": "Le dépôt auquel il était lié reste un remboursement. Modifiez son type sur la page Transactions si besoin.",
+    "deleteUnmarks": "Les éléments qu’il a marqués comme Remboursé repassent à Soumis.",
     "intro": "Saisissez ce que vous avez réellement reçu. Cela ne doit pas forcément correspondre au montant professionnel.",
     "amount": "Montant reçu",
     "amountHelp": "Dans votre devise par défaut",

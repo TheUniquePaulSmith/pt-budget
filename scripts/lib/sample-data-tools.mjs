@@ -76,8 +76,8 @@ export const MANAGED_SAMPLE_TABLES = [
   'account_balance_snapshots',
   'transactions',
   // Schema v8: these point at transaction ids, so they come after them.
-  'trip_expense_allocations',
   'trip_reimbursements',
+  'trip_expense_allocations',
 ];
 /** File next to the fixtures that records what the app should show for them. */
 export const EXPECTATIONS_FILE_NAME = 'expectations.json';

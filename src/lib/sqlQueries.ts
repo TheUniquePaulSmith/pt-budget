@@ -974,7 +974,7 @@ export const SAMPLE_DATA_QUERIES = {
   INSERT_TRIP: `INSERT OR REPLACE INTO trips (id, name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month, created_at, updated_at, expense_mode, reimburser) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   // Schema v8: trip business parts and the reimbursements received (they
   // point at transaction ids, so they load after transactions).
-  INSERT_TRIP_EXPENSE_ALLOCATION: `INSERT OR REPLACE INTO trip_expense_allocations (transaction_id, trip_id, business_amount, status, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_TRIP_EXPENSE_ALLOCATION: `INSERT OR REPLACE INTO trip_expense_allocations (transaction_id, trip_id, business_amount, status, note, created_at, updated_at, reimbursement_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   INSERT_TRIP_REIMBURSEMENT: `INSERT OR REPLACE INTO trip_reimbursements (id, trip_id, amount, received_date, transaction_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   INSERT_BUDGET_PLAN: `INSERT OR REPLACE INTO budget_plans (id, effective_month, total_amount, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
   INSERT_BUDGET_PLAN_CATEGORY: `INSERT OR REPLACE INTO budget_plan_categories (id, plan_id, category_id, amount, carry_mode, carry_reset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

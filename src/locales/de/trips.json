@@ -112,6 +112,7 @@
     "delete": "Erstattung löschen",
     "deleteConfirm": "Die Erstattung über {{amount}} löschen?",
     "deleteKeepsRefund": "Der verknüpfte Zahlungseingang bleibt eine Erstattung. Ändern Sie bei Bedarf seinen Typ auf der Seite „Transaktionen“.",
+    "deleteUnmarks": "Posten, die damit als „Erstattet“ markiert wurden, sind wieder „Eingereicht“.",
     "intro": "Geben Sie ein, was Sie tatsächlich erhalten haben. Es muss nicht dem geschäftlichen Betrag entsprechen.",
     "amount": "Erhaltener Betrag",
     "amountHelp": "In Ihrer Standardwährung",

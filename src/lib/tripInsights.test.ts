@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTripInsights, businessParts, fullBusinessAmount, rowValue, summarizeTrip } from './tripInsights';
+import { applyRefundShares, buildTripInsights, businessParts, fullBusinessAmount, rowValue, summarizeTrip } from './tripInsights';
 import type { TripInsightRow } from '../types/tripExpenses';
 
 function row(overrides: Partial<TripInsightRow> & { transaction_id: number }): TripInsightRow {
@@ -159,6 +159,50 @@ describe('buildTripInsights', () => {
     expect(insights.byDay.map((day) => day.key)).toEqual(['2026-10-10', '2026-10-11', '2026-10-12']);
     expect(insights.missingRateCount).toBe(1);
     expect(insights.total).toBe(1550);
+  });
+});
+
+describe('applyRefundShares', () => {
+  it('takes a refund off the business part of the same merchant', () => {
+    const rows = applyRefundShares([
+      row({ transaction_id: 1, description: 'Hotel', amount: -400, gross_spend: 400, business_amount: 400, status: 'pending', company_id: 101 }),
+      row({ transaction_id: 2, description: 'Hotel refund', type: 'refund', amount: 100, gross_spend: -100, company_id: 101 }),
+    ]);
+    expect(rows[1].business_share).toBe(-100);
+    const summary = summarizeTrip(3, rows, []);
+    expect(summary).toMatchObject({ gross_spend: 300, business_share: 300, personal_share: 0, outstanding: 300 });
+  });
+
+  it('keeps a refund that matches no merchant personal on a mixed trip, and leaves expenses alone', () => {
+    const rows = applyRefundShares([
+      row({ transaction_id: 1, amount: -300, gross_spend: 300, business_amount: 300, status: 'pending', company_id: 101 }),
+      row({ transaction_id: 2, amount: -100, gross_spend: 100, company_id: 102 }),
+      row({ transaction_id: 3, type: 'refund', amount: 40, gross_spend: -40, company_id: null }),
+      row({ transaction_id: 4, type: 'refund', amount: 10, gross_spend: -10, company_id: 102 }),
+      row({ transaction_id: 5, type: 'refund', amount: 30, gross_spend: -30, company_id: 101 }),
+    ]);
+    expect(rows[0]).toEqual(row({ transaction_id: 1, amount: -300, gross_spend: 300, business_amount: 300, status: 'pending', company_id: 101 }));
+    expect(rows[2].business_share).toBeCloseTo(0);
+    expect(rows[3].business_share).toBeCloseTo(0);
+    expect(rows[4].business_share).toBeCloseTo(-30);
+  });
+
+  it('takes a refund that matches no merchant off business on an all-business trip', () => {
+    const rows = applyRefundShares([
+      row({ transaction_id: 1, amount: -300, gross_spend: 300, business_amount: 300, status: 'pending', company_id: 101 }),
+      row({ transaction_id: 2, type: 'refund', amount: 40, gross_spend: -40, company_id: null }),
+    ]);
+    expect(rows[1].business_share).toBeCloseTo(-40);
+  });
+
+  it('gives no business part when the trip has none or the refund has no rate', () => {
+    const rows = applyRefundShares([
+      row({ transaction_id: 1, amount: -50, gross_spend: 50 }),
+      row({ transaction_id: 2, type: 'refund', amount: 5, gross_spend: -5 }),
+      row({ transaction_id: 3, type: 'refund', amount: 5, gross_spend: null, rate: null }),
+    ]);
+    expect(rows[1].business_share).toBeCloseTo(0);
+    expect(rows[2].business_share).toBe(0);
   });
 });
 

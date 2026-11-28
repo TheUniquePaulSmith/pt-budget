@@ -109,8 +109,8 @@ Files load in dependency order so foreign keys resolve:
 13. classification_rules
 14. account_balance_snapshots
 15. transactions (it references most of the above)
-16. trip_expense_allocations
-17. trip_reimbursements (both point at transaction ids)
+16. trip_reimbursements (points at a transaction id)
+17. trip_expense_allocations (point at transaction ids and the reimbursement that paid them)
 
 Primary keys are preserved; after each table the auto-increment sequence is reset to the maximum id.
 Tables not listed (`merchant_rules`, `recurring_series`, `transaction_series_links`, `loan_payments`,

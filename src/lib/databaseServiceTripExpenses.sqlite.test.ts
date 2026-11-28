@@ -170,4 +170,41 @@ describe.skipIf(!sqlite)('trip business expenses on SQLite', () => {
     expect(Object.keys(summaries)).toEqual(['2']);
     expect(summaries[2]).toMatchObject({ gross_spend: 80, business_share: 80 });
   });
+
+  it('remembers which receipt paid each part, and undoes only that one on delete', async () => {
+    const { db, service } = setup();
+    const trips = service.tripExpenses;
+    await trips.assignTransactions([1, 2, 5], 1);
+    await trips.setAllocations([
+      { transactionId: 1, businessAmount: 450, status: 'submitted' },
+      { transactionId: 2, businessAmount: 600, status: 'submitted' },
+      { transactionId: 5, businessAmount: 100, status: 'submitted' },
+    ]);
+    const first = await trips.addReimbursement({ tripId: 1, amount: 450, transactionId: 7, markReimbursedIds: [1] });
+    const second = await trips.addReimbursement({ tripId: 1, amount: 600, markReimbursedIds: [2] });
+    // A status set by hand belongs to no receipt.
+    await trips.setStatus([5], 'reimbursed');
+    const parts = () =>
+      db.prepare('SELECT transaction_id, status, reimbursement_id FROM trip_expense_allocations ORDER BY transaction_id').all();
+    expect(parts()).toEqual([
+      { transaction_id: 1, status: 'reimbursed', reimbursement_id: first },
+      { transaction_id: 2, status: 'reimbursed', reimbursement_id: second },
+      { transaction_id: 5, status: 'reimbursed', reimbursement_id: null },
+    ]);
+
+    // Editing a split while it stays reimbursed keeps the link; changing its status drops it.
+    await trips.setAllocations([{ transactionId: 1, businessAmount: 400 }]);
+    expect(parts()[0]).toEqual({ transaction_id: 1, status: 'reimbursed', reimbursement_id: first });
+
+    await trips.deleteReimbursement(second);
+    expect(parts()).toEqual([
+      { transaction_id: 1, status: 'reimbursed', reimbursement_id: first },
+      { transaction_id: 2, status: 'submitted', reimbursement_id: null },
+      { transaction_id: 5, status: 'reimbursed', reimbursement_id: null },
+    ]);
+
+    await trips.setAllocations([{ transactionId: 1, businessAmount: 400, status: 'pending' }]);
+    await trips.deleteReimbursement(first);
+    expect(parts()[0]).toEqual({ transaction_id: 1, status: 'pending', reimbursement_id: null });
+  });
 });

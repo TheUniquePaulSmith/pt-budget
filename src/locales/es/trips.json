@@ -112,6 +112,7 @@
     "delete": "Eliminar reembolso",
     "deleteConfirm": "¿Eliminar el reembolso de {{amount}}?",
     "deleteKeepsRefund": "El ingreso al que estaba vinculado sigue siendo un reembolso. Cambie su tipo en la página Transacciones si lo necesita.",
+    "deleteUnmarks": "Los elementos que marcó como Reembolsado vuelven a Enviado.",
     "intro": "Indique lo que realmente recibió. No tiene que coincidir con el importe de empresa.",
     "amount": "Importe recibido",
     "amountHelp": "En su moneda predeterminada",

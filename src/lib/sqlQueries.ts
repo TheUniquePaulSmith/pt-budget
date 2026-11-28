@@ -972,7 +972,7 @@ export const SAMPLE_DATA_QUERIES = {
   INSERT_TRANSACTION: `INSERT OR REPLACE INTO transactions (id, date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   INSERT_PROJECT: `INSERT OR REPLACE INTO projects (id, name, company_name, contact_details, project_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   INSERT_TRIP: `INSERT OR REPLACE INTO trips (id, name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month, created_at, updated_at, expense_mode, reimburser) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  // Schema v8: trip business parts and the reimbursements received (they
+  // Schema v9: trip business parts and the reimbursements received (they
   // point at transaction ids, so they load after transactions).
   INSERT_TRIP_EXPENSE_ALLOCATION: `INSERT OR REPLACE INTO trip_expense_allocations (transaction_id, trip_id, business_amount, status, note, created_at, updated_at, reimbursement_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   INSERT_TRIP_REIMBURSEMENT: `INSERT OR REPLACE INTO trip_reimbursements (id, trip_id, amount, received_date, transaction_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,

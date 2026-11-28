@@ -96,7 +96,7 @@ export class SampleDataService {
     'classification_rules.json',
     'account_balance_snapshots.json',
     'transactions.json',
-    // Schema v8: they point at transactions, so they come after them.
+    // Schema v9: they point at transactions, so they come after them.
     'trip_reimbursements.json',
     'trip_expense_allocations.json',
   ];

@@ -1,4 +1,4 @@
-// Trip business expenses (schema v8): the business part of each linked
+// Trip business expenses (schema v9): the business part of each linked
 // expense, the reimbursements received, and the per-trip figures built from
 // them. Row shapes live here rather than in the database.ts hub because only
 // the trips feature reads them.

@@ -86,7 +86,7 @@ test('@smoke creates and reopens the browser-backed database', async ({ page }) 
   // A brand-new database is stamped with the current schema version and gets
   // every CREATE_TABLES entry (createTables iterates the schema export, so a
   // table added to the schema file cannot be missed on fresh databases).
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('8');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('9');
   expect(
     await runQueryAndReadFirstCell(
       page,

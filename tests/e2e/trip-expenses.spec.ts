@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { bootstrapDatabase, navigateToPage, runQueryAndReadFirstCell } from './helpers/bootstrap';
 
-// Trip business expenses (schema v8): a trip marked business + personal, its
+// Trip business expenses (schema v9): a trip marked business + personal, its
 // charges split into a business part to be paid back and a personal rest,
 // the reimbursement received, and the trip's Insights with the business part
 // filtered out.

@@ -16,7 +16,7 @@ import type {
 export type { TripExpenseDetail };
 
 /**
- * Provider-domain slice for trip business expenses (schema v8). Trip figures
+ * Provider-domain slice for trip business expenses (schema v9). Trip figures
  * are read per page (not a cached collection); every mutation bumps
  * transactionVersion, which is what the trip pages, the Transactions page and
  * the dashboard re-read on.

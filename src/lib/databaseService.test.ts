@@ -2672,7 +2672,7 @@ describe('DatabaseService import batches and review filters', () => {
     expect(inclusiveAggregate).not.toMatch(whereExcludesHidden);
     expect(inclusiveAggregate).not.toContain('t.is_flagged = 1');
 
-    // Trip filter (schema v8): one placeholder per trip, ids bound in order.
+    // Trip filter (schema v9): one placeholder per trip, ids bound in order.
     issued.length = 0;
     querySpy.mockClear();
     await service.getTransactionsPaginated({ page: 0, pageSize: 25, sortBy: 'date', sortOrder: 'desc', tripIds: [3, 5] });

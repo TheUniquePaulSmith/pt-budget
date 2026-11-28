@@ -1,4 +1,4 @@
-// Trip business expenses (schema v8): pure maths over a trip's rows. No
+// Trip business expenses (schema v9): pure maths over a trip's rows. No
 // React, no database. The service maps SQL rows to TripInsightRow (with every
 // amount already in the default currency); this module turns them into the
 // trip's figures and the Insights tab's breakdowns.

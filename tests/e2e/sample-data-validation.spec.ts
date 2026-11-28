@@ -102,7 +102,7 @@ test.describe('Sample data validation', () => {
     expect(await cell('SELECT COUNT(*) FROM transactions WHERE trip_id IS NOT NULL')).toBe(
       String(expected.trips.reduce((sum, trip) => sum + trip.linkedRows, 0))
     );
-    // Trip business expenses (schema v8): the seeded business parts and reimbursement.
+    // Trip business expenses (schema v9): the seeded business parts and reimbursement.
     expect(
       await cell(
         "SELECT printf('%.2f', COALESCE(SUM(MIN(ea.business_amount, -t.amount)), 0)) FROM trip_expense_allocations ea JOIN transactions t ON t.id = ea.transaction_id AND t.trip_id = ea.trip_id WHERE ea.status != 'denied'"

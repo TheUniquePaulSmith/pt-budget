@@ -92,7 +92,7 @@ import {
   useDatabaseImportsSlice,
   type DatabaseImportsSlice,
 } from './useDatabaseImportsSlice';
-// Schema v8: trip business expenses (business parts, reimbursements).
+// Schema v9: trip business expenses (business parts, reimbursements).
 import {
   useDatabaseTripExpensesSlice,
   type DatabaseTripExpensesSlice,

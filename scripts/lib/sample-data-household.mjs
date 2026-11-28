@@ -1060,7 +1060,7 @@ export function buildHouseholdTransactionEntries(scenario) {
       transferKey: spec.transferKey ?? null,
       loanId: spec.loanId ?? null,
       recurringKey: spec.recurringKey ?? null,
-      // Trip business expenses (schema v8): the business part of a trip
+      // Trip business expenses (schema v9): the business part of a trip
       // expense in cents ('full' = the whole charge) and its status.
       tripBusinessCents: spec.tripBusiness === 'full' ? -amountCents : spec.tripBusiness != null ? toCents(spec.tripBusiness) : null,
       tripStatus: spec.tripStatus ?? null,
@@ -2122,7 +2122,7 @@ export function buildSampleDataExpectations({ rowsWithEntries, scenario, meta })
       endDate: trip.end_date,
       linkedRows: tripSpend.get(trip.id).rows,
       linkedSpend: fromCents(tripSpend.get(trip.id).spendCents),
-      // Trip business expenses (schema v8), as the trip's Overview shows them.
+      // Trip business expenses (schema v9), as the trip's Overview shows them.
       expenseMode: trip.expense_mode,
       businessShare: fromCents(tripSpend.get(trip.id).businessCents),
       personalShare: fromCents(tripSpend.get(trip.id).spendCents - tripSpend.get(trip.id).businessCents),

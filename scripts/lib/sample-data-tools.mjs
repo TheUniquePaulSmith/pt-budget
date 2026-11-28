@@ -75,7 +75,7 @@ export const MANAGED_SAMPLE_TABLES = [
   'classification_rules',
   'account_balance_snapshots',
   'transactions',
-  // Schema v8: these point at transaction ids, so they come after them.
+  // Schema v9: these point at transaction ids, so they come after them.
   'trip_reimbursements',
   'trip_expense_allocations',
 ];

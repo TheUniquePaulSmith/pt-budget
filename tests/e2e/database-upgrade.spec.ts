@@ -50,7 +50,7 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
 
   // Opening an older database runs the pending migrations before the app
   // reports Connected, so the version is already current here.
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('8');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('9');
 
   // Version 8: how far each account's data is complete, and the posting grace.
   expect(
@@ -276,7 +276,7 @@ test('upgrades a schema v2 archive to the current version, keeping rows and addi
   test.skip(!fs.existsSync(V2_ARCHIVE_PATH), 'v2 baseline archive not captured (see tests/e2e-tools)');
   await loadArchiveAndUnlock(page, V2_ARCHIVE_PATH);
 
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('8');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('9');
   // A v2 database already has import_batches; version 7 only adds its three columns.
   expect(
     await runQueryAndReadFirstCell(

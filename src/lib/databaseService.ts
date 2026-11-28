@@ -215,7 +215,7 @@ export class DatabaseService {
   readonly preferences: PreferencesService;
   /** Statement import (schema v7): saved layouts, account identifiers, staging, commit, history. */
   readonly imports: ImportsService;
-  /** Trip business expenses (schema v8): business parts, reimbursement status, money received. */
+  /** Trip business expenses (schema v9): business parts, reimbursement status, money received. */
   readonly tripExpenses: TripExpensesService;
 
   constructor(

@@ -1,4 +1,4 @@
-// Trip business expenses (schema v8): which part of each trip expense is
+// Trip business expenses (schema v9): which part of each trip expense is
 // business, the reimbursement status of that part, and the money received
 // back. SQL in sqlQueriesTripExpenses.ts, the maths in tripInsights.ts.
 //

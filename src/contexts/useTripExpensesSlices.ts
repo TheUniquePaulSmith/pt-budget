@@ -1,6 +1,6 @@
 'use client';
 
-// Page-facing slices for trip business expenses (schema v8): the trip detail
+// Page-facing slices for trip business expenses (schema v9): the trip detail
 // view (Overview, Transactions, Insights) and the Transactions page's
 // "assign to trip" actions. Re-exported from useDatabaseSlices.ts (the hub).
 

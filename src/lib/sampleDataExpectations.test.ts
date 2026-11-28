@@ -362,7 +362,7 @@ describe.skipIf(skipReason !== null)(`sample-data expectations${skipReason ? ` (
       expect(row.rows, `trip ${trip.id}`).toBe(trip.linkedRows);
       expect(row.spend, `trip ${trip.id}`).toBeCloseTo(trip.linkedSpend, 2);
     }
-    // Trip business expenses (schema v8): the figures each trip's Overview shows.
+    // Trip business expenses (schema v9): the figures each trip's Overview shows.
     const summaries = await service.tripExpenses.getAllSummaries();
     for (const trip of manifest.trips) {
       const summary = summaries[trip.id];

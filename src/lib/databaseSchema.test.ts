@@ -18,7 +18,7 @@ const migrations = MIGRATIONS as Array<{ version: number; statements: MigrationO
 
 describe('database schema', () => {
   it('is at version 9 with migrations in ascending order ending at the current version', () => {
-    expect(SCHEMA_VERSION).toBe(8);
+    expect(SCHEMA_VERSION).toBe(9);
     const versions = migrations.map((migration) => migration.version);
     expect(versions).toEqual([...versions].sort((a, b) => a - b));
     expect(versions.at(-1)).toBe(SCHEMA_VERSION);
@@ -236,9 +236,9 @@ describe('database schema', () => {
     expect(CREATE_TABLES.ACCOUNT_IDENTIFIERS).toContain('FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE');
   });
 
-  it('version 8 adds trip expense modes, business allocations and reimbursements', () => {
-    const v8 = migrations.find((migration) => migration.version === 8)!;
-    const addedColumns = v8.statements.filter(
+  it('version 9 adds trip expense modes, business allocations and reimbursements', () => {
+    const v9 = migrations.find((migration) => migration.version === 9)!;
+    const addedColumns = v9.statements.filter(
       (op): op is Extract<MigrationOp, { op: 'addColumn' }> => typeof op !== 'string' && op.op === 'addColumn'
     );
     expect(addedColumns.map((op) => `${op.table}.${op.column}`)).toEqual([
@@ -258,9 +258,9 @@ describe('database schema', () => {
     expect(CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS).toContain(
       'FOREIGN KEY (reimbursement_id) REFERENCES trip_reimbursements (id) ON DELETE SET NULL'
     );
-    expect(v8.statements).toContain(CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS);
-    expect(v8.statements).toContain(CREATE_TABLES.TRIP_REIMBURSEMENTS);
-    expect(v8.statements.some((op) => typeof op !== 'string' && op.op === 'rebuild')).toBe(false);
+    expect(v9.statements).toContain(CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS);
+    expect(v9.statements).toContain(CREATE_TABLES.TRIP_REIMBURSEMENTS);
+    expect(v9.statements.some((op) => typeof op !== 'string' && op.op === 'rebuild')).toBe(false);
 
     // One allocation per transaction, and the statuses the UI offers.
     expect(CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS).toContain('transaction_id INTEGER PRIMARY KEY');

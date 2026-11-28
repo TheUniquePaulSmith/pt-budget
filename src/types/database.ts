@@ -418,7 +418,7 @@ export interface Trip {
   budget_category_id?: number | null;
   monthly_contribution?: number | null;
   contribution_start_month?: string | null;
-  // Business expenses (schema v8): how linked expenses split between business
+  // Business expenses (schema v9): how linked expenses split between business
   // and personal by default, and who reimburses the business part.
   expense_mode?: TripExpenseMode;
   reimburser?: string | null;

@@ -243,7 +243,9 @@ export default function TripTransactionsTab({ trip, rows }: TripTransactionsTabP
         </Box>
       ),
     });
-    return list;
+    // The money first, so the split stays in view on narrow screens; who and where after it.
+    const order = ['date', 'description', 'amount', 'business_amount', 'personal', 'status', 'category_name', 'user_name', 'account_id', 'actions'];
+    return [...list].sort((a, b) => order.indexOf(a.field) - order.indexOf(b.field));
     // `remove` only closes over stable callbacks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, hasBusiness, labels, money, t]);

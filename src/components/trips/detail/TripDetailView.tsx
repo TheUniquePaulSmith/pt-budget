@@ -66,7 +66,7 @@ export default function TripDetailView({ trip, onBack, onEdit }: TripDetailViewP
           direction="row"
           alignItems="center"
           columnGap={1}
-          sx={{ px: 1, pt: 1, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}
+          sx={{ px: 1, pt: 1 }}
         >
           <IconButton onClick={onBack} aria-label={t('detail.back')} data-testid="trip-detail-back">
             <ArrowBack />

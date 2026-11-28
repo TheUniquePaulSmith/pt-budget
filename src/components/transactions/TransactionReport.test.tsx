@@ -20,6 +20,7 @@ vi.mock('@/contexts/useDatabaseSlices', () => ({
   useTransactionQuickActionsSlice: vi.fn(),
   useClassificationRulesSlice: vi.fn(),
   useTransactionTypeActionsSlice: vi.fn(),
+  useTripAssignSlice: vi.fn(() => ({ trips: [], assignTransactionsToTrip: vi.fn() })),
 }));
 
 vi.mock('@/components/common/DataGrid/AppDataGrid', () => ({
@@ -134,6 +135,7 @@ vi.mock('@mui/icons-material', () => {
     LinkOff: createIcon('link-off-icon'),
     Rule: createIcon('rule-icon'),
     TaskAlt: createIcon('task-alt-icon'),
+    FlightTakeoff: createIcon('flight-takeoff-icon'),
   };
 });
 

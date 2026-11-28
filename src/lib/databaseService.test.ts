@@ -2671,6 +2671,15 @@ describe('DatabaseService import batches and review filters', () => {
     const inclusiveAggregate = issued.find((sql) => sql.includes('COUNT(*) as total')) ?? '';
     expect(inclusiveAggregate).not.toMatch(whereExcludesHidden);
     expect(inclusiveAggregate).not.toContain('t.is_flagged = 1');
+
+    // Trip filter (schema v8): one placeholder per trip, ids bound in order.
+    issued.length = 0;
+    querySpy.mockClear();
+    await service.getTransactionsPaginated({ page: 0, pageSize: 25, sortBy: 'date', sortOrder: 'desc', tripIds: [3, 5] });
+    const tripAggregate = issued.find((sql) => sql.includes('COUNT(*) as total')) ?? '';
+    expect(tripAggregate).toContain('t.trip_id IN (?,?)');
+    const tripCall = querySpy.mock.calls.find(([sql]) => String(sql).includes('COUNT(*) as total'));
+    expect(tripCall?.[1]).toEqual(expect.arrayContaining([3, 5]));
   });
 });
 

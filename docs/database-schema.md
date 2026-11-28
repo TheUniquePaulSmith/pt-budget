@@ -123,6 +123,28 @@ erDiagram
         string contribution_start_month
         datetime created_at
         datetime updated_at
+        string expense_mode
+        string reimburser
+    }
+
+    TRIP_EXPENSE_ALLOCATIONS {
+        int transaction_id PK
+        int trip_id FK
+        float business_amount
+        string status
+        string note
+        datetime created_at
+        datetime updated_at
+    }
+
+    TRIP_REIMBURSEMENTS {
+        int id PK
+        int trip_id FK
+        float amount
+        date received_date
+        int transaction_id FK
+        string note
+        datetime created_at
     }
 
     TRANSACTIONS {
@@ -325,6 +347,10 @@ erDiagram
     COMPANIES ||--o{ TRANSACTIONS : associated_with
     PROJECTS ||--o{ TRANSACTIONS : includes
     TRIPS ||--o{ TRANSACTIONS : includes
+    TRIPS ||--o{ TRIP_EXPENSE_ALLOCATIONS : splits
+    TRANSACTIONS ||--o| TRIP_EXPENSE_ALLOCATIONS : business_part
+    TRIPS ||--o{ TRIP_REIMBURSEMENTS : paid_back_by
+    TRANSACTIONS ||--o{ TRIP_REIMBURSEMENTS : arrived_in
     CATEGORIES ||--o{ BUDGETS : has
     COMPANIES ||--o{ RECURRING_SERIES : bills_through
     MERCHANT_RULES ||--o{ RECURRING_SERIES : derives
@@ -381,3 +407,4 @@ Schema changes are delivered by a `PRAGMA user_version`-gated migration runner i
 | 6 | `accounts.currency` (ISO 4217, `NOT NULL DEFAULT 'USD'`) and `exchange_rates` (`currency` PK, nullable `rate`, `updated_at`). The household's default currency lives in `app_metadata` under `preferences.defaultCurrency` (USD when absent); `rate` is units of the default currency per 1 unit of `currency`, NULL = unknown. `sqlMoneyExpressions.ts` multiplies every money row by that rate inside `spendExpr` / `incomeExpr`, so every cross-account SUM is in the default currency and rows in a currency without a rate are skipped. Fixtures regenerated for the new column |
 | 7 | import_profiles, account_identifiers; `import_batches.profile_id` (FK, `ON DELETE SET NULL`) / `file_format` / `issues_json`. Purely additive: no table is rebuilt, no row is rewritten, and the `import_batches.source` CHECK is unchanged |
 | 8 | account_data_checkpoints; `notification_settings.grace_days`. Additive, plus one idempotent backfill: every earlier batch gets a checkpoint per account it wrote to, complete through the day before the UTC day it ran (`imported_at` is UTC, so this never runs past the local import day; never before its newest row), `through_source = 'backfill'` |
+| 9 | Trip business expenses: `trips.expense_mode` (`personal` / `business` / `mixed`, `NOT NULL DEFAULT 'personal'`; existing `business` trips become `business`) and `trips.reimburser`; `trip_expense_allocations` (one row per trip expense: the business part as a positive amount in the account currency, capped at the charge in every query, and its status `pending` / `submitted` / `reimbursed` / `denied`; valid only while `transactions.trip_id` still equals its `trip_id`, pruned by the service otherwise); `trip_reimbursements` (money received back, in the default currency, optionally pointing at the deposit or paycheck it came in). Purely additive |

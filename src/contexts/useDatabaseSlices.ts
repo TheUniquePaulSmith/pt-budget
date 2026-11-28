@@ -29,6 +29,7 @@ export { useClassificationRulesSlice, useTransactionTypeActionsSlice } from './u
 export { useLoansPageSlice, useSubscriptionsLoansSlice } from './useLoansSlices';
 export { useCurrencyPreferencesSlice } from './usePreferencesSlices';
 export { useAccountFreshness, useImportManageSlice, useImportWizardSlice } from './useImportsSlices';
+export { useTripAssignSlice, useTripDetailSlice, useTripSummariesSlice } from './useTripExpensesSlices';
 
 export function useAppShellSlice() {
   const status = useDatabaseStatus();

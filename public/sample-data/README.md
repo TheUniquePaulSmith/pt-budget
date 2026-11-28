@@ -38,13 +38,14 @@ Generated and gitignored (date-dependent, regenerate rather than edit):
 | File | Table | Notes |
 |---|---|---|
 | `accounts.json` | accounts | Eleven USD accounts with opening balances as of the window start |
-| `projects.json`, `trips.json` | projects, trips | Dated relative to today; two carry savings funds |
+| `projects.json`, `trips.json` | projects, trips | Dated relative to today; two carry savings funds; trip 3 (last month) is a business + personal work trip |
 | `budget_plans.json`, `budget_plan_categories.json` | budgets | Baseline plan at the window start, adjusted plan three months ago |
 | `income_sources.json` | income_sources | Two salaries, a teen job, a linked account |
 | `loans.json`, `loan_match_rules.json` | loans | Mortgage and furnace financing have rules; the auto loan has none on purpose |
 | `classification_rules.json` | classification_rules | Four user transfer rules (savings sweep, card autopay, allowance, 529) |
 | `account_balance_snapshots.json` | account_balance_snapshots | Monthly 401(k) and 529 statements, opening loan balances |
 | `transactions.json` | transactions | Newest first; `meta` records the window, seed and `natural` flag |
+| `trip_expense_allocations.json`, `trip_reimbursements.json` | trip business expenses | Trip 3's business parts (one denied) and its reimbursement, folded into a paycheck and a little short of the claim |
 | `expectations.json` | (manifest) | What the app should show for this set: per-month income/expenses, transfer pairs, refunds, loan payments, detectable series, balances, linked project/trip spend |
 
 Committed and static: `users.json`, `account_cards.json`, `categories.json`, `companies.json`. The
@@ -107,7 +108,9 @@ Files load in dependency order so foreign keys resolve:
 12. loan_match_rules
 13. classification_rules
 14. account_balance_snapshots
-15. transactions (last, it references most of the above)
+15. transactions (it references most of the above)
+16. trip_reimbursements (points at a transaction id)
+17. trip_expense_allocations (point at transaction ids and the reimbursement that paid them)
 
 Primary keys are preserved; after each table the auto-increment sequence is reset to the maximum id.
 Tables not listed (`merchant_rules`, `recurring_series`, `transaction_series_links`, `loan_payments`,

@@ -151,6 +151,8 @@ describe('sample data tools', () => {
       'classification_rules',
       'account_balance_snapshots',
       'transactions',
+      'trip_reimbursements',
+      'trip_expense_allocations',
     ]);
     expect(transactionsFixture?.data).toHaveLength(585);
     expect(transactionsFixture?.meta).toEqual(

@@ -57,6 +57,8 @@ interface UseDatabaseCatalogAndPlanningSlicesOptions {
   refreshCompanies: () => Promise<void>;
   refreshProjects: () => Promise<void>;
   refreshTrips: () => Promise<void>;
+  /** Deleting a trip takes its transactions off it. */
+  refreshTransactions?: () => Promise<void>;
 }
 
 export function useDatabaseCatalogAndPlanningSlices({
@@ -65,6 +67,7 @@ export function useDatabaseCatalogAndPlanningSlices({
   refreshCompanies,
   refreshProjects,
   refreshTrips,
+  refreshTransactions,
 }: UseDatabaseCatalogAndPlanningSlicesOptions): {
   categoriesSlice: DatabaseCategorySlice;
   companiesSlice: DatabaseCompanySlice;
@@ -163,8 +166,9 @@ export function useDatabaseCatalogAndPlanningSlices({
     async (id: number): Promise<void> => {
       await requireService().deleteTrip(id);
       await refreshTrips();
+      await refreshTransactions?.();
     },
-    [refreshTrips, requireService]
+    [refreshTransactions, refreshTrips, requireService]
   );
 
   const categoriesSlice = useMemo(

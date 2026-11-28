@@ -52,6 +52,7 @@
     "categories": "Catégories",
     "companies": "Commerçants",
     "projects": "Projets",
+    "trips": "Voyages",
     "accounts": "Comptes",
     "users": "Utilisateurs",
     "missingCategory": "Sans catégorie",
@@ -264,6 +265,7 @@
     "setCategory": "Définir la catégorie",
     "setCompany": "Définir le commerçant",
     "setProject": "Définir le projet",
+    "setTrip": "Définir le voyage",
     "subscriptionLink": "Lien d'abonnement",
     "clearSelection": "Effacer la sélection"
   },
@@ -291,6 +293,16 @@
     "clearsTrip": "Définir un projet efface toute étiquette de voyage sur ces transactions.",
     "searchPlaceholder": "Rechercher des projets...",
     "setFailed": "Échec de la définition du projet"
+  },
+  "bulkTrip": {
+    "title": "Définir le voyage",
+    "applyTo_one": "Appliquer à {{count}} transaction sélectionnée",
+    "applyTo_other": "Appliquer à {{count}} transactions sélectionnées",
+    "clearsProject": "Définir un voyage retire l'étiquette de projet de ces transactions.",
+    "businessDefault": "Ce voyage est professionnel : les frais compteront comme professionnels.",
+    "searchPlaceholder": "Rechercher des voyages...",
+    "remove": "Retirer du voyage",
+    "setFailed": "Échec de la définition du voyage"
   },
   "bulkSeries": {
     "title": "Lien d'abonnement",

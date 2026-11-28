@@ -8,10 +8,11 @@ import {
   Business as BusinessIcon,
   Category as CategoryIcon,
   Close as CloseIcon,
+  FlightTakeoff as TripIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 
-export type BulkActionKind = 'category' | 'company' | 'project' | 'series';
+export type BulkActionKind = 'category' | 'company' | 'project' | 'trip' | 'series';
 
 interface TransactionBulkActionsBarProps {
   selectedCount: number;
@@ -40,6 +41,9 @@ export default function TransactionBulkActionsBar({
         </Button>
         <Button size="small" startIcon={<ProjectIcon />} onClick={() => onOpenAction('project')}>
           {t('bulkBar.setProject')}
+        </Button>
+        <Button size="small" startIcon={<TripIcon />} onClick={() => onOpenAction('trip')} data-testid="bulk-set-trip">
+          {t('bulkBar.setTrip')}
         </Button>
         <Button size="small" startIcon={<AutorenewIcon />} onClick={() => onOpenAction('series')}>
           {t('bulkBar.subscriptionLink')}

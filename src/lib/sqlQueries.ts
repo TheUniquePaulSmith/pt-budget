@@ -20,6 +20,7 @@ export { CLASSIFICATION_QUERIES } from './sqlQueriesClassification';
 export { LOAN_QUERIES } from './sqlQueriesLoans';
 export { EXCHANGE_RATE_QUERIES } from './sqlQueriesPreferences';
 export { IMPORT_QUERIES } from './sqlQueriesImports';
+export { TRIP_EXPENSE_QUERIES } from './sqlQueriesTripExpenses';
 
 // Transaction Queries
 export const TRANSACTION_QUERIES = {
@@ -544,8 +545,8 @@ export const TRIP_QUERIES = {
   `,
 
   CREATE: `
-    INSERT INTO trips (name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO trips (name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month, expense_mode, reimburser)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     RETURNING id
   `,
 
@@ -555,7 +556,7 @@ export const TRIP_QUERIES = {
 
   UPDATE: `
     UPDATE trips 
-    SET name = ?, destination = ?, purpose = ?, trip_category = ?, status = ?, start_date = ?, end_date = ?, estimated_cost = ?, actual_cost = ?, notes = ?, budget_category_id = ?, monthly_contribution = ?, contribution_start_month = ?, updated_at = CURRENT_TIMESTAMP
+    SET name = ?, destination = ?, purpose = ?, trip_category = ?, status = ?, start_date = ?, end_date = ?, estimated_cost = ?, actual_cost = ?, notes = ?, budget_category_id = ?, monthly_contribution = ?, contribution_start_month = ?, expense_mode = ?, reimburser = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `,
 
@@ -970,7 +971,11 @@ export const SAMPLE_DATA_QUERIES = {
   INSERT_COMPANY: `INSERT OR REPLACE INTO companies (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
   INSERT_TRANSACTION: `INSERT OR REPLACE INTO transactions (id, date, amount, description, comment, account_id, card_id, category_id, company_id, project_id, trip_id, type, transaction_hash, hash_variation_seed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   INSERT_PROJECT: `INSERT OR REPLACE INTO projects (id, name, company_name, contact_details, project_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  INSERT_TRIP: `INSERT OR REPLACE INTO trips (id, name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_TRIP: `INSERT OR REPLACE INTO trips (id, name, destination, purpose, trip_category, status, start_date, end_date, estimated_cost, actual_cost, notes, budget_category_id, monthly_contribution, contribution_start_month, created_at, updated_at, expense_mode, reimburser) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  // Schema v9: trip business parts and the reimbursements received (they
+  // point at transaction ids, so they load after transactions).
+  INSERT_TRIP_EXPENSE_ALLOCATION: `INSERT OR REPLACE INTO trip_expense_allocations (transaction_id, trip_id, business_amount, status, note, created_at, updated_at, reimbursement_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  INSERT_TRIP_REIMBURSEMENT: `INSERT OR REPLACE INTO trip_reimbursements (id, trip_id, amount, received_date, transaction_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   INSERT_BUDGET_PLAN: `INSERT OR REPLACE INTO budget_plans (id, effective_month, total_amount, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
   INSERT_BUDGET_PLAN_CATEGORY: `INSERT OR REPLACE INTO budget_plan_categories (id, plan_id, category_id, amount, carry_mode, carry_reset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   INSERT_INCOME_SOURCE: `INSERT OR REPLACE INTO income_sources (id, name, kind, user_id, account_id, amount, frequency, start_date, end_date, is_active, notes, deposit_account_id, match_pattern, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

@@ -96,6 +96,9 @@ export class SampleDataService {
     'classification_rules.json',
     'account_balance_snapshots.json',
     'transactions.json',
+    // Schema v9: they point at transactions, so they come after them.
+    'trip_reimbursements.json',
+    'trip_expense_allocations.json',
   ];
 
   /** Number of fixture files an import walks (progress totals). */
@@ -598,6 +601,39 @@ export class SampleDataService {
             row.contribution_start_month ?? null,
             row.created_at,
             row.updated_at,
+            row.expense_mode || 'personal',
+            row.reimburser ?? null,
+          ],
+        };
+      case 'trip_expense_allocations':
+        return {
+          insertQuery: SAMPLE_DATA_QUERIES.INSERT_TRIP_EXPENSE_ALLOCATION,
+          batchSize: DEFAULT_BATCH_SIZE,
+          progressLogInterval: DEFAULT_PROGRESS_LOG_INTERVAL,
+          toParameters: (row) => [
+            row.transaction_id,
+            row.trip_id,
+            row.business_amount ?? 0,
+            row.status || 'pending',
+            row.note ?? null,
+            row.created_at,
+            row.updated_at,
+            row.reimbursement_id ?? null,
+          ],
+        };
+      case 'trip_reimbursements':
+        return {
+          insertQuery: SAMPLE_DATA_QUERIES.INSERT_TRIP_REIMBURSEMENT,
+          batchSize: DEFAULT_BATCH_SIZE,
+          progressLogInterval: DEFAULT_PROGRESS_LOG_INTERVAL,
+          toParameters: (row) => [
+            row.id,
+            row.trip_id,
+            row.amount,
+            row.received_date ?? null,
+            row.transaction_id ?? null,
+            row.note ?? null,
+            row.created_at,
           ],
         };
       case 'budget_plans':

@@ -50,7 +50,7 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
 
   // Opening an older database runs the pending migrations before the app
   // reports Connected, so the version is already current here.
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('8');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('9');
 
   // Version 8: how far each account's data is complete, and the posting grace.
   expect(
@@ -62,6 +62,25 @@ test('@smoke upgrades a schema v1 archive to the current schema without losing r
   expect(
     await runQueryAndReadFirstCell(page, "SELECT COUNT(*) FROM pragma_table_info('notification_settings') WHERE name = 'grace_days'")
   ).toBe('1');
+  // Version 9: trip business expenses (expense mode, allocations, reimbursements).
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT COUNT(*) FROM pragma_table_info('trips') WHERE name IN ('expense_mode', 'reimburser')"
+    )
+  ).toBe('2');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT group_concat(name, ',') FROM pragma_table_info('trip_expense_allocations')"
+    )
+  ).toBe('transaction_id,trip_id,business_amount,status,note,created_at,updated_at,reimbursement_id');
+  expect(
+    await runQueryAndReadFirstCell(
+      page,
+      "SELECT group_concat(name, ',') FROM pragma_table_info('trip_reimbursements')"
+    )
+  ).toBe('id,trip_id,amount,received_date,transaction_id,note,created_at');
 
   // Version 7: the statement-import tables and the import batch details exist
   // on an upgraded database too, with the same columns a fresh one gets.
@@ -257,7 +276,7 @@ test('upgrades a schema v2 archive to the current version, keeping rows and addi
   test.skip(!fs.existsSync(V2_ARCHIVE_PATH), 'v2 baseline archive not captured (see tests/e2e-tools)');
   await loadArchiveAndUnlock(page, V2_ARCHIVE_PATH);
 
-  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('8');
+  expect(await runQueryAndReadFirstCell(page, 'SELECT user_version FROM pragma_user_version')).toBe('9');
   // A v2 database already has import_batches; version 7 only adds its three columns.
   expect(
     await runQueryAndReadFirstCell(

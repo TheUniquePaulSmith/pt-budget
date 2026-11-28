@@ -29,7 +29,7 @@ interface Manifest {
   subscriptions: Array<{ description: string; detectable: boolean }>;
   budget: { funds: Array<{ name: string }> };
   projects: Array<{ id: number; linkedRows: number }>;
-  trips: Array<{ id: number; linkedRows: number }>;
+  trips: Array<{ id: number; linkedRows: number; businessShare?: number; received?: number }>;
 }
 
 const MANIFEST_PATH = path.join(__dirname, '..', '..', 'public', 'sample-data', 'expectations.json');
@@ -101,6 +101,15 @@ test.describe('Sample data validation', () => {
     );
     expect(await cell('SELECT COUNT(*) FROM transactions WHERE trip_id IS NOT NULL')).toBe(
       String(expected.trips.reduce((sum, trip) => sum + trip.linkedRows, 0))
+    );
+    // Trip business expenses (schema v9): the seeded business parts and reimbursement.
+    expect(
+      await cell(
+        "SELECT printf('%.2f', COALESCE(SUM(MIN(ea.business_amount, -t.amount)), 0)) FROM trip_expense_allocations ea JOIN transactions t ON t.id = ea.transaction_id AND t.trip_id = ea.trip_id WHERE ea.status != 'denied'"
+      )
+    ).toBe(money(expected.trips.reduce((sum, trip) => sum + (trip.businessShare ?? 0), 0)));
+    expect(await cell("SELECT printf('%.2f', COALESCE(SUM(amount), 0)) FROM trip_reimbursements")).toBe(
+      money(expected.trips.reduce((sum, trip) => sum + (trip.received ?? 0), 0))
     );
 
     // 6. Loans: opening the page applies the seeded rules; balances fall below principal.

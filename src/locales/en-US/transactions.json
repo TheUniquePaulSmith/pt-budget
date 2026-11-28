@@ -52,6 +52,7 @@
     "categories": "Categories",
     "companies": "Companies",
     "projects": "Projects",
+    "trips": "Trips",
     "accounts": "Accounts",
     "users": "Users",
     "missingCategory": "Missing Category",
@@ -264,6 +265,7 @@
     "setCategory": "Set Category",
     "setCompany": "Set Company",
     "setProject": "Set Project",
+    "setTrip": "Set Trip",
     "subscriptionLink": "Subscription Link",
     "clearSelection": "Clear Selection"
   },
@@ -291,6 +293,16 @@
     "clearsTrip": "Setting a project clears any trip label on these transactions.",
     "searchPlaceholder": "Search projects...",
     "setFailed": "Failed to set project"
+  },
+  "bulkTrip": {
+    "title": "Set Trip",
+    "applyTo_one": "Apply to {{count}} selected transaction",
+    "applyTo_other": "Apply to {{count}} selected transactions",
+    "clearsProject": "Setting a trip clears any project label on these transactions.",
+    "businessDefault": "This is a business trip: the charges will count as business.",
+    "searchPlaceholder": "Search trips...",
+    "remove": "Remove from trip",
+    "setFailed": "Failed to set trip"
   },
   "bulkSeries": {
     "title": "Subscription Link",

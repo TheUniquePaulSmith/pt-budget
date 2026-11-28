@@ -252,7 +252,56 @@ export const CREATE_TABLES = {
       monthly_contribution REAL,
       contribution_start_month TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      -- Version 9: business expenses. 'personal' trips show no business UI;
+      -- on a 'business' trip a newly linked expense is fully business, on a
+      -- 'mixed' one it starts personal. reimburser is who pays it back.
+      expense_mode TEXT NOT NULL DEFAULT 'personal' CHECK(expense_mode IN ('personal', 'business', 'mixed')),
+      reimburser TEXT
+    )
+  `,
+
+  // Version 9: the business part of a trip expense. One row per transaction,
+  // valid only while transactions.trip_id still equals trip_id (the service
+  // prunes rows whose transaction moved or left the trip; never rely on the
+  // ON DELETE actions, foreign keys are off on reopened databases).
+  //   business_amount  the business part, a positive magnitude in the
+  //                    transaction's account currency, at most the charge
+  //   status           pending -> submitted -> reimbursed, or denied (a
+  //                    denied business part counts as personal again)
+  //   reimbursement_id the receipt that marked it reimbursed (NULL when the
+  //                    status was set by hand); deleting that receipt sets
+  //                    the part back to submitted
+  TRIP_EXPENSE_ALLOCATIONS: `
+    CREATE TABLE IF NOT EXISTS trip_expense_allocations (
+      transaction_id INTEGER PRIMARY KEY,
+      trip_id INTEGER NOT NULL,
+      business_amount REAL NOT NULL CHECK(business_amount >= 0),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'submitted', 'reimbursed', 'denied')),
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reimbursement_id INTEGER,
+      FOREIGN KEY (transaction_id) REFERENCES transactions (id) ON DELETE CASCADE,
+      FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE CASCADE,
+      FOREIGN KEY (reimbursement_id) REFERENCES trip_reimbursements (id) ON DELETE SET NULL
+    )
+  `,
+
+  // Version 9: money received back for a trip's business expenses. amount is
+  // in the default currency and need not match what was claimed. A receipt
+  // may point at the deposit it arrived in, which is often a paycheck.
+  TRIP_REIMBURSEMENTS: `
+    CREATE TABLE IF NOT EXISTS trip_reimbursements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trip_id INTEGER NOT NULL,
+      amount REAL NOT NULL CHECK(amount > 0),
+      received_date DATE,
+      transaction_id INTEGER,
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE CASCADE,
+      FOREIGN KEY (transaction_id) REFERENCES transactions (id) ON DELETE SET NULL
     )
   `,
 
@@ -711,6 +760,9 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_account_identifiers_last_four ON account_identifiers(last_four) WHERE last_four IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_account_data_checkpoints_account ON account_data_checkpoints(account_id, data_through)`,
   `CREATE INDEX IF NOT EXISTS idx_account_data_checkpoints_batch ON account_data_checkpoints(import_batch_id) WHERE import_batch_id IS NOT NULL`,
+  // Version 9: trip business expenses are read per trip.
+  `CREATE INDEX IF NOT EXISTS idx_trip_expense_allocations_trip ON trip_expense_allocations(trip_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_trip_reimbursements_trip ON trip_reimbursements(trip_id)`,
 ];
 
 // Schema versioning — applied by runMigrations() in database-worker.js.
@@ -733,7 +785,7 @@ export const CREATE_INDEXES = [
 //   - { op: 'rehashTransactions' }                     recomputes legacy hashes
 //   - an UPDATE ... WHERE string is allowed too when it is a no-op on rerun
 //   - an INSERT INTO ... SELECT ... WHERE NOT EXISTS string likewise
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 export const MIGRATIONS = [
   {
     version: 1,
@@ -914,6 +966,26 @@ export const MIGRATIONS = [
         GROUP BY b.id, t.account_id`,
     ],
   },
+  {
+    version: 9,
+    statements: [
+      // Trip business expenses: how a trip's expenses split between business
+      // and personal, and the reimbursements received for them.
+      {
+        op: 'addColumn',
+        table: 'trips',
+        column: 'expense_mode',
+        ddl: "expense_mode TEXT NOT NULL DEFAULT 'personal' CHECK(expense_mode IN ('personal', 'business', 'mixed'))",
+      },
+      { op: 'addColumn', table: 'trips', column: 'reimburser', ddl: 'reimburser TEXT' },
+      CREATE_TABLES.TRIP_EXPENSE_ALLOCATIONS,
+      CREATE_TABLES.TRIP_REIMBURSEMENTS,
+      // Dev databases made from an earlier build of this version lack it.
+      { op: 'addColumn', table: 'trip_expense_allocations', column: 'reimbursement_id', ddl: 'reimbursement_id INTEGER' },
+      // A business trip starts with business expenses (a no-op on rerun).
+      `UPDATE trips SET expense_mode = 'business' WHERE trip_category = 'business' AND expense_mode = 'personal'`,
+    ],
+  },
 ];
 
 // Default Data Inserts
@@ -956,8 +1028,8 @@ export const DEFAULT_DATA = {
   `,
 
   TRIPS: `
-    INSERT OR IGNORE INTO trips (id, name, destination, purpose, trip_category, status) VALUES
-    (1, 'Summer Vacation 2024', 'Hawaii', 'Family vacation', 'vacation', 'planning'),
-    (2, 'Business Conference NYC', 'New York', 'Annual company conference', 'business', 'planning')
+    INSERT OR IGNORE INTO trips (id, name, destination, purpose, trip_category, status, expense_mode) VALUES
+    (1, 'Summer Vacation 2024', 'Hawaii', 'Family vacation', 'vacation', 'planning', 'personal'),
+    (2, 'Business Conference NYC', 'New York', 'Annual company conference', 'business', 'planning', 'business')
   `
 };

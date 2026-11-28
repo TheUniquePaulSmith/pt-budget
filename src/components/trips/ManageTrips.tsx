@@ -6,6 +6,7 @@ import {
   Typography,
   Button,
   Card,
+  CardActionArea,
   CardContent,
   Dialog,
   DialogTitle,
@@ -13,6 +14,7 @@ import {
   DialogActions,
   TextField,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
@@ -28,9 +30,10 @@ import {
   FlightTakeoff as TripIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
-import { useBudgetFundsSlice, useTripsSlice } from '@/contexts/useDatabaseSlices';
+import { useBudgetFundsSlice, useTripSummariesSlice, useTripsSlice } from '@/contexts/useDatabaseSlices';
 import { useFormatters } from '@/contexts/useFormatters';
-import { Trip } from '@/types/database';
+import { Trip, type TripExpenseMode } from '@/types/database';
+import type { TripExpenseSummary } from '@/types/tripExpenses';
 import type { BudgetFundStatus } from '@/types/budgetCarry';
 import { currentMonthKey } from '@/lib/budgetCarry';
 import { logger } from '@/lib/logging';
@@ -42,6 +45,7 @@ import {
 } from '@/components/budget/BudgetFundFields';
 import { BudgetFundSummary } from '@/components/budget/BudgetFundSummary';
 import { TripBudgetFields } from './TripBudgetFields';
+import TripDetailView from './detail/TripDetailView';
 
 const log = logger.child({ component: 'ManageTrips' });
 
@@ -49,6 +53,7 @@ const log = logger.child({ component: 'ManageTrips' });
 // `trips:status.*` at render time.
 const TRIP_CATEGORIES: ReadonlyArray<Trip['trip_category']> = ['business', 'vacation', 'family', 'medical', 'education', 'other'];
 const TRIP_STATUSES: ReadonlyArray<Trip['status']> = ['planning', 'in_progress', 'completed', 'cancelled'];
+const EXPENSE_MODES: ReadonlyArray<TripExpenseMode> = ['personal', 'mixed', 'business'];
 
 export default function ManageTrips() {
   const { t } = useTranslation(['trips', 'common']);
@@ -61,6 +66,9 @@ export default function ManageTrips() {
     deleteTrip, 
   } = useTripsSlice();
   const { categories, budgetVersion, transactionVersion, getFundStatus } = useBudgetFundsSlice();
+  const { getTripExpenseSummaries } = useTripSummariesSlice();
+  const [openTripId, setOpenTripId] = useState<number | null>(null);
+  const [summaries, setSummaries] = useState<Record<number, TripExpenseSummary>>({});
   
   const [tripDialogOpen, setTripDialogOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
@@ -85,6 +93,17 @@ export default function ManageTrips() {
     });
     return () => { cancelled = true; };
   }, [trips, transactionVersion, budgetVersion, getFundStatus]);
+
+  // What each trip cost, and how much of it was business (default currency).
+  useEffect(() => {
+    let cancelled = false;
+    getTripExpenseSummaries().then((next) => {
+      if (!cancelled) setSummaries(next);
+    }).catch((error) => {
+      log.error('Failed to load trip totals', { operation: 'loadTripSummaries', error });
+    });
+    return () => { cancelled = true; };
+  }, [trips, transactionVersion, getTripExpenseSummaries]);
   
   const [tripFormData, setTripFormData] = useState({
     name: '',
@@ -96,6 +115,8 @@ export default function ManageTrips() {
     end_date: '',
     estimated_cost: '',
     notes: '',
+    expense_mode: 'personal' as TripExpenseMode,
+    reimburser: '',
     fund: EMPTY_BUDGET_FUND_FORM as BudgetFundFormValue,
   });
 
@@ -112,6 +133,8 @@ export default function ManageTrips() {
         end_date: trip.end_date || '',
         estimated_cost: trip.estimated_cost?.toString() || '',
         notes: trip.notes || '',
+        expense_mode: trip.expense_mode ?? 'personal',
+        reimburser: trip.reimburser || '',
         fund: budgetFundFormFromEntity(trip),
       });
     } else {
@@ -126,6 +149,8 @@ export default function ManageTrips() {
         end_date: '',
         estimated_cost: '',
         notes: '',
+        expense_mode: 'personal',
+        reimburser: '',
         fund: EMPTY_BUDGET_FUND_FORM,
       });
     }
@@ -160,6 +185,8 @@ export default function ManageTrips() {
         estimated_cost: tripFormData.estimated_cost ? parseFloat(tripFormData.estimated_cost) : null,
         actual_cost: null,
         notes: tripFormData.notes || null,
+        expense_mode: tripFormData.expense_mode,
+        reimburser: tripFormData.expense_mode === 'personal' ? null : tripFormData.reimburser.trim() || null,
         ...budgetFundColumnsFromForm(tripFormData.fund),
       };
 
@@ -190,6 +217,7 @@ export default function ManageTrips() {
 
     try {
       await deleteTrip(tripToDelete.id);
+      if (openTripId === tripToDelete.id) setOpenTripId(null);
       setDeleteDialogOpen(false);
       setTripToDelete(null);
     } catch (error) {
@@ -212,123 +240,10 @@ export default function ManageTrips() {
   const getCategoryLabel = (category: Trip['trip_category']) => t(`category.${category}`);
   const getStatusLabel = (status: Trip['status']) => t(`status.${status}`);
 
-  return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1" fontWeight="bold">
-          {t('manage.title')}
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenTripDialog()}
-          sx={{ minWidth: 120 }}
-        >
-          {t('manage.addTrip')}
-        </Button>
-      </Box>
+  const openTrip = openTripId == null ? null : trips.find((trip) => trip.id === openTripId) ?? null;
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
-
-      <Box 
-        sx={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
-          gap: 3 
-        }}
-      >
-        {trips.map((trip) => (
-          <Card key={trip.id}>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Typography variant="h6" component="h2" fontWeight="bold">
-                    {trip.name}
-                  </Typography>
-                  <Box>
-                    <Tooltip title={t('manage.editTrip')}>
-                      <IconButton size="small" onClick={() => handleOpenTripDialog(trip)}>
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('manage.deleteTrip')}>
-                      <IconButton size="small" onClick={() => handleDeleteClick(trip)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </Box>
-
-                {trip.destination && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    <strong>{t('manage.destination')}</strong> {trip.destination}
-                  </Typography>
-                )}
-
-                {trip.purpose && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    <strong>{t('manage.purpose')}</strong> {trip.purpose}
-                  </Typography>
-                )}
-
-                <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                  <Chip
-                    label={getStatusLabel(trip.status)}
-                    color={getStatusColor(trip.status) as any}
-                    size="small"
-                  />
-                  <Chip 
-                    label={getCategoryLabel(trip.trip_category)} 
-                    variant="outlined"
-                    size="small"
-                  />
-                </Box>
-
-                {(trip.start_date || trip.end_date) && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    <strong>{t('manage.dates')}</strong>{' '}
-                    {t('manage.dateRange', { start: trip.start_date || t('manage.tbd'), end: trip.end_date || t('manage.tbd') })}
-                  </Typography>
-                )}
-
-                {trip.estimated_cost && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: fundStatus[trip.id] ? 1.5 : 0 }}>
-                    <strong>{t('manage.estimatedCost')}</strong> {money(trip.estimated_cost)}
-                  </Typography>
-                )}
-
-                {fundStatus[trip.id] && <BudgetFundSummary fund={fundStatus[trip.id]} />}
-              </CardContent>
-            </Card>
-        ))}
-      </Box>
-
-      {trips.length === 0 && (
-        <Card>
-          <CardContent>
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <TripIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                {t('manage.emptyTitle')}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                {t('manage.emptyHelp')}
-              </Typography>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => handleOpenTripDialog()}
-              >
-                {t('manage.addFirstTrip')}
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-
+  const dialogs = (
+    <>
       {/* Trip Dialog */}
       <Dialog 
         open={tripDialogOpen} 
@@ -341,6 +256,11 @@ export default function ManageTrips() {
             {editingTrip ? t('manage.editTrip') : t('manage.addTitle')}
           </DialogTitle>
           <DialogContent>
+            {error && (
+              <Alert severity="error" sx={{ mt: 1 }}>
+                {error}
+              </Alert>
+            )}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
               <TextField
                 fullWidth
@@ -432,6 +352,34 @@ export default function ManageTrips() {
                 onChange={(e) => setTripFormData({ ...tripFormData, notes: e.target.value })}
               />
 
+              <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                <FormControl fullWidth>
+                  <InputLabel id="trip-expense-mode-label">{t('manage.expenseMode')}</InputLabel>
+                  <Select
+                    labelId="trip-expense-mode-label"
+                    value={tripFormData.expense_mode}
+                    label={t('manage.expenseMode')}
+                    onChange={(e) => setTripFormData({ ...tripFormData, expense_mode: e.target.value as TripExpenseMode })}
+                    data-testid="trip-expense-mode"
+                  >
+                    {EXPENSE_MODES.map((value) => (
+                      <MenuItem key={value} value={value}>{t(`expenseMode.${value}`)}</MenuItem>
+                    ))}
+                  </Select>
+                  <FormHelperText>{t(`expenseModeHelp.${tripFormData.expense_mode}`)}</FormHelperText>
+                </FormControl>
+
+                {tripFormData.expense_mode !== 'personal' && (
+                  <TextField
+                    fullWidth
+                    label={t('manage.reimburser')}
+                    placeholder={t('manage.reimburserPlaceholder')}
+                    value={tripFormData.reimburser}
+                    onChange={(e) => setTripFormData({ ...tripFormData, reimburser: e.target.value })}
+                  />
+                )}
+              </Box>
+
               <TripBudgetFields
                 categories={categories}
                 value={tripFormData.fund}
@@ -456,6 +404,9 @@ export default function ManageTrips() {
           <Typography>
             {t('manage.deleteConfirm', { name: tripToDelete?.name ?? '' })}
           </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            {t('manage.deleteKeepsTransactions')}
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>{t('common:actions.cancel')}</Button>
@@ -464,6 +415,171 @@ export default function ManageTrips() {
           </Button>
         </DialogActions>
       </Dialog>
+    </>
+  );
+
+  if (openTrip) {
+    return (
+      <>
+        <TripDetailView trip={openTrip} onBack={() => setOpenTripId(null)} onEdit={(trip) => handleOpenTripDialog(trip)} />
+        {dialogs}
+      </>
+    );
+  }
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" component="h1" fontWeight="bold">
+          {t('manage.title')}
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => handleOpenTripDialog()}
+          sx={{ minWidth: 120 }}
+        >
+          {t('manage.addTrip')}
+        </Button>
+      </Box>
+
+      {error && !tripDialogOpen && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      <Box 
+        sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
+          gap: 3 
+        }}
+      >
+        {trips.map((trip) => {
+          const summary = summaries[trip.id];
+          const hasBusiness = (trip.expense_mode ?? 'personal') !== 'personal';
+          return (
+          <Card key={trip.id} data-testid={`trip-card-${trip.id}`} sx={{ display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ flexGrow: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Typography variant="h6" component="h2" fontWeight="bold">
+                    {trip.name}
+                  </Typography>
+                  <Box>
+                    <Tooltip title={t('manage.editTrip')}>
+                      <IconButton size="small" onClick={() => handleOpenTripDialog(trip)}>
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('manage.deleteTrip')}>
+                      <IconButton size="small" onClick={() => handleDeleteClick(trip)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
+
+                {trip.destination && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    <strong>{t('manage.destination')}</strong> {trip.destination}
+                  </Typography>
+                )}
+
+                {trip.purpose && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    <strong>{t('manage.purpose')}</strong> {trip.purpose}
+                  </Typography>
+                )}
+
+                <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                  <Chip
+                    label={getStatusLabel(trip.status)}
+                    color={getStatusColor(trip.status) as any}
+                    size="small"
+                  />
+                  <Chip 
+                    label={getCategoryLabel(trip.trip_category)} 
+                    variant="outlined"
+                    size="small"
+                  />
+                  {hasBusiness && (
+                    <Chip label={t(`expenseMode.${trip.expense_mode ?? 'personal'}`)} variant="outlined" size="small" color="primary" />
+                  )}
+                </Box>
+
+                {(trip.start_date || trip.end_date) && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    <strong>{t('manage.dates')}</strong>{' '}
+                    {t('manage.dateRange', { start: trip.start_date || t('manage.tbd'), end: trip.end_date || t('manage.tbd') })}
+                  </Typography>
+                )}
+
+                {trip.estimated_cost && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: fundStatus[trip.id] ? 1.5 : 0 }}>
+                    <strong>{t('manage.estimatedCost')}</strong> {money(trip.estimated_cost)}
+                  </Typography>
+                )}
+
+                {summary && summary.transaction_count > 0 && (
+                  <Box sx={{ display: 'flex', columnGap: 2, rowGap: 0.5, flexWrap: 'wrap', mt: 1, mb: fundStatus[trip.id] ? 1.5 : 0 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>{t('manage.spent')}</strong> {money(summary.gross_spend)}
+                    </Typography>
+                    {hasBusiness && (
+                      <>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>{t('manage.business')}</strong> {money(summary.business_share)}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" data-testid={`trip-card-personal-${trip.id}`}>
+                          <strong>{t('manage.personal')}</strong> {money(summary.personal_share)}
+                        </Typography>
+                      </>
+                    )}
+                  </Box>
+                )}
+
+                {fundStatus[trip.id] && <BudgetFundSummary fund={fundStatus[trip.id]} />}
+              </CardContent>
+              <CardActionArea
+                onClick={() => setOpenTripId(trip.id)}
+                aria-label={t('manage.openTripNamed', { name: trip.name })}
+                data-testid={`trip-open-${trip.id}`}
+                sx={{ px: 2, py: 1.25, borderTop: 1, borderColor: 'divider' }}
+              >
+                <Typography variant="button" color="primary">
+                  {t('manage.openTrip')}
+                </Typography>
+              </CardActionArea>
+            </Card>
+          );
+        })}
+      </Box>
+
+      {trips.length === 0 && (
+        <Card>
+          <CardContent>
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <TripIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                {t('manage.emptyTitle')}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                {t('manage.emptyHelp')}
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => handleOpenTripDialog()}
+              >
+                {t('manage.addFirstTrip')}
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {dialogs}
     </Box>
   );
 }

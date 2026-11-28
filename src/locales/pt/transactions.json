@@ -52,6 +52,7 @@
     "categories": "Categorias",
     "companies": "Estabelecimentos",
     "projects": "Projetos",
+    "trips": "Viagens",
     "accounts": "Contas",
     "users": "Usuários",
     "missingCategory": "Sem categoria",
@@ -264,6 +265,7 @@
     "setCategory": "Definir categoria",
     "setCompany": "Definir estabelecimento",
     "setProject": "Definir projeto",
+    "setTrip": "Definir viagem",
     "subscriptionLink": "Vínculo com assinatura",
     "clearSelection": "Limpar seleção"
   },
@@ -291,6 +293,16 @@
     "clearsTrip": "Definir um projeto remove qualquer rótulo de viagem destas transações.",
     "searchPlaceholder": "Pesquisar projetos...",
     "setFailed": "Falha ao definir projeto"
+  },
+  "bulkTrip": {
+    "title": "Definir viagem",
+    "applyTo_one": "Aplicar a {{count}} transação selecionada",
+    "applyTo_other": "Aplicar a {{count}} transações selecionadas",
+    "clearsProject": "Definir uma viagem remove qualquer rótulo de projeto destas transações.",
+    "businessDefault": "Esta é uma viagem profissional: as cobranças contarão como profissionais.",
+    "searchPlaceholder": "Pesquisar viagens...",
+    "remove": "Remover da viagem",
+    "setFailed": "Falha ao definir viagem"
   },
   "bulkSeries": {
     "title": "Vínculo com assinatura",

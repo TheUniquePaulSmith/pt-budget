@@ -24,6 +24,7 @@ import {
   PROJECT_QUERIES,
   SUBSCRIPTION_QUERIES,
   TRANSACTION_QUERIES,
+  TRIP_EXPENSE_QUERIES,
   TRIP_QUERIES,
   USER_QUERIES,
 } from './sqlQueries';
@@ -87,6 +88,8 @@ const existingTrip: Trip = {
   budget_category_id: null,
   monthly_contribution: null,
   contribution_start_month: null,
+  expense_mode: 'business',
+  reimburser: 'Acme Corp',
   created_at: '2026-04-01T00:00:00.000Z',
   updated_at: '2026-04-01T00:00:00.000Z',
 };
@@ -2170,6 +2173,8 @@ describe('DatabaseService trip helpers', () => {
         estimated_cost: existingTrip.estimated_cost,
         actual_cost: existingTrip.actual_cost,
         notes: existingTrip.notes,
+        expense_mode: existingTrip.expense_mode,
+        reimburser: '  Acme Corp  ',
       })
     ).resolves.toBe(existingTrip.id);
     await expect(service.getTripById(existingTrip.id)).resolves.toEqual({
@@ -2194,14 +2199,24 @@ describe('DatabaseService trip helpers', () => {
       null,
       null,
       null,
+      'business',
+      'Acme Corp',
     ]);
     expect(worker.query).toHaveBeenNthCalledWith(2, TRIP_QUERIES.GET_BY_ID, [
       existingTrip.id,
     ]);
     expect(worker.query).toHaveBeenNthCalledWith(3, TRIP_QUERIES.GET_BY_ID, [404]);
-    expect(worker.query).toHaveBeenNthCalledWith(4, TRIP_QUERIES.DELETE, [
-      existingTrip.id,
+    // Deleting a trip takes its rows off it and drops its business parts and
+    // reimbursements first, all in one transaction.
+    expect(vi.mocked(worker.query).mock.calls.slice(3).map((call) => call[0])).toEqual([
+      'BEGIN TRANSACTION',
+      TRIP_EXPENSE_QUERIES.DELETE_ALLOCATIONS_FOR_TRIP,
+      TRIP_EXPENSE_QUERIES.DELETE_RECEIPTS_FOR_TRIP,
+      TRIP_EXPENSE_QUERIES.UNLINK_TRIP_TRANSACTIONS,
+      TRIP_QUERIES.DELETE,
+      'COMMIT',
     ]);
+    expect(worker.query).toHaveBeenCalledWith(TRIP_QUERIES.DELETE, [existingTrip.id]);
   });
 
   it('merges trip updates with existing values before writing them', async () => {
@@ -2228,6 +2243,8 @@ describe('DatabaseService trip helpers', () => {
       null,
       null,
       null,
+      'business',
+      'Acme Corp',
       existingTrip.id,
     ]);
   });
@@ -2316,7 +2333,9 @@ describe('DatabaseService trip helpers', () => {
       TRANSACTION_QUERIES.UPDATE_CLASSIFICATION,
       [3, 4, null, null, 77]
     );
-    expect(query).toHaveBeenNthCalledWith(6, 'COMMIT');
+    // Business parts are kept in step before the commit.
+    expect(query).toHaveBeenNthCalledWith(6, TRIP_EXPENSE_QUERIES.PRUNE);
+    expect(query).toHaveBeenNthCalledWith(7, 'COMMIT');
   });
 
   it('rolls back transaction classifications when a referenced transaction is missing', async () => {
@@ -2565,6 +2584,8 @@ describe('DatabaseService transaction editing', () => {
       TRANSACTION_QUERIES.GET_RAW_BY_ID, // reads the transfer group so the other leg can be unpaired
       'BEGIN TRANSACTION',
       SUBSCRIPTION_QUERIES.DELETE_LINK_FOR_TRANSACTION,
+      TRIP_EXPENSE_QUERIES.DELETE_ALLOCATION_FOR_TRANSACTION,
+      TRIP_EXPENSE_QUERIES.UNLINK_RECEIPTS_FOR_TRANSACTION,
       TRANSACTION_QUERIES.DELETE,
       'COMMIT',
     ]);
@@ -2650,6 +2671,15 @@ describe('DatabaseService import batches and review filters', () => {
     const inclusiveAggregate = issued.find((sql) => sql.includes('COUNT(*) as total')) ?? '';
     expect(inclusiveAggregate).not.toMatch(whereExcludesHidden);
     expect(inclusiveAggregate).not.toContain('t.is_flagged = 1');
+
+    // Trip filter (schema v9): one placeholder per trip, ids bound in order.
+    issued.length = 0;
+    querySpy.mockClear();
+    await service.getTransactionsPaginated({ page: 0, pageSize: 25, sortBy: 'date', sortOrder: 'desc', tripIds: [3, 5] });
+    const tripAggregate = issued.find((sql) => sql.includes('COUNT(*) as total')) ?? '';
+    expect(tripAggregate).toContain('t.trip_id IN (?,?)');
+    const tripCall = querySpy.mock.calls.find(([sql]) => String(sql).includes('COUNT(*) as total'));
+    expect(tripCall?.[1]).toEqual(expect.arrayContaining([3, 5]));
   });
 });
 

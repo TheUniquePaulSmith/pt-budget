@@ -122,10 +122,16 @@ export const COMPANY_IDS = {
   RIVER_CITY_AUTO_SERVICE: 44,
   SUNRISE_DINER: 45,
   RIVER_COUNTY_TAX_COLLECTOR: 46,
+  // Trip 3: Avery's work conference that became a family weekend.
+  SKYBRIDGE_AIR: 47,
+  BAYVIEW_UNION_HOTEL: 48,
+  CITYRIDE: 49,
+  HARBORLIGHT_TRATTORIA: 50,
+  UNION_SQUARE_GIFTS: 51,
 };
 
 export const PROJECT_IDS = { MUDROOM: 1, FURNACE: 2, PATIO: 3 };
-export const TRIP_IDS = { BEACH_WEEK: 1, SPRING_BREAK: 2 };
+export const TRIP_IDS = { BEACH_WEEK: 1, SPRING_BREAK: 2, SF_SUMMIT: 3 };
 export const LOAN_IDS = { MORTGAGE: 1, AUTO: 2, FURNACE: 3 };
 
 /** Annual raise applied to every salary each calendar year inside the window. */
@@ -380,7 +386,27 @@ export function buildHouseholdScenario(config) {
       contribution_start_month: formatMonthKey(relMonth(-2)),
       monthDate: springMonth,
     },
-  ].map((trip) => ({ ...trip, status: statusFor(trip.start_date, trip.end_date) }));
+    {
+      // Last month: Avery's conference (business, reimbursed by the employer
+      // through payroll) stretched into a family weekend (personal).
+      id: TRIP_IDS.SF_SUMMIT,
+      name: 'Client Summit in San Francisco',
+      destination: 'San Francisco',
+      purpose: 'Work conference, then a family weekend',
+      trip_category: 'business',
+      start_date: buildMonthDateString(relMonth(-1), 9),
+      end_date: buildMonthDateString(relMonth(-1), 13),
+      estimated_cost: 2600,
+      actual_cost: 0,
+      notes: 'Flights, rides and two hotel nights go on the expense report; the weekend is ours',
+      budget_category_id: null,
+      monthly_contribution: null,
+      contribution_start_month: null,
+      expense_mode: 'mixed',
+      reimburser: 'Cedar Valley',
+      monthDate: relMonth(-1),
+    },
+  ].map((trip) => ({ expense_mode: 'personal', reimburser: null, ...trip, status: statusFor(trip.start_date, trip.end_date) }));
 
   const mortgagePrincipal = 286400;
   const mortgageRate = 6.125;
@@ -716,6 +742,11 @@ export function getHouseholdBaseRows(tableName, scenario) {
         { id: COMPANY_IDS.RIVER_CITY_AUTO_SERVICE, name: 'River City Auto Service' },
         { id: COMPANY_IDS.SUNRISE_DINER, name: 'Sunrise Diner' },
         { id: COMPANY_IDS.RIVER_COUNTY_TAX_COLLECTOR, name: 'River County Tax Collector' },
+        { id: COMPANY_IDS.SKYBRIDGE_AIR, name: 'SkyBridge Air' },
+        { id: COMPANY_IDS.BAYVIEW_UNION_HOTEL, name: 'Bayview Union Hotel' },
+        { id: COMPANY_IDS.CITYRIDE, name: 'CityRide' },
+        { id: COMPANY_IDS.HARBORLIGHT_TRATTORIA, name: 'Harborlight Trattoria' },
+        { id: COMPANY_IDS.UNION_SQUARE_GIFTS, name: 'Union Square Gifts' },
       ];
     case 'projects':
       return scenario.projects.map((project) => ({
@@ -750,6 +781,8 @@ export function getHouseholdBaseRows(tableName, scenario) {
         budget_category_id: trip.budget_category_id,
         monthly_contribution: trip.monthly_contribution,
         contribution_start_month: trip.contribution_start_month,
+        expense_mode: trip.expense_mode,
+        reimburser: trip.reimburser,
       }));
     case 'budget_plans':
       return scenario.budgetPlans.map((plan) => ({
@@ -1027,6 +1060,10 @@ export function buildHouseholdTransactionEntries(scenario) {
       transferKey: spec.transferKey ?? null,
       loanId: spec.loanId ?? null,
       recurringKey: spec.recurringKey ?? null,
+      // Trip business expenses (schema v9): the business part of a trip
+      // expense in cents ('full' = the whole charge) and its status.
+      tripBusinessCents: spec.tripBusiness === 'full' ? -amountCents : spec.tripBusiness != null ? toCents(spec.tripBusiness) : null,
+      tripStatus: spec.tripStatus ?? null,
       hour: spec.hour ?? 12,
       minute: spec.minute ?? 0,
     };
@@ -1042,6 +1079,15 @@ export function buildHouseholdTransactionEntries(scenario) {
   // the same day; card payments post a day later.
   const pushTransfer = (month, spec) => {
     const transferKey = `${month.monthKey}:${spec.key}`;
+    // Both legs or neither: a leg whose partner falls outside the window
+    // (a card payment posting the day after the reference day, or the day
+    // before the window starts) would be a lone money-in / money-out row that
+    // the app types as a refund or an expense, not a transfer.
+    const inWindow = (day) => {
+      const date = buildMonthDateString(month.monthDate, day);
+      return date >= scenario.rangeStart && date <= scenario.rangeEnd;
+    };
+    if (!inWindow(spec.day) || !inWindow(spec.inDay ?? spec.day)) return false;
     const outPushed = push(month, {
       day: spec.day,
       amount: -spec.amount,
@@ -1664,6 +1710,7 @@ export function buildHouseholdTransactionEntries(scenario) {
     // --- Projects and trips -------------------------------------------------
     for (const spec of projectSpendFor(scenario, month)) push(month, spec);
     for (const spec of tripSpendFor(scenario, month, random)) push(month, spec);
+    for (const spec of summitSpendFor(scenario, month)) push(month, spec);
 
     // --- Interest, on the last day of the month -------------------------------
     for (const [accountId, apy] of [
@@ -1735,6 +1782,81 @@ function tripSpendFor(scenario, month, random) {
   return specs;
 }
 
+// Trip 3, a mixed trip: Avery's charges are business (the hotel only for the
+// two conference nights), Jordan's and the weekend's are personal, and one
+// client dinner the employer turned down is denied. Its own random stream, so
+// adding it left every other row's amounts unchanged.
+function summitSpendFor(scenario, month) {
+  const summit = scenario.trips.find((trip) => trip.id === TRIP_IDS.SF_SUMMIT);
+  if (month.monthKey !== summit.start_date.slice(0, 7)) return [];
+  const random = createRandom(hashSeed(scenario.config.seed, 'sf-summit'));
+  const nightly = random.money(238, 262);
+  const hotel = roundCurrency(nightly * 4);
+  const avery = { accountId: ACCOUNT_IDS.REWARDS_VISA, cardId: CARD_IDS.REWARDS_VISA, tripId: TRIP_IDS.SF_SUMMIT };
+  const jordan = { accountId: ACCOUNT_IDS.REWARDS_VISA, cardId: CARD_IDS.REWARDS_VISA_JORDAN, tripId: TRIP_IDS.SF_SUMMIT };
+  return [
+    { ...avery, day: 2, amount: -random.money(412, 468), description: 'SKYBRIDGE AIR', categoryId: CATEGORY_IDS.TRAVEL, companyId: COMPANY_IDS.SKYBRIDGE_AIR, comment: 'Conference flights', tripBusiness: 'full', tripStatus: 'reimbursed', hour: 21, minute: 5 },
+    { ...jordan, day: 3, amount: -random.money(402, 455), description: 'SKYBRIDGE AIR', categoryId: CATEGORY_IDS.TRAVEL, companyId: COMPANY_IDS.SKYBRIDGE_AIR, comment: 'Flights for the weekend', hour: 20, minute: 40 },
+    { ...avery, day: 9, amount: -random.money(41, 58), description: 'CITYRIDE TRIP', categoryId: CATEGORY_IDS.TRANSPORTATION, companyId: COMPANY_IDS.CITYRIDE, comment: 'Airport to hotel', tripBusiness: 'full', tripStatus: 'reimbursed', hour: 13, minute: 25 },
+    { ...avery, day: 10, amount: -random.money(118, 146), description: 'HARBORLIGHT TRATTORIA', categoryId: CATEGORY_IDS.DINING_OUT, companyId: COMPANY_IDS.HARBORLIGHT_TRATTORIA, comment: 'Client dinner', tripBusiness: 'full', tripStatus: 'denied', hour: 21, minute: 10 },
+    { ...avery, day: 10, amount: -random.money(19, 27), description: 'CITYRIDE TRIP', categoryId: CATEGORY_IDS.TRANSPORTATION, companyId: COMPANY_IDS.CITYRIDE, tripBusiness: 'full', tripStatus: 'reimbursed', hour: 23, minute: 0 },
+    { ...jordan, day: 11, amount: -random.money(84, 112), description: 'HARBORLIGHT TRATTORIA', categoryId: CATEGORY_IDS.DINING_OUT, companyId: COMPANY_IDS.HARBORLIGHT_TRATTORIA, hour: 19, minute: 50 },
+    { ...jordan, day: 12, amount: -random.money(63, 91), description: 'UNION SQUARE GIFTS', categoryId: CATEGORY_IDS.SHOPPING, companyId: COMPANY_IDS.UNION_SQUARE_GIFTS, comment: 'Souvenirs', hour: 15, minute: 35 },
+    { ...jordan, day: 12, amount: -random.money(28, 39), description: 'CITYRIDE TRIP', categoryId: CATEGORY_IDS.TRANSPORTATION, companyId: COMPANY_IDS.CITYRIDE, hour: 17, minute: 15 },
+    { ...avery, day: 13, amount: -hotel, description: 'BAYVIEW UNION HOTEL', categoryId: CATEGORY_IDS.TRAVEL, companyId: COMPANY_IDS.BAYVIEW_UNION_HOTEL, comment: 'Four nights; two were the conference', tripBusiness: roundCurrency(nightly * 2), tripStatus: 'reimbursed', hour: 11, minute: 0 },
+    { ...avery, day: 13, amount: -random.money(44, 61), description: 'CITYRIDE TRIP', categoryId: CATEGORY_IDS.TRANSPORTATION, companyId: COMPANY_IDS.CITYRIDE, comment: 'Hotel to airport', tripBusiness: 'full', tripStatus: 'reimbursed', hour: 12, minute: 30 },
+  ];
+}
+
+/** What the employer paid back: the claim less a parking fee it did not cover. */
+const SUMMIT_REIMBURSEMENT_SHORTFALL_CENTS = 1460;
+
+/**
+ * Allocations for every row that carries a business part, and the one
+ * reimbursement: folded into Avery's first paycheck after the trip, as it
+ * usually is. Needs the emitted rows (their ids), so it runs after them.
+ */
+export function buildTripExpenseRows(tableName, scenario, rowsWithEntries) {
+  if (tableName !== 'trip_expense_allocations' && tableName !== 'trip_reimbursements') return null;
+  if (!rowsWithEntries) return [];
+  if (tableName === 'trip_expense_allocations') {
+    // The parts marked reimbursed were paid by the summit's one receipt.
+    const receipt = buildTripExpenseRows('trip_reimbursements', scenario, rowsWithEntries)[0] ?? null;
+    return rowsWithEntries
+      .filter(({ entry }) => entry.tripId != null && entry.tripBusinessCents != null)
+      .map(({ row, entry }) => ({
+        transaction_id: row.id,
+        trip_id: entry.tripId,
+        business_amount: fromCents(entry.tripBusinessCents),
+        status: entry.tripStatus ?? 'pending',
+        note: null,
+        reimbursement_id:
+          receipt && entry.tripStatus === 'reimbursed' && entry.tripId === receipt.trip_id ? receipt.id : null,
+      }));
+  }
+  if (tableName === 'trip_reimbursements') {
+    const summit = scenario.trips.find((trip) => trip.id === TRIP_IDS.SF_SUMMIT);
+    const claimedCents = rowsWithEntries
+      .filter(({ entry }) => entry.tripId === TRIP_IDS.SF_SUMMIT && entry.tripBusinessCents != null && entry.tripStatus !== 'denied')
+      .reduce((sum, { entry }) => sum + entry.tripBusinessCents, 0);
+    const paycheck = rowsWithEntries
+      .filter(({ row, entry }) => entry.companyId === COMPANY_IDS.PRIMARY_PAYROLL && row.amount > 0 && row.date > summit.end_date)
+      .sort((a, b) => a.row.date.localeCompare(b.row.date))[0];
+    if (!paycheck || claimedCents === 0) return [];
+    return [
+      {
+        id: 1,
+        trip_id: TRIP_IDS.SF_SUMMIT,
+        amount: fromCents(claimedCents - SUMMIT_REIMBURSEMENT_SHORTFALL_CENTS),
+        received_date: paycheck.row.date,
+        transaction_id: paycheck.row.id,
+        note: 'On the payslip as expense reimbursement; airport parking was not covered',
+      },
+    ];
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Expectations: what the app should show once its scans have run
 // ---------------------------------------------------------------------------
@@ -1769,7 +1891,7 @@ export function buildSampleDataExpectations({ rowsWithEntries, scenario, meta })
   const recurring = new Map();
   const expenseRowsByDescription = new Map();
   const projectSpend = new Map(scenario.projects.map((project) => [project.id, { rows: 0, spendCents: 0 }]));
-  const tripSpend = new Map(scenario.trips.map((trip) => [trip.id, { rows: 0, spendCents: 0 }]));
+  const tripSpend = new Map(scenario.trips.map((trip) => [trip.id, { rows: 0, spendCents: 0, businessCents: 0, deniedCents: 0 }]));
   const byType = { income: 0, expense: 0, refund: 0, transfer: 0 };
   let singleLegTransfers = 0;
 
@@ -1851,6 +1973,11 @@ export function buildSampleDataExpectations({ rowsWithEntries, scenario, meta })
       const spend = tripSpend.get(row.trip_id);
       spend.rows += 1;
       spend.spendCents += -amountCents;
+      if (entry.tripBusinessCents != null) {
+        const capped = Math.min(entry.tripBusinessCents, -amountCents);
+        if (entry.tripStatus === 'denied') spend.deniedCents += capped;
+        else spend.businessCents += capped;
+      }
     }
     months.set(monthKey, month);
   }
@@ -1995,6 +2122,16 @@ export function buildSampleDataExpectations({ rowsWithEntries, scenario, meta })
       endDate: trip.end_date,
       linkedRows: tripSpend.get(trip.id).rows,
       linkedSpend: fromCents(tripSpend.get(trip.id).spendCents),
+      // Trip business expenses (schema v9), as the trip's Overview shows them.
+      expenseMode: trip.expense_mode,
+      businessShare: fromCents(tripSpend.get(trip.id).businessCents),
+      personalShare: fromCents(tripSpend.get(trip.id).spendCents - tripSpend.get(trip.id).businessCents),
+      deniedShare: fromCents(tripSpend.get(trip.id).deniedCents),
+      received: fromCents(
+        (buildTripExpenseRows('trip_reimbursements', scenario, rowsWithEntries) ?? [])
+          .filter((receipt) => receipt.trip_id === trip.id)
+          .reduce((sum, receipt) => sum + toCents(receipt.amount), 0)
+      ),
     })),
   };
 }

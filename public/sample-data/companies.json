@@ -276,6 +276,36 @@
       "name": "River County Tax Collector",
       "created_at": "2024-02-15T00:00:00.000Z",
       "updated_at": "2024-02-15T00:00:00.000Z"
+    },
+    {
+      "id": 47,
+      "name": "SkyBridge Air",
+      "created_at": "2024-02-16T00:00:00.000Z",
+      "updated_at": "2024-02-16T00:00:00.000Z"
+    },
+    {
+      "id": 48,
+      "name": "Bayview Union Hotel",
+      "created_at": "2024-02-17T00:00:00.000Z",
+      "updated_at": "2024-02-17T00:00:00.000Z"
+    },
+    {
+      "id": 49,
+      "name": "CityRide",
+      "created_at": "2024-02-18T00:00:00.000Z",
+      "updated_at": "2024-02-18T00:00:00.000Z"
+    },
+    {
+      "id": 50,
+      "name": "Harborlight Trattoria",
+      "created_at": "2024-02-19T00:00:00.000Z",
+      "updated_at": "2024-02-19T00:00:00.000Z"
+    },
+    {
+      "id": 51,
+      "name": "Union Square Gifts",
+      "created_at": "2024-02-20T00:00:00.000Z",
+      "updated_at": "2024-02-20T00:00:00.000Z"
     }
   ]
 }

@@ -574,6 +574,33 @@ test('capture landing-site screenshots', async ({ page }, testInfo) => {
     await settle(page, 2000);
     await shot(page, 'trips');
   });
+  // The household's mixed work trip: business part, personal rest, the
+  // reimbursement that came in a paycheck. Read-only: the split dialog is
+  // opened and closed without saving.
+  await step('trip-detail', async () => {
+    await navigateToPage(page, 'trips');
+    await page.getByRole('button', { name: 'View details of Client Summit in San Francisco' }).click();
+    await expect(page.getByTestId('trip-figure-personal')).toBeVisible({ timeout: 30_000 });
+    await settle(page, 1000);
+    await shot(page, 'trip-overview');
+    await page.getByTestId('trip-tab-transactions').click();
+    await expect(page.getByRole('button', { name: 'Split BAYVIEW UNION HOTEL' })).toBeVisible({ timeout: 15_000 });
+    await settle(page, 1000);
+    await shot(page, 'trip-transactions');
+    await page.getByRole('button', { name: 'Split BAYVIEW UNION HOTEL' }).click();
+    await page.getByRole('dialog', { name: 'Business and personal' }).waitFor({ state: 'visible', timeout: 15_000 });
+    await settle(page, 500);
+    await shot(page, 'trip-split');
+    await closeDialogs(page);
+    await page.getByTestId('trip-tab-insights').click();
+    await expect(page.getByTestId('trip-insights-total')).toBeVisible({ timeout: 15_000 });
+    await settle(page, 2000);
+    await page.getByTestId('trip-insights-total').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    await page.mouse.wheel(0, -260);
+    await settle(page, 1500);
+    await shot(page, 'trip-insights');
+    await page.getByTestId('trip-detail-back').click();
+  });
 
   // --- Notifications --------------------------------------------------------
   await step('notifications', async () => {

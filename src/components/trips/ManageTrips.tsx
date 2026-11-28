@@ -522,7 +522,7 @@ export default function ManageTrips() {
                 )}
 
                 {summary && summary.transaction_count > 0 && (
-                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: fundStatus[trip.id] ? 1.5 : 0 }}>
+                  <Box sx={{ display: 'flex', columnGap: 2, rowGap: 0.5, flexWrap: 'wrap', mt: 1, mb: fundStatus[trip.id] ? 1.5 : 0 }}>
                     <Typography variant="body2" color="text.secondary">
                       <strong>{t('manage.spent')}</strong> {money(summary.gross_spend)}
                     </Typography>

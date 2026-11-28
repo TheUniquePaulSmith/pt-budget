@@ -344,6 +344,11 @@ export default function TripTransactionsTab({ trip, rows }: TripTransactionsTabP
           initialState={{ pagination: { paginationModel: { pageSize: 25, page: 0 } } }}
           emptyMessage={t('transactions.empty')}
           height={560}
+          // Custom cells (amounts, the account label) sit on the row's centre line like the chips.
+          sx={{
+            '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center' },
+            '& .MuiDataGrid-cell--textRight': { justifyContent: 'flex-end' },
+          }}
         />
       </Paper>
 

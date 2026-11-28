@@ -157,10 +157,10 @@ export default function TripInsightsTab({ trip, rows }: TripInsightsTabProps) {
               },
             ]}
             yAxis={[{ scaleType: 'band', data: shown.map((bucket) => bucketName(dimension, bucket)), width: compact ? 90 : 140 }]}
-            xAxis={[{ valueFormatter: (value: number) => money(value) }]}
+            xAxis={[{ valueFormatter: (value: number) => money(value, undefined, { whole: true }) }]}
             hideLegend
             onItemClick={(_, item) => addFilter(dimension, shown[item.dataIndex])}
-            margin={{ top: 10, right: 20, bottom: 24, left: 10 }}
+            margin={{ top: 10, right: 32, bottom: 24, left: 10 }}
           />
         )}
       </Paper>
@@ -301,7 +301,7 @@ export default function TripInsightsTab({ trip, rows }: TripInsightsTabProps) {
             height={220}
             series={[{ data: insights.byDay.map((day) => day.value), valueFormatter: (value: number | null) => (value == null ? '' : money(value)) }]}
             xAxis={[{ scaleType: 'band', data: insights.byDay.map((day) => date(String(day.key))) }]}
-            yAxis={[{ width: 70, valueFormatter: (value: number) => money(value) }]}
+            yAxis={[{ width: 70, valueFormatter: (value: number) => money(value, undefined, { whole: true }) }]}
             hideLegend
             margin={{ top: 10, right: 10, bottom: 24, left: 10 }}
           />

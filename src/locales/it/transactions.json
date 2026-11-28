@@ -52,6 +52,7 @@
     "categories": "Categorie",
     "companies": "Esercenti",
     "projects": "Progetti",
+    "trips": "Viaggi",
     "accounts": "Conti",
     "users": "Utenti",
     "missingCategory": "Senza categoria",
@@ -264,6 +265,7 @@
     "setCategory": "Imposta categoria",
     "setCompany": "Imposta esercente",
     "setProject": "Imposta progetto",
+    "setTrip": "Imposta viaggio",
     "subscriptionLink": "Collegamento abbonamento",
     "clearSelection": "Annulla selezione"
   },
@@ -291,6 +293,16 @@
     "clearsTrip": "Impostare un progetto rimuove qualsiasi etichetta di viaggio da queste transazioni.",
     "searchPlaceholder": "Cerca progetti...",
     "setFailed": "Impossibile impostare il progetto"
+  },
+  "bulkTrip": {
+    "title": "Imposta viaggio",
+    "applyTo_one": "Applica a {{count}} transazione selezionata",
+    "applyTo_other": "Applica a {{count}} transazioni selezionate",
+    "clearsProject": "Impostando un viaggio si rimuove l'eventuale progetto da queste transazioni.",
+    "businessDefault": "Questo è un viaggio di lavoro: gli addebiti contano come spese di lavoro.",
+    "searchPlaceholder": "Cerca viaggi...",
+    "remove": "Rimuovi dal viaggio",
+    "setFailed": "Impossibile impostare il viaggio"
   },
   "bulkSeries": {
     "title": "Collegamento abbonamento",

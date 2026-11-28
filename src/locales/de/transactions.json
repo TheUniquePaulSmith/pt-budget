@@ -52,6 +52,7 @@
     "categories": "Kategorien",
     "companies": "Händler",
     "projects": "Projekte",
+    "trips": "Reisen",
     "accounts": "Konten",
     "users": "Benutzer",
     "missingCategory": "Ohne Kategorie",
@@ -264,6 +265,7 @@
     "setCategory": "Kategorie festlegen",
     "setCompany": "Händler festlegen",
     "setProject": "Projekt festlegen",
+    "setTrip": "Reise festlegen",
     "subscriptionLink": "Abo-Verknüpfung",
     "clearSelection": "Auswahl aufheben"
   },
@@ -291,6 +293,16 @@
     "clearsTrip": "Das Festlegen eines Projekts entfernt eine vorhandene Reisezuordnung dieser Transaktionen.",
     "searchPlaceholder": "Projekte durchsuchen...",
     "setFailed": "Projekt konnte nicht festgelegt werden"
+  },
+  "bulkTrip": {
+    "title": "Reise festlegen",
+    "applyTo_one": "Auf {{count}} ausgewählte Transaktion anwenden",
+    "applyTo_other": "Auf {{count}} ausgewählte Transaktionen anwenden",
+    "clearsProject": "Beim Festlegen einer Reise wird die Projektzuordnung dieser Transaktionen entfernt.",
+    "businessDefault": "Dies ist eine Geschäftsreise: Die Abbuchungen zählen als geschäftlich.",
+    "searchPlaceholder": "Reisen suchen...",
+    "remove": "Von der Reise entfernen",
+    "setFailed": "Reise konnte nicht festgelegt werden"
   },
   "bulkSeries": {
     "title": "Abo-Verknüpfung",

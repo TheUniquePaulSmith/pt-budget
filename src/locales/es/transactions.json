@@ -52,6 +52,7 @@
     "categories": "Categorías",
     "companies": "Comercios",
     "projects": "Proyectos",
+    "trips": "Viajes",
     "accounts": "Cuentas",
     "users": "Usuarios",
     "missingCategory": "Sin categoría",
@@ -264,6 +265,7 @@
     "setCategory": "Asignar categoría",
     "setCompany": "Asignar comercio",
     "setProject": "Asignar proyecto",
+    "setTrip": "Asignar viaje",
     "subscriptionLink": "Vínculo de suscripción",
     "clearSelection": "Borrar selección"
   },
@@ -291,6 +293,16 @@
     "clearsTrip": "Al asignar un proyecto se quita cualquier etiqueta de viaje de estas transacciones.",
     "searchPlaceholder": "Buscar proyectos...",
     "setFailed": "No se pudo asignar el proyecto"
+  },
+  "bulkTrip": {
+    "title": "Asignar viaje",
+    "applyTo_one": "Aplicar a {{count}} transacción seleccionada",
+    "applyTo_other": "Aplicar a {{count}} transacciones seleccionadas",
+    "clearsProject": "Al asignar un viaje se quita la etiqueta de proyecto de estas transacciones.",
+    "businessDefault": "Este es un viaje de empresa: los cargos contarán como de empresa.",
+    "searchPlaceholder": "Buscar viajes...",
+    "remove": "Quitar del viaje",
+    "setFailed": "No se pudo asignar el viaje"
   },
   "bulkSeries": {
     "title": "Vínculo de suscripción",

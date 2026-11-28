@@ -51,6 +51,7 @@
     "categories": "카테고리",
     "companies": "가맹점",
     "projects": "프로젝트",
+    "trips": "여행",
     "accounts": "계좌",
     "users": "사용자",
     "missingCategory": "카테고리 없음",
@@ -258,6 +259,7 @@
     "setCategory": "카테고리 설정",
     "setCompany": "가맹점 설정",
     "setProject": "프로젝트 설정",
+    "setTrip": "여행 설정",
     "subscriptionLink": "구독 연결",
     "clearSelection": "선택 해제"
   },
@@ -282,6 +284,15 @@
     "clearsTrip": "프로젝트를 설정하면 이 거래들의 여행 라벨이 지워져요.",
     "searchPlaceholder": "프로젝트 검색...",
     "setFailed": "프로젝트를 설정하지 못했어요"
+  },
+  "bulkTrip": {
+    "title": "여행 설정",
+    "applyTo_other": "선택한 거래 {{count}}건에 적용",
+    "clearsProject": "여행을 설정하면 이 거래들의 프로젝트 라벨이 해제돼요.",
+    "businessDefault": "업무 출장이에요. 결제는 업무 경비로 처리돼요.",
+    "searchPlaceholder": "여행 검색...",
+    "remove": "여행에서 제외",
+    "setFailed": "여행 설정에 실패했어요"
   },
   "bulkSeries": {
     "title": "구독 연결",

@@ -62,7 +62,16 @@ interface Expectations {
   subscriptions: Array<{ description: string; amount: number; occurrences: number; detectable: boolean; cadence: string }>;
   budget: { plans: Array<{ effectiveMonth: string; totalAmount: number }>; funds: Array<{ kind: string; id: number }> };
   projects: Array<{ id: number; linkedRows: number; linkedSpend: number }>;
-  trips: Array<{ id: number; linkedRows: number; linkedSpend: number }>;
+  trips: Array<{
+    id: number;
+    linkedRows: number;
+    linkedSpend: number;
+    expenseMode?: string;
+    businessShare?: number;
+    personalShare?: number;
+    deniedShare?: number;
+    received?: number;
+  }>;
 }
 
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -353,6 +362,25 @@ describe.skipIf(skipReason !== null)(`sample-data expectations${skipReason ? ` (
       expect(row.rows, `trip ${trip.id}`).toBe(trip.linkedRows);
       expect(row.spend, `trip ${trip.id}`).toBeCloseTo(trip.linkedSpend, 2);
     }
+    // Trip business expenses (schema v8): the figures each trip's Overview shows.
+    const summaries = await service.tripExpenses.getAllSummaries();
+    for (const trip of manifest.trips) {
+      const summary = summaries[trip.id];
+      const trips = await service.getTrips();
+      expect(trips.find((candidate) => candidate.id === trip.id)?.expense_mode, `trip ${trip.id} mode`).toBe(trip.expenseMode ?? 'personal');
+      if (trip.linkedRows === 0) continue;
+      expect(summary?.gross_spend, `trip ${trip.id} gross`).toBeCloseTo(trip.linkedSpend, 2);
+      expect(summary?.business_share, `trip ${trip.id} business`).toBeCloseTo(trip.businessShare ?? 0, 2);
+      expect(summary?.personal_share, `trip ${trip.id} personal`).toBeCloseTo(trip.personalShare ?? trip.linkedSpend, 2);
+      expect(summary?.denied_share, `trip ${trip.id} denied`).toBeCloseTo(trip.deniedShare ?? 0, 2);
+      expect(summary?.received, `trip ${trip.id} received`).toBeCloseTo(trip.received ?? 0, 2);
+    }
+    // The mixed trip shows the whole feature: business, personal, denied and a reimbursement short of the claim.
+    const mixed = manifest.trips.find((trip) => trip.expenseMode === 'mixed');
+    expect(mixed?.businessShare).toBeGreaterThan(0);
+    expect(mixed?.deniedShare).toBeGreaterThan(0);
+    expect(summaries[mixed!.id].outstanding).toBeGreaterThan(0);
+
     const funds = await service.budgetFunds.listLinkedFunds();
     expect(funds.map((fund) => `${fund.entity_type}:${fund.entity_id}`).sort()).toEqual(
       manifest.budget.funds.map((fund) => `${fund.kind}:${fund.id}`).sort()

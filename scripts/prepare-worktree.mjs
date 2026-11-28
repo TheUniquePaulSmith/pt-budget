@@ -40,6 +40,8 @@ const GENERATED_FIXTURES = [
   'income_sources',
   'loans',
   'loan_match_rules',
+  'trip_expense_allocations',
+  'trip_reimbursements',
   'classification_rules',
   'account_balance_snapshots',
   'expectations',

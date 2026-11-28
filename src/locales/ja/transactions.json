@@ -51,6 +51,7 @@
     "categories": "カテゴリ",
     "companies": "取引先",
     "projects": "プロジェクト",
+    "trips": "旅行",
     "accounts": "口座",
     "users": "ユーザー",
     "missingCategory": "カテゴリ未設定",
@@ -258,6 +259,7 @@
     "setCategory": "カテゴリを設定",
     "setCompany": "取引先を設定",
     "setProject": "プロジェクトを設定",
+    "setTrip": "旅行を設定",
     "subscriptionLink": "サブスクリプションのリンク",
     "clearSelection": "選択を解除"
   },
@@ -282,6 +284,15 @@
     "clearsTrip": "プロジェクトを設定すると、これらの取引の旅行ラベルは解除されます。",
     "searchPlaceholder": "プロジェクトを検索...",
     "setFailed": "プロジェクトの設定に失敗しました"
+  },
+  "bulkTrip": {
+    "title": "旅行を設定",
+    "applyTo_other": "選択した {{count}} 件の取引に適用",
+    "clearsProject": "旅行を設定すると、これらの取引のプロジェクトラベルは解除されます。",
+    "businessDefault": "出張の旅行です。支払いは出張経費として扱われます。",
+    "searchPlaceholder": "旅行を検索...",
+    "remove": "旅行から外す",
+    "setFailed": "旅行の設定に失敗しました"
   },
   "bulkSeries": {
     "title": "サブスクリプションのリンク",

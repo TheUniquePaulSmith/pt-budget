@@ -69,6 +69,7 @@ import TransactionBulkActionsBar, { BulkActionKind } from './TransactionBulkActi
 import BulkSetCategoryDialog from './BulkSetCategoryDialog';
 import BulkSetCompanyDialog from './BulkSetCompanyDialog';
 import BulkSetProjectDialog from './BulkSetProjectDialog';
+import BulkSetTripDialog from './BulkSetTripDialog';
 import BulkSubscriptionLinkDialog from './BulkSubscriptionLinkDialog';
 import { Transaction, TransactionType, Category, Company, Account, TransactionsPaginatedResult, User } from '@/types/database';
 import { format } from 'date-fns';
@@ -101,6 +102,7 @@ export default function TransactionReport() {
     categories,
     companies,
     projects,
+    trips = [],
     accounts,
     users = [],
     recurringSeries = [],
@@ -147,6 +149,7 @@ export default function TransactionReport() {
   const [categoryFilter, setCategoryFilter] = useState<number[]>([]);
   const [companyFilter, setCompanyFilter] = useState<number[]>([]);
   const [projectFilter, setProjectFilter] = useState<number[]>([]);
+  const [tripFilter, setTripFilter] = useState<number[]>([]);
   const [accountFilter, setAccountFilter] = useState<number[]>([]);
   const [userFilter, setUserFilter] = useState<number[]>([]);
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -254,7 +257,7 @@ export default function TransactionReport() {
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     setPage(0);
-  }, [debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, needsTypeReview, rowsPerPage]);
+  }, [debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, tripFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, needsTypeReview, rowsPerPage]);
 
   // How many rows carry an automatic, unconfirmed type (drives the review banner).
   useEffect(() => {
@@ -295,6 +298,7 @@ export default function TransactionReport() {
           categoryIds: categoryFilter.length > 0 ? categoryFilter : undefined,
           companyIds: companyFilter.length > 0 ? companyFilter : undefined,
           projectIds: projectFilter.length > 0 ? projectFilter : undefined,
+          tripIds: tripFilter.length > 0 ? tripFilter : undefined,
           accountIds: accountFilter.length > 0 ? accountFilter : undefined,
           userIds: userFilter.length > 0 ? userFilter : undefined,
           startDate: startDate ? format(startDate, 'yyyy-MM-dd') : undefined,
@@ -317,7 +321,7 @@ export default function TransactionReport() {
     };
     fetch();
     return () => { cancelled = true; };
-  }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, needsTypeReview, getTransactionsPaginated]);
+  }, [transactionVersion, page, rowsPerPage, orderBy, order, debouncedSearch, typeFilter, categoryFilter, companyFilter, projectFilter, tripFilter, accountFilter, userFilter, startDate, endDate, minAmount, maxAmount, missingCategory, missingCompany, missingProject, flaggedOnly, includeExcluded, needsTypeReview, getTransactionsPaginated]);
 
   const columnLabels = {
     date: t('common:fields.date'), description: t('common:fields.description'), comment: t('common:fields.comment'), category: t('common:fields.category'),
@@ -343,6 +347,7 @@ export default function TransactionReport() {
     setCategoryFilter([]);
     setCompanyFilter([]);
     setProjectFilter([]);
+    setTripFilter([]);
     setAccountFilter([]);
     setUserFilter([]);
     setStartDate(null);
@@ -387,6 +392,7 @@ export default function TransactionReport() {
         categoryIds: categoryFilter.length > 0 ? categoryFilter : undefined,
         companyIds: companyFilter.length > 0 ? companyFilter : undefined,
         projectIds: projectFilter.length > 0 ? projectFilter : undefined,
+        tripIds: tripFilter.length > 0 ? tripFilter : undefined,
         accountIds: accountFilter.length > 0 ? accountFilter : undefined,
         userIds: userFilter.length > 0 ? userFilter : undefined,
         startDate: startDate ? format(startDate, 'yyyy-MM-dd') : undefined,
@@ -817,6 +823,9 @@ export default function TransactionReport() {
               <Autocomplete multiple options={projects} getOptionLabel={(o) => o.name} value={projects.filter((p: any) => projectFilter.includes(p.id))} onChange={(_, v) => setProjectFilter(v.map(x => x.id))}
                 renderInput={(p) => <TextField {...p} label={t('report.projects')} />}
                 renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.name} size="small" {...cp} />; })} />
+              <Autocomplete multiple options={trips} getOptionLabel={(o) => o.name} value={trips.filter((trip) => tripFilter.includes(trip.id))} onChange={(_, v) => setTripFilter(v.map(x => x.id))}
+                renderInput={(p) => <TextField {...p} label={t('report.trips')} inputProps={{ ...p.inputProps, 'data-testid': 'transactions-filter-trips' }} />}
+                renderTags={(v, gp) => v.map((o, i) => { const { key, ...cp } = gp({ index: i }); return <Chip key={key} label={o.name} size="small" {...cp} />; })} />
               <Autocomplete multiple options={accounts}
                 getOptionLabel={(o) => accountLabels.get(o.id)?.text ?? o.name}
                 filterOptions={filterAccountOptions}
@@ -945,6 +954,11 @@ export default function TransactionReport() {
         />
         <BulkSetProjectDialog
           open={bulkAction === 'project'}
+          transactionIds={selectedIds}
+          onClose={() => setBulkAction(null)}
+        />
+        <BulkSetTripDialog
+          open={bulkAction === 'trip'}
           transactionIds={selectedIds}
           onClose={() => setBulkAction(null)}
         />

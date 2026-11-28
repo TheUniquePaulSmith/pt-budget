@@ -51,6 +51,7 @@
     "categories": "分类",
     "companies": "商家",
     "projects": "项目",
+    "trips": "旅行",
     "accounts": "账户",
     "users": "用户",
     "missingCategory": "缺少分类",
@@ -258,6 +259,7 @@
     "setCategory": "设置分类",
     "setCompany": "设置商家",
     "setProject": "设置项目",
+    "setTrip": "设置旅行",
     "subscriptionLink": "订阅关联",
     "clearSelection": "清除选择"
   },
@@ -282,6 +284,15 @@
     "clearsTrip": "设置项目会清除这些交易上的旅行标签。",
     "searchPlaceholder": "搜索项目...",
     "setFailed": "设置项目失败"
+  },
+  "bulkTrip": {
+    "title": "设置旅行",
+    "applyTo_other": "应用于所选的{{count}}笔交易",
+    "clearsProject": "设置旅行会清除这些交易上的项目标签。",
+    "businessDefault": "这是一次公务旅行：这些费用将按公务计算。",
+    "searchPlaceholder": "搜索旅行...",
+    "remove": "从旅行中移除",
+    "setFailed": "设置旅行失败"
   },
   "bulkSeries": {
     "title": "订阅关联",

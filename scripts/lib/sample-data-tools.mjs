@@ -8,6 +8,7 @@ import {
   buildSampleDataExpectations as buildHouseholdExpectations,
   getCardIdForAccount,
   getHouseholdBaseRows,
+  buildTripExpenseRows,
 } from './sample-data-household.mjs';
 
 const CREATE_TABLES_BLOCK_PATTERN =
@@ -74,6 +75,9 @@ export const MANAGED_SAMPLE_TABLES = [
   'classification_rules',
   'account_balance_snapshots',
   'transactions',
+  // Schema v8: these point at transaction ids, so they come after them.
+  'trip_expense_allocations',
+  'trip_reimbursements',
 ];
 /** File next to the fixtures that records what the app should show for them. */
 export const EXPECTATIONS_FILE_NAME = 'expectations.json';
@@ -367,6 +371,8 @@ export function buildSampleDataBundle(
         ...item,
         row: rows[index],
       }));
+      // Trip business parts need the emitted ids, and only hold for natural rows.
+      context.transactionRowsWithEntries = transactionBundle.plan.natural ? transactionBundle.rowsWithEntries : null;
 
       context.idsByTable.set(
         tableName,
@@ -979,6 +985,8 @@ function parseTableSql(constantName, sql) {
 }
 
 function getBaseRowsForTable(tableName, context) {
+  const tripExpenseRows = buildTripExpenseRows(tableName, context.scenario, context.transactionRowsWithEntries);
+  if (tripExpenseRows) return tripExpenseRows;
   const householdRows = getHouseholdBaseRows(tableName, context.scenario);
 
   if (householdRows) {
@@ -1998,7 +2006,9 @@ function validateRowsForSchema(schemaTable, rows, issues) {
       return;
     }
 
-    if (typeof row.id !== 'number') {
+    // A table keyed by another column (trip_expense_allocations: transaction_id) has no id.
+    const hasIdColumn = schemaTable.columns.some((column) => column.columnName === 'id');
+    if (hasIdColumn && typeof row.id !== 'number') {
       issues.push({
         code: 'missing-id',
         tableName: schemaTable.tableName,
